@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Plus, Minus, X, Send, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check } from "lucide-react";
+import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════
 // DATA
@@ -275,7 +275,7 @@ function TabContent({ items, cart, globalTier, handlers }) {
 // OFFER / ANGEBOT VIEW
 // ═══════════════════════════════════════════════════════
 
-function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onSend, onCopy, copied }) {
+function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPrint, onCopy, copied }) {
   const monthlyItems = Object.entries(cart).filter(([id,c]) => isMonthly(ALL[id], c.mode));
   const onceItems = Object.entries(cart).filter(([id,c]) => !isMonthly(ALL[id], c.mode));
 
@@ -368,6 +368,39 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onSen
         </div>
       )}
 
+      {/* Yearly summary */}
+      {(totals.monthly > 0 || totals.once > 0) && (
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl mb-4 text-white overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/10">
+            <span className="font-bold" style={{fontSize:13}}>JAHRESÜBERSICHT</span>
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <div>
+                <div className="text-sm text-slate-300">Erstes Jahr</div>
+                <div className="text-xs text-slate-400">(12× monatlich + einmalig)</div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-slate-400">€ {fmt(totals.monthly * 12 + totals.once)} netto</div>
+                <div className="font-bold text-lg text-emerald-400">€ {fmt((totals.monthly * 12 + totals.once) * 1.2)} brutto</div>
+              </div>
+            </div>
+            {totals.monthly > 0 && (
+              <div className="flex justify-between items-center pt-3 border-t border-white/10">
+                <div>
+                  <div className="text-sm text-slate-300">Folgejahre</div>
+                  <div className="text-xs text-slate-400">(12× monatlich)</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-slate-400">€ {fmt(totals.monthly * 12)} netto</div>
+                  <div className="font-bold text-lg text-emerald-400">€ {fmt(totals.monthly * 12 * 1.2)} brutto</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Notes */}
       <div className="bg-white rounded-xl border-2 border-slate-200 mb-4" style={{padding:'16px'}}>
         <span className="font-bold text-slate-700 block mb-2" style={{fontSize:13}}>Anmerkungen</span>
@@ -377,18 +410,18 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onSen
 
       {/* Actions */}
       {Object.keys(cart).length > 0 && (
-        <div className="flex gap-3">
+        <div className="flex gap-3 no-print">
           <button onClick={onCopy}
             className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-100 text-slate-700 font-semibold py-3.5 hover:bg-slate-200 active:scale-[0.98] transition-all"
             style={{fontSize:14}}>
             {copied ? <Check size={18} /> : <Copy size={18} />}
             {copied ? 'Kopiert!' : 'Text kopieren'}
           </button>
-          <button onClick={onSend}
+          <button onClick={onPrint}
             className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white font-semibold py-3.5 hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-lg shadow-emerald-200"
             style={{fontSize:14}}>
-            <Send size={18} />
-            Per E-Mail senden
+            <Download size={18} />
+            Als PDF drucken
           </button>
         </div>
       )}
@@ -532,11 +565,8 @@ export default function App() {
     return lines.join('\n');
   }
 
-  function handleSend() {
-    const body = buildOfferText();
-    const subject = `Angebot${customer.company ? ' - '+customer.company : customer.name ? ' - '+customer.name : ''} - ${new Date().toLocaleDateString('de-AT')}`;
-    const mailto = `mailto:${customer.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailto;
+  function handlePrint() {
+    window.print();
   }
 
   function handleCopy() {
@@ -558,7 +588,7 @@ export default function App() {
   return (
     <div style={{fontFamily:"'DM Sans',system-ui,sans-serif",minHeight:'100vh',background:'#f1f5f9',display:'flex',flexDirection:'column'}}>
       {/* Header */}
-      <div style={{background:'linear-gradient(135deg,#1a1a2e 0%,#16213e 100%)',padding:'16px 20px',color:'white'}}>
+      <div className="no-print" style={{background:'linear-gradient(135deg,#1a1a2e 0%,#16213e 100%)',padding:'16px 20px',color:'white'}}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={COMPANY_DEFAULT.logo} alt="KITZ" style={{height:32,filter:'brightness(0) invert(1)'}} />
@@ -591,7 +621,7 @@ export default function App() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex bg-white border-b border-slate-200 shadow-sm" style={{position:'sticky',top:0,zIndex:20}}>
+      <div className="flex bg-white border-b border-slate-200 shadow-sm no-print" style={{position:'sticky',top:0,zIndex:20}}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-3 font-semibold transition-colors relative ${tab===t.id ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
@@ -618,12 +648,12 @@ export default function App() {
         )}
         {tab === 'angebot' && (
           <OfferView cart={cart} customer={customer} setCustomer={setCustomer} notes={notes} setNotes={setNotes}
-            totals={totals} onSend={handleSend} onCopy={handleCopy} copied={copied} />
+            totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} />
         )}
       </div>
 
       {/* Sticky footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 shadow-2xl" style={{padding:'12px 20px',zIndex:30}}>
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 shadow-2xl no-print" style={{padding:'12px 20px',zIndex:30}}>
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-1 text-slate-400" style={{fontSize:11}}>
