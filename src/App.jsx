@@ -497,10 +497,10 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPri
 // ═══════════════════════════════════════════════════════
 
 const TABS = [
-  { id: 'kassa', label: 'Kassa', icon: '💻' },
-  { id: 'module', label: 'Module', icon: '📦' },
-  { id: 'hardware', label: 'Hardware', icon: '🖥️' },
-  { id: 'angebot', label: 'Angebot', icon: '📋' },
+  { id: 'kassa', label: 'Kassa' },
+  { id: 'module', label: 'Module' },
+  { id: 'hardware', label: 'Hardware' },
+  { id: 'angebot', label: 'Angebot' },
 ];
 
 export default function App() {
@@ -722,7 +722,6 @@ export default function App() {
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-3 font-semibold transition-colors relative ${tab===t.id ? 'text-red-600' : 'text-slate-400 hover:text-slate-600'}`}
             style={{fontSize:13}}>
-            <span>{t.icon}</span>
             <span>{t.label}</span>
             {t.id === 'angebot' && cartCount > 0 && (
               <span className="absolute top-1.5 bg-red-600 text-white rounded-full" style={{fontSize:10,padding:'0 5px',lineHeight:'16px',right:'calc(50% - 36px)'}}>{cartCount}</span>
