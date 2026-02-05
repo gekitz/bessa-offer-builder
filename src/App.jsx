@@ -306,13 +306,13 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPri
         </div>
         <div className="grid gap-2" style={{gridTemplateColumns:'1fr 1fr'}}>
           <input placeholder="Name" value={customer.name} onChange={e => setCustomer({...customer,name:e.target.value})}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+            className="min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
           <input placeholder="Firma" value={customer.company} onChange={e => setCustomer({...customer,company:e.target.value})}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+            className="min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
           <input placeholder="E-Mail" type="email" value={customer.email} onChange={e => setCustomer({...customer,email:e.target.value})}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+            className="min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
           <input placeholder="Telefon" type="tel" value={customer.phone} onChange={e => setCustomer({...customer,phone:e.target.value})}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+            className="min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
         </div>
       </div>
 
