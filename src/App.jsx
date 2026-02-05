@@ -299,20 +299,20 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPri
   return (
     <div>
       {/* Customer info */}
-      <div className="bg-white rounded-xl border-2 border-slate-200 mb-4" style={{padding:'16px'}}>
+      <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 overflow-hidden" style={{padding:'16px'}}>
         <div className="flex items-center gap-2 mb-3">
           <User size={16} className="text-red-600" />
           <span className="font-bold text-slate-700" style={{fontSize:14}}>Kundendaten</span>
         </div>
-        <div className="grid gap-2" style={{gridTemplateColumns:'1fr 1fr'}}>
+        <div className="grid grid-cols-2 gap-2">
           <input placeholder="Name" value={customer.name} onChange={e => setCustomer({...customer,name:e.target.value})}
-            className="min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+            className="w-full min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
           <input placeholder="Firma" value={customer.company} onChange={e => setCustomer({...customer,company:e.target.value})}
-            className="min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+            className="w-full min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
           <input placeholder="E-Mail" type="email" value={customer.email} onChange={e => setCustomer({...customer,email:e.target.value})}
-            className="min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+            className="w-full min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
           <input placeholder="Telefon" type="tel" value={customer.phone} onChange={e => setCustomer({...customer,phone:e.target.value})}
-            className="min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+            className="w-full min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
         </div>
       </div>
 
