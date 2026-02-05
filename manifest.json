@@ -1,0 +1,17 @@
+{
+  "name": "KITZ Angebotsersteller",
+  "short_name": "KITZ Angebot",
+  "description": "Angebote für bessa Kassa & Module erstellen",
+  "start_url": "/bessa-offer-builder/",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#E42228",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
