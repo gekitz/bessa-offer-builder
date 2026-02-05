@@ -733,7 +733,7 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto" style={{padding:'16px 16px 120px'}}>
+      <div className="flex-1 overflow-auto" style={{padding:'16px 16px calc(120px + env(safe-area-inset-bottom, 0px))'}}>
         {search.trim() && tab !== 'angebot' ? (
           // Search results
           (() => {
@@ -782,7 +782,7 @@ export default function App() {
       </div>
 
       {/* Sticky footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 shadow-2xl no-print" style={{padding:'12px 20px',zIndex:30}}>
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 shadow-2xl no-print" style={{padding:'12px 20px',paddingBottom:'calc(12px + env(safe-area-inset-bottom, 0px))',zIndex:30}}>
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-1 text-slate-400" style={{fontSize:11}}>
