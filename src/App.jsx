@@ -80,13 +80,16 @@ const TERMINALS = [
 
 const HARDWARE = [
   { id:'h1', name:'Sunmi D3 Pro', price:1024, t:'o' },
-  { id:'h2', name:'Sunmi V3H', price:649, t:'o' },
   { id:'h3', name:'Sunmi D3 Mini', price:790, t:'o' },
+  { id:'h10', name:'D3 Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
+  { id:'h2', name:'Sunmi V3H', price:649, t:'o' },
   { id:'h4', name:'Sunmi L3H', price:599, t:'o' },
+  { id:'h11', name:'V3H/L3H Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
   { id:'h5', name:'Orderman 10', price:900, t:'o' },
   { id:'h6', name:'Caregold Garantieerweiterung', price:270, t:'o' },
   { id:'h7', name:'Fiskalisierung', price:190, t:'o' },
   { id:'h8', name:'Arbeitszeit', price:118, t:'o' },
+  { id:'h9', name:'Epson TMT20 Bondrucker', price:220, t:'o' },
 ];
 
 // Build lookup
@@ -151,7 +154,7 @@ function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onTier, 
   if (p === null && !inCart) return null;
 
   return (
-    <div className={`rounded-xl border-2 transition-all ${inCart ? 'border-emerald-500 bg-emerald-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+    <div className={`rounded-xl border-2 transition-all ${inCart ? 'border-red-500 bg-red-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}
       style={{ padding: '12px 14px' }}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -160,10 +163,11 @@ function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onTier, 
             <span className="font-semibold text-slate-800" style={{fontSize:13}}>{item.name}</span>
           </div>
           {item.note && <p className="text-slate-400" style={{fontSize:11,marginTop:2}}>{item.note}</p>}
+          {item.info && <p className="text-red-600 font-medium" style={{fontSize:11,marginTop:2}}>{item.info}</p>}
         </div>
         {!inCart ? (
           <button onClick={() => onAdd(item.id, item.t==='m' ? bestTier(item,globalTier) : undefined, item.t==='term' ? 'rent' : undefined)}
-            className="flex-shrink-0 rounded-full bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 active:scale-95 transition-transform"
+            className="flex-shrink-0 rounded-full bg-red-600 text-white flex items-center justify-center hover:bg-red-700 active:scale-95 transition-transform"
             style={{width:40,height:40}}>
             <Plus size={18} />
           </button>
@@ -177,12 +181,12 @@ function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onTier, 
       </div>
 
       {inCart && (
-        <div className="mt-2 pt-2 border-t border-emerald-200">
+        <div className="mt-2 pt-2 border-t border-red-200">
           {av.length > 1 && (
             <div className="flex gap-1 mb-2 flex-wrap">
               {av.map(ti => (
                 <button key={ti} onClick={() => onTier(item.id, ti)}
-                  className={`rounded-full border transition-colors ${tier===ti ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400'}`}
+                  className={`rounded-full border transition-colors ${tier===ti ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400'}`}
                   style={{fontSize:11,padding:'3px 8px'}}>
                   {TIER_SHORT[ti]} €{fmt(item.p[TKEY_REV[ti]])}
                 </button>
@@ -192,13 +196,13 @@ function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onTier, 
           {item.t === 'term' && (
             <div className="flex gap-1 mb-2">
               <button onClick={() => onMode(item.id,'rent')}
-                className={`rounded-full border transition-colors ${mode==='rent' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                className={`rounded-full border transition-colors ${mode==='rent' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-600 border-slate-300'}`}
                 style={{fontSize:11,padding:'3px 8px'}}>
                 Miete €{item.rent !== null ? fmt(item.rent)+'/Mo' : 'n.v.'}
               </button>
               {item.buy !== null && (
                 <button onClick={() => onMode(item.id,'buy')}
-                  className={`rounded-full border transition-colors ${mode==='buy' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                  className={`rounded-full border transition-colors ${mode==='buy' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-600 border-slate-300'}`}
                   style={{fontSize:11,padding:'3px 8px'}}>
                   Kauf €{fmt(item.buy)}
                 </button>
@@ -220,7 +224,7 @@ function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onTier, 
               </button>
               {item.t === 'h' && <span className="text-slate-400 ml-1" style={{fontSize:11}}>Stunden</span>}
             </div>
-            <span className="font-bold text-emerald-700" style={{fontSize:14}}>
+            <span className="font-bold text-red-700" style={{fontSize:14}}>
               € {fmt(p * cartItem.qty)}{monthly ? '/Mo' : ''}
             </span>
           </div>
@@ -247,7 +251,7 @@ function CatGroup({ title, items, cart, globalTier, handlers, defaultOpen=true }
         className="flex items-center gap-2 w-full text-left mb-2 group">
         <ChevronDown size={14} className={`text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`} />
         <span className="font-bold text-slate-500 uppercase tracking-wider" style={{fontSize:11}}>{title}</span>
-        {count > 0 && <span className="bg-emerald-600 text-white rounded-full px-1.5" style={{fontSize:10,lineHeight:'18px'}}>{count}</span>}
+        {count > 0 && <span className="bg-red-600 text-white rounded-full px-1.5" style={{fontSize:10,lineHeight:'18px'}}>{count}</span>}
       </button>
       {open && (
         <div className="grid gap-2" style={{gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))'}}>
@@ -275,27 +279,31 @@ function TabContent({ items, cart, globalTier, handlers }) {
 // OFFER / ANGEBOT VIEW
 // ═══════════════════════════════════════════════════════
 
-function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPrint, onCopy, copied }) {
+function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPrint, onCopy, copied, raten, setRaten }) {
+  const [finanzOpen, setFinanzOpen] = useState(false);
   const monthlyItems = Object.entries(cart).filter(([id,c]) => isMonthly(ALL[id], c.mode));
   const onceItems = Object.entries(cart).filter(([id,c]) => !isMonthly(ALL[id], c.mode));
+
+  const periodNetto = totals.periodTotal;
+  const periodBrutto = periodNetto * 1.2;
 
   return (
     <div>
       {/* Customer info */}
       <div className="bg-white rounded-xl border-2 border-slate-200 mb-4" style={{padding:'16px'}}>
         <div className="flex items-center gap-2 mb-3">
-          <User size={16} className="text-emerald-600" />
+          <User size={16} className="text-red-600" />
           <span className="font-bold text-slate-700" style={{fontSize:14}}>Kundendaten</span>
         </div>
         <div className="grid gap-2" style={{gridTemplateColumns:'1fr 1fr'}}>
           <input placeholder="Name" value={customer.name} onChange={e => setCustomer({...customer,name:e.target.value})}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
           <input placeholder="Firma" value={customer.company} onChange={e => setCustomer({...customer,company:e.target.value})}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
           <input placeholder="E-Mail" type="email" value={customer.email} onChange={e => setCustomer({...customer,email:e.target.value})}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
           <input placeholder="Telefon" type="tel" value={customer.phone} onChange={e => setCustomer({...customer,phone:e.target.value})}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
         </div>
       </div>
 
@@ -311,8 +319,8 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPri
       {/* Monthly items */}
       {monthlyItems.length > 0 && (
         <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 overflow-hidden">
-          <div className="bg-emerald-50 px-4 py-2 border-b border-emerald-100">
-            <span className="font-bold text-emerald-800" style={{fontSize:13}}>MONATLICHE KOSTEN</span>
+          <div className="bg-red-50 px-4 py-2 border-b border-red-100">
+            <span className="font-bold text-red-800" style={{fontSize:13}}>MONATLICHE KOSTEN</span>
           </div>
           <div className="divide-y divide-slate-100">
             {monthlyItems.map(([id, c]) => {
@@ -333,7 +341,7 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPri
           <div className="bg-slate-50 px-4 py-3 border-t border-slate-200">
             <div className="flex justify-between text-sm"><span className="text-slate-500">Netto/Monat</span><span className="font-medium">€ {fmt(totals.monthly)}</span></div>
             <div className="flex justify-between text-sm"><span className="text-slate-500">20% USt</span><span className="font-medium">€ {fmt(totals.monthly*0.2)}</span></div>
-            <div className="flex justify-between text-sm font-bold mt-1 pt-1 border-t border-slate-300"><span>Brutto/Monat</span><span className="text-emerald-700">€ {fmt(totals.monthly*1.2)}</span></div>
+            <div className="flex justify-between text-sm font-bold mt-1 pt-1 border-t border-slate-300"><span>Brutto/Monat</span><span className="text-red-700">€ {fmt(totals.monthly*1.2)}</span></div>
           </div>
         </div>
       )}
@@ -363,7 +371,7 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPri
           <div className="bg-slate-50 px-4 py-3 border-t border-slate-200">
             <div className="flex justify-between text-sm"><span className="text-slate-500">Netto</span><span className="font-medium">€ {fmt(totals.once)}</span></div>
             <div className="flex justify-between text-sm"><span className="text-slate-500">20% USt</span><span className="font-medium">€ {fmt(totals.once*0.2)}</span></div>
-            <div className="flex justify-between text-sm font-bold mt-1 pt-1 border-t border-slate-300"><span>Brutto</span><span className="text-emerald-700">€ {fmt(totals.once*1.2)}</span></div>
+            <div className="flex justify-between text-sm font-bold mt-1 pt-1 border-t border-slate-300"><span>Brutto</span><span className="text-red-700">€ {fmt(totals.once*1.2)}</span></div>
           </div>
         </div>
       )}
@@ -372,32 +380,78 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPri
       {(totals.monthly > 0 || totals.once > 0) && (
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl mb-4 text-white overflow-hidden">
           <div className="px-4 py-3 border-b border-white/10">
-            <span className="font-bold" style={{fontSize:13}}>JAHRESÜBERSICHT</span>
+            <span className="font-bold" style={{fontSize:13}}>GESAMTÜBERSICHT</span>
           </div>
           <div className="p-4 space-y-3">
             <div className="flex justify-between items-center">
               <div>
-                <div className="text-sm text-slate-300">Erstes Jahr</div>
-                <div className="text-xs text-slate-400">(12× monatlich + einmalig)</div>
+                <div className="text-sm text-slate-300">Vertragslaufzeit gesamt</div>
+                <div className="text-xs text-slate-400">(monatlich × Laufzeit + einmalig)</div>
               </div>
               <div className="text-right">
-                <div className="text-sm text-slate-400">€ {fmt(totals.monthly * 12 + totals.once)} netto</div>
-                <div className="font-bold text-lg text-emerald-400">€ {fmt((totals.monthly * 12 + totals.once) * 1.2)} brutto</div>
+                <div className="text-sm text-slate-400">€ {fmt(totals.periodTotal)} netto</div>
+                <div className="font-bold text-lg text-red-400">€ {fmt(totals.periodTotal * 1.2)} brutto</div>
               </div>
             </div>
-            {totals.monthly > 0 && (
-              <div className="flex justify-between items-center pt-3 border-t border-white/10">
-                <div>
-                  <div className="text-sm text-slate-300">Folgejahre</div>
-                  <div className="text-xs text-slate-400">(12× monatlich)</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm text-slate-400">€ {fmt(totals.monthly * 12)} netto</div>
-                  <div className="font-bold text-lg text-emerald-400">€ {fmt(totals.monthly * 12 * 1.2)} brutto</div>
-                </div>
-              </div>
-            )}
           </div>
+        </div>
+      )}
+
+      {/* Financing options */}
+      {(totals.monthly > 0 || totals.once > 0) && (
+        <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 overflow-hidden">
+          <button onClick={() => setFinanzOpen(!finanzOpen)} className="w-full bg-red-50 px-4 py-3 border-b border-red-100 flex items-center justify-between hover:bg-red-100 transition-colors">
+            <span className="font-bold text-red-800" style={{fontSize:13}}>FINANZIERUNGSOPTIONEN</span>
+            <ChevronDown size={18} className={`text-red-600 transition-transform ${finanzOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {finanzOpen && <>
+          {/* Option 1: Ratenzahlung */}
+          <div className="p-4 border-b border-slate-200">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold" style={{fontSize:12}}>1</span>
+              <span className="font-bold text-slate-800" style={{fontSize:14}}>Ratenzahlung (+8%)</span>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-3 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-600">Gesamtbetrag (+8%)</span>
+                <span className="font-semibold">€ {fmt(periodBrutto * 1.08)} brutto</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-600">Anzahlung (30%)</span>
+                <span className="font-semibold text-red-700">€ {fmt(periodBrutto * 1.08 * 0.3)} brutto</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-600">Restbetrag in</span>
+                  <select value={raten} onChange={e => setRaten(Number(e.target.value))}
+                    className="border border-slate-300 rounded px-2 py-1 text-sm font-medium focus:outline-none focus:border-red-500">
+                    {[2,3,4,5,6,7,8,9,10,11,12].map(n => <option key={n} value={n}>{n} Raten</option>)}
+                  </select>
+                </div>
+                <span className="font-semibold">€ {fmt(periodBrutto * 1.08 * 0.7 / raten)}/Rate</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Option 2: Miete */}
+          <div className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold" style={{fontSize:12}}>2</span>
+              <span className="font-bold text-slate-800" style={{fontSize:14}}>Miete (+8%)</span>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-3 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-600">Kaution (einmalig)</span>
+                <span className="font-semibold text-red-700">€ 500,00 brutto</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                <span className="text-sm text-slate-600">Monatliche Miete (+8%)</span>
+                <span className="font-semibold">€ {fmt((periodBrutto / totals.maxMonths) * 1.08)}/Monat brutto</span>
+              </div>
+            </div>
+          </div>
+          </>}
         </div>
       )}
 
@@ -405,7 +459,7 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPri
       <div className="bg-white rounded-xl border-2 border-slate-200 mb-4" style={{padding:'16px'}}>
         <span className="font-bold text-slate-700 block mb-2" style={{fontSize:13}}>Anmerkungen</span>
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Optionale Anmerkungen zum Angebot..."
-          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
       </div>
 
       {/* Actions */}
@@ -418,7 +472,7 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPri
             {copied ? 'Kopiert!' : 'Text kopieren'}
           </button>
           <button onClick={onPrint}
-            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white font-semibold py-3.5 hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-lg shadow-emerald-200"
+            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 text-white font-semibold py-3.5 hover:bg-red-700 active:scale-[0.98] transition-all shadow-lg shadow-red-200"
             style={{fontSize:14}}>
             <Download size={18} />
             Als PDF drucken
@@ -447,6 +501,7 @@ export default function App() {
   const [customer, setCustomer] = useState({ name:'', company:'', email:'', phone:'' });
   const [notes, setNotes] = useState('');
   const [copied, setCopied] = useState(false);
+  const [raten, setRaten] = useState(12);
 
   useEffect(() => {
     const link = document.createElement('link');
@@ -471,17 +526,28 @@ export default function App() {
     onMode: (id, mode) => setCart(c => c[id] ? {...c, [id]: {...c[id], mode}} : c),
   };
 
+  // Tier period multipliers
+  const TIER_MONTHS = { '12mo': 12, '6mo': 6, '2mo': 2, 'event': 1 };
+
   // Totals
   const totals = useMemo(() => {
-    let monthly = 0, once = 0;
+    let monthly = 0, once = 0, periodTotal = 0, maxMonths = 0;
     Object.entries(cart).forEach(([id, c]) => {
       const item = ALL[id];
       const p = price(item, c.tier, c.mode);
       if (p === null) return;
       const line = p * c.qty;
-      if (isMonthly(item, c.mode)) monthly += line; else once += line;
+      if (isMonthly(item, c.mode)) {
+        monthly += line;
+        const months = TIER_MONTHS[c.tier] || 12;
+        periodTotal += line * months;
+        if (months > maxMonths) maxMonths = months;
+      } else {
+        once += line;
+        periodTotal += line;
+      }
     });
-    return { monthly, once };
+    return { monthly, once, periodTotal, maxMonths: maxMonths || 12 };
   }, [cart]);
 
   const cartCount = Object.keys(cart).length;
@@ -582,13 +648,14 @@ export default function App() {
       setCart({});
       setCustomer({name:'',company:'',email:'',phone:''});
       setNotes('');
+      setRaten(12);
     }
   }
 
   return (
     <div style={{fontFamily:"'DM Sans',system-ui,sans-serif",minHeight:'100vh',background:'#f1f5f9',display:'flex',flexDirection:'column'}}>
       {/* Header */}
-      <div className="no-print" style={{background:'linear-gradient(135deg,#1a1a2e 0%,#16213e 100%)',padding:'16px 20px',color:'white'}}>
+      <div className="no-print" style={{background:'linear-gradient(135deg,#32373c 0%,#23272b 100%)',padding:'16px 20px',color:'white'}}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={COMPANY_DEFAULT.logo} alt="KITZ" style={{height:32,filter:'brightness(0) invert(1)'}} />
@@ -611,7 +678,7 @@ export default function App() {
           <div className="flex gap-1.5 mt-3">
             {TIERS.map(t => (
               <button key={t} onClick={() => setGlobalTier(t)}
-                className={`rounded-lg font-medium transition-all ${globalTier===t ? 'bg-emerald-500 text-white shadow-lg' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+                className={`rounded-lg font-medium transition-all ${globalTier===t ? 'bg-red-500 text-white shadow-lg' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
                 style={{fontSize:12,padding:'6px 12px',flex:1}}>
                 {TIER_SHORT[t]}
               </button>
@@ -624,14 +691,14 @@ export default function App() {
       <div className="flex bg-white border-b border-slate-200 shadow-sm no-print" style={{position:'sticky',top:0,zIndex:20}}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-3 font-semibold transition-colors relative ${tab===t.id ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-3 font-semibold transition-colors relative ${tab===t.id ? 'text-red-600' : 'text-slate-400 hover:text-slate-600'}`}
             style={{fontSize:13}}>
             <span>{t.icon}</span>
             <span>{t.label}</span>
             {t.id === 'angebot' && cartCount > 0 && (
-              <span className="absolute top-1.5 bg-emerald-600 text-white rounded-full" style={{fontSize:10,padding:'0 5px',lineHeight:'16px',right:'calc(50% - 36px)'}}>{cartCount}</span>
+              <span className="absolute top-1.5 bg-red-600 text-white rounded-full" style={{fontSize:10,padding:'0 5px',lineHeight:'16px',right:'calc(50% - 36px)'}}>{cartCount}</span>
             )}
-            {tab===t.id && <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-emerald-600 rounded-full" />}
+            {tab===t.id && <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-red-600 rounded-full" />}
           </button>
         ))}
       </div>
@@ -648,7 +715,7 @@ export default function App() {
         )}
         {tab === 'angebot' && (
           <OfferView cart={cart} customer={customer} setCustomer={setCustomer} notes={notes} setNotes={setNotes}
-            totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} />
+            totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} raten={raten} setRaten={setRaten} />
         )}
       </div>
 
@@ -667,7 +734,7 @@ export default function App() {
             </div>
           </div>
           <button onClick={() => { setTab('angebot'); }}
-            className="flex items-center gap-2 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 active:scale-[0.97] transition-all shadow-lg shadow-emerald-200"
+            className="flex items-center gap-2 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 active:scale-[0.97] transition-all shadow-lg shadow-red-200"
             style={{padding:'10px 20px',fontSize:14}}>
             <FileText size={16} />
             Angebot
