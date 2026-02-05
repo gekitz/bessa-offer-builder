@@ -85,16 +85,25 @@ const HARDWARE = [
   { id:'h2', name:'Sunmi V3H', price:649, t:'o' },
   { id:'h4', name:'Sunmi L3H', price:599, t:'o' },
   { id:'h11', name:'V3H/L3H Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
-  { id:'h5', name:'Orderman 10', price:900, t:'o' },
+  { id:'h12', name:'Hobex ViA PRO', price:1149, t:'o' },
   { id:'h6', name:'Caregold Garantieerweiterung', price:270, t:'o' },
   { id:'h7', name:'Fiskalisierung', price:190, t:'o' },
   { id:'h8', name:'Arbeitszeit', price:118, t:'o' },
   { id:'h9', name:'Epson TMT20 Bondrucker', price:220, t:'o' },
 ];
 
+const ORDERMAN = [
+  { id:'o1', name:'Orderman 10', price:900, t:'o' },
+  { id:'o2', name:'Orderman Garantieverlängerung', price:270, t:'o', info:'auf 48 Monate' },
+  { id:'o3', name:'Orderman Ladestation inkl. Netzteil', price:210, t:'o' },
+  { id:'o4', name:'Orderman Ersatzbatterie', price:60, t:'o' },
+  { id:'o5', name:'Orderman Gürteltasche', price:25, t:'o' },
+  { id:'o6', name:'Orderman Safety-Cord', price:14, t:'o' },
+];
+
 // Build lookup
 const ALL = {};
-[...KASSA,...MODULE,...TERMINALS,...HARDWARE].forEach(i => ALL[i.id] = i);
+[...KASSA,...MODULE,...TERMINALS,...HARDWARE,...ORDERMAN].forEach(i => ALL[i.id] = i);
 
 // ═══════════════════════════════════════════════════════
 // HELPERS
@@ -710,6 +719,7 @@ export default function App() {
         {tab === 'hardware' && (
           <>
             <CatGroup title="Hardware" items={HARDWARE} cart={cart} globalTier={globalTier} handlers={handlers} />
+            <CatGroup title="Orderman" items={ORDERMAN} cart={cart} globalTier={globalTier} handlers={handlers} />
             <CatGroup title="bessa Zahlen Terminals" items={TERMINALS} cart={cart} globalTier={globalTier} handlers={handlers} />
           </>
         )}
