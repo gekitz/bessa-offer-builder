@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check } from "lucide-react";
+import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════
 // DATA
@@ -511,6 +511,7 @@ export default function App() {
   const [notes, setNotes] = useState('');
   const [copied, setCopied] = useState(false);
   const [raten, setRaten] = useState(12);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const link = document.createElement('link');
@@ -667,7 +668,7 @@ export default function App() {
       <div className="no-print" style={{background:'linear-gradient(135deg,#32373c 0%,#23272b 100%)',padding:'16px 20px',color:'white'}}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={COMPANY_DEFAULT.logo} alt="KITZ" style={{height:32,filter:'brightness(0) invert(1)'}} />
+            <div className="flex items-center justify-center bg-white text-red-600 font-bold rounded-lg" style={{width:40,height:40,fontSize:14}}>KITZ</div>
             <div>
               <div className="font-bold" style={{fontSize:16,letterSpacing:'-0.3px'}}>Angebotsersteller</div>
               <div style={{fontSize:11,opacity:0.6}}>bessa Kassa & Module</div>
@@ -694,6 +695,25 @@ export default function App() {
             ))}
           </div>
         )}
+
+        {/* Search box */}
+        {tab !== 'angebot' && (
+          <div className="relative mt-3">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Produkt suchen..."
+              className="w-full rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 pl-9 pr-8 py-2 text-sm focus:outline-none focus:bg-white/20 focus:border-white/30"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/50 hover:text-white">
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tab bar */}
@@ -714,18 +734,50 @@ export default function App() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto" style={{padding:'16px 16px 120px'}}>
-        {tab === 'kassa' && <TabContent items={KASSA} cart={cart} globalTier={globalTier} handlers={handlers} />}
-        {tab === 'module' && <TabContent items={MODULE} cart={cart} globalTier={globalTier} handlers={handlers} />}
-        {tab === 'hardware' && (
+        {search.trim() && tab !== 'angebot' ? (
+          // Search results
+          (() => {
+            const q = search.toLowerCase().trim();
+            const allItems = [...KASSA, ...MODULE, ...HARDWARE, ...ORDERMAN, ...TERMINALS];
+            const results = allItems.filter(item =>
+              item.name.toLowerCase().includes(q) ||
+              (item.code && item.code.toLowerCase().includes(q)) ||
+              (item.note && item.note.toLowerCase().includes(q))
+            );
+            return (
+              <div>
+                <div className="text-sm text-slate-500 mb-3">{results.length} Ergebnis{results.length !== 1 ? 'se' : ''} für "{search}"</div>
+                {results.length > 0 ? (
+                  <div className="space-y-2">
+                    {results.map(item => (
+                      <ItemCard key={item.id} item={item} cartItem={cart[item.id]} globalTier={globalTier} {...handlers} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-slate-400">
+                    <Search size={32} className="mx-auto mb-2 opacity-50" />
+                    <p>Keine Produkte gefunden</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()
+        ) : (
           <>
-            <CatGroup title="Hardware" items={HARDWARE} cart={cart} globalTier={globalTier} handlers={handlers} />
-            <CatGroup title="Orderman" items={ORDERMAN} cart={cart} globalTier={globalTier} handlers={handlers} />
-            <CatGroup title="bessa Zahlen Terminals" items={TERMINALS} cart={cart} globalTier={globalTier} handlers={handlers} />
+            {tab === 'kassa' && <TabContent items={KASSA} cart={cart} globalTier={globalTier} handlers={handlers} />}
+            {tab === 'module' && <TabContent items={MODULE} cart={cart} globalTier={globalTier} handlers={handlers} />}
+            {tab === 'hardware' && (
+              <>
+                <CatGroup title="Hardware" items={HARDWARE} cart={cart} globalTier={globalTier} handlers={handlers} />
+                <CatGroup title="Orderman" items={ORDERMAN} cart={cart} globalTier={globalTier} handlers={handlers} />
+                <CatGroup title="bessa Zahlen Terminals" items={TERMINALS} cart={cart} globalTier={globalTier} handlers={handlers} />
+              </>
+            )}
+            {tab === 'angebot' && (
+              <OfferView cart={cart} customer={customer} setCustomer={setCustomer} notes={notes} setNotes={setNotes}
+                totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} raten={raten} setRaten={setRaten} />
+            )}
           </>
-        )}
-        {tab === 'angebot' && (
-          <OfferView cart={cart} customer={customer} setCustomer={setCustomer} notes={notes} setNotes={setNotes}
-            totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} raten={raten} setRaten={setRaten} />
         )}
       </div>
 
