@@ -535,7 +535,7 @@ export default function App() {
   function handleSend() {
     const body = buildOfferText();
     const subject = `Angebot${customer.company ? ' - '+customer.company : customer.name ? ' - '+customer.name : ''} - ${new Date().toLocaleDateString('de-AT')}`;
-    const mailto = `mailto:${encodeURIComponent(customer.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const mailto = `mailto:${customer.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = mailto;
   }
 
