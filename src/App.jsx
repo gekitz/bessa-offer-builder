@@ -1,0 +1,649 @@
+import { useState, useMemo, useEffect } from "react";
+import { Plus, Minus, X, Send, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check } from "lucide-react";
+
+// ═══════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════
+
+const TIERS = ['12mo','6mo','2mo','event'];
+const TIER_LABEL = { '12mo':'12 Monate','6mo':'6 Monate','2mo':'2 Monate','event':'1-3 Tage' };
+const TIER_SHORT = { '12mo':'Jahr','6mo':'Saison','2mo':'Märkte','event':'Events' };
+const TIER_LABEL_OFFER = { '12mo':'12 Monate mtl.','6mo':'6 Monate mtl.','2mo':'2 Monate mtl.','event':'1-3 Tage/Event' };
+
+const COMPANY_DEFAULT = {
+  name: 'KITZ Computer + Office GmbH',
+  address1: 'Rosentaler Straße 1, A-9020 Klagenfurt',
+  address2: 'Johann-Offner-Straße 17, A-9400 Wolfsberg',
+  phone1: '+43 (0) 463 504454',
+  phone2: '+43 (0) 4352 4176',
+  email: 'officekl@kitz.co.at',
+  website: 'www.kitz.co.at',
+  logo: 'https://www.kitz.co.at/wp-content/uploads/2019/12/kitz-logo-2020-300x138.png',
+};
+
+const KASSA = [
+  { id:'k100', code:'100', name:'Mobile Kassa', cat:'Mobil', p:{y:19,s:25,m:30,e:38}, t:'m' },
+  { id:'k109', code:'109', name:'bessa Mobil', cat:'Mobil', p:{y:119}, t:'m', note:'-50 € je weitere Filiale' },
+  { id:'k110', code:'110', name:'Kleiner Handelsbetrieb', cat:'Handel', p:{y:24,s:30,m:40,e:48}, t:'m' },
+  { id:'k111', code:'111', name:'Großer Handelsbetrieb', cat:'Handel', p:{y:42,s:55,m:70,e:84}, t:'m' },
+  { id:'k115', code:'115', name:'Web Kassa / Auftragsverwaltung', cat:'Handel', p:{y:19,s:25,m:30}, t:'m' },
+  { id:'k119', code:'119', name:'bessa Handelsbetrieb', cat:'Handel', p:{y:160}, t:'m', note:'-50 € je weitere Filiale' },
+  { id:'k120', code:'120', name:'Kleiner Gastrobetrieb', cat:'Gastro', p:{y:45,s:55,m:70,e:90}, t:'m' },
+  { id:'k121', code:'121', name:'Großer Gastrobetrieb', cat:'Gastro', p:{y:62,s:80,m:100,e:124}, t:'m' },
+  { id:'k129', code:'129', name:'bessa Gastrobetrieb', cat:'Gastro', p:{y:240}, t:'m', note:'-50 € je weitere Filiale' },
+  { id:'k020', code:'020', name:'Zusätzlicher Bediener', cat:'Einzelfunktionen', p:{y:3,s:4,m:5,e:6}, t:'m' },
+  { id:'k021', code:'021', name:'Kundenverwaltung', cat:'Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
+  { id:'k022', code:'022', name:'Lagerverwaltung', cat:'Einzelfunktionen', p:{y:15,s:18,m:20,e:30}, t:'m' },
+  { id:'k023', code:'023', name:'Lokale Gutscheinverwaltung', cat:'Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
+  { id:'k024', code:'024', name:'Erweitertes Berichtswesen', cat:'Einzelfunktionen', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'k030', code:'030', name:'bessa Signieren', cat:'Einzelfunktionen', p:{y:9,s:11,m:25,e:50}, t:'m', note:'derzeit nur DE' },
+  { id:'k040a', code:'040a', name:'Anbindung bessa Zahlen (Kartenzahlung)', cat:'Externe Systeme', p:{y:0,s:0,m:0,e:0}, t:'m' },
+  { id:'k040', code:'040', name:'Anbindung Kartenzahlungsterminal', cat:'Externe Systeme', p:{y:12,s:15,m:18,e:24}, t:'m' },
+  { id:'k041', code:'041', name:'Anbindung Barzahlungsterminal', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'k042', code:'042', name:'Nebenterminal', cat:'Externe Systeme', p:{y:14,s:16,m:18,e:28}, t:'m' },
+  { id:'k043', code:'043', name:'Bestellmonitor', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'k044', code:'044', name:'Anbindung Schankanlage', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'k049', code:'049', name:'Öffentliche Schnittstelle', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'k060', code:'060', name:'Entwurf Rechnungsvorlage', cat:'Sonstige Leistungen', p:{o:499}, t:'o' },
+  { id:'k061', code:'061', name:'Anpassung Kassendesign', cat:'Sonstige Leistungen', p:{o:999}, t:'o' },
+  { id:'k090', code:'090', name:'Fiskalisierung durch Techniker', cat:'Sonstige Leistungen', p:{y:10}, t:'m', note:'pro Kassa/Monat' },
+  { id:'k091', code:'091', name:'Neufiskalisierung', cat:'Sonstige Leistungen', p:{o:90}, t:'o' },
+  { id:'k095', code:'095', name:'Support-Paket 5h', cat:'Sonstige Leistungen', p:{o:750}, t:'o' },
+  { id:'k099', code:'099', name:'Techniker', cat:'Sonstige Leistungen', p:{o:180}, t:'h', note:'pro Stunde' },
+];
+
+const MODULE = [
+  { id:'m300', code:'300', name:'App (pro Filiale)', cat:'Pakete', p:{y:109}, t:'m', note:'50% Rabatt je weitere Filiale' },
+  { id:'m310', code:'310', name:'Handel (pro Filiale)', cat:'Pakete', p:{y:139}, t:'m', note:'-50 € je weitere Filiale' },
+  { id:'m320', code:'320', name:'Gastro (pro Filiale)', cat:'Pakete', p:{y:199}, t:'m', note:'-50 € je weitere Filiale' },
+  { id:'m200', code:'200', name:'Web-Bestellungen', cat:'Einzelfunktionen', p:{y:39,s:49}, t:'m' },
+  { id:'m201', code:'201', name:'Kundenbindung Kundenkarte', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'m202', code:'202', name:'Lieferservice-Bestellungen', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'m203', code:'203', name:'Gastro-Kiosk-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weiterer Kiosk' },
+  { id:'m204', code:'204', name:'Tisch-Tablet-Bestellungen', cat:'Einzelfunktionen', p:{y:9,s:12}, t:'m' },
+  { id:'m205', code:'205', name:'Schank-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weitere Schank' },
+  { id:'m206', code:'206', name:'Kantinen-Bestellungen', cat:'Einzelfunktionen', p:{y:99}, t:'m', note:'50% für öffentl. Einr.' },
+  { id:'m207', code:'207', name:'Online Gutscheinverwaltung', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'m208', code:'208', name:'Gutscheine Shopify/WooCommerce', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'m209', code:'209', name:'Gastrotouch Kennzahlen', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'m250', code:'250', name:'Design-Paket Web/Kiosk/Kantine', cat:'Sonstige Leistungen', p:{o:499}, t:'o' },
+  { id:'m295', code:'295', name:'Support-Paket 5h (Module)', cat:'Sonstige Leistungen', p:{o:750}, t:'o' },
+  { id:'m299', code:'299', name:'Techniker (Module)', cat:'Sonstige Leistungen', p:{o:180}, t:'h', note:'pro Stunde' },
+];
+
+const TERMINALS = [
+  { id:'t400', code:'400', name:'SoftPos In-App Terminal (NFC)', cat:'Terminals', rent:0, buy:null, t:'term' },
+  { id:'t401', code:'401', name:'Bluetooth Terminal', cat:'Terminals', rent:8, buy:79, t:'term' },
+  { id:'t402', code:'402', name:'WiFi Terminal 5"', cat:'Terminals', rent:25, buy:299, t:'term', note:'keine GiroCard' },
+  { id:'t403', code:'403', name:'WiFi Terminal 5.5"', cat:'Terminals', rent:39, buy:399, t:'term' },
+];
+
+const HARDWARE = [
+  { id:'h1', name:'Sunmi D3 Pro', price:1024, t:'o' },
+  { id:'h2', name:'Sunmi V3H', price:649, t:'o' },
+  { id:'h3', name:'Sunmi D3 Mini', price:790, t:'o' },
+  { id:'h4', name:'Sunmi L3H', price:599, t:'o' },
+  { id:'h5', name:'Orderman 10', price:900, t:'o' },
+  { id:'h6', name:'Caregold Garantieerweiterung', price:270, t:'o' },
+  { id:'h7', name:'Fiskalisierung', price:190, t:'o' },
+  { id:'h8', name:'Arbeitszeit', price:118, t:'o' },
+];
+
+// Build lookup
+const ALL = {};
+[...KASSA,...MODULE,...TERMINALS,...HARDWARE].forEach(i => ALL[i.id] = i);
+
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+
+const fmt = n => n.toLocaleString('de-AT',{minimumFractionDigits:2,maximumFractionDigits:2});
+const TKEY = {y:'12mo',s:'6mo',m:'2mo',e:'event'};
+const TKEY_REV = {'12mo':'y','6mo':'s','2mo':'m','event':'e'};
+
+function availableTiers(item) {
+  if (item.t !== 'm') return [];
+  return TIERS.filter(t => item.p[TKEY_REV[t]] !== undefined);
+}
+
+function bestTier(item, global) {
+  const av = availableTiers(item);
+  if (av.includes(global)) return global;
+  return av[0] || null;
+}
+
+function price(item, tier, mode) {
+  if (item.t === 'o') return item.p?.o ?? item.price ?? 0;
+  if (item.t === 'h') return item.p?.o ?? item.price ?? 0;
+  if (item.t === 'term') return mode === 'buy' ? item.buy : item.rent;
+  if (item.t === 'm') {
+    const k = TKEY_REV[tier];
+    if (k && item.p[k] !== undefined) return item.p[k];
+    const av = availableTiers(item);
+    if (av.length) return item.p[TKEY_REV[av[0]]];
+  }
+  return null;
+}
+
+function isMonthly(item, mode) {
+  if (item.t === 'term') return mode === 'rent';
+  return item.t === 'm';
+}
+
+function groupBy(items, key) {
+  const g = {};
+  items.forEach(i => { const k = i[key] || 'Sonstige'; (g[k] = g[k]||[]).push(i); });
+  return g;
+}
+
+// ═══════════════════════════════════════════════════════
+// COMPONENTS
+// ═══════════════════════════════════════════════════════
+
+function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onTier, onMode }) {
+  const inCart = !!cartItem;
+  const tier = cartItem?.tier || bestTier(item, globalTier);
+  const mode = cartItem?.mode || 'rent';
+  const p = price(item, tier, mode);
+  const av = availableTiers(item);
+  const monthly = isMonthly(item, mode);
+
+  if (p === null && !inCart) return null;
+
+  return (
+    <div className={`rounded-xl border-2 transition-all ${inCart ? 'border-emerald-500 bg-emerald-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+      style={{ padding: '12px 14px' }}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {item.code && <span className="text-xs font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded" style={{fontSize:11}}>{item.code}</span>}
+            <span className="font-semibold text-slate-800" style={{fontSize:13}}>{item.name}</span>
+          </div>
+          {item.note && <p className="text-slate-400" style={{fontSize:11,marginTop:2}}>{item.note}</p>}
+        </div>
+        {!inCart ? (
+          <button onClick={() => onAdd(item.id, item.t==='m' ? bestTier(item,globalTier) : undefined, item.t==='term' ? 'rent' : undefined)}
+            className="flex-shrink-0 rounded-full bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 active:scale-95 transition-transform"
+            style={{width:40,height:40}}>
+            <Plus size={18} />
+          </button>
+        ) : (
+          <button onClick={() => onRemove(item.id)}
+            className="flex-shrink-0 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 active:scale-95 transition-transform"
+            style={{width:32,height:32}}>
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {inCart && (
+        <div className="mt-2 pt-2 border-t border-emerald-200">
+          {av.length > 1 && (
+            <div className="flex gap-1 mb-2 flex-wrap">
+              {av.map(ti => (
+                <button key={ti} onClick={() => onTier(item.id, ti)}
+                  className={`rounded-full border transition-colors ${tier===ti ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400'}`}
+                  style={{fontSize:11,padding:'3px 8px'}}>
+                  {TIER_SHORT[ti]} €{fmt(item.p[TKEY_REV[ti]])}
+                </button>
+              ))}
+            </div>
+          )}
+          {item.t === 'term' && (
+            <div className="flex gap-1 mb-2">
+              <button onClick={() => onMode(item.id,'rent')}
+                className={`rounded-full border transition-colors ${mode==='rent' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                style={{fontSize:11,padding:'3px 8px'}}>
+                Miete €{item.rent !== null ? fmt(item.rent)+'/Mo' : 'n.v.'}
+              </button>
+              {item.buy !== null && (
+                <button onClick={() => onMode(item.id,'buy')}
+                  className={`rounded-full border transition-colors ${mode==='buy' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-300'}`}
+                  style={{fontSize:11,padding:'3px 8px'}}>
+                  Kauf €{fmt(item.buy)}
+                </button>
+              )}
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              <button onClick={() => onQty(item.id,-1)}
+                className="rounded-full bg-slate-200 flex items-center justify-center hover:bg-slate-300 active:scale-95 transition-transform"
+                style={{width:32,height:32}}>
+                <Minus size={14} />
+              </button>
+              <span className="font-bold text-slate-800 text-center" style={{width:28,fontSize:14}}>{cartItem.qty}</span>
+              <button onClick={() => onQty(item.id,1)}
+                className="rounded-full bg-slate-200 flex items-center justify-center hover:bg-slate-300 active:scale-95 transition-transform"
+                style={{width:32,height:32}}>
+                <Plus size={14} />
+              </button>
+              {item.t === 'h' && <span className="text-slate-400 ml-1" style={{fontSize:11}}>Stunden</span>}
+            </div>
+            <span className="font-bold text-emerald-700" style={{fontSize:14}}>
+              € {fmt(p * cartItem.qty)}{monthly ? '/Mo' : ''}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {!inCart && p !== null && (
+        <div className="text-right mt-1">
+          <span className="text-slate-500" style={{fontSize:12}}>
+            € {fmt(p)}{monthly ? '/Mo' : item.t==='h' ? '/h' : ''}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CatGroup({ title, items, cart, globalTier, handlers, defaultOpen=true }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const count = items.filter(i => cart[i.id]).length;
+  return (
+    <div className="mb-4">
+      <button onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 w-full text-left mb-2 group">
+        <ChevronDown size={14} className={`text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`} />
+        <span className="font-bold text-slate-500 uppercase tracking-wider" style={{fontSize:11}}>{title}</span>
+        {count > 0 && <span className="bg-emerald-600 text-white rounded-full px-1.5" style={{fontSize:10,lineHeight:'18px'}}>{count}</span>}
+      </button>
+      {open && (
+        <div className="grid gap-2" style={{gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))'}}>
+          {items.map(item => (
+            <ItemCard key={item.id} item={item} cartItem={cart[item.id]} globalTier={globalTier} {...handlers} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TabContent({ items, cart, globalTier, handlers }) {
+  const groups = groupBy(items, 'cat');
+  return (
+    <div>
+      {Object.entries(groups).map(([cat, list]) => (
+        <CatGroup key={cat} title={cat} items={list} cart={cart} globalTier={globalTier} handlers={handlers} />
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// OFFER / ANGEBOT VIEW
+// ═══════════════════════════════════════════════════════
+
+function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onSend, onCopy, copied }) {
+  const monthlyItems = Object.entries(cart).filter(([id,c]) => isMonthly(ALL[id], c.mode));
+  const onceItems = Object.entries(cart).filter(([id,c]) => !isMonthly(ALL[id], c.mode));
+
+  return (
+    <div>
+      {/* Customer info */}
+      <div className="bg-white rounded-xl border-2 border-slate-200 mb-4" style={{padding:'16px'}}>
+        <div className="flex items-center gap-2 mb-3">
+          <User size={16} className="text-emerald-600" />
+          <span className="font-bold text-slate-700" style={{fontSize:14}}>Kundendaten</span>
+        </div>
+        <div className="grid gap-2" style={{gridTemplateColumns:'1fr 1fr'}}>
+          <input placeholder="Name" value={customer.name} onChange={e => setCustomer({...customer,name:e.target.value})}
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
+          <input placeholder="Firma" value={customer.company} onChange={e => setCustomer({...customer,company:e.target.value})}
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
+          <input placeholder="E-Mail" type="email" value={customer.email} onChange={e => setCustomer({...customer,email:e.target.value})}
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
+          <input placeholder="Telefon" type="tel" value={customer.phone} onChange={e => setCustomer({...customer,phone:e.target.value})}
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
+        </div>
+      </div>
+
+      {/* Cart empty state */}
+      {Object.keys(cart).length === 0 && (
+        <div className="text-center py-12 text-slate-400">
+          <ShoppingCart size={48} className="mx-auto mb-3 opacity-50" />
+          <p className="font-medium">Noch keine Positionen gewählt</p>
+          <p style={{fontSize:13}}>Wechsle zu Kassa, Module oder Hardware um Produkte hinzuzufügen.</p>
+        </div>
+      )}
+
+      {/* Monthly items */}
+      {monthlyItems.length > 0 && (
+        <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 overflow-hidden">
+          <div className="bg-emerald-50 px-4 py-2 border-b border-emerald-100">
+            <span className="font-bold text-emerald-800" style={{fontSize:13}}>MONATLICHE KOSTEN</span>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {monthlyItems.map(([id, c]) => {
+              const item = ALL[id];
+              const p = price(item, c.tier, c.mode);
+              return (
+                <div key={id} className="flex items-center justify-between px-4 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-slate-700">{c.qty}x {item.code ? item.code+' ' : ''}{item.name}</span>
+                    {c.tier && <span className="text-xs text-slate-400 ml-2">{TIER_LABEL[c.tier]}</span>}
+                    {c.mode === 'rent' && item.t === 'term' && <span className="text-xs text-slate-400 ml-2">Miete</span>}
+                  </div>
+                  <span className="font-semibold text-slate-800 text-sm">€ {fmt(p * c.qty)}/Mo</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="bg-slate-50 px-4 py-3 border-t border-slate-200">
+            <div className="flex justify-between text-sm"><span className="text-slate-500">Netto/Monat</span><span className="font-medium">€ {fmt(totals.monthly)}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-slate-500">20% USt</span><span className="font-medium">€ {fmt(totals.monthly*0.2)}</span></div>
+            <div className="flex justify-between text-sm font-bold mt-1 pt-1 border-t border-slate-300"><span>Brutto/Monat</span><span className="text-emerald-700">€ {fmt(totals.monthly*1.2)}</span></div>
+          </div>
+        </div>
+      )}
+
+      {/* One-time items */}
+      {onceItems.length > 0 && (
+        <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 overflow-hidden">
+          <div className="bg-amber-50 px-4 py-2 border-b border-amber-100">
+            <span className="font-bold text-amber-800" style={{fontSize:13}}>EINMALIGE KOSTEN</span>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {onceItems.map(([id, c]) => {
+              const item = ALL[id];
+              const p = price(item, c.tier, c.mode);
+              return (
+                <div key={id} className="flex items-center justify-between px-4 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-slate-700">{c.qty}x {item.code ? item.code+' ' : ''}{item.name}</span>
+                    {c.mode === 'buy' && <span className="text-xs text-slate-400 ml-2">Kauf</span>}
+                    {item.t === 'h' && <span className="text-xs text-slate-400 ml-2">({c.qty} Std.)</span>}
+                  </div>
+                  <span className="font-semibold text-slate-800 text-sm">€ {fmt(p * c.qty)}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="bg-slate-50 px-4 py-3 border-t border-slate-200">
+            <div className="flex justify-between text-sm"><span className="text-slate-500">Netto</span><span className="font-medium">€ {fmt(totals.once)}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-slate-500">20% USt</span><span className="font-medium">€ {fmt(totals.once*0.2)}</span></div>
+            <div className="flex justify-between text-sm font-bold mt-1 pt-1 border-t border-slate-300"><span>Brutto</span><span className="text-emerald-700">€ {fmt(totals.once*1.2)}</span></div>
+          </div>
+        </div>
+      )}
+
+      {/* Notes */}
+      <div className="bg-white rounded-xl border-2 border-slate-200 mb-4" style={{padding:'16px'}}>
+        <span className="font-bold text-slate-700 block mb-2" style={{fontSize:13}}>Anmerkungen</span>
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Optionale Anmerkungen zum Angebot..."
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
+      </div>
+
+      {/* Actions */}
+      {Object.keys(cart).length > 0 && (
+        <div className="flex gap-3">
+          <button onClick={onCopy}
+            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-100 text-slate-700 font-semibold py-3.5 hover:bg-slate-200 active:scale-[0.98] transition-all"
+            style={{fontSize:14}}>
+            {copied ? <Check size={18} /> : <Copy size={18} />}
+            {copied ? 'Kopiert!' : 'Text kopieren'}
+          </button>
+          <button onClick={onSend}
+            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white font-semibold py-3.5 hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-lg shadow-emerald-200"
+            style={{fontSize:14}}>
+            <Send size={18} />
+            Per E-Mail senden
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════
+
+const TABS = [
+  { id: 'kassa', label: 'Kassa', icon: '💻' },
+  { id: 'module', label: 'Module', icon: '📦' },
+  { id: 'hardware', label: 'Hardware', icon: '🖥️' },
+  { id: 'angebot', label: 'Angebot', icon: '📋' },
+];
+
+export default function App() {
+  const [tab, setTab] = useState('kassa');
+  const [globalTier, setGlobalTier] = useState('12mo');
+  const [cart, setCart] = useState({});
+  const [customer, setCustomer] = useState({ name:'', company:'', email:'', phone:'' });
+  const [notes, setNotes] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.href = 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+    return () => { try { document.head.removeChild(link); } catch(e){} };
+  }, []);
+
+  // Cart handlers
+  const handlers = {
+    onAdd: (id, tier, mode) => setCart(c => ({...c, [id]: { qty:1, tier, mode }})),
+    onRemove: (id) => setCart(c => { const n = {...c}; delete n[id]; return n; }),
+    onQty: (id, d) => setCart(c => {
+      const cur = c[id];
+      if (!cur) return c;
+      const nq = cur.qty + d;
+      if (nq < 1) { const n = {...c}; delete n[id]; return n; }
+      return {...c, [id]: {...cur, qty: nq}};
+    }),
+    onTier: (id, tier) => setCart(c => c[id] ? {...c, [id]: {...c[id], tier}} : c),
+    onMode: (id, mode) => setCart(c => c[id] ? {...c, [id]: {...c[id], mode}} : c),
+  };
+
+  // Totals
+  const totals = useMemo(() => {
+    let monthly = 0, once = 0;
+    Object.entries(cart).forEach(([id, c]) => {
+      const item = ALL[id];
+      const p = price(item, c.tier, c.mode);
+      if (p === null) return;
+      const line = p * c.qty;
+      if (isMonthly(item, c.mode)) monthly += line; else once += line;
+    });
+    return { monthly, once };
+  }, [cart]);
+
+  const cartCount = Object.keys(cart).length;
+
+  // Email generation
+  function buildOfferText() {
+    const co = COMPANY_DEFAULT;
+    const d = new Date().toLocaleDateString('de-AT');
+    const lines = [];
+    lines.push(co.name);
+    lines.push('Standort Klagenfurt: ' + co.address1);
+    lines.push('Standort Wolfsberg: ' + co.address2);
+    lines.push(`Tel KLU: ${co.phone1} | Tel WO: ${co.phone2}`);
+    lines.push(`E-Mail: ${co.email}`);
+    lines.push(co.website);
+    lines.push('');
+    lines.push('========================================');
+    lines.push('              ANGEBOT');
+    lines.push('========================================');
+    lines.push(`Datum: ${d}`);
+    lines.push('');
+    lines.push('Kunde:');
+    if (customer.company) lines.push(customer.company);
+    if (customer.name) lines.push(`z.Hd. ${customer.name}`);
+    if (customer.email) lines.push(customer.email);
+    if (customer.phone) lines.push(`Tel: ${customer.phone}`);
+    lines.push('');
+
+    const monthlyItems = Object.entries(cart).filter(([id,c]) => isMonthly(ALL[id],c.mode));
+    const onceItems = Object.entries(cart).filter(([id,c]) => !isMonthly(ALL[id],c.mode));
+
+    if (monthlyItems.length > 0) {
+      lines.push('----------------------------------------');
+      lines.push('MONATLICHE KOSTEN');
+      lines.push('----------------------------------------');
+      monthlyItems.forEach(([id, c], i) => {
+        const item = ALL[id];
+        const p = price(item, c.tier, c.mode);
+        const tierStr = c.tier ? ` (${TIER_LABEL_OFFER[c.tier]})` : '';
+        const modeStr = c.mode === 'rent' && item.t === 'term' ? ' [Miete]' : '';
+        lines.push(`  ${i+1}. ${c.qty}x ${item.code?item.code+' ':''}${item.name}${tierStr}${modeStr}`);
+        lines.push(`     = EUR ${fmt(p * c.qty)}/Monat`);
+      });
+      lines.push('');
+      lines.push(`  Netto/Monat:   EUR ${fmt(totals.monthly)}`);
+      lines.push(`  20% USt:       EUR ${fmt(totals.monthly*0.2)}`);
+      lines.push(`  Brutto/Monat:  EUR ${fmt(totals.monthly*1.2)}`);
+      lines.push('');
+    }
+
+    if (onceItems.length > 0) {
+      lines.push('----------------------------------------');
+      lines.push('EINMALIGE KOSTEN');
+      lines.push('----------------------------------------');
+      onceItems.forEach(([id, c], i) => {
+        const item = ALL[id];
+        const p = price(item, c.tier, c.mode);
+        const modeStr = c.mode === 'buy' ? ' [Kauf]' : '';
+        const hourStr = item.t === 'h' ? ` (${c.qty} Std.)` : '';
+        lines.push(`  ${i+1}. ${c.qty}x ${item.code?item.code+' ':''}${item.name}${modeStr}${hourStr}`);
+        lines.push(`     = EUR ${fmt(p * c.qty)}`);
+      });
+      lines.push('');
+      lines.push(`  Netto:         EUR ${fmt(totals.once)}`);
+      lines.push(`  20% USt:       EUR ${fmt(totals.once*0.2)}`);
+      lines.push(`  Brutto:        EUR ${fmt(totals.once*1.2)}`);
+      lines.push('');
+    }
+
+    if (notes.trim()) {
+      lines.push('----------------------------------------');
+      lines.push('Anmerkungen:');
+      lines.push(notes);
+      lines.push('');
+    }
+
+    lines.push('----------------------------------------');
+    lines.push('Alle Preise verstehen sich netto exkl. USt.');
+    lines.push('Bei 12/6/2-Monats-Verträgen jeweils monatlich.');
+    lines.push(`Stand: ${d}`);
+    return lines.join('\n');
+  }
+
+  function handleSend() {
+    const body = buildOfferText();
+    const subject = `Angebot${customer.company ? ' - '+customer.company : customer.name ? ' - '+customer.name : ''} - ${new Date().toLocaleDateString('de-AT')}`;
+    const mailto = `mailto:${encodeURIComponent(customer.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
+  }
+
+  function handleCopy() {
+    const body = buildOfferText();
+    navigator.clipboard.writeText(body).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function handleReset() {
+    if (confirm('Angebot zurücksetzen?')) {
+      setCart({});
+      setCustomer({name:'',company:'',email:'',phone:''});
+      setNotes('');
+    }
+  }
+
+  return (
+    <div style={{fontFamily:"'DM Sans',system-ui,sans-serif",minHeight:'100vh',background:'#f1f5f9',display:'flex',flexDirection:'column'}}>
+      {/* Header */}
+      <div style={{background:'linear-gradient(135deg,#1a1a2e 0%,#16213e 100%)',padding:'16px 20px',color:'white'}}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src={COMPANY_DEFAULT.logo} alt="KITZ" style={{height:32,filter:'brightness(0) invert(1)'}} />
+            <div>
+              <div className="font-bold" style={{fontSize:16,letterSpacing:'-0.3px'}}>Angebotsersteller</div>
+              <div style={{fontSize:11,opacity:0.6}}>bessa Kassa & Module</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {cartCount > 0 && (
+              <button onClick={handleReset} className="flex items-center gap-1 rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20 transition-colors" style={{fontSize:12}}>
+                <Trash2 size={13} /> Neu
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Global tier selector */}
+        {tab !== 'angebot' && (
+          <div className="flex gap-1.5 mt-3">
+            {TIERS.map(t => (
+              <button key={t} onClick={() => setGlobalTier(t)}
+                className={`rounded-lg font-medium transition-all ${globalTier===t ? 'bg-emerald-500 text-white shadow-lg' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
+                style={{fontSize:12,padding:'6px 12px',flex:1}}>
+                {TIER_SHORT[t]}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex bg-white border-b border-slate-200 shadow-sm" style={{position:'sticky',top:0,zIndex:20}}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-3 font-semibold transition-colors relative ${tab===t.id ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+            style={{fontSize:13}}>
+            <span>{t.icon}</span>
+            <span>{t.label}</span>
+            {t.id === 'angebot' && cartCount > 0 && (
+              <span className="absolute top-1.5 bg-emerald-600 text-white rounded-full" style={{fontSize:10,padding:'0 5px',lineHeight:'16px',right:'calc(50% - 36px)'}}>{cartCount}</span>
+            )}
+            {tab===t.id && <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-emerald-600 rounded-full" />}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto" style={{padding:'16px 16px 120px'}}>
+        {tab === 'kassa' && <TabContent items={KASSA} cart={cart} globalTier={globalTier} handlers={handlers} />}
+        {tab === 'module' && <TabContent items={MODULE} cart={cart} globalTier={globalTier} handlers={handlers} />}
+        {tab === 'hardware' && (
+          <>
+            <CatGroup title="Hardware" items={HARDWARE} cart={cart} globalTier={globalTier} handlers={handlers} />
+            <CatGroup title="bessa Zahlen Terminals" items={TERMINALS} cart={cart} globalTier={globalTier} handlers={handlers} />
+          </>
+        )}
+        {tab === 'angebot' && (
+          <OfferView cart={cart} customer={customer} setCustomer={setCustomer} notes={notes} setNotes={setNotes}
+            totals={totals} onSend={handleSend} onCopy={handleCopy} copied={copied} />
+        )}
+      </div>
+
+      {/* Sticky footer */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 shadow-2xl" style={{padding:'12px 20px',zIndex:30}}>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1 text-slate-400" style={{fontSize:11}}>
+              <ShoppingCart size={13} />
+              <span>{cartCount} {cartCount === 1 ? 'Position' : 'Positionen'}</span>
+            </div>
+            <div className="flex gap-4 mt-0.5">
+              {totals.monthly > 0 && <span className="font-bold text-slate-800" style={{fontSize:14}}>€ {fmt(totals.monthly)}<span className="font-normal text-slate-400" style={{fontSize:11}}>/Mo</span></span>}
+              {totals.once > 0 && <span className="font-bold text-slate-800" style={{fontSize:14}}>€ {fmt(totals.once)}<span className="font-normal text-slate-400" style={{fontSize:11}}> einm.</span></span>}
+              {totals.monthly === 0 && totals.once === 0 && <span className="text-slate-400" style={{fontSize:13}}>Noch keine Auswahl</span>}
+            </div>
+          </div>
+          <button onClick={() => { setTab('angebot'); }}
+            className="flex items-center gap-2 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 active:scale-[0.97] transition-all shadow-lg shadow-emerald-200"
+            style={{padding:'10px 20px',fontSize:14}}>
+            <FileText size={16} />
+            Angebot
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
