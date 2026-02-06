@@ -814,7 +814,7 @@ export default function App() {
             <div className="flex items-center justify-center bg-white text-red-600 font-bold rounded-lg" style={{width:40,height:40,fontSize:14}}>KITZ</div>
             <div>
               <div className="font-bold" style={{fontSize:16,letterSpacing:'-0.3px'}}>Angebotsersteller</div>
-              <div style={{fontSize:11,opacity:0.6}}>bessa Kassa & Module</div>
+              <div style={{fontSize:11,opacity:0.6}}>bessa Kassa & Module <span style={{opacity:0.5}}>v{__GIT_HASH__}</span></div>
             </div>
           </div>
           <div className="flex items-center gap-2">
