@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
-import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search } from "lucide-react";
+import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2 } from "lucide-react";
+import { pdf } from '@react-pdf/renderer';
+import OfferPdfDocument from './pdf/OfferPdfDocument';
 
 // ═══════════════════════════════════════════════════════
 // DATA
@@ -288,8 +290,7 @@ function TabContent({ items, cart, globalTier, handlers }) {
 // OFFER / ANGEBOT VIEW
 // ═══════════════════════════════════════════════════════
 
-function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPrint, onCopy, copied, raten, setRaten }) {
-  const [finanzOpen, setFinanzOpen] = useState(false);
+function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPrint, onCopy, copied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen }) {
   const monthlyItems = Object.entries(cart).filter(([id,c]) => isMonthly(ALL[id], c.mode));
   const onceItems = Object.entries(cart).filter(([id,c]) => !isMonthly(ALL[id], c.mode));
 
@@ -480,11 +481,11 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPri
             {copied ? <Check size={18} /> : <Copy size={18} />}
             {copied ? 'Kopiert!' : 'Text kopieren'}
           </button>
-          <button onClick={onPrint}
-            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 text-white font-semibold py-3.5 hover:bg-red-700 active:scale-[0.98] transition-all shadow-lg shadow-red-200"
+          <button onClick={onPrint} disabled={pdfLoading}
+            className={`flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 text-white font-semibold py-3.5 hover:bg-red-700 active:scale-[0.98] transition-all shadow-lg shadow-red-200 ${pdfLoading ? 'opacity-70 cursor-wait' : ''}`}
             style={{fontSize:14}}>
-            <Download size={18} />
-            Als PDF drucken
+            {pdfLoading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+            {pdfLoading ? 'PDF wird erstellt...' : 'PDF herunterladen'}
           </button>
         </div>
       )}
@@ -512,6 +513,8 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [raten, setRaten] = useState(12);
   const [search, setSearch] = useState('');
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [finanzOpen, setFinanzOpen] = useState(false);
 
   useEffect(() => {
     const link = document.createElement('link');
@@ -641,8 +644,80 @@ export default function App() {
     return lines.join('\n');
   }
 
-  function handlePrint() {
-    window.print();
+  async function handlePrint() {
+    setPdfLoading(true);
+    try {
+      // Prepare items for PDF
+      const monthlyItems = Object.entries(cart)
+        .filter(([id, c]) => isMonthly(ALL[id], c.mode))
+        .map(([id, c]) => {
+          const item = ALL[id];
+          const p = price(item, c.tier, c.mode);
+          return {
+            id,
+            qty: c.qty,
+            code: item.code || '',
+            name: item.name,
+            tier: c.tier,
+            mode: c.mode,
+            type: item.t,
+            lineTotal: p * c.qty,
+          };
+        });
+
+      const onceItems = Object.entries(cart)
+        .filter(([id, c]) => !isMonthly(ALL[id], c.mode))
+        .map(([id, c]) => {
+          const item = ALL[id];
+          const p = price(item, c.tier, c.mode);
+          return {
+            id,
+            qty: c.qty,
+            code: item.code || '',
+            name: item.name,
+            tier: c.tier,
+            mode: c.mode,
+            type: item.t,
+            lineTotal: p * c.qty,
+          };
+        });
+
+      // Generate PDF blob
+      const blob = await pdf(
+        <OfferPdfDocument
+          customer={customer}
+          monthlyItems={monthlyItems}
+          onceItems={onceItems}
+          totals={totals}
+          notes={notes}
+          raten={raten}
+          showFinancing={finanzOpen}
+        />
+      ).toBlob();
+
+      // Generate filename
+      const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      const customerName = (customer.company || customer.name || 'Kunde')
+        .replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_')
+        .replace(/_+/g, '_')
+        .substring(0, 30);
+      const filename = `KITZ_Angebot_${customerName}_${dateStr}.pdf`;
+
+      // Trigger download
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      alert('Fehler beim Erstellen der PDF. Bitte versuchen Sie es erneut.');
+    } finally {
+      setPdfLoading(false);
+    }
   }
 
   function handleCopy() {
@@ -774,7 +849,7 @@ export default function App() {
             )}
             {tab === 'angebot' && (
               <OfferView cart={cart} customer={customer} setCustomer={setCustomer} notes={notes} setNotes={setNotes}
-                totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} raten={raten} setRaten={setRaten} />
+                totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} />
             )}
           </>
         )}
