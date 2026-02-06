@@ -706,7 +706,7 @@ export default function App() {
         });
 
       // Generate PDF blob
-      const blob = await pdf(
+      const pdfBlob = await pdf(
         <OfferPdfDocument
           customer={customer}
           monthlyItems={monthlyItems}
@@ -717,6 +717,8 @@ export default function App() {
           showFinancing={finanzOpen}
         />
       ).toBlob();
+      // Ensure correct MIME type for mobile browsers
+      const blob = new Blob([pdfBlob], { type: 'application/pdf' });
 
       // Generate filename
       const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
@@ -728,13 +730,26 @@ export default function App() {
 
       // Trigger download
       const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+
+      // Check if mobile device
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+      if (isMobile) {
+        // On mobile, open in new tab for better compatibility
+        window.open(url, '_blank');
+        // Delay cleanup to allow the new tab to load
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      } else {
+        // On desktop, use download link
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        // Delay cleanup to ensure download starts
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
     } catch (error) {
       console.error('PDF generation failed:', error);
       alert('Fehler beim Erstellen der PDF. Bitte versuchen Sie es erneut.');
