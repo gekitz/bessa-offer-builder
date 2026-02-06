@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
-import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2 } from "lucide-react";
+import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2, Link } from "lucide-react";
 import { pdf } from '@react-pdf/renderer';
 import OfferPdfDocument from './pdf/OfferPdfDocument';
+import { getOfferFromURL, generateShareableURL } from './lib/urlState';
 
 // ═══════════════════════════════════════════════════════
 // DATA
@@ -290,7 +291,7 @@ function TabContent({ items, cart, globalTier, handlers }) {
 // OFFER / ANGEBOT VIEW
 // ═══════════════════════════════════════════════════════
 
-function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPrint, onCopy, copied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen }) {
+function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier }) {
   const monthlyItems = Object.entries(cart).filter(([id,c]) => isMonthly(ALL[id], c.mode));
   const onceItems = Object.entries(cart).filter(([id,c]) => !isMonthly(ALL[id], c.mode));
 
@@ -474,16 +475,22 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPri
 
       {/* Actions */}
       {Object.keys(cart).length > 0 && (
-        <div className="flex gap-3 no-print">
+        <div className="flex gap-2 no-print flex-wrap">
+          <button onClick={onCopyLink}
+            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-100 text-slate-700 font-semibold py-3.5 hover:bg-slate-200 active:scale-[0.98] transition-all"
+            style={{fontSize:14, minWidth:'120px'}}>
+            {linkCopied ? <Check size={18} /> : <Link size={18} />}
+            {linkCopied ? 'Link kopiert!' : 'Link kopieren'}
+          </button>
           <button onClick={onCopy}
             className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-100 text-slate-700 font-semibold py-3.5 hover:bg-slate-200 active:scale-[0.98] transition-all"
-            style={{fontSize:14}}>
+            style={{fontSize:14, minWidth:'120px'}}>
             {copied ? <Check size={18} /> : <Copy size={18} />}
             {copied ? 'Kopiert!' : 'Text kopieren'}
           </button>
           <button onClick={onPrint} disabled={pdfLoading}
             className={`flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 text-white font-semibold py-3.5 hover:bg-red-700 active:scale-[0.98] transition-all shadow-lg shadow-red-200 ${pdfLoading ? 'opacity-70 cursor-wait' : ''}`}
-            style={{fontSize:14}}>
+            style={{fontSize:14, minWidth:'140px'}}>
             {pdfLoading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
             {pdfLoading ? 'PDF wird erstellt...' : 'PDF herunterladen'}
           </button>
@@ -511,6 +518,7 @@ export default function App() {
   const [customer, setCustomer] = useState({ name:'', company:'', email:'', phone:'' });
   const [notes, setNotes] = useState('');
   const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [raten, setRaten] = useState(12);
   const [search, setSearch] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -522,6 +530,21 @@ export default function App() {
     link.rel = 'stylesheet';
     document.head.appendChild(link);
     return () => { try { document.head.removeChild(link); } catch(e){} };
+  }, []);
+
+  // Load offer from URL on mount
+  useEffect(() => {
+    const savedOffer = getOfferFromURL();
+    if (savedOffer) {
+      setCart(savedOffer.cart || {});
+      setCustomer(savedOffer.customer || { name:'', company:'', email:'', phone:'' });
+      setNotes(savedOffer.notes || '');
+      setRaten(savedOffer.raten || 12);
+      setFinanzOpen(savedOffer.finanzOpen || false);
+      setGlobalTier(savedOffer.globalTier || '12mo');
+      // Switch to offer tab when loading from URL
+      setTab('angebot');
+    }
   }, []);
 
   // Cart handlers
@@ -728,6 +751,22 @@ export default function App() {
     });
   }
 
+  function handleCopyLink() {
+    const state = {
+      cart,
+      customer,
+      notes,
+      raten,
+      finanzOpen,
+      globalTier,
+    };
+    const url = generateShareableURL(state);
+    navigator.clipboard.writeText(url).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  }
+
   function handleReset() {
     if (confirm('Angebot zurücksetzen?')) {
       setCart({});
@@ -849,7 +888,7 @@ export default function App() {
             )}
             {tab === 'angebot' && (
               <OfferView cart={cart} customer={customer} setCustomer={setCustomer} notes={notes} setNotes={setNotes}
-                totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} />
+                totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier} />
             )}
           </>
         )}
