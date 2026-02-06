@@ -90,9 +90,12 @@ const HARDWARE = [
   { id:'h11', name:'V3H/L3H Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
   { id:'h12', name:'Hobex ViA PRO', price:1149, t:'o' },
   { id:'h6', name:'Caregold Garantieerweiterung', price:270, t:'o' },
-  { id:'h7', name:'Fiskalisierung', price:190, t:'o' },
-  { id:'h8', name:'Arbeitszeit', price:118, t:'o' },
   { id:'h9', name:'Epson TMT20 Bondrucker', price:220, t:'o' },
+];
+
+const DIENSTLEISTUNGEN = [
+  { id:'h7', name:'Fiskalisierung', price:190, t:'o' },
+  { id:'h8', name:'Arbeitszeit', price:118, t:'o', info:'pro Stunde' },
 ];
 
 const ORDERMAN = [
@@ -106,7 +109,7 @@ const ORDERMAN = [
 
 // Build lookup
 const ALL = {};
-[...KASSA,...MODULE,...TERMINALS,...HARDWARE,...ORDERMAN].forEach(i => ALL[i.id] = i);
+[...KASSA,...MODULE,...TERMINALS,...HARDWARE,...ORDERMAN,...DIENSTLEISTUNGEN].forEach(i => ALL[i.id] = i);
 
 // ═══════════════════════════════════════════════════════
 // HELPERS
@@ -866,7 +869,7 @@ export default function App() {
           // Search results
           (() => {
             const q = search.toLowerCase().trim();
-            const allItems = [...KASSA, ...MODULE, ...HARDWARE, ...ORDERMAN, ...TERMINALS];
+            const allItems = [...KASSA, ...MODULE, ...HARDWARE, ...ORDERMAN, ...TERMINALS, ...DIENSTLEISTUNGEN];
             const results = allItems.filter(item =>
               item.name.toLowerCase().includes(q) ||
               (item.code && item.code.toLowerCase().includes(q)) ||
@@ -899,6 +902,7 @@ export default function App() {
                 <CatGroup title="Hardware" items={HARDWARE} cart={cart} globalTier={globalTier} handlers={handlers} />
                 <CatGroup title="Orderman" items={ORDERMAN} cart={cart} globalTier={globalTier} handlers={handlers} />
                 <CatGroup title="bessa Zahlen Terminals" items={TERMINALS} cart={cart} globalTier={globalTier} handlers={handlers} />
+                <CatGroup title="Dienstleistungen" items={DIENSTLEISTUNGEN} cart={cart} globalTier={globalTier} handlers={handlers} />
               </>
             )}
             {tab === 'angebot' && (
