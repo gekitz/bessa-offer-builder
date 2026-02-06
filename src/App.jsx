@@ -551,8 +551,18 @@ export default function App() {
   }, []);
 
   // Cart handlers
+  // Items that auto-add 10h Arbeitszeit when selected
+  const WORK_INTENSIVE_ITEMS = ['k022', 'k044']; // Lagerverwaltung, Anbindung Schankanlage
+
   const handlers = {
-    onAdd: (id, tier, mode) => setCart(c => ({...c, [id]: { qty:1, tier, mode }})),
+    onAdd: (id, tier, mode) => setCart(c => {
+      const newCart = {...c, [id]: { qty:1, tier, mode }};
+      // Auto-add 10h Arbeitszeit for work-intensive items (if not already in cart)
+      if (WORK_INTENSIVE_ITEMS.includes(id) && !c['h8']) {
+        newCart['h8'] = { qty: 10 };
+      }
+      return newCart;
+    }),
     onRemove: (id) => setCart(c => { const n = {...c}; delete n[id]; return n; }),
     onQty: (id, d) => setCart(c => {
       const cur = c[id];
