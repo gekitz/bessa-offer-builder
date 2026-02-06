@@ -557,9 +557,10 @@ export default function App() {
   const handlers = {
     onAdd: (id, tier, mode) => setCart(c => {
       const newCart = {...c, [id]: { qty:1, tier, mode }};
-      // Auto-add 10h Arbeitszeit for work-intensive items (if not already in cart)
-      if (WORK_INTENSIVE_ITEMS.includes(id) && !c['h8']) {
-        newCart['h8'] = { qty: 10 };
+      // Auto-add 10h Arbeitszeit for work-intensive items
+      if (WORK_INTENSIVE_ITEMS.includes(id)) {
+        const currentQty = c['h8']?.qty || 0;
+        newCart['h8'] = { qty: currentQty + 10 };
       }
       return newCart;
     }),
