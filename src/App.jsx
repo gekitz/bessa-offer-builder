@@ -47,12 +47,6 @@ const KASSA = [
   { id:'k043', code:'043', name:'Bestellmonitor', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
   { id:'k044', code:'044', name:'Anbindung Schankanlage', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m', note:'+10h Arbeitszeit' },
   { id:'k049', code:'049', name:'Öffentliche Schnittstelle', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
-  { id:'k060', code:'060', name:'Entwurf Rechnungsvorlage', cat:'Sonstige Leistungen', p:{o:499}, t:'o' },
-  { id:'k061', code:'061', name:'Anpassung Kassendesign', cat:'Sonstige Leistungen', p:{o:999}, t:'o' },
-  { id:'k090', code:'090', name:'Fiskalisierung durch Techniker', cat:'Sonstige Leistungen', p:{y:10}, t:'m', note:'pro Kassa/Monat' },
-  { id:'k091', code:'091', name:'Neufiskalisierung', cat:'Sonstige Leistungen', p:{o:90}, t:'o' },
-  { id:'k095', code:'095', name:'Support-Paket 5h', cat:'Sonstige Leistungen', p:{o:750}, t:'o' },
-  { id:'k099', code:'099', name:'Techniker', cat:'Sonstige Leistungen', p:{o:180}, t:'h', note:'pro Stunde' },
 ];
 
 const MODULE = [
@@ -61,7 +55,7 @@ const MODULE = [
   { id:'m320', code:'320', name:'Gastro (pro Filiale)', cat:'Pakete', p:{y:199}, t:'m', note:'-50 € je weitere Filiale' },
   { id:'m200', code:'200', name:'Web-Bestellungen', cat:'Einzelfunktionen', p:{y:39,s:49}, t:'m' },
   { id:'m201', code:'201', name:'Kundenbindung Kundenkarte', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
-  { id:'m202', code:'202', name:'Lieferservice-Bestellungen', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'m202', code:'202', name:'Lieferservice-Bestellungen', cat:'Einzelfunktionen', p:{y:39}, t:'m', info:'Lieferando, Foodora, Wolt and UberEATS' },
   { id:'m203', code:'203', name:'Gastro-Kiosk-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weiterer Kiosk' },
   { id:'m204', code:'204', name:'Tisch-Tablet-Bestellungen', cat:'Einzelfunktionen', p:{y:9,s:12}, t:'m' },
   { id:'m205', code:'205', name:'Schank-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weitere Schank' },
@@ -69,16 +63,6 @@ const MODULE = [
   { id:'m207', code:'207', name:'Online Gutscheinverwaltung', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
   { id:'m208', code:'208', name:'Gutscheine Shopify/WooCommerce', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
   { id:'m209', code:'209', name:'Gastrotouch Kennzahlen', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
-  { id:'m250', code:'250', name:'Design-Paket Web/Kiosk/Kantine', cat:'Sonstige Leistungen', p:{o:499}, t:'o' },
-  { id:'m295', code:'295', name:'Support-Paket 5h (Module)', cat:'Sonstige Leistungen', p:{o:750}, t:'o' },
-  { id:'m299', code:'299', name:'Techniker (Module)', cat:'Sonstige Leistungen', p:{o:180}, t:'h', note:'pro Stunde' },
-];
-
-const TERMINALS = [
-  { id:'t400', code:'400', name:'SoftPos In-App Terminal (NFC)', cat:'Terminals', rent:0, buy:null, t:'term' },
-  { id:'t401', code:'401', name:'Bluetooth Terminal', cat:'Terminals', rent:8, buy:79, t:'term' },
-  { id:'t402', code:'402', name:'WiFi Terminal 5"', cat:'Terminals', rent:25, buy:299, t:'term', note:'keine GiroCard' },
-  { id:'t403', code:'403', name:'WiFi Terminal 5.5"', cat:'Terminals', rent:39, buy:399, t:'term' },
 ];
 
 const HARDWARE = [
@@ -89,7 +73,6 @@ const HARDWARE = [
   { id:'h4', name:'Sunmi L3H', price:599, t:'o' },
   { id:'h11', name:'V3H/L3H Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
   { id:'h12', name:'Hobex ViA PRO', price:1149, t:'o' },
-  { id:'h6', name:'Caregold Garantieerweiterung', price:270, t:'o' },
   { id:'h9', name:'Epson TMT20 Bondrucker', price:220, t:'o' },
 ];
 
@@ -913,7 +896,6 @@ export default function App() {
                 <CatGroup title="Hardware" items={HARDWARE} cart={cart} globalTier={globalTier} handlers={handlers} />
                 <CatGroup title="Orderman" items={ORDERMAN} cart={cart} globalTier={globalTier} handlers={handlers} />
                 <CatGroup title="Dienstleistungen" items={DIENSTLEISTUNGEN} cart={cart} globalTier={globalTier} handlers={handlers} />
-                <CatGroup title="bessa Zahlen Terminals" items={TERMINALS} cart={cart} globalTier={globalTier} handlers={handlers} />
               </>
             )}
             {tab === 'angebot' && (
