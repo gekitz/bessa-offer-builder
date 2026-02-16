@@ -76,6 +76,31 @@ const HARDWARE = [
   { id:'h9', name:'Epson TMT20 Bondrucker', price:220, t:'o' },
 ];
 
+const KUECHENMONITORE = [
+  // KitchenSpeed Lite
+  { id:'km1', name:'KitchenSpeed Lite 15,6" Intel J6412', price:1960, t:'o' },
+  { id:'km2', name:'KitchenSpeed Lite 15,6" Intel i3', price:2400, t:'o' },
+  { id:'km3', name:'KitchenSpeed Lite 15,6" Android PoE++', price:1960, t:'o' },
+  { id:'km4', name:'KitchenSpeed Lite 21,5" Intel J6412', price:2390, t:'o' },
+  { id:'km5', name:'KitchenSpeed Lite 21,5" Intel i3', price:2830, t:'o' },
+  { id:'km6', name:'KitchenSpeed Lite 21,5" Android PoE++', price:2390, t:'o' },
+  { id:'km7', name:'KitchenSpeed Lite 32" Intel J6412', price:3520, t:'o' },
+  { id:'km8', name:'KitchenSpeed Lite 32" Intel i3', price:3980, t:'o' },
+  { id:'km9', name:'KitchenSpeed Lite 32" Android PoE++', price:3520, t:'o' },
+  // KitchenSpeed Ultra
+  { id:'km10', name:'KitchenSpeed Ultra 22" Intel N97', price:4760, t:'o' },
+  { id:'km11', name:'KitchenSpeed Ultra 32" Intel N97', price:5780, t:'o' },
+  // Zubehör
+  { id:'km20', name:'Windows 10 IoT Enterprise LTSC', price:110, t:'o' },
+  { id:'km21', name:'Halterungslösung (Wand/Decke/Standfuß)', price:358, t:'o' },
+  { id:'km22', name:'Signalisierungslautsprecher', price:56, t:'o', info:'für Lite' },
+  // Service
+  { id:'km30', name:'Black Pepper-Protect Upgrade', price:96, t:'o', info:'für Lite' },
+  { id:'km31', name:'Garantieverlängerung Lite +1 Jahr', price:196, t:'o' },
+  { id:'km32', name:'Garantieverlängerung Ultra +1 Jahr', price:360, t:'o' },
+  { id:'km33', name:'Garantieverlängerung Ultra +2 Jahre', price:640, t:'o' },
+];
+
 const DIENSTLEISTUNGEN = [
   { id:'h7', name:'Fiskalisierung', price:190, t:'o' },
   { id:'h8', name:'Arbeitszeit', price:118, t:'o', info:'pro Stunde' },
@@ -105,7 +130,7 @@ const TEAM = [
 
 // Build lookup
 const ALL = {};
-[...KASSA,...MODULE,...HARDWARE,...ORDERMAN,...DIENSTLEISTUNGEN].forEach(i => ALL[i.id] = i);
+[...KASSA,...MODULE,...HARDWARE,...KUECHENMONITORE,...ORDERMAN,...DIENSTLEISTUNGEN].forEach(i => ALL[i.id] = i);
 
 // ═══════════════════════════════════════════════════════
 // HELPERS
@@ -892,7 +917,7 @@ export default function App() {
           // Search results
           (() => {
             const q = search.toLowerCase().trim();
-            const allItems = [...KASSA, ...MODULE, ...HARDWARE, ...ORDERMAN, ...DIENSTLEISTUNGEN];
+            const allItems = [...KASSA, ...MODULE, ...HARDWARE, ...KUECHENMONITORE, ...ORDERMAN, ...DIENSTLEISTUNGEN];
             const results = allItems.filter(item =>
               item.name.toLowerCase().includes(q) ||
               (item.code && item.code.toLowerCase().includes(q)) ||
@@ -923,6 +948,7 @@ export default function App() {
             {tab === 'hardware' && (
               <>
                 <CatGroup title="Hardware" items={HARDWARE} cart={cart} globalTier={globalTier} handlers={handlers} />
+                <CatGroup title="Küchenmonitore" items={KUECHENMONITORE} cart={cart} globalTier={globalTier} handlers={handlers} />
                 <CatGroup title="Orderman" items={ORDERMAN} cart={cart} globalTier={globalTier} handlers={handlers} />
                 <CatGroup title="Dienstleistungen" items={DIENSTLEISTUNGEN} cart={cart} globalTier={globalTier} handlers={handlers} />
               </>
