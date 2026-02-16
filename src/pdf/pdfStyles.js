@@ -360,6 +360,17 @@ export const styles = StyleSheet.create({
     marginBottom: 1,
   },
 
+  // Offer link section
+  offerLinkSection: {
+    marginTop: 15,
+    alignItems: 'center',
+  },
+  offerLink: {
+    fontSize: 9,
+    color: COLORS.kitzRed,
+    textDecoration: 'underline',
+  },
+
   // Footer
   footer: {
     position: 'absolute',

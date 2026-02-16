@@ -754,6 +754,10 @@ export default function App() {
       // Find creator info
       const creatorInfo = TEAM.find(t => t.id === creator) || null;
 
+      // Generate shareable URL for the PDF
+      const offerState = { cart, customer, creator, notes, raten, finanzOpen, globalTier };
+      const shareableUrl = generateShareableURL(offerState);
+
       // Generate PDF blob
       const pdfBlob = await pdf(
         <OfferPdfDocument
@@ -765,6 +769,7 @@ export default function App() {
           raten={raten}
           showFinancing={finanzOpen}
           creator={creatorInfo}
+          offerUrl={shareableUrl}
         />
       ).toBlob();
       // Ensure correct MIME type for mobile browsers
