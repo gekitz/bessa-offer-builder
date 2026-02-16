@@ -334,6 +334,32 @@ export const styles = StyleSheet.create({
     lineHeight: 1.5,
   },
 
+  // Creator section
+  creatorSection: {
+    marginTop: 20,
+    padding: 12,
+    backgroundColor: COLORS.background,
+    borderRadius: 4,
+  },
+  creatorTitle: {
+    fontSize: 9,
+    fontWeight: 600,
+    color: COLORS.medium,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  creatorName: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: COLORS.dark,
+    marginBottom: 2,
+  },
+  creatorDetail: {
+    fontSize: 9,
+    color: COLORS.medium,
+    marginBottom: 1,
+  },
+
   // Footer
   footer: {
     position: 'absolute',

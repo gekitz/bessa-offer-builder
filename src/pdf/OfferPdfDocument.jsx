@@ -238,6 +238,7 @@ export default function OfferPdfDocument({
   notes,
   raten,
   showFinancing = false,
+  creator = null,
 }) {
   const date = new Date().toLocaleDateString('de-AT');
   const periodBrutto = totals.periodTotal * 1.2;
@@ -313,6 +314,17 @@ export default function OfferPdfDocument({
           <View style={styles.notesSection} wrap={false}>
             <Text style={styles.notesTitle}>Anmerkungen</Text>
             <Text style={styles.notesText}>{notes}</Text>
+          </View>
+        )}
+
+        {/* Creator Info */}
+        {creator && (
+          <View style={styles.creatorSection} wrap={false}>
+            <Text style={styles.creatorTitle}>Ihr Ansprechpartner</Text>
+            <Text style={styles.creatorName}>{creator.name}</Text>
+            <Text style={styles.creatorDetail}>{creator.role}</Text>
+            <Text style={styles.creatorDetail}>Tel: {creator.phone}</Text>
+            <Text style={styles.creatorDetail}>E-Mail: {creator.email}</Text>
           </View>
         )}
 

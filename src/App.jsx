@@ -90,6 +90,16 @@ const ORDERMAN = [
   { id:'o6', name:'Orderman Safety-Cord', price:14, t:'o' },
 ];
 
+const TEAM = [
+  { id:'hbauer', name:'Helmut Bauer', role:'Verkauf', phone:'+43 4352 4176 21', email:'h.bauer@kitz.co.at', location:'Wolfsberg' },
+  { id:'dscharf', name:'Daniel Scharf', role:'Verkauf', phone:'+43 4352 4176 22', email:'d.scharf@kitz.co.at', location:'Wolfsberg' },
+  { id:'anowak', name:'Andreas Nowak', role:'Verkauf', phone:'+43 463 504454 82', email:'a.nowak@kitz.co.at', location:'Klagenfurt' },
+  { id:'thuber', name:'Toni Huber', role:'Kassensystemberater', phone:'+43 664 886 033 14', email:'t.huber@kitz.co.at', location:'Klagenfurt' },
+  { id:'hscheiber', name:'Heribert Scheiber', role:'Software Support', phone:'+43 4352 4176 43', email:'h.scheiber@kitz.co.at', location:'Wolfsberg' },
+  { id:'mklein', name:'Marcel Klein', role:'Support', phone:'+43 463 504454 73', email:'m.klein@kitz.co.at', location:'Klagenfurt' },
+  { id:'hkitz', name:'Herbert Kitz', role:'Geschäftsführer', phone:'+43 4352 4176 15', email:'h.kitz@kitz.co.at', location:'Wolfsberg' },
+];
+
 // Build lookup
 const ALL = {};
 [...KASSA,...MODULE,...HARDWARE,...ORDERMAN,...DIENSTLEISTUNGEN].forEach(i => ALL[i.id] = i);
@@ -277,7 +287,7 @@ function TabContent({ items, cart, globalTier, handlers }) {
 // OFFER / ANGEBOT VIEW
 // ═══════════════════════════════════════════════════════
 
-function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier }) {
+function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier }) {
   const monthlyItems = Object.entries(cart).filter(([id,c]) => isMonthly(ALL[id], c.mode));
   const onceItems = Object.entries(cart).filter(([id,c]) => !isMonthly(ALL[id], c.mode));
 
@@ -301,6 +311,15 @@ function OfferView({ cart, customer, setCustomer, notes, setNotes, totals, onPri
             className="w-full min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
           <input placeholder="Telefon" type="tel" value={customer.phone} onChange={e => setCustomer({...customer,phone:e.target.value})}
             className="w-full min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+        </div>
+        <div className="mt-3">
+          <select value={creator} onChange={e => setCreator(e.target.value)}
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 bg-white">
+            <option value="">Angebot erstellt von...</option>
+            {TEAM.map(t => (
+              <option key={t.id} value={t.id}>{t.name} ({t.role}, {t.location})</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -502,6 +521,7 @@ export default function App() {
   const [globalTier, setGlobalTier] = useState('12mo');
   const [cart, setCart] = useState({});
   const [customer, setCustomer] = useState({ name:'', company:'', email:'', phone:'' });
+  const [creator, setCreator] = useState('');
   const [notes, setNotes] = useState('');
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -702,6 +722,9 @@ export default function App() {
           };
         });
 
+      // Find creator info
+      const creatorInfo = TEAM.find(t => t.id === creator) || null;
+
       // Generate PDF blob
       const pdfBlob = await pdf(
         <OfferPdfDocument
@@ -712,6 +735,7 @@ export default function App() {
           notes={notes}
           raten={raten}
           showFinancing={finanzOpen}
+          creator={creatorInfo}
         />
       ).toBlob();
       // Ensure correct MIME type for mobile browsers
@@ -899,7 +923,7 @@ export default function App() {
               </>
             )}
             {tab === 'angebot' && (
-              <OfferView cart={cart} customer={customer} setCustomer={setCustomer} notes={notes} setNotes={setNotes}
+              <OfferView cart={cart} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes}
                 totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier} />
             )}
           </>
