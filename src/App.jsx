@@ -26,14 +26,14 @@ const COMPANY_DEFAULT = {
 
 const KASSA = [
   { id:'k100', code:'100', name:'Mobile Kassa', cat:'Mobil', p:{y:19,s:25,m:30,e:38}, t:'m' },
-  { id:'k109', code:'109', name:'bessa Mobil', cat:'Mobil', p:{y:119}, t:'m', note:'-50 € je weitere Filiale' },
+  { id:'k109', code:'109', name:'bessa Mobil', cat:'Mobil', p:{y:119}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
   { id:'k110', code:'110', name:'Kleiner Handelsbetrieb', cat:'Handel', p:{y:24,s:30,m:40,e:48}, t:'m' },
   { id:'k111', code:'111', name:'Großer Handelsbetrieb', cat:'Handel', p:{y:42,s:55,m:70,e:84}, t:'m' },
   { id:'k115', code:'115', name:'Web Kassa / Auftragsverwaltung', cat:'Handel', p:{y:19,s:25,m:30}, t:'m' },
-  { id:'k119', code:'119', name:'bessa Handelsbetrieb', cat:'Handel', p:{y:160}, t:'m', note:'-50 € je weitere Filiale' },
+  { id:'k119', code:'119', name:'bessa Handelsbetrieb', cat:'Handel', p:{y:160}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
   { id:'k120', code:'120', name:'Kleiner Gastrobetrieb', cat:'Gastro', p:{y:45,s:55,m:70,e:90}, t:'m' },
   { id:'k121', code:'121', name:'Großer Gastrobetrieb', cat:'Gastro', p:{y:62,s:80,m:100,e:124}, t:'m' },
-  { id:'k129', code:'129', name:'bessa Gastrobetrieb', cat:'Gastro', p:{y:240}, t:'m', note:'-50 € je weitere Filiale' },
+  { id:'k129', code:'129', name:'bessa Gastrobetrieb', cat:'Gastro', p:{y:240}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
   { id:'k020', code:'020', name:'Zusätzlicher Bediener', cat:'Einzelfunktionen', p:{y:3,s:4,m:5,e:6}, t:'m' },
   { id:'k021', code:'021', name:'Kundenverwaltung', cat:'Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
   { id:'k022', code:'022', name:'Lagerverwaltung', cat:'Einzelfunktionen', p:{y:15,s:18,m:20,e:30}, t:'m', note:'+10h Arbeitszeit' },
@@ -50,15 +50,15 @@ const KASSA = [
 ];
 
 const MODULE = [
-  { id:'m300', code:'300', name:'App (pro Filiale)', cat:'Pakete', p:{y:109}, t:'m', note:'50% Rabatt je weitere Filiale' },
-  { id:'m310', code:'310', name:'Handel (pro Filiale)', cat:'Pakete', p:{y:139}, t:'m', note:'-50 € je weitere Filiale' },
-  { id:'m320', code:'320', name:'Gastro (pro Filiale)', cat:'Pakete', p:{y:199}, t:'m', note:'-50 € je weitere Filiale' },
+  { id:'m300', code:'300', name:'App (pro Filiale)', cat:'Pakete', p:{y:109}, t:'m', note:'50% Rabatt je weitere Filiale', discount:{type:'percent',value:50,label:'Weitere Filiale'} },
+  { id:'m310', code:'310', name:'Handel (pro Filiale)', cat:'Pakete', p:{y:139}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'m320', code:'320', name:'Gastro (pro Filiale)', cat:'Pakete', p:{y:199}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
   { id:'m200', code:'200', name:'Web-Bestellungen', cat:'Einzelfunktionen', p:{y:39,s:49}, t:'m' },
   { id:'m201', code:'201', name:'Kundenbindung Kundenkarte', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
   { id:'m202', code:'202', name:'Lieferservice-Bestellungen', cat:'Einzelfunktionen', p:{y:39}, t:'m', info:'Lieferando, Foodora, Wolt and UberEATS' },
-  { id:'m203', code:'203', name:'Gastro-Kiosk-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weiterer Kiosk' },
+  { id:'m203', code:'203', name:'Gastro-Kiosk-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weiterer Kiosk', discount:{type:'percent',value:50,label:'Weiterer Kiosk'} },
   { id:'m204', code:'204', name:'Tisch-Tablet-Bestellungen', cat:'Einzelfunktionen', p:{y:9,s:12}, t:'m' },
-  { id:'m205', code:'205', name:'Schank-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weitere Schank' },
+  { id:'m205', code:'205', name:'Schank-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weitere Schank', discount:{type:'percent',value:50,label:'Weitere Schank'} },
   { id:'m206', code:'206', name:'Kantinen-Bestellungen', cat:'Einzelfunktionen', p:{y:99}, t:'m', note:'50% für öffentl. Einr.' },
   { id:'m207', code:'207', name:'Online Gutscheinverwaltung', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
   { id:'m208', code:'208', name:'Gutscheine Shopify/WooCommerce', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
@@ -164,6 +164,18 @@ function price(item, tier, mode) {
   return null;
 }
 
+function discountedPrice(item, tier, mode) {
+  const basePrice = price(item, tier, mode);
+  if (!item.discount || basePrice === null) return basePrice;
+  if (item.discount.type === 'fixed') return Math.max(0, basePrice - item.discount.value);
+  if (item.discount.type === 'percent') return basePrice * (1 - item.discount.value / 100);
+  return basePrice;
+}
+
+function hasDiscount(item) {
+  return !!item.discount;
+}
+
 function isMonthly(item, mode) {
   if (item.t === 'term') return mode === 'rent';
   return item.t === 'm';
@@ -179,13 +191,18 @@ function groupBy(items, key) {
 // COMPONENTS
 // ═══════════════════════════════════════════════════════
 
-function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onTier, onMode }) {
+function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onDiscountQty, onTier, onMode }) {
   const inCart = !!cartItem;
   const tier = cartItem?.tier || bestTier(item, globalTier);
   const mode = cartItem?.mode || 'rent';
   const p = price(item, tier, mode);
+  const dp = discountedPrice(item, tier, mode);
   const av = availableTiers(item);
   const monthly = isMonthly(item, mode);
+  const hasDiscountOption = hasDiscount(item);
+  const fullQty = cartItem?.qty || 0;
+  const discQty = cartItem?.discountQty || 0;
+  const lineTotal = (p * fullQty) + (dp * discQty);
 
   if (p === null && !inCart) return null;
 
@@ -245,14 +262,17 @@ function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onTier, 
               )}
             </div>
           )}
+
+          {/* Regular quantity row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1">
+              {hasDiscountOption && <span className="text-slate-500 mr-1" style={{fontSize:11,minWidth:70}}>Voller Preis:</span>}
               <button onClick={() => onQty(item.id,-1)}
                 className="rounded-full bg-slate-200 flex items-center justify-center hover:bg-slate-300 active:scale-95 transition-transform"
                 style={{width:32,height:32}}>
                 <Minus size={14} />
               </button>
-              <span className="font-bold text-slate-800 text-center" style={{width:28,fontSize:14}}>{cartItem.qty}</span>
+              <span className="font-bold text-slate-800 text-center" style={{width:28,fontSize:14}}>{fullQty}</span>
               <button onClick={() => onQty(item.id,1)}
                 className="rounded-full bg-slate-200 flex items-center justify-center hover:bg-slate-300 active:scale-95 transition-transform"
                 style={{width:32,height:32}}>
@@ -260,10 +280,49 @@ function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onTier, 
               </button>
               {item.t === 'h' && <span className="text-slate-400 ml-1" style={{fontSize:11}}>Stunden</span>}
             </div>
-            <span className="font-bold text-red-700" style={{fontSize:14}}>
-              € {fmt(p * cartItem.qty)}{monthly ? '/Mo' : ''}
-            </span>
+            {!hasDiscountOption && (
+              <span className="font-bold text-red-700" style={{fontSize:14}}>
+                € {fmt(lineTotal)}{monthly ? '/Mo' : ''}
+              </span>
+            )}
+            {hasDiscountOption && (
+              <span className="text-slate-600" style={{fontSize:12}}>
+                € {fmt(p)}{monthly ? '/Mo' : ''}
+              </span>
+            )}
           </div>
+
+          {/* Discounted quantity row */}
+          {hasDiscountOption && (
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex items-center gap-1">
+                <span className="text-green-600 mr-1" style={{fontSize:11,minWidth:70}}>{item.discount.label}:</span>
+                <button onClick={() => onDiscountQty(item.id,-1)}
+                  className="rounded-full bg-green-100 flex items-center justify-center hover:bg-green-200 active:scale-95 transition-transform"
+                  style={{width:32,height:32}}>
+                  <Minus size={14} />
+                </button>
+                <span className="font-bold text-green-700 text-center" style={{width:28,fontSize:14}}>{discQty}</span>
+                <button onClick={() => onDiscountQty(item.id,1)}
+                  className="rounded-full bg-green-100 flex items-center justify-center hover:bg-green-200 active:scale-95 transition-transform"
+                  style={{width:32,height:32}}>
+                  <Plus size={14} />
+                </button>
+              </div>
+              <span className="text-green-600" style={{fontSize:12}}>
+                € {fmt(dp)}{monthly ? '/Mo' : ''}
+              </span>
+            </div>
+          )}
+
+          {/* Total for discount items */}
+          {hasDiscountOption && (
+            <div className="flex justify-end mt-2 pt-2 border-t border-red-200">
+              <span className="font-bold text-red-700" style={{fontSize:14}}>
+                Gesamt: € {fmt(lineTotal)}{monthly ? '/Mo' : ''}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -370,14 +429,21 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
             {monthlyItems.map(([id, c]) => {
               const item = ALL[id];
               const p = price(item, c.tier, c.mode);
+              const dp = discountedPrice(item, c.tier, c.mode);
+              const fullQty = c.qty || 0;
+              const discQty = c.discountQty || 0;
+              const lineTotal = (p * fullQty) + (dp * discQty);
+              const totalQty = fullQty + discQty;
+              const qtyLabel = discQty > 0 && fullQty > 0 ? `${fullQty}+${discQty}` : String(totalQty);
               return (
                 <div key={id} className="flex items-center justify-between px-4 py-2.5">
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-slate-700">{c.qty}x {item.code ? item.code+' ' : ''}{item.name}</span>
+                    <span className="text-sm font-medium text-slate-700">{qtyLabel}x {item.code ? item.code+' ' : ''}{item.name}</span>
                     {c.tier && <span className="text-xs text-slate-400 ml-2">{TIER_LABEL[c.tier]}</span>}
                     {c.mode === 'rent' && item.t === 'term' && <span className="text-xs text-slate-400 ml-2">Miete</span>}
+                    {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
                   </div>
-                  <span className="font-semibold text-slate-800 text-sm">€ {fmt(p * c.qty)}/Mo</span>
+                  <span className="font-semibold text-slate-800 text-sm">€ {fmt(lineTotal)}/Mo</span>
                 </div>
               );
             })}
@@ -400,14 +466,21 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
             {onceItems.map(([id, c]) => {
               const item = ALL[id];
               const p = price(item, c.tier, c.mode);
+              const dp = discountedPrice(item, c.tier, c.mode);
+              const fullQty = c.qty || 0;
+              const discQty = c.discountQty || 0;
+              const lineTotal = (p * fullQty) + (dp * discQty);
+              const totalQty = fullQty + discQty;
+              const qtyLabel = discQty > 0 && fullQty > 0 ? `${fullQty}+${discQty}` : String(totalQty);
               return (
                 <div key={id} className="flex items-center justify-between px-4 py-2.5">
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-slate-700">{c.qty}x {item.code ? item.code+' ' : ''}{item.name}</span>
+                    <span className="text-sm font-medium text-slate-700">{qtyLabel}x {item.code ? item.code+' ' : ''}{item.name}</span>
                     {c.mode === 'buy' && <span className="text-xs text-slate-400 ml-2">Kauf</span>}
-                    {item.t === 'h' && <span className="text-xs text-slate-400 ml-2">({c.qty} Std.)</span>}
+                    {item.t === 'h' && <span className="text-xs text-slate-400 ml-2">({fullQty} Std.)</span>}
+                    {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
                   </div>
-                  <span className="font-semibold text-slate-800 text-sm">€ {fmt(p * c.qty)}</span>
+                  <span className="font-semibold text-slate-800 text-sm">€ {fmt(lineTotal)}</span>
                 </div>
               );
             })}
@@ -588,11 +661,11 @@ export default function App() {
 
   const handlers = {
     onAdd: (id, tier, mode) => setCart(c => {
-      const newCart = {...c, [id]: { qty:1, tier, mode }};
+      const newCart = {...c, [id]: { qty:1, discountQty:0, tier, mode }};
       // Auto-add 10h Arbeitszeit for work-intensive items
       if (WORK_INTENSIVE_ITEMS.includes(id)) {
         const currentQty = c['h8']?.qty || 0;
-        newCart['h8'] = { qty: currentQty + 10 };
+        newCart['h8'] = { qty: currentQty + 10, discountQty: 0 };
       }
       return newCart;
     }),
@@ -601,8 +674,17 @@ export default function App() {
       const cur = c[id];
       if (!cur) return c;
       const nq = cur.qty + d;
-      if (nq < 1) { const n = {...c}; delete n[id]; return n; }
+      if (nq < 0) return c;
+      if (nq === 0 && (cur.discountQty || 0) === 0) { const n = {...c}; delete n[id]; return n; }
       return {...c, [id]: {...cur, qty: nq}};
+    }),
+    onDiscountQty: (id, d) => setCart(c => {
+      const cur = c[id];
+      if (!cur) return c;
+      const nq = (cur.discountQty || 0) + d;
+      if (nq < 0) return c;
+      if (nq === 0 && cur.qty === 0) { const n = {...c}; delete n[id]; return n; }
+      return {...c, [id]: {...cur, discountQty: nq}};
     }),
     onTier: (id, tier) => setCart(c => c[id] ? {...c, [id]: {...c[id], tier}} : c),
     onMode: (id, mode) => setCart(c => c[id] ? {...c, [id]: {...c[id], mode}} : c),
@@ -617,8 +699,11 @@ export default function App() {
     Object.entries(cart).forEach(([id, c]) => {
       const item = ALL[id];
       const p = price(item, c.tier, c.mode);
+      const dp = discountedPrice(item, c.tier, c.mode);
       if (p === null) return;
-      const line = p * c.qty;
+      const fullQty = c.qty || 0;
+      const discQty = c.discountQty || 0;
+      const line = (p * fullQty) + (dp * discQty);
       if (isMonthly(item, c.mode)) {
         monthly += line;
         const months = TIER_MONTHS[c.tier] || 12;
@@ -722,15 +807,23 @@ export default function App() {
         .map(([id, c]) => {
           const item = ALL[id];
           const p = price(item, c.tier, c.mode);
+          const dp = discountedPrice(item, c.tier, c.mode);
+          const fullQty = c.qty || 0;
+          const discQty = c.discountQty || 0;
           return {
             id,
-            qty: c.qty,
+            qty: fullQty,
+            discountQty: discQty,
             code: item.code || '',
             name: item.name,
             tier: c.tier,
             mode: c.mode,
             type: item.t,
-            lineTotal: p * c.qty,
+            unitPrice: p,
+            discountPrice: dp,
+            hasDiscount: hasDiscount(item),
+            discountLabel: item.discount?.label,
+            lineTotal: (p * fullQty) + (dp * discQty),
           };
         });
 
@@ -739,15 +832,23 @@ export default function App() {
         .map(([id, c]) => {
           const item = ALL[id];
           const p = price(item, c.tier, c.mode);
+          const dp = discountedPrice(item, c.tier, c.mode);
+          const fullQty = c.qty || 0;
+          const discQty = c.discountQty || 0;
           return {
             id,
-            qty: c.qty,
+            qty: fullQty,
+            discountQty: discQty,
             code: item.code || '',
             name: item.name,
             tier: c.tier,
             mode: c.mode,
             type: item.t,
-            lineTotal: p * c.qty,
+            unitPrice: p,
+            discountPrice: dp,
+            hasDiscount: hasDiscount(item),
+            discountLabel: item.discount?.label,
+            lineTotal: (p * fullQty) + (dp * discQty),
           };
         });
 

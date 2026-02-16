@@ -182,6 +182,11 @@ export const styles = StyleSheet.create({
     fontWeight: 600,
     color: COLORS.dark,
   },
+  cellDiscount: {
+    fontSize: 7,
+    color: COLORS.medium,
+    marginTop: 2,
+  },
 
   // Totals box
   totalsBox: {

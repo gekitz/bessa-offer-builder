@@ -115,15 +115,37 @@ function TableRow({ item, index, isMonthly }) {
       ? 'Kauf'
       : '';
   const hourLabel = item.type === 'h' ? `(${item.qty} Std.)` : '';
+  const hasDiscountQty = item.discountQty > 0;
+  const totalQty = (item.qty || 0) + (item.discountQty || 0);
+
+  // Build quantity display
+  let qtyDisplay = String(totalQty);
+  if (hasDiscountQty && item.qty > 0) {
+    qtyDisplay = `${item.qty}+${item.discountQty}`;
+  } else if (hasDiscountQty && item.qty === 0) {
+    qtyDisplay = String(item.discountQty);
+  }
 
   return (
     <View style={[styles.tableRow, isAlt && styles.tableRowAlt]} wrap={false}>
-      <Text style={[styles.cellText, styles.colQty]}>{item.qty}</Text>
+      <Text style={[styles.cellText, styles.colQty]}>{qtyDisplay}</Text>
       <Text style={[styles.cellCode, styles.colCode]}>{item.code || '-'}</Text>
-      <Text style={[styles.cellText, styles.colName]}>
-        {item.name}
-        {hourLabel ? ` ${hourLabel}` : ''}
-      </Text>
+      <View style={styles.colName}>
+        <Text style={styles.cellText}>
+          {item.name}
+          {hourLabel ? ` ${hourLabel}` : ''}
+        </Text>
+        {hasDiscountQty && item.qty > 0 && (
+          <Text style={styles.cellDiscount}>
+            ({item.qty}x €{fmt(item.unitPrice)} + {item.discountQty}x €{fmt(item.discountPrice)} {item.discountLabel})
+          </Text>
+        )}
+        {hasDiscountQty && item.qty === 0 && (
+          <Text style={styles.cellDiscount}>
+            ({item.discountLabel}: €{fmt(item.discountPrice)})
+          </Text>
+        )}
+      </View>
       <Text style={[styles.cellText, styles.colTier]}>
         {tierLabel || modeLabel || '-'}
       </Text>
