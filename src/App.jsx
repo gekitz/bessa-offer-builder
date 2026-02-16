@@ -92,7 +92,7 @@ const ORDERMAN = [
 
 // Build lookup
 const ALL = {};
-[...KASSA,...MODULE,...TERMINALS,...HARDWARE,...ORDERMAN,...DIENSTLEISTUNGEN].forEach(i => ALL[i.id] = i);
+[...KASSA,...MODULE,...HARDWARE,...ORDERMAN,...DIENSTLEISTUNGEN].forEach(i => ALL[i.id] = i);
 
 // ═══════════════════════════════════════════════════════
 // HELPERS
@@ -863,7 +863,7 @@ export default function App() {
           // Search results
           (() => {
             const q = search.toLowerCase().trim();
-            const allItems = [...KASSA, ...MODULE, ...HARDWARE, ...ORDERMAN, ...TERMINALS, ...DIENSTLEISTUNGEN];
+            const allItems = [...KASSA, ...MODULE, ...HARDWARE, ...ORDERMAN, ...DIENSTLEISTUNGEN];
             const results = allItems.filter(item =>
               item.name.toLowerCase().includes(q) ||
               (item.code && item.code.toLowerCase().includes(q)) ||
