@@ -29,27 +29,51 @@ export const styles = StyleSheet.create({
 
   // Header
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 30,
-    paddingBottom: 20,
+    marginBottom: 20,
+    paddingBottom: 15,
     borderBottomWidth: 2,
     borderBottomColor: COLORS.kitzRed,
   },
-  logo: {
-    width: 80,
-    height: 37,
+  senderLine: {
+    fontSize: 7,
+    color: COLORS.medium,
+    marginBottom: 8,
   },
-  companyInfo: {
-    textAlign: 'right',
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  logo: {
+    width: 100,
+    height: 46,
+  },
+  contactSection: {
+    marginTop: 10,
+  },
+  contactColumns: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  contactColumn: {
     fontSize: 8,
     color: COLORS.medium,
+    width: '48%',
   },
-  companyName: {
-    fontSize: 10,
-    fontWeight: 700,
-    color: COLORS.dark,
-    marginBottom: 4,
+  contactColumnLeft: {
+    textAlign: 'left',
+  },
+  contactColumnRight: {
+    textAlign: 'right',
+  },
+  contactLine: {
+    marginBottom: 1,
+  },
+  websiteLine: {
+    fontSize: 8,
+    color: COLORS.medium,
+    textAlign: 'center',
+    marginTop: 4,
   },
 
   // Title
@@ -313,18 +337,26 @@ export const styles = StyleSheet.create({
   // Footer
   footer: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 40,
     left: 40,
     right: 40,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    paddingTop: 10,
+    paddingTop: 8,
   },
   footerText: {
-    fontSize: 7,
-    color: COLORS.light,
+    fontSize: 6.5,
+    color: COLORS.medium,
     textAlign: 'center',
     marginBottom: 2,
+    lineHeight: 1.4,
+  },
+  footerTextBold: {
+    fontSize: 7,
+    color: COLORS.dark,
+    textAlign: 'center',
+    marginBottom: 3,
+    fontWeight: 600,
   },
 
   // Page number

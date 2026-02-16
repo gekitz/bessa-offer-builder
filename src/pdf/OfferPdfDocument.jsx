@@ -27,14 +27,68 @@ const TIER_LABEL_OFFER = {
 // Company default info
 const COMPANY = {
   name: 'KITZ Computer + Office GmbH',
-  address1: 'Rosentaler Straße 1, A-9020 Klagenfurt',
-  address2: 'Johann-Offner-Straße 17, A-9400 Wolfsberg',
-  phone1: '+43 (0) 463 504454',
-  phone2: '+43 (0) 4352 4176',
-  email: 'officekl@kitz.co.at',
+  senderLine: 'Kitz Computer+Office GmbH, Johann-Offner-Str. 17, A-9400 Wolfsberg',
+  wolfsberg: {
+    address: 'Johann Offnerstr. 17',
+    city: '9400 Wolfsberg',
+    tel: '04352/4176',
+    fax: '75',
+    email: 'office@kitz.co.at',
+  },
+  klagenfurt: {
+    address: 'Rosentalerstr. 1',
+    city: '9020 Klagenfurt',
+    tel: '0463/504454',
+    fax: '20',
+    email: 'office.kl@kitz.co.at',
+  },
   website: 'www.kitz.co.at',
   logo: kitzLogo,
 };
+
+// PDF Header component
+function PdfHeader() {
+  return (
+    <View style={styles.header} fixed>
+      <Text style={styles.senderLine}>{COMPANY.senderLine}</Text>
+      <View style={styles.headerContent}>
+        <Image src={COMPANY.logo} style={styles.logo} />
+      </View>
+      <View style={styles.contactSection}>
+        <View style={styles.contactColumns}>
+          <View style={[styles.contactColumn, styles.contactColumnLeft]}>
+            <Text style={styles.contactLine}>{COMPANY.wolfsberg.address}, {COMPANY.wolfsberg.city}</Text>
+            <Text style={styles.contactLine}>Tel. {COMPANY.wolfsberg.tel} Fax. {COMPANY.wolfsberg.fax}</Text>
+            <Text style={styles.contactLine}>E-mail: {COMPANY.wolfsberg.email}</Text>
+          </View>
+          <View style={[styles.contactColumn, styles.contactColumnRight]}>
+            <Text style={styles.contactLine}>{COMPANY.klagenfurt.address}, {COMPANY.klagenfurt.city}</Text>
+            <Text style={styles.contactLine}>Tel. {COMPANY.klagenfurt.tel} Fax. {COMPANY.klagenfurt.fax}</Text>
+            <Text style={styles.contactLine}>E-mail: {COMPANY.klagenfurt.email}</Text>
+          </View>
+        </View>
+        <Text style={styles.websiteLine}>{COMPANY.website}</Text>
+      </View>
+    </View>
+  );
+}
+
+// PDF Footer component
+function PdfFooter() {
+  return (
+    <View style={styles.footer}>
+      <Text style={styles.footerTextBold}>
+        Es gelten die aktuellen Allgemeinen Geschäftsbedingungen der KITZ Computer + Office GmbH.
+      </Text>
+      <Text style={styles.footerText}>
+        Diese sind jederzeit abrufbar unter www.kitz.co.at
+      </Text>
+      <Text style={styles.footerText}>
+        Reklamation nur sofort. Die gelieferte Ware bleibt bis zur vollständigen Bezahlung unser Eigentum. Bei Zahlungsverzug berechnen wir bankmäßige Verzugszinsen. Gerichtsstand und Erfüllungsort ist Wolfsberg. Fn - 107314s
+      </Text>
+    </View>
+  );
+}
 
 // Table header component
 function TableHeader() {
@@ -62,7 +116,7 @@ function TableRow({ item, index, isMonthly }) {
   const hourLabel = item.type === 'h' ? `(${item.qty} Std.)` : '';
 
   return (
-    <View style={[styles.tableRow, isAlt && styles.tableRowAlt]}>
+    <View style={[styles.tableRow, isAlt && styles.tableRowAlt]} wrap={false}>
       <Text style={[styles.cellText, styles.colQty]}>{item.qty}</Text>
       <Text style={[styles.cellCode, styles.colCode]}>{item.code || '-'}</Text>
       <Text style={[styles.cellText, styles.colName]}>
@@ -87,7 +141,7 @@ function TotalsBox({ netto, isMonthly }) {
   const suffix = isMonthly ? '/Monat' : '';
 
   return (
-    <View style={styles.totalsBox}>
+    <View style={styles.totalsBox} wrap={false}>
       <View style={styles.totalsRow}>
         <Text style={styles.totalsLabel}>Netto{suffix}</Text>
         <Text style={styles.totalsValue}>{fmt(netto)}</Text>
@@ -109,7 +163,7 @@ function PeriodSummary({ periodTotal }) {
   const brutto = periodTotal * 1.2;
 
   return (
-    <View style={styles.periodSummary}>
+    <View style={styles.periodSummary} wrap={false}>
       <Text style={styles.periodSummaryTitle}>GESAMTÜBERSICHT</Text>
       <View style={styles.periodSummaryContent}>
         <Text style={styles.periodSummaryLabel}>
@@ -133,7 +187,7 @@ function FinancingSection({ periodBrutto, maxMonths, raten }) {
   const monthlyRent = (periodBrutto / maxMonths) * 1.08;
 
   return (
-    <View style={styles.financingSection}>
+    <View style={styles.financingSection} wrap={false}>
       <Text style={styles.financingTitle}>FINANZIERUNGSOPTIONEN</Text>
 
       {/* Option 1: Ratenzahlung */}
@@ -192,27 +246,14 @@ export default function OfferPdfDocument({
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
-        <View style={styles.header}>
-          <Image src={COMPANY.logo} style={styles.logo} />
-          <View style={styles.companyInfo}>
-            <Text style={styles.companyName}>{COMPANY.name}</Text>
-            <Text>{COMPANY.address1}</Text>
-            <Text>{COMPANY.address2}</Text>
-            <Text>
-              Tel: {COMPANY.phone1} | {COMPANY.phone2}
-            </Text>
-            <Text>
-              {COMPANY.email} | {COMPANY.website}
-            </Text>
-          </View>
-        </View>
+        <PdfHeader />
 
         {/* Title */}
         <Text style={styles.title}>ANGEBOT</Text>
         <Text style={styles.date}>Datum: {date}</Text>
 
         {/* Customer Info */}
-        <View style={styles.customerSection}>
+        <View style={styles.customerSection} wrap={false}>
           <Text style={styles.customerLabel}>Kunde</Text>
           {customer.company && (
             <Text style={styles.customerName}>{customer.company}</Text>
@@ -269,22 +310,16 @@ export default function OfferPdfDocument({
 
         {/* Notes */}
         {notes && notes.trim() && (
-          <View style={styles.notesSection}>
+          <View style={styles.notesSection} wrap={false}>
             <Text style={styles.notesTitle}>Anmerkungen</Text>
             <Text style={styles.notesText}>{notes}</Text>
           </View>
         )}
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            Alle Preise verstehen sich netto exkl. USt. Bei 12/6/2-Monats-Verträgen
-            jeweils monatlich.
-          </Text>
-          <Text style={styles.footerText}>
-            Dieses Angebot ist freibleibend und unverbindlich. Stand: {date}
-          </Text>
-        </View>
+        {/* Footer - only on last page */}
+        {!(showFinancing && (totals.monthly > 0 || totals.once > 0)) && (
+          <PdfFooter />
+        )}
 
         {/* Page number */}
         <Text
@@ -300,26 +335,16 @@ export default function OfferPdfDocument({
       {showFinancing && (totals.monthly > 0 || totals.once > 0) && (
         <Page size="A4" style={styles.page}>
           {/* Header */}
-          <View style={styles.header}>
-            <Image src={COMPANY.logo} style={styles.logo} />
-            <View style={styles.companyInfo}>
-              <Text style={styles.companyName}>{COMPANY.name}</Text>
-              <Text>{COMPANY.address1}</Text>
-              <Text>{COMPANY.address2}</Text>
-              <Text>
-                Tel: {COMPANY.phone1} | {COMPANY.phone2}
-              </Text>
-              <Text>
-                {COMPANY.email} | {COMPANY.website}
-              </Text>
-            </View>
-          </View>
+          <PdfHeader />
 
           <FinancingSection
             periodBrutto={periodBrutto}
             maxMonths={totals.maxMonths}
             raten={raten}
           />
+
+          {/* Footer */}
+          <PdfFooter />
 
           {/* Page number */}
           <Text
