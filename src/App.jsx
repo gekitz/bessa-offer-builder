@@ -547,6 +547,7 @@ export default function App() {
     if (savedOffer) {
       setCart(savedOffer.cart || {});
       setCustomer(savedOffer.customer || { name:'', company:'', email:'', phone:'' });
+      setCreator(savedOffer.creator || '');
       setNotes(savedOffer.notes || '');
       setRaten(savedOffer.raten || 12);
       setFinanzOpen(savedOffer.finanzOpen || false);
@@ -794,6 +795,7 @@ export default function App() {
     const state = {
       cart,
       customer,
+      creator,
       notes,
       raten,
       finanzOpen,
