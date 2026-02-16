@@ -91,6 +91,7 @@ const ORDERMAN = [
 ];
 
 const TEAM = [
+  { id:'gkitz', name:'Georg Kitz', role:'Geschäftsführung', phone:'+43 463 504454 77', email:'g.kitz@kitz.co.at', location:'Klagenfurt' },
   { id:'hbauer', name:'Helmut Bauer', role:'Verkauf', phone:'+43 4352 4176 21', email:'h.bauer@kitz.co.at', location:'Wolfsberg' },
   { id:'dscharf', name:'Daniel Scharf', role:'Verkauf', phone:'+43 4352 4176 22', email:'d.scharf@kitz.co.at', location:'Wolfsberg' },
   { id:'anowak', name:'Andreas Nowak', role:'Verkauf', phone:'+43 463 504454 82', email:'a.nowak@kitz.co.at', location:'Klagenfurt' },
