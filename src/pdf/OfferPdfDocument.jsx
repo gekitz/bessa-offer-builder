@@ -5,7 +5,6 @@ import {
   Text,
   View,
   Image,
-  Link,
 } from '@react-pdf/renderer';
 import { styles, COLORS } from './pdfStyles';
 import kitzLogo from '/kitz-logo.png';
@@ -262,7 +261,6 @@ export default function OfferPdfDocument({
   raten,
   showFinancing = false,
   creator = null,
-  offerUrl = null,
 }) {
   const date = new Date().toLocaleDateString('de-AT');
   const periodBrutto = totals.periodTotal * 1.2;
@@ -352,14 +350,6 @@ export default function OfferPdfDocument({
           </View>
         )}
 
-        {/* Offer Link */}
-        {offerUrl && (
-          <View style={styles.offerLinkSection} wrap={false}>
-            <Link src={offerUrl} style={styles.offerLink}>
-              Im Browser öffnen
-            </Link>
-          </View>
-        )}
 
         {/* Footer - only on last page */}
         {!(showFinancing && (totals.monthly > 0 || totals.once > 0)) && (
