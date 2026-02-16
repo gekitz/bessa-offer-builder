@@ -98,6 +98,8 @@ const TEAM = [
   { id:'thuber', name:'Toni Huber', role:'Kassensystemberater', phone:'+43 664 886 033 14', email:'t.huber@kitz.co.at', location:'Klagenfurt' },
   { id:'hscheiber', name:'Heribert Scheiber', role:'Software Support', phone:'+43 4352 4176 43', email:'h.scheiber@kitz.co.at', location:'Wolfsberg' },
   { id:'mklein', name:'Marcel Klein', role:'Support', phone:'+43 463 504454 73', email:'m.klein@kitz.co.at', location:'Klagenfurt' },
+  { id:'hrussnig', name:'Heimo Russnig', role:'EDV / Technik', phone:'+43 463 504454 71', email:'h.russnig@kitz.co.at', location:'Klagenfurt' },
+  { id:'coberlerchner', name:'Christian Oberlerchner', role:'Technik', phone:'+43 4352 4176 38', email:'c.oberlerchner@kitz.co.at', location:'Wolfsberg' },
   { id:'hkitz', name:'Herbert Kitz', role:'Geschäftsführer', phone:'+43 4352 4176 15', email:'h.kitz@kitz.co.at', location:'Wolfsberg' },
 ];
 
