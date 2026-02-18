@@ -366,6 +366,45 @@ export const styles = StyleSheet.create({
   },
 
 
+  // Signature section
+  signatureSection: {
+    marginTop: 30,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 4,
+  },
+  signatureTitle: {
+    fontSize: 10,
+    fontWeight: 600,
+    color: COLORS.dark,
+    marginBottom: 15,
+  },
+  signatureText: {
+    fontSize: 9,
+    color: COLORS.medium,
+    marginBottom: 20,
+    lineHeight: 1.5,
+  },
+  signatureFields: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  signatureField: {
+    width: '45%',
+  },
+  signatureLine: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.dark,
+    marginBottom: 5,
+    height: 30,
+  },
+  signatureLabel: {
+    fontSize: 8,
+    color: COLORS.medium,
+  },
+
   // Footer
   footer: {
     position: 'absolute',

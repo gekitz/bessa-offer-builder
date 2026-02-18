@@ -200,6 +200,28 @@ function PeriodSummary({ periodTotal }) {
   );
 }
 
+// Signature section component
+function SignatureSection() {
+  return (
+    <View style={styles.signatureSection} wrap={false}>
+      <Text style={styles.signatureTitle}>Auftragsbestätigung</Text>
+      <Text style={styles.signatureText}>
+        Mit meiner Unterschrift bestätige ich die Annahme dieses Angebots zu den oben genannten Bedingungen.
+      </Text>
+      <View style={styles.signatureFields}>
+        <View style={styles.signatureField}>
+          <View style={styles.signatureLine} />
+          <Text style={styles.signatureLabel}>Ort, Datum</Text>
+        </View>
+        <View style={styles.signatureField}>
+          <View style={styles.signatureLine} />
+          <Text style={styles.signatureLabel}>Unterschrift / Firmenstempel</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // Financing section component
 function FinancingSection({ periodBrutto, maxMonths, raten }) {
   const totalWithInterest = periodBrutto * 1.08;
@@ -350,6 +372,8 @@ export default function OfferPdfDocument({
           </View>
         )}
 
+        {/* Signature Section */}
+        <SignatureSection />
 
         {/* Footer - only on last page */}
         {!(showFinancing && (totals.monthly > 0 || totals.once > 0)) && (
