@@ -134,6 +134,9 @@ function TableRow({ item, index, isMonthly }) {
           {item.name}
           {hourLabel ? ` ${hourLabel}` : ''}
         </Text>
+        {item.info && (
+          <Text style={styles.cellInfo}>{item.info}</Text>
+        )}
         {hasDiscountQty && item.qty > 0 && (
           <Text style={styles.cellDiscount}>
             ({item.qty}x €{fmt(item.unitPrice)} + {item.discountQty}x €{fmt(item.discountPrice)} {item.discountLabel})

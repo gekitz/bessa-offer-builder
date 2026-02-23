@@ -187,6 +187,12 @@ export const styles = StyleSheet.create({
     color: COLORS.medium,
     marginTop: 2,
   },
+  cellInfo: {
+    fontSize: 7,
+    color: COLORS.medium,
+    fontStyle: 'italic',
+    marginTop: 1,
+  },
 
   // Totals box
   totalsBox: {
