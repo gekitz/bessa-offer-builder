@@ -67,13 +67,14 @@ const MODULE = [
 
 const HARDWARE = [
   { id:'h1', name:'Sunmi D3 Pro', price:1024, t:'o' },
-  { id:'h3', name:'Sunmi D3 Mini', price:790, t:'o' },
+  { id:'h3', name:'Sunmi D3 Mini', price:690, t:'o' },
   { id:'h10', name:'D3 Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
   { id:'h2', name:'Sunmi V3H', price:649, t:'o' },
   { id:'h4', name:'Sunmi L3H', price:599, t:'o' },
   { id:'h11', name:'V3H/L3H Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
   { id:'h12', name:'Hobex ViA PRO', price:1149, t:'o' },
   { id:'h9', name:'Epson TMT20 Bondrucker', price:220, t:'o' },
+  { id:'h13', name:'Addminat-Kellnerschloss', price:178, t:'o', info:'inkl 5 Schlüssel' },
 ];
 
 const KUECHENMONITORE = [
