@@ -102,6 +102,12 @@ const KUECHENMONITORE = [
   { id:'km33', name:'Garantieverlängerung Ultra +2 Jahre', price:640, t:'o' },
 ];
 
+const KUECHENMONITORE_SUNMI = [
+  { id:'kms1', name:'Flex 3 22\'\'', price:1139, t:'o' },
+  { id:'kms2', name:'Flex 3 27\'\'', price:1749, t:'o' },
+  { id:'kms3', name:'Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
+];
+
 const DIENSTLEISTUNGEN = [
   { id:'h7', name:'Fiskalisierung', price:190, t:'o' },
   { id:'h8', name:'Arbeitszeit', price:118, t:'o', info:'pro Stunde' },
@@ -131,7 +137,7 @@ const TEAM = [
 
 // Build lookup
 const ALL = {};
-[...KASSA,...MODULE,...HARDWARE,...KUECHENMONITORE,...ORDERMAN,...DIENSTLEISTUNGEN].forEach(i => ALL[i.id] = i);
+[...KASSA,...MODULE,...HARDWARE,...KUECHENMONITORE,...KUECHENMONITORE_SUNMI,...ORDERMAN,...DIENSTLEISTUNGEN].forEach(i => ALL[i.id] = i);
 
 // ═══════════════════════════════════════════════════════
 // HELPERS
@@ -1021,7 +1027,7 @@ export default function App() {
           // Search results
           (() => {
             const q = search.toLowerCase().trim();
-            const allItems = [...KASSA, ...MODULE, ...HARDWARE, ...KUECHENMONITORE, ...ORDERMAN, ...DIENSTLEISTUNGEN];
+            const allItems = [...KASSA, ...MODULE, ...HARDWARE, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...ORDERMAN, ...DIENSTLEISTUNGEN];
             const results = allItems.filter(item =>
               item.name.toLowerCase().includes(q) ||
               (item.code && item.code.toLowerCase().includes(q)) ||
@@ -1053,6 +1059,7 @@ export default function App() {
               <>
                 <CatGroup title="Hardware" items={HARDWARE} cart={cart} globalTier={globalTier} handlers={handlers} />
                 <CatGroup title="Küchenmonitore" items={KUECHENMONITORE} cart={cart} globalTier={globalTier} handlers={handlers} />
+                <CatGroup title="Küchenmonitore Sunmi" items={KUECHENMONITORE_SUNMI} cart={cart} globalTier={globalTier} handlers={handlers} />
                 <CatGroup title="Orderman" items={ORDERMAN} cart={cart} globalTier={globalTier} handlers={handlers} />
                 <CatGroup title="Dienstleistungen" items={DIENSTLEISTUNGEN} cart={cart} globalTier={globalTier} handlers={handlers} />
               </>
