@@ -216,7 +216,7 @@ function PeriodSummary({ periodTotal, periodMonthly, hasMonthly, hasOnce }) {
 }
 
 // Signature section component
-function SignatureSection() {
+function SignatureSection({ signature, signedAt }) {
   return (
     <View style={styles.signatureSection} wrap={false}>
       <Text style={styles.signatureTitle}>Auftragsbestätigung</Text>
@@ -225,11 +225,19 @@ function SignatureSection() {
       </Text>
       <View style={styles.signatureFields}>
         <View style={styles.signatureField}>
-          <View style={styles.signatureLine} />
+          {signedAt ? (
+            <Text style={{ fontSize: 10, marginBottom: 4 }}>{signedAt}</Text>
+          ) : (
+            <View style={styles.signatureLine} />
+          )}
           <Text style={styles.signatureLabel}>Ort, Datum</Text>
         </View>
         <View style={styles.signatureField}>
-          <View style={styles.signatureLine} />
+          {signature ? (
+            <Image src={signature} style={{ width: 180, height: 60, marginBottom: 4 }} />
+          ) : (
+            <View style={styles.signatureLine} />
+          )}
           <Text style={styles.signatureLabel}>Unterschrift / Firmenstempel</Text>
         </View>
       </View>
@@ -289,7 +297,7 @@ function FinancingSection({ periodBrutto, maxMonths, raten }) {
 }
 
 // SEPA Lastschrift-Mandat component
-function SepaMandate({ customer, mandatsRef }) {
+function SepaMandate({ customer, mandatsRef, signature, signedAt }) {
   const payerName = customer.company || customer.name || '';
   const payerAddress = customer.address || '';
 
@@ -370,11 +378,19 @@ function SepaMandate({ customer, mandatsRef }) {
       {/* Signature */}
       <View style={styles.sepaSignatureFields}>
         <View style={styles.sepaSignatureField}>
-          <View style={styles.sepaSignatureLine} />
+          {signedAt ? (
+            <Text style={{ fontSize: 10, marginBottom: 4 }}>{signedAt}</Text>
+          ) : (
+            <View style={styles.sepaSignatureLine} />
+          )}
           <Text style={styles.sepaSignatureLabel}>Ort, Datum</Text>
         </View>
         <View style={styles.sepaSignatureField}>
-          <View style={styles.sepaSignatureLine} />
+          {signature ? (
+            <Image src={signature} style={{ width: 180, height: 60, marginBottom: 4 }} />
+          ) : (
+            <View style={styles.sepaSignatureLine} />
+          )}
           <Text style={styles.sepaSignatureLabel}>Unterschrift / Firmenstempel</Text>
         </View>
       </View>
@@ -393,8 +409,10 @@ export default function OfferPdfDocument({
   showFinancing = false,
   creator = null,
   mandatsRef = '',
+  signatures = null,
 }) {
   const date = new Date().toLocaleDateString('de-AT');
+  const signedAt = signatures ? new Date().toLocaleDateString('de-AT') : null;
   const periodBrutto = totals.periodTotal * 1.2;
 
   return (
@@ -483,7 +501,7 @@ export default function OfferPdfDocument({
         )}
 
         {/* Signature Section */}
-        <SignatureSection />
+        <SignatureSection signature={signatures?.offer} signedAt={signedAt} />
 
         {/* Footer - only on last page */}
         {!(showFinancing && (totals.monthly > 0 || totals.once > 0)) && (
@@ -530,7 +548,7 @@ export default function OfferPdfDocument({
       {showFinancing && (totals.monthly > 0 || totals.once > 0) && (
         <Page size="A4" style={styles.page}>
           <PdfHeader />
-          <SepaMandate customer={customer} mandatsRef={mandatsRef} />
+          <SepaMandate customer={customer} mandatsRef={mandatsRef} signature={signatures?.sepa} signedAt={signedAt} />
           <Text
             style={styles.pageNumber}
             render={({ pageNumber, totalPages }) =>

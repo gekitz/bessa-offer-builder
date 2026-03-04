@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
-import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2, Link, Save, Send, Mail, Clock, Eye, RefreshCw, ArrowLeft, Calendar, Building2, AlertCircle, CheckCircle2, XCircle, MailOpen, Archive } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
+import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2, Link, Save, Send, Mail, Clock, Eye, RefreshCw, ArrowLeft, Calendar, Building2, AlertCircle, CheckCircle2, XCircle, MailOpen, Archive, Pen } from "lucide-react";
 import { pdf } from '@react-pdf/renderer';
 import OfferPdfDocument from './pdf/OfferPdfDocument';
-import { getOfferFromURL, generateShareableURL } from './lib/urlState';
-import { saveOffer, listOffers, getOffer, deleteOffer, sendOffer, getEmailEvents } from './lib/offerApi';
+import { getOfferFromURL } from './lib/urlState';
+import { saveOffer, listOffers, getOffer, deleteOffer, sendOffer, getEmailEvents, setShareCode, getOfferByShareCode, updateOfferStage, signOffer, getSignedPdfUrl } from './lib/offerApi';
 import { supabase } from './lib/supabase';
 
 // ═══════════════════════════════════════════════════════
@@ -380,10 +380,226 @@ function TabContent({ items, cart, globalTier, handlers }) {
 }
 
 // ═══════════════════════════════════════════════════════
+// SIGNATURE PAD + SIGN MODAL
+// ═══════════════════════════════════════════════════════
+
+const SignaturePad = forwardRef(function SignaturePad({ width = 400, height = 150 }, ref) {
+  const canvasRef = useRef(null);
+  const drawing = useRef(false);
+  const empty = useRef(true);
+
+  function getPos(e) {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: (t.clientX - rect.left) * (canvasRef.current.width / rect.width), y: (t.clientY - rect.top) * (canvasRef.current.height / rect.height) };
+  }
+
+  function begin(e) {
+    e.preventDefault();
+    drawing.current = true;
+    empty.current = false;
+    const ctx = canvasRef.current.getContext('2d');
+    const p = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
+
+  function move(e) {
+    if (!drawing.current) return;
+    e.preventDefault();
+    const ctx = canvasRef.current.getContext('2d');
+    const p = getPos(e);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+
+  function end() { drawing.current = false; }
+
+  useEffect(() => {
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#1e293b';
+  }, []);
+
+  useImperativeHandle(ref, () => ({
+    clear() {
+      const ctx = canvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      empty.current = true;
+    },
+    toDataURL() { return canvasRef.current.toDataURL('image/png'); },
+    isEmpty() { return empty.current; },
+  }));
+
+  return (
+    <canvas ref={canvasRef} width={width * 2} height={height * 2}
+      style={{ width, height, border: '2px solid #e2e8f0', borderRadius: 12, background: '#fff', touchAction: 'none', cursor: 'crosshair' }}
+      onMouseDown={begin} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
+      onTouchStart={begin} onTouchMove={move} onTouchEnd={end} />
+  );
+});
+
+function SignModal({ customer, totals, finanzOpen, globalTier, onConfirm, onClose }) {
+  const offerPadRef = useRef(null);
+  const sepaPadRef = useRef(null);
+  const [signing, setSigning] = useState(false);
+  const [error, setError] = useState(null);
+  const showSepa = finanzOpen && (totals.monthly > 0 || totals.once > 0);
+
+  const TIER_LABEL_MAP = { '12mo':'12 Monate','6mo':'6 Monate','2mo':'2 Monate','event':'1-3 Tage' };
+
+  async function handleConfirm() {
+    if (offerPadRef.current.isEmpty()) { setError('Bitte Auftragsbestätigung unterschreiben.'); return; }
+    if (showSepa && sepaPadRef.current.isEmpty()) { setError('Bitte SEPA-Mandat unterschreiben.'); return; }
+    setError(null);
+    setSigning(true);
+    try {
+      const signatures = { offer: offerPadRef.current.toDataURL() };
+      if (showSepa) signatures.sepa = sepaPadRef.current.toDataURL();
+      await onConfirm(signatures);
+    } catch (err) {
+      setError(err.message);
+      setSigning(false);
+    }
+  }
+
+  function handleClear() {
+    offerPadRef.current?.clear();
+    sepaPadRef.current?.clear();
+    setError(null);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-white flex flex-col" style={{ overflowY: 'auto' }}>
+      {/* Header */}
+      <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white px-5 py-4 flex items-center justify-between flex-shrink-0">
+        <div>
+          <div className="font-bold" style={{ fontSize: 18 }}>Vertrag unterschreiben</div>
+          <div className="text-slate-400" style={{ fontSize: 12 }}>KITZ Computer + Office GmbH</div>
+        </div>
+        <button onClick={onClose} className="rounded-full bg-white/10 p-2 hover:bg-white/20"><X size={20} /></button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 px-5 py-6 space-y-6 max-w-lg mx-auto w-full">
+        {/* Offer summary */}
+        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+          <div className="font-bold text-slate-800 mb-1" style={{ fontSize: 15 }}>{customer.company || customer.name || 'Kunde'}</div>
+          {customer.company && customer.name && <div className="text-slate-500 text-sm">{customer.name}</div>}
+          <div className="flex gap-4 mt-3 pt-3 border-t border-slate-200">
+            {totals.monthly > 0 && (
+              <div>
+                <div className="text-slate-400" style={{ fontSize: 11 }}>Monatlich</div>
+                <div className="font-bold text-slate-800">€ {fmt(totals.monthly * 1.2)} brutto</div>
+              </div>
+            )}
+            {totals.once > 0 && (
+              <div>
+                <div className="text-slate-400" style={{ fontSize: 11 }}>Einmalig</div>
+                <div className="font-bold text-slate-800">€ {fmt(totals.once * 1.2)} brutto</div>
+              </div>
+            )}
+            <div>
+              <div className="text-slate-400" style={{ fontSize: 11 }}>Laufzeit</div>
+              <div className="font-bold text-slate-800">{TIER_LABEL_MAP[globalTier] || globalTier}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Signature 1: Auftragsbestätigung */}
+        <div>
+          <div className="font-bold text-slate-700 mb-2" style={{ fontSize: 14 }}>Auftragsbestätigung</div>
+          <div className="text-slate-500 mb-3" style={{ fontSize: 12 }}>
+            Mit meiner Unterschrift bestätige ich die Annahme dieses Angebots.
+          </div>
+          <SignaturePad ref={offerPadRef} width={Math.min(400, window.innerWidth - 40)} height={150} />
+        </div>
+
+        {/* Signature 2: SEPA (conditional) */}
+        {showSepa && (
+          <div>
+            <div className="font-bold text-slate-700 mb-2" style={{ fontSize: 14 }}>SEPA Lastschrift-Mandat</div>
+            <div className="text-slate-500 mb-3" style={{ fontSize: 12 }}>
+              Ich ermächtige die Kitz Computer + Office GmbH, Zahlungen mittels SEPA-Lastschrift einzuziehen.
+            </div>
+            <SignaturePad ref={sepaPadRef} width={Math.min(400, window.innerWidth - 40)} height={150} />
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-sm">{error}</div>
+        )}
+      </div>
+
+      {/* Footer buttons */}
+      <div className="border-t border-slate-200 px-5 py-4 flex gap-3 flex-shrink-0" style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}>
+        <button onClick={handleClear} disabled={signing}
+          className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-100 text-slate-700 font-semibold py-3.5 hover:bg-slate-200 transition-all disabled:opacity-50"
+          style={{ fontSize: 14 }}>
+          <Trash2 size={16} /> Löschen
+        </button>
+        <button onClick={handleConfirm} disabled={signing}
+          className="flex-[2] flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white font-semibold py-3.5 hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-lg shadow-emerald-200 disabled:opacity-70"
+          style={{ fontSize: 14 }}>
+          {signing ? <Loader2 size={18} className="animate-spin" /> : <Pen size={18} />}
+          {signing ? 'Wird verarbeitet...' : 'Unterschreiben & Abschließen'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// CUSTOM ITEM MODAL
+// ═══════════════════════════════════════════════════════
+
+function CustomItemModal({ onConfirm, onClose }) {
+  const [name, setName] = useState('');
+  const [itemPrice, setItemPrice] = useState('');
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const p = parseFloat(itemPrice);
+    if (!name.trim() || isNaN(p) || p < 0) return;
+    onConfirm({ name: name.trim(), price: p });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="bg-slate-800 text-white px-5 py-4 flex items-center justify-between">
+          <span className="font-bold" style={{ fontSize: 16 }}>Freie Position</span>
+          <button onClick={onClose} className="rounded-full bg-white/10 p-1.5 hover:bg-white/20"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Bezeichnung</label>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="z.B. Spezialgehäuse"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" autoFocus />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Preis netto</label>
+            <input type="number" step="0.01" min="0" value={itemPrice} onChange={e => setItemPrice(e.target.value)} placeholder="0,00"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+          </div>
+          <button type="submit" disabled={!name.trim() || !itemPrice || isNaN(parseFloat(itemPrice))}
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-red-600 text-white font-semibold py-3 hover:bg-red-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ fontSize: 14 }}>
+            <Plus size={18} /> Hinzufügen
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
 // OFFER / ANGEBOT VIEW
 // ═══════════════════════════════════════════════════════
 
-function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier, onSave, onSend, saving, sending, saveSuccess, currentOfferId }) {
+function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier, onSave, onSend, saving, sending, saveSuccess, currentOfferId, onSign, signLoading, onAddCustom }) {
   const monthlyItems = Object.entries(cart).filter(([id,c]) => isMonthly(ALL[id], c.mode));
   const onceItems = Object.entries(cart).filter(([id,c]) => !isMonthly(ALL[id], c.mode));
 
@@ -420,6 +636,13 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
           </select>
         </div>
       </div>
+
+      {/* Add custom item */}
+      <button onClick={onAddCustom}
+        className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 text-slate-500 font-medium py-3 mb-4 hover:border-red-400 hover:text-red-600 hover:bg-red-50 transition-all"
+        style={{ fontSize: 13 }}>
+        <Plus size={16} /> Freie Position
+      </button>
 
       {/* Cart empty state */}
       {Object.keys(cart).length === 0 && (
@@ -623,7 +846,15 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
               </button>}
             </div>
           )}
-          {/* Row 2: Copy + PDF */}
+          {/* Row 2: Sign */}
+          {supabase && currentOfferId && (
+            <button onClick={onSign}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white font-semibold py-3.5 hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-lg shadow-emerald-200"
+              style={{fontSize:14}}>
+              <Pen size={18} /> Unterschreiben
+            </button>
+          )}
+          {/* Row 3: Copy + PDF */}
           <div className="flex gap-2">
             <button onClick={onCopyLink}
               className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-100 text-slate-700 font-semibold py-3.5 hover:bg-slate-200 active:scale-[0.98] transition-all"
@@ -682,6 +913,22 @@ function StatusBadge({ status }) {
   );
 }
 
+const STAGE_CONFIG = {
+  new:        { label: 'Neu',                color: 'bg-slate-100 text-slate-600' },
+  offer_sent: { label: 'Angebot gesendet',  color: 'bg-blue-100 text-blue-700' },
+  closed:     { label: 'Abgeschlossen',     color: 'bg-emerald-100 text-emerald-700' },
+  lost:       { label: 'Verloren',           color: 'bg-red-100 text-red-700' },
+};
+
+function StageBadge({ stage }) {
+  const cfg = STAGE_CONFIG[stage] || STAGE_CONFIG.new;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${cfg.color}`} style={{fontSize:11}}>
+      {cfg.label}
+    </span>
+  );
+}
+
 // Offer list component
 function OfferList({ onLoad, onNew }) {
   const [offers, setOffers] = useState([]);
@@ -690,6 +937,8 @@ function OfferList({ onLoad, onNew }) {
   const [detailId, setDetailId] = useState(null);
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [stageFilter, setStageFilter] = useState('all');
+  const [stageLoading, setStageLoading] = useState(null);
 
   const fetchOffers = useCallback(async () => {
     setLoading(true);
@@ -726,6 +975,27 @@ function OfferList({ onLoad, onNew }) {
     } catch { setEvents([]); }
     finally { setEventsLoading(false); }
   }
+
+  async function handleStageChange(id, newStage) {
+    setStageLoading(id);
+    const prev = offers.find(o => o.id === id)?.stage;
+    setOffers(os => os.map(o => o.id === id ? { ...o, stage: newStage } : o));
+    try {
+      await updateOfferStage(id, newStage);
+    } catch (err) {
+      setOffers(os => os.map(o => o.id === id ? { ...o, stage: prev } : o));
+      alert('Fehler: ' + err.message);
+    } finally {
+      setStageLoading(null);
+    }
+  }
+
+  const filteredOffers = stageFilter === 'all' ? offers : offers.filter(o => o.stage === stageFilter);
+  const stageCounts = { all: offers.length };
+  for (const s of ['new', 'offer_sent', 'closed', 'lost']) {
+    stageCounts[s] = offers.filter(o => o.stage === s).length;
+  }
+  const closedMonthly = offers.filter(o => o.stage === 'closed').reduce((sum, o) => sum + Number(o.total_monthly || 0), 0);
 
   if (!supabase) {
     return (
@@ -782,7 +1052,37 @@ function OfferList({ onLoad, onNew }) {
         </div>
       </div>
 
-      {offers.length === 0 ? (
+      {/* Stage filter tabs */}
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {[
+          { key: 'all', label: 'Alle' },
+          { key: 'new', label: 'Neu' },
+          { key: 'offer_sent', label: 'Gesendet' },
+          { key: 'closed', label: 'Abgeschlossen' },
+          { key: 'lost', label: 'Verloren' },
+        ].map(t => (
+          <button
+            key={t.key}
+            onClick={() => setStageFilter(t.key)}
+            className={`rounded-full px-3 py-1 font-medium transition-colors ${stageFilter === t.key ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            style={{fontSize:11}}
+          >
+            {t.label} ({stageCounts[t.key] || 0})
+          </button>
+        ))}
+      </div>
+
+      {/* Closed value summary */}
+      {closedMonthly > 0 && (
+        <div className="flex items-center gap-2 mb-3 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+          <CheckCircle2 size={14} className="text-emerald-600" />
+          <span className="font-medium text-emerald-700" style={{fontSize:12}}>
+            Abgeschlossen: &euro; {fmt(closedMonthly)}/Mo
+          </span>
+        </div>
+      )}
+
+      {filteredOffers.length === 0 ? (
         <div className="text-center py-12 text-slate-400">
           <FileText size={48} className="mx-auto mb-3 opacity-50" />
           <p className="font-medium">Noch keine Angebote</p>
@@ -790,7 +1090,7 @@ function OfferList({ onLoad, onNew }) {
         </div>
       ) : (
         <div className="space-y-2">
-          {offers.map(o => (
+          {filteredOffers.map(o => (
             <div key={o.id} className="bg-white rounded-xl border-2 border-slate-200 overflow-hidden">
               <div className="p-3">
                 <div className="flex items-start justify-between gap-2">
@@ -800,6 +1100,7 @@ function OfferList({ onLoad, onNew }) {
                         {o.customer_company || o.customer_name || 'Ohne Name'}
                       </span>
                       <StatusBadge status={o.status} />
+                      <StageBadge stage={o.stage} />
                     </div>
                     {o.customer_company && o.customer_name && (
                       <div className="text-slate-500" style={{fontSize:12}}>{o.customer_name}</div>
@@ -834,6 +1135,24 @@ function OfferList({ onLoad, onNew }) {
                   <button onClick={() => handleDelete(o.id)} className="flex items-center gap-1 rounded-lg bg-slate-50 text-red-400 px-2.5 py-1 hover:bg-red-50 transition-colors ml-auto" style={{fontSize:11}}>
                     <Trash2 size={12} />
                   </button>
+                </div>
+                {/* Stage action buttons */}
+                <div className="flex gap-1.5 mt-2">
+                  {o.stage !== 'closed' && (
+                    <button disabled={stageLoading === o.id} onClick={() => handleStageChange(o.id, 'closed')} className="flex items-center gap-1 rounded-lg bg-emerald-50 text-emerald-700 px-2.5 py-1 hover:bg-emerald-100 transition-colors disabled:opacity-50" style={{fontSize:11}}>
+                      <CheckCircle2 size={12} /> Abschließen
+                    </button>
+                  )}
+                  {(o.stage === 'new' || o.stage === 'offer_sent') && (
+                    <button disabled={stageLoading === o.id} onClick={() => handleStageChange(o.id, 'lost')} className="flex items-center gap-1 rounded-lg bg-red-50 text-red-600 px-2.5 py-1 hover:bg-red-100 transition-colors disabled:opacity-50" style={{fontSize:11}}>
+                      <XCircle size={12} /> Verloren
+                    </button>
+                  )}
+                  {(o.stage === 'closed' || o.stage === 'lost') && (
+                    <button disabled={stageLoading === o.id} onClick={() => handleStageChange(o.id, 'new')} className="flex items-center gap-1 rounded-lg bg-slate-100 text-slate-600 px-2.5 py-1 hover:bg-slate-200 transition-colors disabled:opacity-50" style={{fontSize:11}}>
+                      <RefreshCw size={12} /> Reaktivieren
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -881,9 +1200,46 @@ export default function App() {
   const [finanzOpen, setFinanzOpen] = useState(false);
   const [mandatsRef, setMandatsRef] = useState(() => Date.now().toString().slice(-12));
   const [currentOfferId, setCurrentOfferId] = useState(null);
+  const [shareCode, setShareCodeState] = useState(null);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showSignModal, setShowSignModal] = useState(false);
+  const [customCounter, setCustomCounter] = useState(0);
+  const [showCustomModal, setShowCustomModal] = useState(false);
+
+  // Helpers for custom freeform items
+  function getCustomItemsFromCart() {
+    const items = {};
+    Object.keys(cart).forEach(id => {
+      if (id.startsWith('custom_') && ALL[id]) items[id] = ALL[id];
+    });
+    return Object.keys(items).length > 0 ? items : undefined;
+  }
+
+  function restoreCustomItems(customItems) {
+    if (!customItems) return 0;
+    let maxN = 0;
+    Object.entries(customItems).forEach(([id, item]) => {
+      ALL[id] = item;
+      const n = parseInt(id.replace('custom_', ''), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    });
+    return maxN;
+  }
+
+  function clearCustomItems() {
+    Object.keys(ALL).forEach(id => { if (id.startsWith('custom_')) delete ALL[id]; });
+  }
+
+  function handleAddCustomItem({ name, price: p }) {
+    const nextCounter = customCounter + 1;
+    const id = `custom_${nextCounter}`;
+    ALL[id] = { id, name, price: p, t: 'o' };
+    setCart(c => ({ ...c, [id]: { qty: 1, discountQty: 0 } }));
+    setCustomCounter(nextCounter);
+    setShowCustomModal(false);
+  }
 
   useEffect(() => {
     const link = document.createElement('link');
@@ -895,8 +1251,44 @@ export default function App() {
 
   // Load offer from URL on mount
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('s');
+    if (code) {
+      // Load from share code
+      getOfferByShareCode(code).then(offer => {
+        const data = offer.offer_data || {};
+        clearCustomItems();
+        const maxN = restoreCustomItems(data.customItems);
+        setCustomCounter(maxN);
+        setCart(data.cart || {});
+        setCustomer({
+          name: offer.customer_name || '',
+          company: offer.customer_company || '',
+          email: offer.customer_email || '',
+          phone: offer.customer_phone || '',
+          address: data.address || '',
+        });
+        setCreator(offer.creator_id || '');
+        setNotes(data.notes || '');
+        setRaten(data.raten || 12);
+        setFinanzOpen(data.finanzOpen || false);
+        setGlobalTier(data.globalTier || '12mo');
+        setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
+        setCurrentOfferId(offer.id);
+        setShareCodeState(offer.share_code);
+        setTab('angebot');
+        window.history.replaceState({}, '', window.location.pathname);
+      }).catch(() => {
+        alert('Angebot nicht gefunden.');
+      });
+      return;
+    }
+    // Backwards compatibility: load from ?offer= encoded param
     const savedOffer = getOfferFromURL();
     if (savedOffer) {
+      clearCustomItems();
+      const maxN = restoreCustomItems(savedOffer.customItems);
+      setCustomCounter(maxN);
       setCart(savedOffer.cart || {});
       setCustomer(savedOffer.customer || { name:'', company:'', email:'', phone:'', address:'' });
       setCreator(savedOffer.creator || '');
@@ -905,8 +1297,8 @@ export default function App() {
       setFinanzOpen(savedOffer.finanzOpen || false);
       setGlobalTier(savedOffer.globalTier || '12mo');
       if (savedOffer.mandatsRef) setMandatsRef(savedOffer.mandatsRef);
-      // Switch to offer tab when loading from URL
       setTab('angebot');
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
 
@@ -1176,22 +1568,46 @@ export default function App() {
     });
   }
 
-  function handleCopyLink() {
-    const state = {
-      cart,
-      customer,
-      creator,
-      notes,
-      raten,
-      finanzOpen,
-      globalTier,
-      mandatsRef,
-    };
-    const url = generateShareableURL(state);
-    navigator.clipboard.writeText(url).then(() => {
+  async function handleCopyLink() {
+    if (!supabase) { alert('Supabase nicht konfiguriert'); return; }
+    if (!creator) { alert('Bitte wähle einen Ersteller aus.'); return; }
+
+    try {
+      // Save offer first
+      const creatorInfo = TEAM.find(t => t.id === creator);
+      const result = await saveOffer({
+        id: currentOfferId,
+        customer,
+        creator,
+        creatorName: creatorInfo?.name || creator,
+        cart,
+        globalTier,
+        notes,
+        raten,
+        finanzOpen,
+        totalMonthly: totals.monthly,
+        totalOnce: totals.once,
+        totalPeriod: totals.periodTotal,
+        mandatsRef,
+        customItems: getCustomItemsFromCart(),
+      });
+      setCurrentOfferId(result.id);
+
+      // Generate share code if not already set
+      let code = shareCode || result.share_code;
+      if (!code) {
+        code = Math.random().toString(36).slice(2, 10);
+        await setShareCode(result.id, code);
+      }
+      setShareCodeState(code);
+
+      const url = `${window.location.origin}${window.location.pathname}?s=${code}`;
+      await navigator.clipboard.writeText(url);
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
-    });
+    } catch (err) {
+      alert('Fehler beim Erstellen des Links: ' + err.message);
+    }
   }
 
   async function handleSave() {
@@ -1214,6 +1630,7 @@ export default function App() {
         totalOnce: totals.once,
         totalPeriod: totals.periodTotal,
         mandatsRef,
+        customItems: getCustomItemsFromCart(),
       });
       setCurrentOfferId(result.id);
       setSaveSuccess(true);
@@ -1247,6 +1664,7 @@ export default function App() {
         totalOnce: totals.once,
         totalPeriod: totals.periodTotal,
         mandatsRef,
+        customItems: getCustomItemsFromCart(),
       });
       offerId = result.id;
       setCurrentOfferId(offerId);
@@ -1312,6 +1730,7 @@ export default function App() {
       const filename = `KITZ_Angebot_${customerName}_${dateStr}.pdf`;
 
       await sendOffer(offerId, base64, filename);
+      try { await updateOfferStage(offerId, 'offer_sent'); } catch {}
       alert('Angebot erfolgreich gesendet!');
     } catch (err) {
       alert('Fehler beim Senden: ' + err.message);
@@ -1320,10 +1739,87 @@ export default function App() {
     }
   }
 
+  async function handleSign(signatures) {
+    // Build PDF items (same as handlePrint)
+    const creatorInfo = TEAM.find(t => t.id === creator) || null;
+    const monthlyItems = Object.entries(cart)
+      .filter(([id, c]) => isMonthly(ALL[id], c.mode))
+      .map(([id, c]) => {
+        const item = ALL[id];
+        const p = price(item, c.tier, c.mode);
+        const dp = discountedPrice(item, c.tier, c.mode);
+        return {
+          id, qty: c.qty || 0, discountQty: c.discountQty || 0,
+          code: item.code || '', name: item.name, info: item.info,
+          tier: c.tier, mode: c.mode, type: item.t,
+          unitPrice: p, discountPrice: dp,
+          hasDiscount: hasDiscount(item), discountLabel: item.discount?.label,
+          lineTotal: (p * (c.qty || 0)) + (dp * (c.discountQty || 0)),
+        };
+      });
+
+    const onceItems = Object.entries(cart)
+      .filter(([id, c]) => !isMonthly(ALL[id], c.mode))
+      .map(([id, c]) => {
+        const item = ALL[id];
+        const p = price(item, c.tier, c.mode);
+        const dp = discountedPrice(item, c.tier, c.mode);
+        return {
+          id, qty: c.qty || 0, discountQty: c.discountQty || 0,
+          code: item.code || '', name: item.name, info: item.info,
+          tier: c.tier, mode: c.mode, type: item.t,
+          unitPrice: p, discountPrice: dp,
+          hasDiscount: hasDiscount(item), discountLabel: item.discount?.label,
+          lineTotal: (p * (c.qty || 0)) + (dp * (c.discountQty || 0)),
+        };
+      });
+
+    // Generate signed PDF
+    const pdfBlob = await pdf(
+      <OfferPdfDocument
+        customer={customer} monthlyItems={monthlyItems} onceItems={onceItems}
+        totals={totals} notes={notes} raten={raten}
+        showFinancing={finanzOpen} creator={creatorInfo}
+        mandatsRef={mandatsRef} signatures={signatures}
+      />
+    ).toBlob();
+    const blob = new Blob([pdfBlob], { type: 'application/pdf' });
+
+    // Build filename
+    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const customerName = (customer.company || customer.name || 'Kunde')
+      .replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_').replace(/_+/g, '_').substring(0, 30);
+    const filename = `KITZ_Vertrag_${customerName}_${dateStr}.pdf`;
+
+    // Upload + update offer
+    await signOffer(currentOfferId, signatures, blob, filename);
+
+    // Trigger download
+    const url = URL.createObjectURL(blob);
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } else {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    setShowSignModal(false);
+  }
+
   async function handleLoadOffer(id, duplicate = false) {
     try {
       const offer = await getOffer(id);
       const data = offer.offer_data || {};
+      clearCustomItems();
+      const maxN = restoreCustomItems(data.customItems);
+      setCustomCounter(maxN);
       setCart(data.cart || {});
       setCustomer({
         name: offer.customer_name || '',
@@ -1339,6 +1835,7 @@ export default function App() {
       setGlobalTier(data.globalTier || '12mo');
       setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
       setCurrentOfferId(duplicate ? null : offer.id);
+      setShareCodeState(duplicate ? null : offer.share_code || null);
       setTab('angebot');
     } catch (err) {
       alert('Fehler beim Laden: ' + err.message);
@@ -1346,11 +1843,14 @@ export default function App() {
   }
 
   function handleNewOffer() {
+    clearCustomItems();
+    setCustomCounter(0);
     setCart({});
     setCustomer({name:'',company:'',email:'',phone:'',address:''});
     setNotes('');
     setRaten(12);
     setCurrentOfferId(null);
+    setShareCodeState(null);
     setCreator('');
     setFinanzOpen(false);
     setGlobalTier('12mo');
@@ -1360,6 +1860,8 @@ export default function App() {
 
   function handleReset() {
     if (confirm('Angebot zurücksetzen?')) {
+      clearCustomItems();
+      setCustomCounter(0);
       setCart({});
       setCustomer({name:'',company:'',email:'',phone:'',address:''});
       setNotes('');
@@ -1482,9 +1984,19 @@ export default function App() {
               </>
             )}
             {tab === 'angebot' && (
-              <OfferView cart={cart} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes}
-                totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
-                onSave={handleSave} onSend={handleSend} saving={saving} sending={sending} saveSuccess={saveSuccess} currentOfferId={currentOfferId} />
+              <>
+                <OfferView cart={cart} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes}
+                  totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
+                  onSave={handleSave} onSend={handleSend} saving={saving} sending={sending} saveSuccess={saveSuccess} currentOfferId={currentOfferId}
+                  onSign={() => setShowSignModal(true)} onAddCustom={() => setShowCustomModal(true)} />
+                {showCustomModal && (
+                  <CustomItemModal onConfirm={handleAddCustomItem} onClose={() => setShowCustomModal(false)} />
+                )}
+                {showSignModal && (
+                  <SignModal customer={customer} totals={totals} finanzOpen={finanzOpen} globalTier={globalTier}
+                    onConfirm={handleSign} onClose={() => setShowSignModal(false)} />
+                )}
+              </>
             )}
             {tab === 'angebote' && (
               <OfferList onLoad={handleLoadOffer} onNew={handleNewOffer} />

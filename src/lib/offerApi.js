@@ -1,10 +1,11 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, cart, globalTier, notes, raten, finanzOpen, totalMonthly, totalOnce, totalPeriod, mandatsRef }) {
+export async function saveOffer({ id, customer, creator, creatorName, cart, globalTier, notes, raten, finanzOpen, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   const offerData = { cart, globalTier, notes, raten, finanzOpen, address: customer.address || '', mandatsRef: mandatsRef || '' };
+  if (customItems && Object.keys(customItems).length > 0) offerData.customItems = customItems;
   const row = {
     customer_name: customer.name || null,
     customer_company: customer.company || null,
@@ -47,7 +48,7 @@ export async function listOffers() {
 
   const { data, error } = await supabase
     .from('offers')
-    .select('id, status, customer_name, customer_company, customer_email, creator_name, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at')
+    .select('id, status, stage, customer_name, customer_company, customer_email, creator_name, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at')
     .order('updated_at', { ascending: false });
 
   if (error) throw error;
@@ -80,6 +81,21 @@ export async function deleteOffer(id) {
   if (error) throw error;
 }
 
+// Update CRM pipeline stage
+export async function updateOfferStage(id, stage) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+
+  const { data, error } = await supabase
+    .from('offers')
+    .update({ stage })
+    .eq('id', id)
+    .select('id, stage')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
 // Send offer via edge function
 export async function sendOffer(offerId, pdfBase64, pdfFilename) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -90,6 +106,72 @@ export async function sendOffer(offerId, pdfBase64, pdfFilename) {
 
   if (error) throw error;
   return data;
+}
+
+// Set share code on an offer
+export async function setShareCode(offerId, code) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+
+  const { data, error } = await supabase
+    .from('offers')
+    .update({ share_code: code })
+    .eq('id', offerId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Get offer by share code
+export async function getOfferByShareCode(code) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+
+  const { data, error } = await supabase
+    .from('offers')
+    .select('*')
+    .eq('share_code', code)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Sign offer: upload signed PDF to storage, update offer with signature data
+export async function signOffer(offerId, signatureData, signedPdfBlob, pdfFilename) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+
+  // Upload signed PDF to storage
+  const storagePath = `offers/${offerId}/${pdfFilename}`;
+  const { error: uploadError } = await supabase.storage
+    .from('offer-pdfs')
+    .upload(storagePath, signedPdfBlob, {
+      contentType: 'application/pdf',
+      upsert: true,
+    });
+  if (uploadError) throw uploadError;
+
+  // Update offer row
+  const { data, error } = await supabase
+    .from('offers')
+    .update({
+      signature_data: signatureData,
+      signed_at: new Date().toISOString(),
+      signed_pdf_path: storagePath,
+      stage: 'closed',
+    })
+    .eq('id', offerId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// Get public URL for a signed PDF from storage
+export function getSignedPdfUrl(path) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+  const { data } = supabase.storage.from('offer-pdfs').getPublicUrl(path);
+  return data?.publicUrl || null;
 }
 
 // Get email events for an offer
