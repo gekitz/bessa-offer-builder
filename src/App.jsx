@@ -1,8 +1,10 @@
-import { useState, useMemo, useEffect } from "react";
-import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2, Link } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2, Link, Save, Send, Mail, Clock, Eye, RefreshCw, ArrowLeft, Calendar, Building2, AlertCircle, CheckCircle2, XCircle, MailOpen, Archive } from "lucide-react";
 import { pdf } from '@react-pdf/renderer';
 import OfferPdfDocument from './pdf/OfferPdfDocument';
 import { getOfferFromURL, generateShareableURL } from './lib/urlState';
+import { saveOffer, listOffers, getOffer, deleteOffer, sendOffer, getEmailEvents } from './lib/offerApi';
+import { supabase } from './lib/supabase';
 
 // ═══════════════════════════════════════════════════════
 // DATA
@@ -73,7 +75,7 @@ const HARDWARE = [
   { id:'h4', name:'Sunmi L3H', price:599, t:'o' },
   { id:'h11', name:'V3H/L3H/D3 mini Garantieverlängerung', price:90, t:'o', info:'auf 48 Monate' },
   { id:'h12', name:'Hobex ViA PRO', price:1149, t:'o' },
-  { id:'h9', name:'Epson TMT20 Bondrucker', price:220, t:'o' },
+  { id:'h9', name:'Epson TMT20 Bondrucker', price:280, t:'o' },
   { id:'h13', name:'Addminat-Kellnerschloss', price:178, t:'o', info:'inkl 5 Schlüssel' },
 ];
 
@@ -105,7 +107,7 @@ const KUECHENMONITORE = [
 const KUECHENMONITORE_SUNMI = [
   { id:'kms1', name:'Flex 3 22\'\'', price:1139, t:'o' },
   { id:'kms2', name:'Flex 3 27\'\'', price:1749, t:'o' },
-  { id:'kms3', name:'Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
+  { id:'kms3', name:'Flex 3 Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
 ];
 
 const DIENSTLEISTUNGEN = [
@@ -381,7 +383,7 @@ function TabContent({ items, cart, globalTier, handlers }) {
 // OFFER / ANGEBOT VIEW
 // ═══════════════════════════════════════════════════════
 
-function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier }) {
+function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier, onSave, onSend, saving, sending, saveSuccess, currentOfferId }) {
   const monthlyItems = Object.entries(cart).filter(([id,c]) => isMonthly(ALL[id], c.mode));
   const onceItems = Object.entries(cart).filter(([id,c]) => !isMonthly(ALL[id], c.mode));
 
@@ -406,6 +408,8 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
           <input placeholder="Telefon" type="tel" value={customer.phone} onChange={e => setCustomer({...customer,phone:e.target.value})}
             className="w-full min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
         </div>
+        <input placeholder="Adresse (Straße, PLZ Ort)" value={customer.address} onChange={e => setCustomer({...customer,address:e.target.value})}
+          className="w-full mt-2 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
         <div className="mt-3">
           <select value={creator} onChange={e => setCreator(e.target.value)}
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 bg-white">
@@ -507,6 +511,18 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
             <span className="font-bold" style={{fontSize:13}}>GESAMTÜBERSICHT</span>
           </div>
           <div className="p-4 space-y-3">
+            {totals.monthly > 0 && totals.once > 0 && (
+              <div className="flex justify-between items-center pb-3 border-b border-white/10">
+                <div>
+                  <div className="text-sm text-slate-300">Monatliche Kosten × Laufzeit</div>
+                  <div className="text-xs text-slate-400">(monatlich × Laufzeit)</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-slate-400">€ {fmt(totals.periodMonthly)} netto</div>
+                  <div className="font-bold text-lg text-white">€ {fmt(totals.periodMonthly * 1.2)} brutto</div>
+                </div>
+              </div>
+            )}
             <div className="flex justify-between items-center">
               <div>
                 <div className="text-sm text-slate-300">Vertragslaufzeit gesamt</div>
@@ -588,25 +604,46 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
 
       {/* Actions */}
       {Object.keys(cart).length > 0 && (
-        <div className="flex gap-2 no-print flex-wrap">
-          <button onClick={onCopyLink}
-            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-100 text-slate-700 font-semibold py-3.5 hover:bg-slate-200 active:scale-[0.98] transition-all"
-            style={{fontSize:14, minWidth:'120px'}}>
-            {linkCopied ? <Check size={18} /> : <Link size={18} />}
-            {linkCopied ? 'Link kopiert!' : 'Link kopieren'}
-          </button>
-          <button onClick={onCopy}
-            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-100 text-slate-700 font-semibold py-3.5 hover:bg-slate-200 active:scale-[0.98] transition-all"
-            style={{fontSize:14, minWidth:'120px'}}>
-            {copied ? <Check size={18} /> : <Copy size={18} />}
-            {copied ? 'Kopiert!' : 'Text kopieren'}
-          </button>
-          <button onClick={onPrint} disabled={pdfLoading}
-            className={`flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 text-white font-semibold py-3.5 hover:bg-red-700 active:scale-[0.98] transition-all shadow-lg shadow-red-200 ${pdfLoading ? 'opacity-70 cursor-wait' : ''}`}
-            style={{fontSize:14, minWidth:'140px'}}>
-            {pdfLoading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-            {pdfLoading ? 'PDF wird erstellt...' : 'PDF herunterladen'}
-          </button>
+        <div className="space-y-2 no-print">
+          {/* Row 1: Save + Send */}
+          {supabase && (
+            <div className="flex gap-2">
+              <button onClick={onSave} disabled={saving}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-xl font-semibold py-3.5 active:scale-[0.98] transition-all ${saveSuccess ? 'bg-green-100 text-green-700' : 'bg-slate-800 text-white hover:bg-slate-900'} ${saving ? 'opacity-70 cursor-wait' : ''}`}
+                style={{fontSize:14}}>
+                {saving ? <Loader2 size={18} className="animate-spin" /> : saveSuccess ? <Check size={18} /> : <Save size={18} />}
+                {saving ? 'Speichern...' : saveSuccess ? 'Gespeichert!' : currentOfferId ? 'Aktualisieren' : 'Speichern'}
+              </button>
+              {/* TODO: Enable once kitz.co.at domain is verified in Resend */}
+              {false && <button onClick={onSend} disabled={sending || !customer.email}
+                className={`flex-1 flex items-center justify-center gap-2 rounded-xl font-semibold py-3.5 active:scale-[0.98] transition-all ${!customer.email ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'} ${sending ? 'opacity-70 cursor-wait' : ''}`}
+                style={{fontSize:14}}>
+                {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                {sending ? 'Senden...' : 'Angebot senden'}
+              </button>}
+            </div>
+          )}
+          {/* Row 2: Copy + PDF */}
+          <div className="flex gap-2">
+            <button onClick={onCopyLink}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-100 text-slate-700 font-semibold py-3.5 hover:bg-slate-200 active:scale-[0.98] transition-all"
+              style={{fontSize:14, minWidth:'100px'}}>
+              {linkCopied ? <Check size={18} /> : <Link size={18} />}
+              {linkCopied ? 'Link kopiert!' : 'Link'}
+            </button>
+            <button onClick={onCopy}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-100 text-slate-700 font-semibold py-3.5 hover:bg-slate-200 active:scale-[0.98] transition-all"
+              style={{fontSize:14, minWidth:'100px'}}>
+              {copied ? <Check size={18} /> : <Copy size={18} />}
+              {copied ? 'Kopiert!' : 'Text'}
+            </button>
+            <button onClick={onPrint} disabled={pdfLoading}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 text-white font-semibold py-3.5 hover:bg-red-700 active:scale-[0.98] transition-all shadow-lg shadow-red-200 ${pdfLoading ? 'opacity-70 cursor-wait' : ''}`}
+              style={{fontSize:14, minWidth:'120px'}}>
+              {pdfLoading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+              {pdfLoading ? 'PDF...' : 'PDF'}
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -622,13 +659,218 @@ const TABS = [
   { id: 'module', label: 'Module' },
   { id: 'hardware', label: 'Hardware' },
   { id: 'angebot', label: 'Angebot' },
+  { id: 'angebote', label: 'Angebote' },
 ];
+
+const STATUS_CONFIG = {
+  draft:     { label: 'Entwurf',    color: 'bg-slate-100 text-slate-600' },
+  sent:      { label: 'Gesendet',   color: 'bg-blue-100 text-blue-700' },
+  delivered: { label: 'Zugestellt', color: 'bg-green-100 text-green-700' },
+  opened:    { label: 'Gelesen',    color: 'bg-yellow-100 text-yellow-700' },
+  accepted:  { label: 'Angenommen', color: 'bg-emerald-100 text-emerald-700' },
+  rejected:  { label: 'Abgelehnt', color: 'bg-red-100 text-red-700' },
+  expired:   { label: 'Abgelaufen', color: 'bg-slate-100 text-slate-400' },
+  bounced:   { label: 'Unzustellbar', color: 'bg-red-100 text-red-700' },
+};
+
+function StatusBadge({ status }) {
+  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${cfg.color}`} style={{fontSize:11}}>
+      {cfg.label}
+    </span>
+  );
+}
+
+// Offer list component
+function OfferList({ onLoad, onNew }) {
+  const [offers, setOffers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [detailId, setDetailId] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+
+  const fetchOffers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await listOffers();
+      setOffers(data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchOffers(); }, [fetchOffers]);
+
+  async function handleDelete(id) {
+    if (!confirm('Angebot wirklich löschen?')) return;
+    try {
+      await deleteOffer(id);
+      setOffers(prev => prev.filter(o => o.id !== id));
+    } catch (err) {
+      alert('Fehler beim Löschen: ' + err.message);
+    }
+  }
+
+  async function showDetail(id) {
+    if (detailId === id) { setDetailId(null); return; }
+    setDetailId(id);
+    setEventsLoading(true);
+    try {
+      const evts = await getEmailEvents(id);
+      setEvents(evts || []);
+    } catch { setEvents([]); }
+    finally { setEventsLoading(false); }
+  }
+
+  if (!supabase) {
+    return (
+      <div className="text-center py-12 text-slate-400">
+        <AlertCircle size={48} className="mx-auto mb-3 opacity-50" />
+        <p className="font-medium">Supabase nicht konfiguriert</p>
+        <p style={{fontSize:13}}>Setze VITE_SUPABASE_URL und VITE_SUPABASE_ANON_KEY in der .env Datei.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="text-center py-12 text-slate-400">
+        <Loader2 size={32} className="mx-auto mb-3 animate-spin" />
+        <p style={{fontSize:13}}>Angebote laden...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12 text-red-400">
+        <AlertCircle size={32} className="mx-auto mb-3" />
+        <p className="font-medium">Fehler: {error}</p>
+        <button onClick={fetchOffers} className="mt-3 text-sm text-red-600 underline">Erneut versuchen</button>
+      </div>
+    );
+  }
+
+  const EVENT_ICON = {
+    sent: <Send size={12} className="text-blue-500" />,
+    delivered: <CheckCircle2 size={12} className="text-green-500" />,
+    opened: <MailOpen size={12} className="text-yellow-500" />,
+    clicked: <Eye size={12} className="text-purple-500" />,
+    bounced: <XCircle size={12} className="text-red-500" />,
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Archive size={16} className="text-red-600" />
+          <span className="font-bold text-slate-700" style={{fontSize:14}}>Gespeicherte Angebote</span>
+          <span className="text-slate-400" style={{fontSize:12}}>({offers.length})</span>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={fetchOffers} className="rounded-lg bg-slate-100 text-slate-600 px-3 py-1.5 hover:bg-slate-200 transition-colors flex items-center gap-1" style={{fontSize:12}}>
+            <RefreshCw size={13} /> Aktualisieren
+          </button>
+          <button onClick={onNew} className="rounded-lg bg-red-600 text-white px-3 py-1.5 hover:bg-red-700 transition-colors flex items-center gap-1" style={{fontSize:12}}>
+            <Plus size={13} /> Neues Angebot
+          </button>
+        </div>
+      </div>
+
+      {offers.length === 0 ? (
+        <div className="text-center py-12 text-slate-400">
+          <FileText size={48} className="mx-auto mb-3 opacity-50" />
+          <p className="font-medium">Noch keine Angebote</p>
+          <p style={{fontSize:13}}>Erstelle ein Angebot und speichere es hier.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {offers.map(o => (
+            <div key={o.id} className="bg-white rounded-xl border-2 border-slate-200 overflow-hidden">
+              <div className="p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-slate-800" style={{fontSize:13}}>
+                        {o.customer_company || o.customer_name || 'Ohne Name'}
+                      </span>
+                      <StatusBadge status={o.status} />
+                    </div>
+                    {o.customer_company && o.customer_name && (
+                      <div className="text-slate-500" style={{fontSize:12}}>{o.customer_name}</div>
+                    )}
+                    <div className="flex items-center gap-3 mt-1 text-slate-400" style={{fontSize:11}}>
+                      <span className="flex items-center gap-1">
+                        <Calendar size={11} />
+                        {new Date(o.updated_at).toLocaleDateString('de-AT')}
+                      </span>
+                      <span>{o.creator_name}</span>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {o.total_monthly > 0 && (
+                      <div className="font-semibold text-slate-800" style={{fontSize:13}}>€ {fmt(Number(o.total_monthly))}/Mo</div>
+                    )}
+                    {o.total_once > 0 && (
+                      <div className="text-slate-500" style={{fontSize:12}}>€ {fmt(Number(o.total_once))} einm.</div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-1.5 mt-2 pt-2 border-t border-slate-100">
+                  <button onClick={() => onLoad(o.id)} className="flex items-center gap-1 rounded-lg bg-red-50 text-red-600 px-2.5 py-1 hover:bg-red-100 transition-colors" style={{fontSize:11}}>
+                    <FileText size={12} /> Laden
+                  </button>
+                  <button onClick={() => onLoad(o.id, true)} className="flex items-center gap-1 rounded-lg bg-slate-50 text-slate-600 px-2.5 py-1 hover:bg-slate-100 transition-colors" style={{fontSize:11}}>
+                    <Copy size={12} /> Duplizieren
+                  </button>
+                  <button onClick={() => showDetail(o.id)} className="flex items-center gap-1 rounded-lg bg-slate-50 text-slate-600 px-2.5 py-1 hover:bg-slate-100 transition-colors" style={{fontSize:11}}>
+                    <Clock size={12} /> Details
+                  </button>
+                  <button onClick={() => handleDelete(o.id)} className="flex items-center gap-1 rounded-lg bg-slate-50 text-red-400 px-2.5 py-1 hover:bg-red-50 transition-colors ml-auto" style={{fontSize:11}}>
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Event timeline */}
+              {detailId === o.id && (
+                <div className="border-t border-slate-200 bg-slate-50 px-3 py-2">
+                  <div className="font-semibold text-slate-600 mb-1" style={{fontSize:11}}>E-Mail Verlauf</div>
+                  {eventsLoading ? (
+                    <div className="text-slate-400 text-center py-2"><Loader2 size={14} className="animate-spin mx-auto" /></div>
+                  ) : events.length === 0 ? (
+                    <div className="text-slate-400" style={{fontSize:11}}>Noch keine E-Mail-Events</div>
+                  ) : (
+                    <div className="space-y-1">
+                      {events.map((evt, i) => (
+                        <div key={evt.id || i} className="flex items-center gap-2" style={{fontSize:11}}>
+                          {EVENT_ICON[evt.event_type] || <Mail size={12} className="text-slate-400" />}
+                          <span className="text-slate-600 font-medium">{STATUS_CONFIG[evt.event_type]?.label || evt.event_type}</span>
+                          <span className="text-slate-400">{new Date(evt.occurred_at).toLocaleString('de-AT')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function App() {
   const [tab, setTab] = useState('kassa');
   const [globalTier, setGlobalTier] = useState('12mo');
   const [cart, setCart] = useState({});
-  const [customer, setCustomer] = useState({ name:'', company:'', email:'', phone:'' });
+  const [customer, setCustomer] = useState({ name:'', company:'', email:'', phone:'', address:'' });
   const [creator, setCreator] = useState('');
   const [notes, setNotes] = useState('');
   const [copied, setCopied] = useState(false);
@@ -637,6 +879,11 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
   const [finanzOpen, setFinanzOpen] = useState(false);
+  const [mandatsRef, setMandatsRef] = useState(() => Date.now().toString().slice(-12));
+  const [currentOfferId, setCurrentOfferId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
     const link = document.createElement('link');
@@ -651,12 +898,13 @@ export default function App() {
     const savedOffer = getOfferFromURL();
     if (savedOffer) {
       setCart(savedOffer.cart || {});
-      setCustomer(savedOffer.customer || { name:'', company:'', email:'', phone:'' });
+      setCustomer(savedOffer.customer || { name:'', company:'', email:'', phone:'', address:'' });
       setCreator(savedOffer.creator || '');
       setNotes(savedOffer.notes || '');
       setRaten(savedOffer.raten || 12);
       setFinanzOpen(savedOffer.finanzOpen || false);
       setGlobalTier(savedOffer.globalTier || '12mo');
+      if (savedOffer.mandatsRef) setMandatsRef(savedOffer.mandatsRef);
       // Switch to offer tab when loading from URL
       setTab('angebot');
     }
@@ -702,7 +950,7 @@ export default function App() {
 
   // Totals
   const totals = useMemo(() => {
-    let monthly = 0, once = 0, periodTotal = 0, maxMonths = 0;
+    let monthly = 0, once = 0, periodTotal = 0, periodMonthly = 0, maxMonths = 0;
     Object.entries(cart).forEach(([id, c]) => {
       const item = ALL[id];
       const p = price(item, c.tier, c.mode);
@@ -714,6 +962,7 @@ export default function App() {
       if (isMonthly(item, c.mode)) {
         monthly += line;
         const months = TIER_MONTHS[c.tier] || 12;
+        periodMonthly += line * months;
         periodTotal += line * months;
         if (months > maxMonths) maxMonths = months;
       } else {
@@ -721,7 +970,7 @@ export default function App() {
         periodTotal += line;
       }
     });
-    return { monthly, once, periodTotal, maxMonths: maxMonths || 12 };
+    return { monthly, once, periodTotal, periodMonthly, maxMonths: maxMonths || 12 };
   }, [cart]);
 
   const cartCount = Object.keys(cart).length;
@@ -875,6 +1124,7 @@ export default function App() {
           raten={raten}
           showFinancing={finanzOpen}
           creator={creatorInfo}
+          mandatsRef={mandatsRef}
         />
       ).toBlob();
       // Ensure correct MIME type for mobile browsers
@@ -935,6 +1185,7 @@ export default function App() {
       raten,
       finanzOpen,
       globalTier,
+      mandatsRef,
     };
     const url = generateShareableURL(state);
     navigator.clipboard.writeText(url).then(() => {
@@ -943,12 +1194,178 @@ export default function App() {
     });
   }
 
+  async function handleSave() {
+    if (!supabase) { alert('Supabase nicht konfiguriert'); return; }
+    if (!creator) { alert('Bitte wähle einen Ersteller aus.'); return; }
+    const creatorInfo = TEAM.find(t => t.id === creator);
+    setSaving(true);
+    try {
+      const result = await saveOffer({
+        id: currentOfferId,
+        customer,
+        creator,
+        creatorName: creatorInfo?.name || creator,
+        cart,
+        globalTier,
+        notes,
+        raten,
+        finanzOpen,
+        totalMonthly: totals.monthly,
+        totalOnce: totals.once,
+        totalPeriod: totals.periodTotal,
+        mandatsRef,
+      });
+      setCurrentOfferId(result.id);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } catch (err) {
+      alert('Fehler beim Speichern: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSend() {
+    if (!supabase) { alert('Supabase nicht konfiguriert'); return; }
+    if (!customer.email) { alert('Bitte eine Kunden-E-Mail angeben.'); return; }
+    if (!creator) { alert('Bitte einen Ersteller auswählen.'); return; }
+
+    if (!confirm(`Angebot an ${customer.email} senden?`)) return;
+
+    // Always save before sending to ensure DB has latest data (email, etc.)
+    const creatorInfoForSave = TEAM.find(t => t.id === creator);
+    setSaving(true);
+    let offerId;
+    try {
+      const result = await saveOffer({
+        id: currentOfferId || null,
+        customer,
+        creator,
+        creatorName: creatorInfoForSave?.name || creator,
+        cart, globalTier, notes, raten, finanzOpen,
+        totalMonthly: totals.monthly,
+        totalOnce: totals.once,
+        totalPeriod: totals.periodTotal,
+        mandatsRef,
+      });
+      offerId = result.id;
+      setCurrentOfferId(offerId);
+    } catch (err) {
+      alert('Fehler beim Speichern: ' + err.message);
+      setSaving(false);
+      return;
+    }
+    setSaving(false);
+
+    setSending(true);
+    try {
+      // Generate PDF blob
+      const creatorInfo = TEAM.find(t => t.id === creator);
+      const monthlyItems = Object.entries(cart)
+        .filter(([id, c]) => isMonthly(ALL[id], c.mode))
+        .map(([id, c]) => {
+          const item = ALL[id];
+          const p = price(item, c.tier, c.mode);
+          const dp = discountedPrice(item, c.tier, c.mode);
+          return {
+            id, qty: c.qty || 0, discountQty: c.discountQty || 0,
+            code: item.code || '', name: item.name, info: item.info,
+            tier: c.tier, mode: c.mode, type: item.t,
+            unitPrice: p, discountPrice: dp,
+            hasDiscount: hasDiscount(item), discountLabel: item.discount?.label,
+            lineTotal: (p * (c.qty || 0)) + (dp * (c.discountQty || 0)),
+          };
+        });
+
+      const onceItems = Object.entries(cart)
+        .filter(([id, c]) => !isMonthly(ALL[id], c.mode))
+        .map(([id, c]) => {
+          const item = ALL[id];
+          const p = price(item, c.tier, c.mode);
+          const dp = discountedPrice(item, c.tier, c.mode);
+          return {
+            id, qty: c.qty || 0, discountQty: c.discountQty || 0,
+            code: item.code || '', name: item.name, info: item.info,
+            tier: c.tier, mode: c.mode, type: item.t,
+            unitPrice: p, discountPrice: dp,
+            hasDiscount: hasDiscount(item), discountLabel: item.discount?.label,
+            lineTotal: (p * (c.qty || 0)) + (dp * (c.discountQty || 0)),
+          };
+        });
+
+      const pdfBlob = await pdf(
+        <OfferPdfDocument
+          customer={customer} monthlyItems={monthlyItems} onceItems={onceItems}
+          totals={totals} notes={notes} raten={raten}
+          showFinancing={finanzOpen} creator={creatorInfo}
+          mandatsRef={mandatsRef}
+        />
+      ).toBlob();
+
+      // Convert to base64
+      const buffer = await pdfBlob.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+
+      const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      const customerName = (customer.company || customer.name || 'Kunde')
+        .replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_').replace(/_+/g, '_').substring(0, 30);
+      const filename = `KITZ_Angebot_${customerName}_${dateStr}.pdf`;
+
+      await sendOffer(offerId, base64, filename);
+      alert('Angebot erfolgreich gesendet!');
+    } catch (err) {
+      alert('Fehler beim Senden: ' + err.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleLoadOffer(id, duplicate = false) {
+    try {
+      const offer = await getOffer(id);
+      const data = offer.offer_data || {};
+      setCart(data.cart || {});
+      setCustomer({
+        name: offer.customer_name || '',
+        company: offer.customer_company || '',
+        email: offer.customer_email || '',
+        phone: offer.customer_phone || '',
+        address: data.address || '',
+      });
+      setCreator(offer.creator_id || '');
+      setNotes(data.notes || '');
+      setRaten(data.raten || 12);
+      setFinanzOpen(data.finanzOpen || false);
+      setGlobalTier(data.globalTier || '12mo');
+      setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
+      setCurrentOfferId(duplicate ? null : offer.id);
+      setTab('angebot');
+    } catch (err) {
+      alert('Fehler beim Laden: ' + err.message);
+    }
+  }
+
+  function handleNewOffer() {
+    setCart({});
+    setCustomer({name:'',company:'',email:'',phone:'',address:''});
+    setNotes('');
+    setRaten(12);
+    setCurrentOfferId(null);
+    setCreator('');
+    setFinanzOpen(false);
+    setGlobalTier('12mo');
+    setMandatsRef(Date.now().toString().slice(-12));
+    setTab('kassa');
+  }
+
   function handleReset() {
     if (confirm('Angebot zurücksetzen?')) {
       setCart({});
-      setCustomer({name:'',company:'',email:'',phone:''});
+      setCustomer({name:'',company:'',email:'',phone:'',address:''});
       setNotes('');
       setRaten(12);
+      setCurrentOfferId(null);
+      setMandatsRef(Date.now().toString().slice(-12));
     }
   }
 
@@ -1066,7 +1483,11 @@ export default function App() {
             )}
             {tab === 'angebot' && (
               <OfferView cart={cart} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes}
-                totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier} />
+                totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
+                onSave={handleSave} onSend={handleSend} saving={saving} sending={sending} saveSuccess={saveSuccess} currentOfferId={currentOfferId} />
+            )}
+            {tab === 'angebote' && (
+              <OfferList onLoad={handleLoadOffer} onNew={handleNewOffer} />
             )}
           </>
         )}

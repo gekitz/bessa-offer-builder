@@ -444,4 +444,113 @@ export const styles = StyleSheet.create({
     fontSize: 8,
     color: COLORS.light,
   },
+
+  // SEPA Mandate styles
+  sepaTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: COLORS.dark,
+    textAlign: 'center',
+    marginBottom: 20,
+    letterSpacing: 1,
+  },
+  sepaRefBox: {
+    borderWidth: 1,
+    borderColor: COLORS.dark,
+    padding: '8 12',
+    marginBottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sepaRefLabel: {
+    fontSize: 9,
+    fontWeight: 600,
+    color: COLORS.dark,
+  },
+  sepaRefValue: {
+    fontSize: 11,
+    fontWeight: 700,
+    fontFamily: 'Courier',
+    color: COLORS.dark,
+  },
+  sepaSection: {
+    marginBottom: 14,
+  },
+  sepaSectionTitle: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: COLORS.dark,
+    marginBottom: 6,
+    textDecoration: 'underline',
+  },
+  sepaText: {
+    fontSize: 9,
+    color: COLORS.dark,
+    lineHeight: 1.5,
+    marginBottom: 4,
+  },
+  sepaLegalText: {
+    fontSize: 8,
+    color: COLORS.dark,
+    lineHeight: 1.6,
+    marginBottom: 8,
+  },
+  sepaFieldRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+    alignItems: 'flex-end',
+  },
+  sepaFieldLabel: {
+    fontSize: 9,
+    fontWeight: 600,
+    color: COLORS.dark,
+    width: 80,
+  },
+  sepaFieldValue: {
+    fontSize: 9,
+    color: COLORS.dark,
+    flex: 1,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.dark,
+    borderBottomStyle: 'dotted',
+    paddingBottom: 2,
+    minHeight: 14,
+  },
+  sepaCheckRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  sepaCheckBox: {
+    width: 12,
+    height: 12,
+    borderWidth: 1,
+    borderColor: COLORS.dark,
+    marginRight: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sepaCheckLabel: {
+    fontSize: 9,
+    color: COLORS.dark,
+  },
+  sepaSignatureFields: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  sepaSignatureField: {
+    width: '45%',
+  },
+  sepaSignatureLine: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.dark,
+    marginBottom: 5,
+    height: 40,
+  },
+  sepaSignatureLabel: {
+    fontSize: 8,
+    color: COLORS.medium,
+  },
 });

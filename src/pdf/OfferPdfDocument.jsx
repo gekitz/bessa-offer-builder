@@ -184,12 +184,24 @@ function TotalsBox({ netto, isMonthly }) {
 }
 
 // Period total summary component
-function PeriodSummary({ periodTotal }) {
+function PeriodSummary({ periodTotal, periodMonthly, hasMonthly, hasOnce }) {
   const brutto = periodTotal * 1.2;
+  const showMonthlyRow = hasMonthly && hasOnce;
 
   return (
     <View style={styles.periodSummary} wrap={false}>
       <Text style={styles.periodSummaryTitle}>GESAMTÜBERSICHT</Text>
+      {showMonthlyRow && (
+        <View style={[styles.periodSummaryContent, { borderBottomWidth: 0.5, borderBottomColor: '#e2e8f0', paddingBottom: 6, marginBottom: 4 }]}>
+          <Text style={styles.periodSummaryLabel}>
+            Monatliche Kosten × Laufzeit (monatlich × Laufzeit)
+          </Text>
+          <View style={styles.periodSummaryValues}>
+            <Text style={styles.periodSummaryNetto}>{fmt(periodMonthly)} netto</Text>
+            <Text style={[styles.periodSummaryBrutto, { color: '#1e293b' }]}>{fmt(periodMonthly * 1.2)} brutto</Text>
+          </View>
+        </View>
+      )}
       <View style={styles.periodSummaryContent}>
         <Text style={styles.periodSummaryLabel}>
           Vertragslaufzeit gesamt (monatlich x Laufzeit + einmalig)
@@ -276,6 +288,100 @@ function FinancingSection({ periodBrutto, maxMonths, raten }) {
   );
 }
 
+// SEPA Lastschrift-Mandat component
+function SepaMandate({ customer, mandatsRef }) {
+  const payerName = customer.company || customer.name || '';
+  const payerAddress = customer.address || '';
+
+  return (
+    <View>
+      <Text style={styles.sepaTitle}>SEPA – LASTSCHRIFT – MANDAT</Text>
+
+      {/* Mandatsreferenz */}
+      <View style={styles.sepaRefBox}>
+        <Text style={styles.sepaRefLabel}>Mandatsreferenz:</Text>
+        <Text style={styles.sepaRefValue}>{mandatsRef || ''}</Text>
+      </View>
+
+      {/* Zahlungsempfänger */}
+      <View style={styles.sepaSection}>
+        <Text style={styles.sepaSectionTitle}>Zahlungsempfänger</Text>
+        <Text style={styles.sepaText}>Kitz Computer + Office GmbH</Text>
+        <Text style={styles.sepaText}>Johann Offner Straße 17</Text>
+        <Text style={styles.sepaText}>9400 Wolfsberg</Text>
+        <Text style={[styles.sepaText, { marginTop: 6 }]}>
+          <Text style={{ fontWeight: 700 }}>Creditor-ID: </Text>
+          <Text style={{ fontFamily: 'Courier', fontWeight: 700 }}>AT02ZZZ00000009212</Text>
+        </Text>
+      </View>
+
+      {/* Legal text */}
+      <View style={styles.sepaSection}>
+        <Text style={styles.sepaLegalText}>
+          Ich ermächtige / Wir ermächtigen die Kitz Computer + Office GmbH, Zahlungen von meinem / unserem Konto mittels SEPA-Lastschrift einzuziehen. Zugleich weise ich / weisen wir mein / unser Kreditinstitut an, die von der Kitz Computer + Office GmbH auf mein / unser Konto gezogenen SEPA-Lastschriften einzulösen.
+        </Text>
+        <Text style={styles.sepaLegalText}>
+          Hinweis: Ich kann / Wir können innerhalb von acht Wochen, beginnend mit dem Belastungsdatum, die Erstattung des belasteten Betrages verlangen. Es gelten dabei die mit meinem / unserem Kreditinstitut vereinbarten Bedingungen.
+        </Text>
+        <Text style={styles.sepaLegalText}>
+          Vor dem ersten Einzug einer SEPA-Lastschrift wird die Kitz Computer + Office GmbH mir / uns eine Vorabinformation (Pre-Notification) zusenden.
+        </Text>
+      </View>
+
+      {/* Zahlungspflichtiger */}
+      <View style={styles.sepaSection}>
+        <Text style={styles.sepaSectionTitle}>Zahlungspflichtiger</Text>
+        <View style={styles.sepaFieldRow}>
+          <Text style={styles.sepaFieldLabel}>Name:</Text>
+          <Text style={styles.sepaFieldValue}>{payerName}</Text>
+        </View>
+        <View style={styles.sepaFieldRow}>
+          <Text style={styles.sepaFieldLabel}>Anschrift:</Text>
+          <Text style={styles.sepaFieldValue}>{payerAddress}</Text>
+        </View>
+        <View style={[styles.sepaFieldRow, { marginTop: 10 }]}>
+          <Text style={styles.sepaFieldLabel}>IBAN:</Text>
+          <Text style={styles.sepaFieldValue}>{' '}</Text>
+        </View>
+        <View style={styles.sepaFieldRow}>
+          <Text style={styles.sepaFieldLabel}>BIC:</Text>
+          <Text style={styles.sepaFieldValue}>{' '}</Text>
+        </View>
+      </View>
+
+      {/* Zahlungsart */}
+      <View style={styles.sepaSection}>
+        <Text style={styles.sepaSectionTitle}>Zahlungsart</Text>
+        <View style={styles.sepaCheckRow}>
+          <View style={styles.sepaCheckBox}>
+            <Text style={{ fontSize: 8, fontWeight: 700 }}>X</Text>
+          </View>
+          <Text style={styles.sepaCheckLabel}>Wiederkehrender Einzug</Text>
+        </View>
+      </View>
+
+      {/* Spesen notice */}
+      <View style={styles.sepaSection}>
+        <Text style={styles.sepaLegalText}>
+          Anfallende Spesen bei fehlerhafter oder widerrufener Kontoabbuchung gehen zu Lasten des Zahlungspflichtigen.
+        </Text>
+      </View>
+
+      {/* Signature */}
+      <View style={styles.sepaSignatureFields}>
+        <View style={styles.sepaSignatureField}>
+          <View style={styles.sepaSignatureLine} />
+          <Text style={styles.sepaSignatureLabel}>Ort, Datum</Text>
+        </View>
+        <View style={styles.sepaSignatureField}>
+          <View style={styles.sepaSignatureLine} />
+          <Text style={styles.sepaSignatureLabel}>Unterschrift / Firmenstempel</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // Main PDF Document component
 export default function OfferPdfDocument({
   customer,
@@ -286,6 +392,7 @@ export default function OfferPdfDocument({
   raten,
   showFinancing = false,
   creator = null,
+  mandatsRef = '',
 }) {
   const date = new Date().toLocaleDateString('de-AT');
   const periodBrutto = totals.periodTotal * 1.2;
@@ -353,7 +460,7 @@ export default function OfferPdfDocument({
 
         {/* Period Total Summary */}
         {(totals.monthly > 0 || totals.once > 0) && (
-          <PeriodSummary periodTotal={totals.periodTotal} />
+          <PeriodSummary periodTotal={totals.periodTotal} periodMonthly={totals.periodMonthly} hasMonthly={totals.monthly > 0} hasOnce={totals.once > 0} />
         )}
 
         {/* Notes */}
@@ -409,6 +516,21 @@ export default function OfferPdfDocument({
           <PdfFooter />
 
           {/* Page number */}
+          <Text
+            style={styles.pageNumber}
+            render={({ pageNumber, totalPages }) =>
+              `Seite ${pageNumber} von ${totalPages}`
+            }
+            fixed
+          />
+        </Page>
+      )}
+
+      {/* SEPA Mandate Page */}
+      {showFinancing && (totals.monthly > 0 || totals.once > 0) && (
+        <Page size="A4" style={styles.page}>
+          <PdfHeader />
+          <SepaMandate customer={customer} mandatsRef={mandatsRef} />
           <Text
             style={styles.pageNumber}
             render={({ pageNumber, totalPages }) =>
