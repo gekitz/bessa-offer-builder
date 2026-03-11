@@ -1,11 +1,12 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, cart, globalTier, notes, raten, finanzOpen, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems }) {
+export async function saveOffer({ id, customer, creator, creatorName, cart, globalTier, notes, raten, finanzOpen, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   const offerData = { cart, globalTier, notes, raten, finanzOpen, address: customer.address || '', mandatsRef: mandatsRef || '' };
   if (customItems && Object.keys(customItems).length > 0) offerData.customItems = customItems;
+  if (cartOrder && cartOrder.length > 0) offerData.cartOrder = cartOrder;
   const row = {
     customer_name: customer.name || null,
     customer_company: customer.company || null,

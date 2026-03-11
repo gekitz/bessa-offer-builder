@@ -1,5 +1,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
-import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2, Link, Save, Send, Mail, Clock, Eye, RefreshCw, ArrowLeft, Calendar, Building2, AlertCircle, CheckCircle2, XCircle, MailOpen, Archive, Pen } from "lucide-react";
+import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2, Link, Save, Send, Mail, Clock, Eye, RefreshCw, ArrowLeft, Calendar, Building2, AlertCircle, CheckCircle2, XCircle, MailOpen, Archive, Pen, GripVertical } from "lucide-react";
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { pdf } from '@react-pdf/renderer';
 import OfferPdfDocument from './pdf/OfferPdfDocument';
 import { getOfferFromURL } from './lib/urlState';
@@ -188,6 +191,21 @@ function hasDiscount(item) {
 function isMonthly(item, mode) {
   if (item.t === 'term') return mode === 'rent';
   return item.t === 'm';
+}
+
+// Returns [id, cartItem][] in user-defined order, with fallback for items not in cartOrder
+function orderedCartEntries(cart, cartOrder) {
+  const ids = Object.keys(cart);
+  if (!cartOrder || cartOrder.length === 0) return ids.map(id => [id, cart[id]]);
+  const ordered = [];
+  const seen = new Set();
+  for (const id of cartOrder) {
+    if (cart[id]) { ordered.push([id, cart[id]]); seen.add(id); }
+  }
+  for (const id of ids) {
+    if (!seen.has(id)) ordered.push([id, cart[id]]);
+  }
+  return ordered;
 }
 
 function groupBy(items, key) {
@@ -596,12 +614,57 @@ function CustomItemModal({ onConfirm, onClose }) {
 }
 
 // ═══════════════════════════════════════════════════════
+// SORTABLE ITEM ROW
+// ═══════════════════════════════════════════════════════
+
+function SortableOfferRow({ id, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: 'relative',
+    zIndex: isDragging ? 10 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center">
+      <button {...attributes} {...listeners} className="flex-shrink-0 touch-none px-2 py-2.5 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing">
+        <GripVertical size={14} />
+      </button>
+      <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
 // OFFER / ANGEBOT VIEW
 // ═══════════════════════════════════════════════════════
 
-function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier, onSave, onSend, saving, sending, saveSuccess, currentOfferId, onSign, signLoading, onAddCustom }) {
-  const monthlyItems = Object.entries(cart).filter(([id,c]) => isMonthly(ALL[id], c.mode));
-  const onceItems = Object.entries(cart).filter(([id,c]) => !isMonthly(ALL[id], c.mode));
+function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier, onSave, onSend, saving, sending, saveSuccess, currentOfferId, onSign, signLoading, onAddCustom, cartOrder, onReorder }) {
+  const allOrdered = orderedCartEntries(cart, cartOrder);
+  const monthlyItems = allOrdered.filter(([id,c]) => isMonthly(ALL[id], c.mode));
+  const onceItems = allOrdered.filter(([id,c]) => !isMonthly(ALL[id], c.mode));
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+  );
+
+  function handleDragEnd(event, sectionItems) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const sectionIds = sectionItems.map(([id]) => id);
+    const oldIndex = sectionIds.indexOf(active.id);
+    const newIndex = sectionIds.indexOf(over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reorderedSection = arrayMove(sectionIds, oldIndex, newIndex);
+    // Rebuild full cartOrder preserving relative order of other section
+    const otherSection = allOrdered.filter(([id, c]) => !sectionItems.some(([sid]) => sid === id)).map(([id]) => id);
+    // Determine if this section is monthly
+    const isThisMonthly = sectionItems.length > 0 && isMonthly(ALL[sectionItems[0][0]], cart[sectionItems[0][0]]?.mode);
+    const newOrder = isThisMonthly ? [...reorderedSection, ...otherSection] : [...otherSection, ...reorderedSection];
+    onReorder(newOrder);
+  }
 
   const periodNetto = totals.periodTotal;
   const periodBrutto = periodNetto * 1.2;
@@ -659,29 +722,35 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
           <div className="bg-red-50 px-4 py-2 border-b border-red-100">
             <span className="font-bold text-red-800" style={{fontSize:13}}>MONATLICHE KOSTEN</span>
           </div>
-          <div className="divide-y divide-slate-100">
-            {monthlyItems.map(([id, c]) => {
-              const item = ALL[id];
-              const p = price(item, c.tier, c.mode);
-              const dp = discountedPrice(item, c.tier, c.mode);
-              const fullQty = c.qty || 0;
-              const discQty = c.discountQty || 0;
-              const lineTotal = (p * fullQty) + (dp * discQty);
-              const totalQty = fullQty + discQty;
-              const qtyLabel = discQty > 0 && fullQty > 0 ? `${fullQty}+${discQty}` : String(totalQty);
-              return (
-                <div key={id} className="flex items-center justify-between px-4 py-2.5">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-slate-700">{qtyLabel}x {item.code ? item.code+' ' : ''}{item.name}</span>
-                    {c.tier && <span className="text-xs text-slate-400 ml-2">{TIER_LABEL[c.tier]}</span>}
-                    {c.mode === 'rent' && item.t === 'term' && <span className="text-xs text-slate-400 ml-2">Miete</span>}
-                    {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
-                  </div>
-                  <span className="font-semibold text-slate-800 text-sm">€ {fmt(lineTotal)}/Mo</span>
-                </div>
-              );
-            })}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={e => handleDragEnd(e, monthlyItems)}>
+            <SortableContext items={monthlyItems.map(([id]) => id)} strategy={verticalListSortingStrategy}>
+              <div className="divide-y divide-slate-100">
+                {monthlyItems.map(([id, c]) => {
+                  const item = ALL[id];
+                  const p = price(item, c.tier, c.mode);
+                  const dp = discountedPrice(item, c.tier, c.mode);
+                  const fullQty = c.qty || 0;
+                  const discQty = c.discountQty || 0;
+                  const lineTotal = (p * fullQty) + (dp * discQty);
+                  const totalQty = fullQty + discQty;
+                  const qtyLabel = discQty > 0 && fullQty > 0 ? `${fullQty}+${discQty}` : String(totalQty);
+                  return (
+                    <SortableOfferRow key={id} id={id}>
+                      <div className="flex items-center justify-between pr-4 py-2.5">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-slate-700">{qtyLabel}x {item.code ? item.code+' ' : ''}{item.name}</span>
+                          {c.tier && <span className="text-xs text-slate-400 ml-2">{TIER_LABEL[c.tier]}</span>}
+                          {c.mode === 'rent' && item.t === 'term' && <span className="text-xs text-slate-400 ml-2">Miete</span>}
+                          {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
+                        </div>
+                        <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">€ {fmt(lineTotal)}/Mo</span>
+                      </div>
+                    </SortableOfferRow>
+                  );
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
           <div className="bg-slate-50 px-4 py-3 border-t border-slate-200">
             <div className="flex justify-between text-sm"><span className="text-slate-500">Netto/Monat</span><span className="font-medium">€ {fmt(totals.monthly)}</span></div>
             <div className="flex justify-between text-sm"><span className="text-slate-500">20% USt</span><span className="font-medium">€ {fmt(totals.monthly*0.2)}</span></div>
@@ -696,29 +765,35 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
           <div className="bg-amber-50 px-4 py-2 border-b border-amber-100">
             <span className="font-bold text-amber-800" style={{fontSize:13}}>EINMALIGE KOSTEN</span>
           </div>
-          <div className="divide-y divide-slate-100">
-            {onceItems.map(([id, c]) => {
-              const item = ALL[id];
-              const p = price(item, c.tier, c.mode);
-              const dp = discountedPrice(item, c.tier, c.mode);
-              const fullQty = c.qty || 0;
-              const discQty = c.discountQty || 0;
-              const lineTotal = (p * fullQty) + (dp * discQty);
-              const totalQty = fullQty + discQty;
-              const qtyLabel = discQty > 0 && fullQty > 0 ? `${fullQty}+${discQty}` : String(totalQty);
-              return (
-                <div key={id} className="flex items-center justify-between px-4 py-2.5">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-slate-700">{qtyLabel}x {item.code ? item.code+' ' : ''}{item.name}</span>
-                    {c.mode === 'buy' && <span className="text-xs text-slate-400 ml-2">Kauf</span>}
-                    {item.t === 'h' && <span className="text-xs text-slate-400 ml-2">({fullQty} Std.)</span>}
-                    {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
-                  </div>
-                  <span className="font-semibold text-slate-800 text-sm">€ {fmt(lineTotal)}</span>
-                </div>
-              );
-            })}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={e => handleDragEnd(e, onceItems)}>
+            <SortableContext items={onceItems.map(([id]) => id)} strategy={verticalListSortingStrategy}>
+              <div className="divide-y divide-slate-100">
+                {onceItems.map(([id, c]) => {
+                  const item = ALL[id];
+                  const p = price(item, c.tier, c.mode);
+                  const dp = discountedPrice(item, c.tier, c.mode);
+                  const fullQty = c.qty || 0;
+                  const discQty = c.discountQty || 0;
+                  const lineTotal = (p * fullQty) + (dp * discQty);
+                  const totalQty = fullQty + discQty;
+                  const qtyLabel = discQty > 0 && fullQty > 0 ? `${fullQty}+${discQty}` : String(totalQty);
+                  return (
+                    <SortableOfferRow key={id} id={id}>
+                      <div className="flex items-center justify-between pr-4 py-2.5">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-slate-700">{qtyLabel}x {item.code ? item.code+' ' : ''}{item.name}</span>
+                          {c.mode === 'buy' && <span className="text-xs text-slate-400 ml-2">Kauf</span>}
+                          {item.t === 'h' && <span className="text-xs text-slate-400 ml-2">({fullQty} Std.)</span>}
+                          {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
+                        </div>
+                        <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">€ {fmt(lineTotal)}</span>
+                      </div>
+                    </SortableOfferRow>
+                  );
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
           <div className="bg-slate-50 px-4 py-3 border-t border-slate-200">
             <div className="flex justify-between text-sm"><span className="text-slate-500">Netto</span><span className="font-medium">€ {fmt(totals.once)}</span></div>
             <div className="flex justify-between text-sm"><span className="text-slate-500">20% USt</span><span className="font-medium">€ {fmt(totals.once*0.2)}</span></div>
@@ -1207,6 +1282,7 @@ export default function App() {
   const [showSignModal, setShowSignModal] = useState(false);
   const [customCounter, setCustomCounter] = useState(0);
   const [showCustomModal, setShowCustomModal] = useState(false);
+  const [cartOrder, setCartOrder] = useState([]);
 
   // Helpers for custom freeform items
   function getCustomItemsFromCart() {
@@ -1237,6 +1313,7 @@ export default function App() {
     const id = `custom_${nextCounter}`;
     ALL[id] = { id, name, price: p, t: 'o' };
     setCart(c => ({ ...c, [id]: { qty: 1, discountQty: 0 } }));
+    setCartOrder(prev => [...prev, id]);
     setCustomCounter(nextCounter);
     setShowCustomModal(false);
   }
@@ -1261,6 +1338,7 @@ export default function App() {
         const maxN = restoreCustomItems(data.customItems);
         setCustomCounter(maxN);
         setCart(data.cart || {});
+        setCartOrder(data.cartOrder || []);
         setCustomer({
           name: offer.customer_name || '',
           company: offer.customer_company || '',
@@ -1290,6 +1368,7 @@ export default function App() {
       const maxN = restoreCustomItems(savedOffer.customItems);
       setCustomCounter(maxN);
       setCart(savedOffer.cart || {});
+      setCartOrder(savedOffer.cartOrder || []);
       setCustomer(savedOffer.customer || { name:'', company:'', email:'', phone:'', address:'' });
       setCreator(savedOffer.creator || '');
       setNotes(savedOffer.notes || '');
@@ -1307,32 +1386,52 @@ export default function App() {
   const WORK_INTENSIVE_ITEMS = ['k022', 'k044']; // Lagerverwaltung, Anbindung Schankanlage
 
   const handlers = {
-    onAdd: (id, tier, mode) => setCart(c => {
-      const newCart = {...c, [id]: { qty:1, discountQty:0, tier, mode }};
-      // Auto-add 10h Arbeitszeit for work-intensive items
-      if (WORK_INTENSIVE_ITEMS.includes(id)) {
-        const currentQty = c['h8']?.qty || 0;
-        newCart['h8'] = { qty: currentQty + 10, discountQty: 0 };
-      }
-      return newCart;
-    }),
-    onRemove: (id) => setCart(c => { const n = {...c}; delete n[id]; return n; }),
-    onQty: (id, d) => setCart(c => {
-      const cur = c[id];
-      if (!cur) return c;
-      const nq = cur.qty + d;
-      if (nq < 0) return c;
-      if (nq === 0 && (cur.discountQty || 0) === 0) { const n = {...c}; delete n[id]; return n; }
-      return {...c, [id]: {...cur, qty: nq}};
-    }),
-    onDiscountQty: (id, d) => setCart(c => {
-      const cur = c[id];
-      if (!cur) return c;
-      const nq = (cur.discountQty || 0) + d;
-      if (nq < 0) return c;
-      if (nq === 0 && cur.qty === 0) { const n = {...c}; delete n[id]; return n; }
-      return {...c, [id]: {...cur, discountQty: nq}};
-    }),
+    onAdd: (id, tier, mode) => {
+      setCart(c => {
+        const newCart = {...c, [id]: { qty:1, discountQty:0, tier, mode }};
+        // Auto-add 10h Arbeitszeit for work-intensive items
+        if (WORK_INTENSIVE_ITEMS.includes(id)) {
+          const currentQty = c['h8']?.qty || 0;
+          newCart['h8'] = { qty: currentQty + 10, discountQty: 0 };
+        }
+        return newCart;
+      });
+      setCartOrder(prev => {
+        const ids = [id];
+        if (WORK_INTENSIVE_ITEMS.includes(id) && !prev.includes('h8')) ids.push('h8');
+        return [...prev.filter(x => !ids.includes(x)), ...ids];
+      });
+    },
+    onRemove: (id) => {
+      setCart(c => { const n = {...c}; delete n[id]; return n; });
+      setCartOrder(prev => prev.filter(x => x !== id));
+    },
+    onQty: (id, d) => {
+      setCart(c => {
+        const cur = c[id];
+        if (!cur) return c;
+        const nq = cur.qty + d;
+        if (nq < 0) return c;
+        if (nq === 0 && (cur.discountQty || 0) === 0) {
+          setCartOrder(prev => prev.filter(x => x !== id));
+          const n = {...c}; delete n[id]; return n;
+        }
+        return {...c, [id]: {...cur, qty: nq}};
+      });
+    },
+    onDiscountQty: (id, d) => {
+      setCart(c => {
+        const cur = c[id];
+        if (!cur) return c;
+        const nq = (cur.discountQty || 0) + d;
+        if (nq < 0) return c;
+        if (nq === 0 && cur.qty === 0) {
+          setCartOrder(prev => prev.filter(x => x !== id));
+          const n = {...c}; delete n[id]; return n;
+        }
+        return {...c, [id]: {...cur, discountQty: nq}};
+      });
+    },
     onTier: (id, tier) => setCart(c => c[id] ? {...c, [id]: {...c[id], tier}} : c),
     onMode: (id, mode) => setCart(c => c[id] ? {...c, [id]: {...c[id], mode}} : c),
   };
@@ -1391,8 +1490,9 @@ export default function App() {
     if (customer.phone) lines.push(`Tel: ${customer.phone}`);
     lines.push('');
 
-    const monthlyItems = Object.entries(cart).filter(([id,c]) => isMonthly(ALL[id],c.mode));
-    const onceItems = Object.entries(cart).filter(([id,c]) => !isMonthly(ALL[id],c.mode));
+    const allOrdered = orderedCartEntries(cart, cartOrder);
+    const monthlyItems = allOrdered.filter(([id,c]) => isMonthly(ALL[id],c.mode));
+    const onceItems = allOrdered.filter(([id,c]) => !isMonthly(ALL[id],c.mode));
 
     if (monthlyItems.length > 0) {
       lines.push('----------------------------------------');
@@ -1450,7 +1550,7 @@ export default function App() {
     setPdfLoading(true);
     try {
       // Prepare items for PDF
-      const monthlyItems = Object.entries(cart)
+      const monthlyItems = orderedCartEntries(cart, cartOrder)
         .filter(([id, c]) => isMonthly(ALL[id], c.mode))
         .map(([id, c]) => {
           const item = ALL[id];
@@ -1476,7 +1576,7 @@ export default function App() {
           };
         });
 
-      const onceItems = Object.entries(cart)
+      const onceItems = orderedCartEntries(cart, cartOrder)
         .filter(([id, c]) => !isMonthly(ALL[id], c.mode))
         .map(([id, c]) => {
           const item = ALL[id];
@@ -1590,6 +1690,7 @@ export default function App() {
         totalPeriod: totals.periodTotal,
         mandatsRef,
         customItems: getCustomItemsFromCart(),
+        cartOrder,
       });
       setCurrentOfferId(result.id);
 
@@ -1631,6 +1732,7 @@ export default function App() {
         totalPeriod: totals.periodTotal,
         mandatsRef,
         customItems: getCustomItemsFromCart(),
+        cartOrder,
       });
       setCurrentOfferId(result.id);
       setSaveSuccess(true);
@@ -1665,6 +1767,7 @@ export default function App() {
         totalPeriod: totals.periodTotal,
         mandatsRef,
         customItems: getCustomItemsFromCart(),
+        cartOrder,
       });
       offerId = result.id;
       setCurrentOfferId(offerId);
@@ -1679,7 +1782,7 @@ export default function App() {
     try {
       // Generate PDF blob
       const creatorInfo = TEAM.find(t => t.id === creator);
-      const monthlyItems = Object.entries(cart)
+      const monthlyItems = orderedCartEntries(cart, cartOrder)
         .filter(([id, c]) => isMonthly(ALL[id], c.mode))
         .map(([id, c]) => {
           const item = ALL[id];
@@ -1695,7 +1798,7 @@ export default function App() {
           };
         });
 
-      const onceItems = Object.entries(cart)
+      const onceItems = orderedCartEntries(cart, cartOrder)
         .filter(([id, c]) => !isMonthly(ALL[id], c.mode))
         .map(([id, c]) => {
           const item = ALL[id];
@@ -1742,7 +1845,7 @@ export default function App() {
   async function handleSign(signatures) {
     // Build PDF items (same as handlePrint)
     const creatorInfo = TEAM.find(t => t.id === creator) || null;
-    const monthlyItems = Object.entries(cart)
+    const monthlyItems = orderedCartEntries(cart, cartOrder)
       .filter(([id, c]) => isMonthly(ALL[id], c.mode))
       .map(([id, c]) => {
         const item = ALL[id];
@@ -1758,7 +1861,7 @@ export default function App() {
         };
       });
 
-    const onceItems = Object.entries(cart)
+    const onceItems = orderedCartEntries(cart, cartOrder)
       .filter(([id, c]) => !isMonthly(ALL[id], c.mode))
       .map(([id, c]) => {
         const item = ALL[id];
@@ -1821,6 +1924,7 @@ export default function App() {
       const maxN = restoreCustomItems(data.customItems);
       setCustomCounter(maxN);
       setCart(data.cart || {});
+      setCartOrder(data.cartOrder || []);
       setCustomer({
         name: offer.customer_name || '',
         company: offer.customer_company || '',
@@ -1846,6 +1950,7 @@ export default function App() {
     clearCustomItems();
     setCustomCounter(0);
     setCart({});
+    setCartOrder([]);
     setCustomer({name:'',company:'',email:'',phone:'',address:''});
     setNotes('');
     setRaten(12);
@@ -1863,6 +1968,7 @@ export default function App() {
       clearCustomItems();
       setCustomCounter(0);
       setCart({});
+      setCartOrder([]);
       setCustomer({name:'',company:'',email:'',phone:'',address:''});
       setNotes('');
       setRaten(12);
@@ -1988,7 +2094,8 @@ export default function App() {
                 <OfferView cart={cart} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes}
                   totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
                   onSave={handleSave} onSend={handleSend} saving={saving} sending={sending} saveSuccess={saveSuccess} currentOfferId={currentOfferId}
-                  onSign={() => setShowSignModal(true)} onAddCustom={() => setShowCustomModal(true)} />
+                  onSign={() => setShowSignModal(true)} onAddCustom={() => setShowCustomModal(true)}
+                  cartOrder={cartOrder} onReorder={setCartOrder} />
                 {showCustomModal && (
                   <CustomItemModal onConfirm={handleAddCustomItem} onClose={() => setShowCustomModal(false)} />
                 )}
