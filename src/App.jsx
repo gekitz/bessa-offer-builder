@@ -8,6 +8,7 @@ import OfferPdfDocument from './pdf/OfferPdfDocument';
 import { getOfferFromURL } from './lib/urlState';
 import { saveOffer, listOffers, getOffer, deleteOffer, sendOffer, getEmailEvents, setShareCode, getOfferByShareCode, updateOfferStage, signOffer, getSignedPdfUrl } from './lib/offerApi';
 import { supabase } from './lib/supabase';
+import { useAuth } from './lib/auth';
 
 // ═══════════════════════════════════════════════════════
 // DATA
@@ -640,7 +641,7 @@ function SortableOfferRow({ id, children }) {
 // OFFER / ANGEBOT VIEW
 // ═══════════════════════════════════════════════════════
 
-function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier, onSave, onSend, saving, sending, saveSuccess, currentOfferId, onSign, signLoading, onAddCustom, cartOrder, onReorder }) {
+function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier, onSave, onSend, saving, sending, saveSuccess, currentOfferId, onSign, signLoading, onAddCustom, cartOrder, onReorder, onRemoveItem }) {
   const allOrdered = orderedCartEntries(cart, cartOrder);
   const monthlyItems = allOrdered.filter(([id,c]) => isMonthly(ALL[id], c.mode));
   const onceItems = allOrdered.filter(([id,c]) => !isMonthly(ALL[id], c.mode));
@@ -690,13 +691,19 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
         <input placeholder="Adresse (Straße, PLZ Ort)" value={customer.address} onChange={e => setCustomer({...customer,address:e.target.value})}
           className="w-full mt-2 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
         <div className="mt-3">
-          <select value={creator} onChange={e => setCreator(e.target.value)}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 bg-white">
-            <option value="">Angebot erstellt von...</option>
-            {TEAM.map(t => (
-              <option key={t.id} value={t.id}>{t.name} ({t.role}, {t.location})</option>
-            ))}
-          </select>
+          {creator && TEAM.find(t => t.id === creator) ? (
+            <div className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-700">
+              Ersteller: <span className="font-medium">{TEAM.find(t => t.id === creator)?.name}</span>
+            </div>
+          ) : (
+            <select value={creator} onChange={e => setCreator(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 bg-white">
+              <option value="">Angebot erstellt von...</option>
+              {TEAM.map(t => (
+                <option key={t.id} value={t.id}>{t.name} ({t.role}, {t.location})</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -744,6 +751,7 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
                           {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
                         </div>
                         <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">€ {fmt(lineTotal)}/Mo</span>
+                        {id.startsWith('custom_') && <button onClick={() => onRemoveItem(id)} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
                       </div>
                     </SortableOfferRow>
                   );
@@ -787,6 +795,7 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
                           {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
                         </div>
                         <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">€ {fmt(lineTotal)}</span>
+                        {id.startsWith('custom_') && <button onClick={() => onRemoveItem(id)} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
                       </div>
                     </SortableOfferRow>
                   );
@@ -1012,7 +1021,7 @@ function OfferList({ onLoad, onNew }) {
   const [detailId, setDetailId] = useState(null);
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
-  const [stageFilter, setStageFilter] = useState('all');
+  const [stageFilter, setStageFilter] = useState('new');
   const [stageLoading, setStageLoading] = useState(null);
 
   const fetchOffers = useCallback(async () => {
@@ -1213,6 +1222,11 @@ function OfferList({ onLoad, onNew }) {
                 </div>
                 {/* Stage action buttons */}
                 <div className="flex gap-1.5 mt-2">
+                  {o.stage === 'new' && (
+                    <button disabled={stageLoading === o.id} onClick={() => handleStageChange(o.id, 'offer_sent')} className="flex items-center gap-1 rounded-lg bg-blue-50 text-blue-700 px-2.5 py-1 hover:bg-blue-100 transition-colors disabled:opacity-50" style={{fontSize:11}}>
+                      <Send size={12} /> Gesendet
+                    </button>
+                  )}
                   {o.stage !== 'closed' && (
                     <button disabled={stageLoading === o.id} onClick={() => handleStageChange(o.id, 'closed')} className="flex items-center gap-1 rounded-lg bg-emerald-50 text-emerald-700 px-2.5 py-1 hover:bg-emerald-100 transition-colors disabled:opacity-50" style={{fontSize:11}}>
                       <CheckCircle2 size={12} /> Abschließen
@@ -1261,6 +1275,7 @@ function OfferList({ onLoad, onNew }) {
 }
 
 export default function App() {
+  const { profile } = useAuth();
   const [tab, setTab] = useState('kassa');
   const [globalTier, setGlobalTier] = useState('12mo');
   const [cart, setCart] = useState({});
@@ -1283,6 +1298,37 @@ export default function App() {
   const [customCounter, setCustomCounter] = useState(0);
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [cartOrder, setCartOrder] = useState([]);
+
+  // Auto-select creator from logged-in user
+  // Handles two email formats at @kitz.co.at:
+  //   TEAM uses:  <first_initial>.<lastname>@kitz.co.at  (e.g. g.kitz)
+  //   SSO  uses:  <last_initial><first_initial>@kitz.co.at (e.g. kg)
+  useEffect(() => {
+    if (profile?.microsoft_email && !creator) {
+      const ssoEmail = profile.microsoft_email.toLowerCase();
+      // Try exact match first
+      let match = TEAM.find(t => t.email.toLowerCase() === ssoEmail);
+      if (!match) {
+        // Extract local parts and domain
+        const [ssoLocal, ssoDomain] = ssoEmail.split('@');
+        if (ssoDomain) {
+          match = TEAM.find(t => {
+            const [teamLocal, teamDomain] = t.email.toLowerCase().split('@');
+            if (teamDomain !== ssoDomain) return false;
+            // TEAM format: "g.kitz" → first char 'g', after dot 'kitz'
+            const dotIdx = teamLocal.indexOf('.');
+            if (dotIdx < 1) return false;
+            const firstInitial = teamLocal.charAt(0);       // 'g'
+            const lastName = teamLocal.substring(dotIdx + 1); // 'kitz'
+            // SSO format: "kg" → last initial 'k' + first initial 'g'
+            const ssoVariant = lastName.charAt(0) + firstInitial; // 'kg'
+            return ssoLocal === ssoVariant;
+          });
+        }
+      }
+      if (match) setCreator(match.id);
+    }
+  }, [profile]);
 
   // Helpers for custom freeform items
   function getCustomItemsFromCart() {
@@ -1405,6 +1451,7 @@ export default function App() {
     onRemove: (id) => {
       setCart(c => { const n = {...c}; delete n[id]; return n; });
       setCartOrder(prev => prev.filter(x => x !== id));
+      if (id.startsWith('custom_')) delete ALL[id];
     },
     onQty: (id, d) => {
       setCart(c => {
@@ -2095,7 +2142,7 @@ export default function App() {
                   totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
                   onSave={handleSave} onSend={handleSend} saving={saving} sending={sending} saveSuccess={saveSuccess} currentOfferId={currentOfferId}
                   onSign={() => setShowSignModal(true)} onAddCustom={() => setShowCustomModal(true)}
-                  cartOrder={cartOrder} onReorder={setCartOrder} />
+                  cartOrder={cartOrder} onReorder={setCartOrder} onRemoveItem={handlers.onRemove} />
                 {showCustomModal && (
                   <CustomItemModal onConfirm={handleAddCustomItem} onClose={() => setShowCustomModal(false)} />
                 )}
