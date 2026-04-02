@@ -1,18 +1,80 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+async function verifyWebhookSignature(
+  body: string,
+  svixId: string | null,
+  svixTimestamp: string | null,
+  svixSignature: string | null,
+  secret: string
+): Promise<boolean> {
+  if (!svixId || !svixTimestamp || !svixSignature) return false;
+
+  // Reject timestamps older than 5 minutes to prevent replay attacks
+  const ts = parseInt(svixTimestamp, 10);
+  if (isNaN(ts) || Math.abs(Date.now() / 1000 - ts) > 300) return false;
+
+  // Resend webhook secrets start with "whsec_" followed by base64-encoded key
+  const secretBytes = Uint8Array.from(
+    atob(secret.startsWith('whsec_') ? secret.slice(6) : secret),
+    (c) => c.charCodeAt(0)
+  );
+
+  const toSign = `${svixId}.${svixTimestamp}.${body}`;
+  const key = await crypto.subtle.importKey(
+    'raw',
+    secretBytes,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(toSign));
+  const expected = btoa(String.fromCharCode(...new Uint8Array(sig)));
+
+  // svix-signature can contain multiple signatures separated by spaces (e.g. "v1,<sig1> v1,<sig2>")
+  const signatures = svixSignature.split(' ');
+  return signatures.some((s) => s === `v1,${expected}`);
+}
+
 serve(async (req: Request) => {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
 
   try {
-    const payload = await req.json();
+    const webhookSecret = Deno.env.get('RESEND_WEBHOOK_SECRET');
+    if (!webhookSecret) {
+      console.error('RESEND_WEBHOOK_SECRET not configured');
+      return new Response(JSON.stringify({ error: 'webhook secret not configured' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const body = await req.text();
+
+    // Verify Svix signature
+    const isValid = await verifyWebhookSignature(
+      body,
+      req.headers.get('svix-id'),
+      req.headers.get('svix-timestamp'),
+      req.headers.get('svix-signature'),
+      webhookSecret
+    );
+
+    if (!isValid) {
+      return new Response(JSON.stringify({ error: 'invalid signature' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const payload = JSON.parse(body);
     const { type, data } = payload;
 
     // Map Resend event types to our event types
+    // 'email.sent' is already recorded by send-offer, so we skip it here
     const eventMap: Record<string, string> = {
-      'email.sent': 'sent',
       'email.delivered': 'delivered',
       'email.opened': 'opened',
       'email.clicked': 'clicked',

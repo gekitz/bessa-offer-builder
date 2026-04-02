@@ -103,6 +103,7 @@ export async function sendOffer(offerId, pdfBase64, pdfFilename) {
 
   const { data, error } = await supabase.functions.invoke('send-offer', {
     body: { offerId, pdfBase64, pdfFilename },
+    headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
   });
 
   if (error) throw error;

@@ -22,7 +22,10 @@ export const styles = StyleSheet.create({
   page: {
     fontFamily: 'Helvetica',
     fontSize: 10,
-    padding: 40,
+    paddingTop: 40,
+    paddingLeft: 40,
+    paddingRight: 40,
+    paddingBottom: 85,
     color: COLORS.dark,
     backgroundColor: COLORS.white,
   },

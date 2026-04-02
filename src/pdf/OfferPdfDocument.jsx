@@ -191,26 +191,26 @@ function PeriodSummary({ periodTotal, periodMonthly, hasMonthly, hasOnce }) {
   return (
     <View style={styles.periodSummary} wrap={false}>
       <Text style={styles.periodSummaryTitle}>GESAMTÜBERSICHT</Text>
-      {showMonthlyRow && (
-        <View style={[styles.periodSummaryContent, { borderBottomWidth: 0.5, borderBottomColor: '#e2e8f0', paddingBottom: 6, marginBottom: 4 }]}>
-          <Text style={styles.periodSummaryLabel}>
-            Monatliche Kosten × Laufzeit (monatlich × Laufzeit)
-          </Text>
-          <View style={styles.periodSummaryValues}>
-            <Text style={styles.periodSummaryNetto}>{fmt(periodMonthly)} netto</Text>
-            <Text style={[styles.periodSummaryBrutto, { color: '#1e293b' }]}>{fmt(periodMonthly * 1.2)} brutto</Text>
-          </View>
-        </View>
-      )}
-      <View style={styles.periodSummaryContent}>
+      <View style={[styles.periodSummaryContent, { borderBottomWidth: showMonthlyRow ? 0.5 : 0, borderBottomColor: '#e2e8f0', paddingBottom: showMonthlyRow ? 6 : 0, marginBottom: showMonthlyRow ? 4 : 0 }]}>
         <Text style={styles.periodSummaryLabel}>
-          Vertragslaufzeit gesamt (monatlich x Laufzeit + einmalig)
+          Kosten im ersten Jahr (monatlich × Laufzeit + einmalig)
         </Text>
         <View style={styles.periodSummaryValues}>
           <Text style={styles.periodSummaryNetto}>{fmt(periodTotal)} netto</Text>
           <Text style={styles.periodSummaryBrutto}>{fmt(brutto)} brutto</Text>
         </View>
       </View>
+      {showMonthlyRow && (
+        <View style={styles.periodSummaryContent}>
+          <Text style={styles.periodSummaryLabel}>
+            Kosten jedes weitere Jahr (monatlich × Laufzeit)
+          </Text>
+          <View style={styles.periodSummaryValues}>
+            <Text style={styles.periodSummaryNetto}>{fmt(periodMonthly)} netto</Text>
+            <Text style={styles.periodSummaryBrutto}>{fmt(periodMonthly * 1.2)} brutto</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

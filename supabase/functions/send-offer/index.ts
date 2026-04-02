@@ -26,6 +26,7 @@ serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const resendApiKey = Deno.env.get('RESEND_API_KEY')!;
     const trackingBaseUrl = Deno.env.get('TRACKING_BASE_URL') || `${supabaseUrl}/functions/v1`;
+    const trackingSecret = Deno.env.get('TRACKING_SECRET') || '';
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -80,12 +81,23 @@ serve(async (req: Request) => {
       }
     }
 
-    // Build tracking pixel URL
-    const trackingPixelUrl = `${trackingBaseUrl}/track-open?offer_id=${offerId}`;
+    // Build signed tracking pixel URL
+    const trackingSig = await (async () => {
+      const key = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(trackingSecret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(offerId));
+      return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+    })();
+    const trackingPixelUrl = `${trackingBaseUrl}/track-open?offer_id=${offerId}&sig=${trackingSig}`;
 
     // Build email HTML
     const customerName = offer.customer_name || offer.customer_company || 'Kunde';
-    const creatorName = offer.creator_name || 'KITZ Team';
+    const creatorName = offer.creator_name || 'Kitz Team';
     const totalMonthly = offer.total_monthly ? Number(offer.total_monthly) : 0;
     const totalOnce = offer.total_once ? Number(offer.total_once) : 0;
 
@@ -101,12 +113,12 @@ serve(async (req: Request) => {
     <!-- Header -->
     <div style="background:#32373c;padding:24px 32px;text-align:center;">
       <div style="display:inline-block;background:#ffffff;color:#dc2626;font-weight:bold;padding:8px 16px;border-radius:8px;font-size:18px;">KITZ</div>
-      <div style="color:#ffffff;margin-top:8px;font-size:14px;">Computer + Office GmbH</div>
+      <div style="color:#ffffff;margin-top:8px;font-size:14px;">Computer &amp; Office GmbH</div>
     </div>
 
     <!-- Content -->
     <div style="padding:32px;">
-      <h1 style="color:#1e293b;font-size:22px;margin:0 0 16px;">Ihr Angebot von KITZ</h1>
+      <h1 style="color:#1e293b;font-size:22px;margin:0 0 16px;">Ihr Angebot von Kitz Computer &amp; Office GmbH</h1>
       <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px;">
         Sehr geehrte/r ${customerName},
       </p>
@@ -137,7 +149,7 @@ serve(async (req: Request) => {
       <!-- Signature -->
       <div style="border-top:1px solid #e2e8f0;padding-top:16px;">
         <div style="font-weight:bold;color:#1e293b;font-size:14px;">${creatorName}</div>
-        <div style="color:#64748b;font-size:13px;margin-top:4px;">KITZ Computer + Office GmbH</div>
+        <div style="color:#64748b;font-size:13px;margin-top:4px;">Kitz Computer &amp; Office GmbH</div>
         <div style="color:#64748b;font-size:13px;">www.kitz.co.at</div>
       </div>
     </div>
@@ -145,7 +157,7 @@ serve(async (req: Request) => {
     <!-- Footer -->
     <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;text-align:center;">
       <div style="color:#94a3b8;font-size:11px;">
-        KITZ Computer + Office GmbH | Johann-Offner-Str. 17, 9400 Wolfsberg | Rosentalerstr. 1, 9020 Klagenfurt
+        Kitz Computer &amp; Office GmbH | Johann-Offner-Str. 17, 9400 Wolfsberg | Rosentalerstr. 1, 9020 Klagenfurt
       </div>
     </div>
   </div>
@@ -156,9 +168,9 @@ serve(async (req: Request) => {
 
     // Build Resend API payload
     const emailPayload: Record<string, unknown> = {
-      from: 'KITZ Angebote <angebote@kitz.co.at>',
+      from: 'Kitz Computer & Office GmbH <angebote@kitz.co.at>',
       to: [offer.customer_email],
-      subject: `Ihr Angebot von KITZ – ${offer.customer_company || offer.customer_name || 'Angebot'}`,
+      subject: `Ihr Angebot von Kitz Computer & Office GmbH – ${offer.customer_company || offer.customer_name || 'Angebot'}`,
       html: emailHtml,
     };
 

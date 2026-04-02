@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
 import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2, Link, Save, Send, Mail, Clock, Eye, RefreshCw, ArrowLeft, Calendar, Building2, AlertCircle, CheckCircle2, XCircle, MailOpen, Archive, Pen, GripVertical } from "lucide-react";
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
@@ -31,101 +31,105 @@ const COMPANY_DEFAULT = {
 };
 
 const KASSA = [
-  { id:'k100', code:'100', name:'Mobile Kassa', cat:'Mobil', p:{y:19,s:25,m:30,e:38}, t:'m' },
-  { id:'k109', code:'109', name:'bessa Mobil', cat:'Mobil', p:{y:119}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
-  { id:'k110', code:'110', name:'Kleiner Handelsbetrieb', cat:'Handel', p:{y:24,s:30,m:40,e:48}, t:'m' },
-  { id:'k111', code:'111', name:'Großer Handelsbetrieb', cat:'Handel', p:{y:42,s:55,m:70,e:84}, t:'m' },
-  { id:'k115', code:'115', name:'Web Kassa / Auftragsverwaltung', cat:'Handel', p:{y:19,s:25,m:30}, t:'m' },
-  { id:'k119', code:'119', name:'bessa Handelsbetrieb', cat:'Handel', p:{y:160}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
-  { id:'k120', code:'120', name:'Kleiner Gastrobetrieb', cat:'Gastro', p:{y:45,s:55,m:70,e:90}, t:'m' },
-  { id:'k121', code:'121', name:'Großer Gastrobetrieb', cat:'Gastro', p:{y:62,s:80,m:100,e:124}, t:'m' },
-  { id:'k129', code:'129', name:'bessa Gastrobetrieb', cat:'Gastro', p:{y:240}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
-  { id:'k020', code:'020', name:'Zusätzlicher Bediener', cat:'Einzelfunktionen', p:{y:3,s:4,m:5,e:6}, t:'m' },
-  { id:'k021', code:'021', name:'Kundenverwaltung', cat:'Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
-  { id:'k022', code:'022', name:'Lagerverwaltung', cat:'Einzelfunktionen', p:{y:15,s:18,m:20,e:30}, t:'m', note:'+10h Arbeitszeit' },
-  { id:'k023', code:'023', name:'Lokale Gutscheinverwaltung', cat:'Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
-  { id:'k024', code:'024', name:'Erweitertes Berichtswesen', cat:'Einzelfunktionen', p:{y:18,s:22,m:28,e:36}, t:'m' },
-  { id:'k030', code:'030', name:'bessa Signieren', cat:'Einzelfunktionen', p:{y:9,s:11,m:25,e:50}, t:'m', note:'derzeit nur DE' },
-  { id:'k040a', code:'040a', name:'Anbindung bessa Zahlen (Kartenzahlung)', cat:'Externe Systeme', p:{y:0,s:0,m:0,e:0}, t:'m' },
-  { id:'k040', code:'040', name:'Anbindung Kartenzahlungsterminal', cat:'Externe Systeme', p:{y:12,s:15,m:18,e:24}, t:'m' },
-  { id:'k041', code:'041', name:'Anbindung Barzahlungsterminal', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
-  { id:'k042', code:'042', name:'Nebenterminal', cat:'Externe Systeme', p:{y:14,s:16,m:18,e:28}, t:'m' },
-  { id:'k043', code:'043', name:'Bestellmonitor', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
-  { id:'k044', code:'044', name:'Anbindung Schankanlage', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m', note:'+10h Arbeitszeit' },
-  { id:'k049', code:'049', name:'Öffentliche Schnittstelle', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'3942f638-1abb-4be9-85a5-d3bf442aa3d8', code:'100', name:'Mobile Kassa', cat:'Mobil', p:{y:19,s:25,m:30,e:38}, t:'m' },
+  { id:'c4aca644-5fb4-46cf-9fea-8ddc1bee8c30', code:'109', name:'bessa Mobil', cat:'Mobil', p:{y:119}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'cb003c42-11dc-48c9-a5de-68a2c998501a', code:'110', name:'Kleiner Handelsbetrieb', cat:'Handel', p:{y:24,s:30,m:40,e:48}, t:'m' },
+  { id:'4d6ee0aa-32ad-480a-aa2f-4d1ddf620b12', code:'111', name:'Großer Handelsbetrieb', cat:'Handel', p:{y:42,s:55,m:70,e:84}, t:'m' },
+  { id:'6fa5da94-d90b-41a1-ab17-f515d172b940', code:'115', name:'Web Kassa / Auftragsverwaltung', cat:'Handel', p:{y:19,s:25,m:30}, t:'m' },
+  { id:'1dfe4874-04a7-47e9-9230-e1696b6e8901', code:'119', name:'bessa Handelsbetrieb', cat:'Handel', p:{y:160}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'a4e9ba39-ee22-41b9-8f94-936ee3ce3de3', code:'120', name:'Kleiner Gastrobetrieb', cat:'Gastro', p:{y:45,s:55,m:70,e:90}, t:'m' },
+  { id:'95cd9f0f-ec0d-46eb-aaa6-330a8ce129d4', code:'121', name:'Großer Gastrobetrieb', cat:'Gastro', p:{y:62,s:80,m:100,e:124}, t:'m' },
+  { id:'6f8ed70a-8388-40d6-8e9e-516f524cd3e5', code:'129', name:'bessa Gastrobetrieb', cat:'Gastro', p:{y:240}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'40769d58-ebbb-40f8-b4b8-9a89da35a934', code:'020', name:'Zusätzlicher Bediener', cat:'Einzelfunktionen', p:{y:3,s:4,m:5,e:6}, t:'m' },
+  { id:'4bc73978-ee15-4858-8107-87d3faa210e2', code:'021', name:'Kundenverwaltung', cat:'Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
+  { id:'f7a4cb27-d3cf-4e84-ba58-a273da596c06', code:'022', name:'Lagerverwaltung', cat:'Einzelfunktionen', p:{y:15,s:18,m:20,e:30}, t:'m', note:'+10h Arbeitszeit' },
+  { id:'00c9aca1-e463-4c63-a5c2-9fd51d70010a', code:'023', name:'Lokale Gutscheinverwaltung', cat:'Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
+  { id:'3296ada4-f7f8-47a1-9cf5-a3dc64326f3a', code:'024', name:'Erweitertes Berichtswesen', cat:'Einzelfunktionen', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'b2a3bb5a-370c-49d4-96e3-874b5df66c56', code:'030', name:'bessa Signieren', cat:'Einzelfunktionen', p:{y:9,s:11,m:25,e:50}, t:'m', note:'derzeit nur DE' },
+  { id:'14105277-c0ca-400f-9444-3ec9414fb279', code:'040a', name:'Anbindung bessa Zahlen (Kartenzahlung)', cat:'Externe Systeme', p:{y:0,s:0,m:0,e:0}, t:'m' },
+  { id:'65e7e1a8-23b3-444f-8b18-c5ca7312cf28', code:'040', name:'Anbindung Kartenzahlungsterminal', cat:'Externe Systeme', p:{y:12,s:15,m:18,e:24}, t:'m' },
+  { id:'117be9d9-f2b0-409d-9ec6-9497f943ff4f', code:'041', name:'Anbindung Barzahlungsterminal', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'eceb4278-06cc-4fe5-9413-d41ae999166c', code:'042', name:'Nebenterminal', cat:'Externe Systeme', p:{y:14,s:16,m:18,e:28}, t:'m' },
+  { id:'0824405f-8780-4371-919b-5cee2c6efb07', code:'043', name:'Bestellmonitor', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'ad5d1834-f864-43a1-8be4-2bae0bfeade4', code:'044', name:'Anbindung Schankanlage', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m', note:'+10h Arbeitszeit' },
+  { id:'a336d467-a39f-4acd-8872-e7d185c45ea9', code:'049', name:'Öffentliche Schnittstelle', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
 ];
 
 const MODULE = [
-  { id:'m300', code:'300', name:'App (pro Filiale)', cat:'Pakete', p:{y:109}, t:'m', note:'50% Rabatt je weitere Filiale', discount:{type:'percent',value:50,label:'Weitere Filiale'} },
-  { id:'m310', code:'310', name:'Handel (pro Filiale)', cat:'Pakete', p:{y:139}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
-  { id:'m320', code:'320', name:'Gastro (pro Filiale)', cat:'Pakete', p:{y:199}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
-  { id:'m200', code:'200', name:'Web-Bestellungen', cat:'Einzelfunktionen', p:{y:39,s:49}, t:'m' },
-  { id:'m201', code:'201', name:'Kundenbindung Kundenkarte', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
-  { id:'m202', code:'202', name:'Lieferservice-Bestellungen', cat:'Einzelfunktionen', p:{y:39}, t:'m', info:'Lieferando, Foodora, Wolt and UberEATS' },
-  { id:'m203', code:'203', name:'Gastro-Kiosk-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weiterer Kiosk', discount:{type:'percent',value:50,label:'Weiterer Kiosk'} },
-  { id:'m204', code:'204', name:'Tisch-Tablet-Bestellungen', cat:'Einzelfunktionen', p:{y:9,s:12}, t:'m' },
-  { id:'m205', code:'205', name:'Schank-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weitere Schank', discount:{type:'percent',value:50,label:'Weitere Schank'} },
-  { id:'m206', code:'206', name:'Kantinen-Bestellungen', cat:'Einzelfunktionen', p:{y:99}, t:'m', note:'50% für öffentl. Einr.' },
-  { id:'m207', code:'207', name:'Online Gutscheinverwaltung', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
-  { id:'m208', code:'208', name:'Gutscheine Shopify/WooCommerce', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
-  { id:'m209', code:'209', name:'Gastrotouch Kennzahlen', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'3ad3609d-c87a-485f-b96f-827e60c79e81', code:'300', name:'App (pro Filiale)', cat:'Pakete', p:{y:109}, t:'m', note:'50% Rabatt je weitere Filiale', discount:{type:'percent',value:50,label:'Weitere Filiale'} },
+  { id:'d3a94a99-982c-4969-aab8-9aed654ed0cb', code:'310', name:'Handel (pro Filiale)', cat:'Pakete', p:{y:139}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'37551e30-8b3f-44cf-a126-702dfd2539ea', code:'320', name:'Gastro (pro Filiale)', cat:'Pakete', p:{y:199}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'bfa4ca0e-b5ed-4cd2-a1a7-12c02854082f', code:'200', name:'Web-Bestellungen', cat:'Einzelfunktionen', p:{y:39,s:49}, t:'m' },
+  { id:'48065ab3-b47f-46ae-a32e-2176ae41dd30', code:'201', name:'Kundenbindung Kundenkarte', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'35518df7-6eb3-4bd3-a21c-33e379d23271', code:'202', name:'Lieferservice-Bestellungen', cat:'Einzelfunktionen', p:{y:39}, t:'m', info:'Lieferando, Foodora, Wolt and UberEATS' },
+  { id:'d2c207cf-3c6f-41f6-a1df-739e8e48d4bb', code:'203', name:'Gastro-Kiosk-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weiterer Kiosk', discount:{type:'percent',value:50,label:'Weiterer Kiosk'} },
+  { id:'d0c56974-678a-41b0-9924-e5353cc0891b', code:'204', name:'Tisch-Tablet-Bestellungen', cat:'Einzelfunktionen', p:{y:9,s:12}, t:'m' },
+  { id:'cdc84a4d-99b6-48c5-b414-c5be9daeff03', code:'205', name:'Schank-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weitere Schank', discount:{type:'percent',value:50,label:'Weitere Schank'} },
+  { id:'ec32520e-cbba-4739-8cf0-fd8bb918ca55', code:'206', name:'Kantinen-Bestellungen', cat:'Einzelfunktionen', p:{y:99}, t:'m', note:'50% für öffentl. Einr.' },
+  { id:'01289762-3f01-486f-8ab8-d5aa9038996e', code:'207', name:'Online Gutscheinverwaltung', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'33da16d1-bbaf-40b1-bac4-9160ce593952', code:'208', name:'Gutscheine Shopify/WooCommerce', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'f2d30dd5-e54f-426d-8ea5-20ccb6396b06', code:'209', name:'Gastrotouch Kennzahlen', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
 ];
 
 const HARDWARE = [
-  { id:'h1', name:'Sunmi D3 Pro', price:1024, t:'o' },
-  { id:'h3', name:'Sunmi D3 Mini', price:690, t:'o' },
-  { id:'h10', name:'D3 Pro Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
-  { id:'h2', name:'Sunmi V3H', price:649, t:'o' },
-  { id:'h4', name:'Sunmi L3H', price:599, t:'o' },
-  { id:'h11', name:'V3H/L3H/D3 mini Garantieverlängerung', price:90, t:'o', info:'auf 48 Monate' },
-  { id:'h12', name:'Hobex ViA PRO', price:1149, t:'o' },
-  { id:'h9', name:'Epson TMT20 Bondrucker', price:280, t:'o' },
-  { id:'h13', name:'Addminat-Kellnerschloss', price:178, t:'o', info:'inkl 5 Schlüssel' },
+  { id:'fdb37b6a-4ad5-4a46-ba8f-53e4a2154ce3', name:'Sunmi D3 Pro', price:1024, t:'o' },
+  { id:'c36c776a-194a-4c32-b758-8ffc09cf991b', name:'Sunmi D3 Mini', price:690, t:'o' },
+  { id:'bbcba755-3fa2-4c21-85e2-9842a1baa541', name:'D3 Pro Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
+  { id:'91b8a7fa-5b0c-44a4-a4a7-fd6c6f0b25f6', name:'Sunmi V3H', price:649, t:'o' },
+  { id:'4bc17b56-5e4e-49cf-b4fb-a0e4d295335a', name:'Sunmi L3H', price:599, t:'o' },
+  { id:'1a4f3300-edd2-477f-8188-604b8ef8fba3', name:'V3H/L3H/D3 mini Garantieverlängerung', price:90, t:'o', info:'auf 48 Monate' },
+  { id:'7ea30866-25d7-4fa2-b970-0fd6911a3de8', name:'Hobex ViA PRO', price:1149, t:'o' },
+  { id:'4be8df2f-6293-4a06-b559-d7856c12c1bf', name:'Addminat-Kellnerschloss', price:178, t:'o', info:'inkl 5 Schlüssel' },
+];
+
+const DRUCKER = [
+  { id:'d2769912-6880-4996-b6b9-07d4fdbc9406', name:'Epson TMT20 Bondrucker', price:280, t:'o' },
+  { id:'2ce55292-b567-488a-bd35-20f280dc8381', name:'Bixolon SPP-R200III', price:376, t:'o' },
 ];
 
 const KUECHENMONITORE = [
   // KitchenSpeed Lite
-  { id:'km1', name:'KitchenSpeed Lite 15,6" Intel J6412', price:1960, t:'o' },
-  { id:'km2', name:'KitchenSpeed Lite 15,6" Intel i3', price:2400, t:'o' },
-  { id:'km3', name:'KitchenSpeed Lite 15,6" Android PoE++', price:1960, t:'o' },
-  { id:'km4', name:'KitchenSpeed Lite 21,5" Intel J6412', price:2390, t:'o' },
-  { id:'km5', name:'KitchenSpeed Lite 21,5" Intel i3', price:2830, t:'o' },
-  { id:'km6', name:'KitchenSpeed Lite 21,5" Android PoE++', price:2390, t:'o' },
-  { id:'km7', name:'KitchenSpeed Lite 32" Intel J6412', price:3520, t:'o' },
-  { id:'km8', name:'KitchenSpeed Lite 32" Intel i3', price:3980, t:'o' },
-  { id:'km9', name:'KitchenSpeed Lite 32" Android PoE++', price:3520, t:'o' },
+  { id:'b98e4215-ab79-45b0-a365-32a6bb9367a5', name:'KitchenSpeed Lite 15,6" Intel J6412', price:1960, t:'o' },
+  { id:'be7b9177-1682-4388-bfe5-07615adf7cde', name:'KitchenSpeed Lite 15,6" Intel i3', price:2400, t:'o' },
+  { id:'ca26b2dd-e2ee-4068-baeb-0b30bef3652f', name:'KitchenSpeed Lite 15,6" Android PoE++', price:1960, t:'o' },
+  { id:'fcb98549-60de-4634-bf8d-267648cde83e', name:'KitchenSpeed Lite 21,5" Intel J6412', price:2390, t:'o' },
+  { id:'82dfb1e9-37e8-465c-8f08-d56fbe5cd525', name:'KitchenSpeed Lite 21,5" Intel i3', price:2830, t:'o' },
+  { id:'227beac0-cae4-444b-b349-75692a4c288f', name:'KitchenSpeed Lite 21,5" Android PoE++', price:2390, t:'o' },
+  { id:'ba4b1c27-d6dc-4120-b348-236430abecc8', name:'KitchenSpeed Lite 32" Intel J6412', price:3520, t:'o' },
+  { id:'c659e63f-1305-4729-89ab-560e527cd8a2', name:'KitchenSpeed Lite 32" Intel i3', price:3980, t:'o' },
+  { id:'ce5d9b69-52e4-4199-8adf-97f192a9b4e3', name:'KitchenSpeed Lite 32" Android PoE++', price:3520, t:'o' },
   // KitchenSpeed Ultra
-  { id:'km10', name:'KitchenSpeed Ultra 22" Intel N97', price:4760, t:'o' },
-  { id:'km11', name:'KitchenSpeed Ultra 32" Intel N97', price:5780, t:'o' },
+  { id:'4a898f54-638b-45e8-8f29-d1d3f573d9ad', name:'KitchenSpeed Ultra 22" Intel N97', price:4760, t:'o' },
+  { id:'bd6f02cc-856f-42b2-b3a2-90aacf32c76f', name:'KitchenSpeed Ultra 32" Intel N97', price:5780, t:'o' },
   // Zubehör
-  { id:'km20', name:'Windows 10 IoT Enterprise LTSC', price:110, t:'o' },
-  { id:'km21', name:'Halterungslösung (Wand/Decke/Standfuß)', price:358, t:'o' },
-  { id:'km22', name:'Signalisierungslautsprecher', price:56, t:'o', info:'für Lite' },
+  { id:'3fff9523-d8bd-4c3f-bcd2-00068feba867', name:'Windows 10 IoT Enterprise LTSC', price:110, t:'o' },
+  { id:'7e3f6afa-b17a-4254-aa8a-a40d80610aa1', name:'Halterungslösung (Wand/Decke/Standfuß)', price:358, t:'o' },
+  { id:'94561292-0c42-47a1-b938-ed3337d8583e', name:'Signalisierungslautsprecher', price:56, t:'o', info:'für Lite' },
   // Service
-  { id:'km30', name:'Black Pepper-Protect Upgrade', price:96, t:'o', info:'für Lite' },
-  { id:'km31', name:'Garantieverlängerung Lite +1 Jahr', price:196, t:'o' },
-  { id:'km32', name:'Garantieverlängerung Ultra +1 Jahr', price:360, t:'o' },
-  { id:'km33', name:'Garantieverlängerung Ultra +2 Jahre', price:640, t:'o' },
+  { id:'69363519-c612-4ecb-9733-02bd782bd654', name:'Black Pepper-Protect Upgrade', price:96, t:'o', info:'für Lite' },
+  { id:'9472265f-181b-403c-bec5-1a53cdc88117', name:'Garantieverlängerung Lite +1 Jahr', price:196, t:'o' },
+  { id:'767029e1-52cf-40a3-9f76-e49c145b94eb', name:'Garantieverlängerung Ultra +1 Jahr', price:360, t:'o' },
+  { id:'90dc559f-f14a-457d-a328-eb7c6945a5c3', name:'Garantieverlängerung Ultra +2 Jahre', price:640, t:'o' },
 ];
 
 const KUECHENMONITORE_SUNMI = [
-  { id:'kms1', name:'Flex 3 22\'\'', price:1139, t:'o' },
-  { id:'kms2', name:'Flex 3 27\'\'', price:1749, t:'o' },
-  { id:'kms3', name:'Flex 3 Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
+  { id:'5c1b7d35-27b4-4bc1-b44c-fb8a2f1ca153', name:'Flex 3 22\'\'', price:1139, t:'o' },
+  { id:'9105cea7-5ce7-4cab-87ba-12395c184861', name:'Flex 3 27\'\'', price:1749, t:'o' },
+  { id:'dcfacd8a-e274-44ae-89f7-ecc03164c439', name:'Flex 3 Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
 ];
 
 const DIENSTLEISTUNGEN = [
-  { id:'h7', name:'Fiskalisierung', price:190, t:'o' },
-  { id:'h8', name:'Arbeitszeit', price:118, t:'o', info:'pro Stunde' },
+  { id:'00caa501-4266-4459-bbf6-38074fa7a00d', name:'Fiskalisierung', price:190, t:'o' },
+  { id:'b01429e1-672e-44ae-ae79-1d08c4f7f918', name:'Arbeitszeit', price:118, t:'o', info:'pro Stunde' },
 ];
 
 const ORDERMAN = [
-  { id:'o1', name:'Orderman 10', price:900, t:'o' },
-  { id:'o2', name:'Orderman Garantieverlängerung', price:270, t:'o', info:'auf 48 Monate' },
-  { id:'o3', name:'Orderman Ladestation inkl. Netzteil', price:210, t:'o' },
-  { id:'o4', name:'Orderman Ersatzbatterie', price:60, t:'o' },
-  { id:'o5', name:'Orderman Gürteltasche', price:25, t:'o' },
-  { id:'o6', name:'Orderman Safety-Cord', price:14, t:'o' },
+  { id:'591d5910-776c-4864-8cfc-0ad55c6ccca9', name:'Orderman 10', price:900, t:'o' },
+  { id:'24931794-f0f7-44a8-a476-f0a1c5380484', name:'Orderman Garantieverlängerung', price:270, t:'o', info:'auf 48 Monate' },
+  { id:'6b8ccb5b-d690-4daf-82d5-ef637822817f', name:'Orderman Ladestation inkl. Netzteil', price:210, t:'o' },
+  { id:'a252444d-0ac6-4809-9ede-16125a3bc5f0', name:'Orderman Ersatzbatterie', price:60, t:'o' },
+  { id:'d1697574-cac7-4fec-8e72-89a582a0d6d5', name:'Orderman Gürteltasche', price:25, t:'o' },
+  { id:'0134901e-4d85-4e1d-a65b-c53be99e8ef4', name:'Orderman Safety-Cord', price:14, t:'o' },
 ];
 
 const TEAM = [
@@ -143,7 +147,9 @@ const TEAM = [
 
 // Build lookup
 const ALL = {};
-[...KASSA,...MODULE,...HARDWARE,...KUECHENMONITORE,...KUECHENMONITORE_SUNMI,...ORDERMAN,...DIENSTLEISTUNGEN].forEach(i => ALL[i.id] = i);
+[...KASSA,...MODULE,...HARDWARE,...DRUCKER,...KUECHENMONITORE,...KUECHENMONITORE_SUNMI,...ORDERMAN,...DIENSTLEISTUNGEN].forEach(i => ALL[i.id] = i);
+const CATALOG_IDS = new Set(Object.keys(ALL));
+const isCustomItem = (id) => !CATALOG_IDS.has(id);
 
 // ═══════════════════════════════════════════════════════
 // HELPERS
@@ -751,7 +757,7 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
                           {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
                         </div>
                         <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">€ {fmt(lineTotal)}/Mo</span>
-                        {id.startsWith('custom_') && <button onClick={() => onRemoveItem(id)} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
+                        {isCustomItem(id) && <button onClick={() => onRemoveItem(id)} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
                       </div>
                     </SortableOfferRow>
                   );
@@ -795,7 +801,7 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
                           {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
                         </div>
                         <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">€ {fmt(lineTotal)}</span>
-                        {id.startsWith('custom_') && <button onClick={() => onRemoveItem(id)} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
+                        {isCustomItem(id) && <button onClick={() => onRemoveItem(id)} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
                       </div>
                     </SortableOfferRow>
                   );
@@ -818,10 +824,20 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
             <span className="font-bold" style={{fontSize:13}}>GESAMTÜBERSICHT</span>
           </div>
           <div className="p-4 space-y-3">
+            <div className="flex justify-between items-center pb-3 border-b border-white/10">
+              <div>
+                <div className="text-sm text-slate-300">Kosten im ersten Jahr</div>
+                <div className="text-xs text-slate-400">(monatlich × Laufzeit + einmalig)</div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-slate-400">€ {fmt(totals.periodTotal)} netto</div>
+                <div className="font-bold text-lg text-red-400">€ {fmt(totals.periodTotal * 1.2)} brutto</div>
+              </div>
+            </div>
             {totals.monthly > 0 && totals.once > 0 && (
-              <div className="flex justify-between items-center pb-3 border-b border-white/10">
+              <div className="flex justify-between items-center">
                 <div>
-                  <div className="text-sm text-slate-300">Monatliche Kosten × Laufzeit</div>
+                  <div className="text-sm text-slate-300">Kosten jedes weitere Jahr</div>
                   <div className="text-xs text-slate-400">(monatlich × Laufzeit)</div>
                 </div>
                 <div className="text-right">
@@ -830,16 +846,6 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
                 </div>
               </div>
             )}
-            <div className="flex justify-between items-center">
-              <div>
-                <div className="text-sm text-slate-300">Vertragslaufzeit gesamt</div>
-                <div className="text-xs text-slate-400">(monatlich × Laufzeit + einmalig)</div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm text-slate-400">€ {fmt(totals.periodTotal)} netto</div>
-                <div className="font-bold text-lg text-red-400">€ {fmt(totals.periodTotal * 1.2)} brutto</div>
-              </div>
-            </div>
           </div>
         </div>
       )}
@@ -921,13 +927,12 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
                 {saving ? <Loader2 size={18} className="animate-spin" /> : saveSuccess ? <Check size={18} /> : <Save size={18} />}
                 {saving ? 'Speichern...' : saveSuccess ? 'Gespeichert!' : currentOfferId ? 'Aktualisieren' : 'Speichern'}
               </button>
-              {/* TODO: Enable once kitz.co.at domain is verified in Resend */}
-              {false && <button onClick={onSend} disabled={sending || !customer.email}
+              <button onClick={onSend} disabled={sending || !customer.email}
                 className={`flex-1 flex items-center justify-center gap-2 rounded-xl font-semibold py-3.5 active:scale-[0.98] transition-all ${!customer.email ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'} ${sending ? 'opacity-70 cursor-wait' : ''}`}
                 style={{fontSize:14}}>
                 {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                 {sending ? 'Senden...' : 'Angebot senden'}
-              </button>}
+              </button>
             </div>
           )}
           {/* Row 2: Sign */}
@@ -1252,7 +1257,25 @@ function OfferList({ onLoad, onNew }) {
                   {eventsLoading ? (
                     <div className="text-slate-400 text-center py-2"><Loader2 size={14} className="animate-spin mx-auto" /></div>
                   ) : events.length === 0 ? (
-                    <div className="text-slate-400" style={{fontSize:11}}>Noch keine E-Mail-Events</div>
+                    <div className="space-y-1">
+                      {o.sent_at && (
+                        <div className="flex items-center gap-2" style={{fontSize:11}}>
+                          <Send size={12} className="text-blue-500" />
+                          <span className="text-slate-600 font-medium">Gesendet</span>
+                          <span className="text-slate-400">{new Date(o.sent_at).toLocaleString('de-AT')}</span>
+                        </div>
+                      )}
+                      {o.opened_at && (
+                        <div className="flex items-center gap-2" style={{fontSize:11}}>
+                          <MailOpen size={12} className="text-yellow-500" />
+                          <span className="text-slate-600 font-medium">Gelesen</span>
+                          <span className="text-slate-400">{new Date(o.opened_at).toLocaleString('de-AT')}</span>
+                        </div>
+                      )}
+                      {!o.sent_at && !o.opened_at && (
+                        <div className="text-slate-400" style={{fontSize:11}}>Noch keine E-Mail-Events</div>
+                      )}
+                    </div>
                   ) : (
                     <div className="space-y-1">
                       {events.map((evt, i) => (
@@ -1275,6 +1298,16 @@ function OfferList({ onLoad, onNew }) {
 }
 
 export default function App() {
+  // Quick access: add #test to URL to show Mesonic API test page
+  if (window.location.hash === '#test') {
+    const MesonicTest = React.lazy(() => import('./components/MesonicTest.jsx'));
+    return (
+      <React.Suspense fallback={<div className="p-8 text-center">Loading test page...</div>}>
+        <MesonicTest />
+      </React.Suspense>
+    );
+  }
+
   const { profile } = useAuth();
   const [tab, setTab] = useState('kassa');
   const [globalTier, setGlobalTier] = useState('12mo');
@@ -1295,7 +1328,6 @@ export default function App() {
   const [sending, setSending] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showSignModal, setShowSignModal] = useState(false);
-  const [customCounter, setCustomCounter] = useState(0);
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [cartOrder, setCartOrder] = useState([]);
 
@@ -1334,33 +1366,27 @@ export default function App() {
   function getCustomItemsFromCart() {
     const items = {};
     Object.keys(cart).forEach(id => {
-      if (id.startsWith('custom_') && ALL[id]) items[id] = ALL[id];
+      if (isCustomItem(id) && ALL[id]) items[id] = ALL[id];
     });
     return Object.keys(items).length > 0 ? items : undefined;
   }
 
   function restoreCustomItems(customItems) {
-    if (!customItems) return 0;
-    let maxN = 0;
+    if (!customItems) return;
     Object.entries(customItems).forEach(([id, item]) => {
       ALL[id] = item;
-      const n = parseInt(id.replace('custom_', ''), 10);
-      if (!isNaN(n) && n > maxN) maxN = n;
     });
-    return maxN;
   }
 
   function clearCustomItems() {
-    Object.keys(ALL).forEach(id => { if (id.startsWith('custom_')) delete ALL[id]; });
+    Object.keys(ALL).forEach(id => { if (isCustomItem(id)) delete ALL[id]; });
   }
 
   function handleAddCustomItem({ name, price: p }) {
-    const nextCounter = customCounter + 1;
-    const id = `custom_${nextCounter}`;
+    const id = crypto.randomUUID();
     ALL[id] = { id, name, price: p, t: 'o' };
     setCart(c => ({ ...c, [id]: { qty: 1, discountQty: 0 } }));
     setCartOrder(prev => [...prev, id]);
-    setCustomCounter(nextCounter);
     setShowCustomModal(false);
   }
 
@@ -1381,8 +1407,7 @@ export default function App() {
       getOfferByShareCode(code).then(offer => {
         const data = offer.offer_data || {};
         clearCustomItems();
-        const maxN = restoreCustomItems(data.customItems);
-        setCustomCounter(maxN);
+        restoreCustomItems(data.customItems);
         setCart(data.cart || {});
         setCartOrder(data.cartOrder || []);
         setCustomer({
@@ -1411,8 +1436,7 @@ export default function App() {
     const savedOffer = getOfferFromURL();
     if (savedOffer) {
       clearCustomItems();
-      const maxN = restoreCustomItems(savedOffer.customItems);
-      setCustomCounter(maxN);
+      restoreCustomItems(savedOffer.customItems);
       setCart(savedOffer.cart || {});
       setCartOrder(savedOffer.cartOrder || []);
       setCustomer(savedOffer.customer || { name:'', company:'', email:'', phone:'', address:'' });
@@ -1429,7 +1453,8 @@ export default function App() {
 
   // Cart handlers
   // Items that auto-add 10h Arbeitszeit when selected
-  const WORK_INTENSIVE_ITEMS = ['k022', 'k044']; // Lagerverwaltung, Anbindung Schankanlage
+  const WORK_INTENSIVE_ITEMS = ['f7a4cb27-d3cf-4e84-ba58-a273da596c06', 'ad5d1834-f864-43a1-8be4-2bae0bfeade4']; // Lagerverwaltung, Anbindung Schankanlage
+  const ARBEITSZEIT_ID = 'b01429e1-672e-44ae-ae79-1d08c4f7f918';
 
   const handlers = {
     onAdd: (id, tier, mode) => {
@@ -1437,21 +1462,21 @@ export default function App() {
         const newCart = {...c, [id]: { qty:1, discountQty:0, tier, mode }};
         // Auto-add 10h Arbeitszeit for work-intensive items
         if (WORK_INTENSIVE_ITEMS.includes(id)) {
-          const currentQty = c['h8']?.qty || 0;
-          newCart['h8'] = { qty: currentQty + 10, discountQty: 0 };
+          const currentQty = c[ARBEITSZEIT_ID]?.qty || 0;
+          newCart[ARBEITSZEIT_ID] = { qty: currentQty + 10, discountQty: 0 };
         }
         return newCart;
       });
       setCartOrder(prev => {
         const ids = [id];
-        if (WORK_INTENSIVE_ITEMS.includes(id) && !prev.includes('h8')) ids.push('h8');
+        if (WORK_INTENSIVE_ITEMS.includes(id) && !prev.includes(ARBEITSZEIT_ID)) ids.push(ARBEITSZEIT_ID);
         return [...prev.filter(x => !ids.includes(x)), ...ids];
       });
     },
     onRemove: (id) => {
       setCart(c => { const n = {...c}; delete n[id]; return n; });
       setCartOrder(prev => prev.filter(x => x !== id));
-      if (id.startsWith('custom_')) delete ALL[id];
+      if (isCustomItem(id)) delete ALL[id];
     },
     onQty: (id, d) => {
       setCart(c => {
@@ -1968,8 +1993,7 @@ export default function App() {
       const offer = await getOffer(id);
       const data = offer.offer_data || {};
       clearCustomItems();
-      const maxN = restoreCustomItems(data.customItems);
-      setCustomCounter(maxN);
+      restoreCustomItems(data.customItems);
       setCart(data.cart || {});
       setCartOrder(data.cartOrder || []);
       setCustomer({
@@ -1995,7 +2019,6 @@ export default function App() {
 
   function handleNewOffer() {
     clearCustomItems();
-    setCustomCounter(0);
     setCart({});
     setCartOrder([]);
     setCustomer({name:'',company:'',email:'',phone:'',address:''});
@@ -2013,8 +2036,7 @@ export default function App() {
   function handleReset() {
     if (confirm('Angebot zurücksetzen?')) {
       clearCustomItems();
-      setCustomCounter(0);
-      setCart({});
+        setCart({});
       setCartOrder([]);
       setCustomer({name:'',company:'',email:'',phone:'',address:''});
       setNotes('');
@@ -2130,6 +2152,7 @@ export default function App() {
             {tab === 'hardware' && (
               <>
                 <CatGroup title="Hardware" items={HARDWARE} cart={cart} globalTier={globalTier} handlers={handlers} />
+                <CatGroup title="Drucker" items={DRUCKER} cart={cart} globalTier={globalTier} handlers={handlers} />
                 <CatGroup title="Küchenmonitore" items={KUECHENMONITORE} cart={cart} globalTier={globalTier} handlers={handlers} />
                 <CatGroup title="Küchenmonitore Sunmi" items={KUECHENMONITORE_SUNMI} cart={cart} globalTier={globalTier} handlers={handlers} />
                 <CatGroup title="Orderman" items={ORDERMAN} cart={cart} globalTier={globalTier} handlers={handlers} />
