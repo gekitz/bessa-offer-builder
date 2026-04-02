@@ -171,6 +171,7 @@ function bestTier(item, global) {
 }
 
 function price(item, tier, mode) {
+  if (!item) return null;
   if (item.t === 'o') return item.p?.o ?? item.price ?? 0;
   if (item.t === 'h') return item.p?.o ?? item.price ?? 0;
   if (item.t === 'term') return mode === 'buy' ? item.buy : item.rent;
@@ -196,6 +197,7 @@ function hasDiscount(item) {
 }
 
 function isMonthly(item, mode) {
+  if (!item) return false;
   if (item.t === 'term') return mode === 'rent';
   return item.t === 'm';
 }
@@ -648,7 +650,7 @@ function SortableOfferRow({ id, children }) {
 // ═══════════════════════════════════════════════════════
 
 function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier, onSave, onSend, saving, sending, saveSuccess, currentOfferId, onSign, signLoading, onAddCustom, cartOrder, onReorder, onRemoveItem }) {
-  const allOrdered = orderedCartEntries(cart, cartOrder);
+  const allOrdered = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
   const monthlyItems = allOrdered.filter(([id,c]) => isMonthly(ALL[id], c.mode));
   const onceItems = allOrdered.filter(([id,c]) => !isMonthly(ALL[id], c.mode));
 
@@ -1362,6 +1364,16 @@ export default function App() {
     }
   }, [profile]);
 
+  // Filter out cart items whose IDs no longer exist in ALL (e.g. old offers with removed products)
+  function sanitizeCart(rawCart, rawOrder) {
+    const validCart = {};
+    Object.entries(rawCart).forEach(([id, c]) => {
+      if (ALL[id]) validCart[id] = c;
+    });
+    const validOrder = (rawOrder || []).filter(id => validCart[id]);
+    return { cart: validCart, cartOrder: validOrder };
+  }
+
   // Helpers for custom freeform items
   function getCustomItemsFromCart() {
     const items = {};
@@ -1408,8 +1420,9 @@ export default function App() {
         const data = offer.offer_data || {};
         clearCustomItems();
         restoreCustomItems(data.customItems);
-        setCart(data.cart || {});
-        setCartOrder(data.cartOrder || []);
+        const { cart: validCart, cartOrder: validOrder } = sanitizeCart(data.cart || {}, data.cartOrder || []);
+        setCart(validCart);
+        setCartOrder(validOrder);
         setCustomer({
           name: offer.customer_name || '',
           company: offer.customer_company || '',
@@ -1437,8 +1450,9 @@ export default function App() {
     if (savedOffer) {
       clearCustomItems();
       restoreCustomItems(savedOffer.customItems);
-      setCart(savedOffer.cart || {});
-      setCartOrder(savedOffer.cartOrder || []);
+      const { cart: validCart, cartOrder: validOrder } = sanitizeCart(savedOffer.cart || {}, savedOffer.cartOrder || []);
+      setCart(validCart);
+      setCartOrder(validOrder);
       setCustomer(savedOffer.customer || { name:'', company:'', email:'', phone:'', address:'' });
       setCreator(savedOffer.creator || '');
       setNotes(savedOffer.notes || '');
@@ -1516,6 +1530,7 @@ export default function App() {
     let monthly = 0, once = 0, periodTotal = 0, periodMonthly = 0, maxMonths = 0;
     Object.entries(cart).forEach(([id, c]) => {
       const item = ALL[id];
+      if (!item) return;
       const p = price(item, c.tier, c.mode);
       const dp = discountedPrice(item, c.tier, c.mode);
       if (p === null) return;
@@ -1562,7 +1577,7 @@ export default function App() {
     if (customer.phone) lines.push(`Tel: ${customer.phone}`);
     lines.push('');
 
-    const allOrdered = orderedCartEntries(cart, cartOrder);
+    const allOrdered = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
     const monthlyItems = allOrdered.filter(([id,c]) => isMonthly(ALL[id],c.mode));
     const onceItems = allOrdered.filter(([id,c]) => !isMonthly(ALL[id],c.mode));
 
@@ -1622,7 +1637,8 @@ export default function App() {
     setPdfLoading(true);
     try {
       // Prepare items for PDF
-      const monthlyItems = orderedCartEntries(cart, cartOrder)
+      const validEntries = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
+      const monthlyItems = validEntries
         .filter(([id, c]) => isMonthly(ALL[id], c.mode))
         .map(([id, c]) => {
           const item = ALL[id];
@@ -1648,7 +1664,7 @@ export default function App() {
           };
         });
 
-      const onceItems = orderedCartEntries(cart, cartOrder)
+      const onceItems = validEntries
         .filter(([id, c]) => !isMonthly(ALL[id], c.mode))
         .map(([id, c]) => {
           const item = ALL[id];
@@ -1854,7 +1870,8 @@ export default function App() {
     try {
       // Generate PDF blob
       const creatorInfo = TEAM.find(t => t.id === creator);
-      const monthlyItems = orderedCartEntries(cart, cartOrder)
+      const validSendEntries = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
+      const monthlyItems = validSendEntries
         .filter(([id, c]) => isMonthly(ALL[id], c.mode))
         .map(([id, c]) => {
           const item = ALL[id];
@@ -1870,7 +1887,7 @@ export default function App() {
           };
         });
 
-      const onceItems = orderedCartEntries(cart, cartOrder)
+      const onceItems = validSendEntries
         .filter(([id, c]) => !isMonthly(ALL[id], c.mode))
         .map(([id, c]) => {
           const item = ALL[id];
@@ -1917,7 +1934,8 @@ export default function App() {
   async function handleSign(signatures) {
     // Build PDF items (same as handlePrint)
     const creatorInfo = TEAM.find(t => t.id === creator) || null;
-    const monthlyItems = orderedCartEntries(cart, cartOrder)
+    const validSignEntries = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
+    const monthlyItems = validSignEntries
       .filter(([id, c]) => isMonthly(ALL[id], c.mode))
       .map(([id, c]) => {
         const item = ALL[id];
@@ -1933,7 +1951,7 @@ export default function App() {
         };
       });
 
-    const onceItems = orderedCartEntries(cart, cartOrder)
+    const onceItems = validSignEntries
       .filter(([id, c]) => !isMonthly(ALL[id], c.mode))
       .map(([id, c]) => {
         const item = ALL[id];
@@ -1994,8 +2012,9 @@ export default function App() {
       const data = offer.offer_data || {};
       clearCustomItems();
       restoreCustomItems(data.customItems);
-      setCart(data.cart || {});
-      setCartOrder(data.cartOrder || []);
+      const { cart: validCart, cartOrder: validOrder } = sanitizeCart(data.cart || {}, data.cartOrder || []);
+      setCart(validCart);
+      setCartOrder(validOrder);
       setCustomer({
         name: offer.customer_name || '',
         company: offer.customer_company || '',
