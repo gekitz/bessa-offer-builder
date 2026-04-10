@@ -9,6 +9,10 @@ import { getOfferFromURL } from './lib/urlState';
 import { saveOffer, listOffers, getOffer, deleteOffer, sendOffer, getEmailEvents, setShareCode, getOfferByShareCode, updateOfferStage, signOffer, getSignedPdfUrl } from './lib/offerApi';
 import { supabase } from './lib/supabase';
 import { useAuth } from './lib/auth';
+import AppShell from './components/AppShell';
+import CustomerPicker from './components/CustomerPicker';
+
+const CrmPage = React.lazy(() => import('./components/CrmPage.jsx'));
 
 // ═══════════════════════════════════════════════════════
 // DATA
@@ -650,6 +654,7 @@ function SortableOfferRow({ id, children }) {
 // ═══════════════════════════════════════════════════════
 
 function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier, onSave, onSend, saving, sending, saveSuccess, currentOfferId, onSign, signLoading, onAddCustom, cartOrder, onReorder, onRemoveItem }) {
+  const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const allOrdered = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
   const monthlyItems = allOrdered.filter(([id,c]) => isMonthly(ALL[id], c.mode));
   const onceItems = allOrdered.filter(([id,c]) => !isMonthly(ALL[id], c.mode));
@@ -682,14 +687,26 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
     <div>
       {/* Customer info */}
       <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 overflow-hidden" style={{padding:'16px'}}>
-        <div className="flex items-center gap-2 mb-3">
-          <User size={16} className="text-red-600" />
-          <span className="font-bold text-slate-700" style={{fontSize:14}}>Kundendaten</span>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <User size={16} className="text-red-600" />
+            <span className="font-bold text-slate-700" style={{fontSize:14}}>Kundendaten</span>
+            {customer.mesonicId && (
+              <span className="bg-emerald-50 text-emerald-600 rounded-full px-2" style={{fontSize:10}}>Mesonic #{customer.mesonicId}</span>
+            )}
+          </div>
+          <button
+            onClick={() => setShowCustomerPicker(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-slate-100 text-slate-600 px-3 py-1.5 hover:bg-red-50 hover:text-red-600 transition-colors"
+            style={{fontSize:12}}
+          >
+            <Search size={13} /> Bestandskunde
+          </button>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <input placeholder="Name" value={customer.name} onChange={e => setCustomer({...customer,name:e.target.value})}
-            className="w-full min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
           <input placeholder="Firma" value={customer.company} onChange={e => setCustomer({...customer,company:e.target.value})}
+            className="w-full min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+          <input placeholder="Ansprechpartner" value={customer.name} onChange={e => setCustomer({...customer,name:e.target.value})}
             className="w-full min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
           <input placeholder="E-Mail" type="email" value={customer.email} onChange={e => setCustomer({...customer,email:e.target.value})}
             className="w-full min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
@@ -698,6 +715,15 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
         </div>
         <input placeholder="Adresse (Straße, PLZ Ort)" value={customer.address} onChange={e => setCustomer({...customer,address:e.target.value})}
           className="w-full mt-2 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+        {showCustomerPicker && (
+          <CustomerPicker
+            onSelect={(c) => {
+              setCustomer({ name: c.name, company: c.company, email: c.email, phone: c.phone, address: c.address, mesonicId: c.mesonicId });
+              setShowCustomerPicker(false);
+            }}
+            onClose={() => setShowCustomerPicker(false)}
+          />
+        )}
         <div className="mt-3">
           {creator && TEAM.find(t => t.id === creator) ? (
             <div className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-700">
@@ -976,12 +1002,11 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
 // MAIN APP
 // ═══════════════════════════════════════════════════════
 
-const TABS = [
+const BUILDER_TABS = [
   { id: 'kassa', label: 'Kassa' },
   { id: 'module', label: 'Module' },
   { id: 'hardware', label: 'Hardware' },
   { id: 'angebot', label: 'Angebot' },
-  { id: 'angebote', label: 'Angebote' },
 ];
 
 const STATUS_CONFIG = {
@@ -1311,7 +1336,9 @@ export default function App() {
   }
 
   const { profile } = useAuth();
-  const [tab, setTab] = useState('kassa');
+  const [section, setSection] = useState('angebote'); // 'angebote' | 'crm'
+  const [offerView, setOfferView] = useState('list'); // 'list' | 'builder'
+  const [builderTab, setBuilderTab] = useState('kassa');
   const [globalTier, setGlobalTier] = useState('12mo');
   const [cart, setCart] = useState({});
   const [customer, setCustomer] = useState({ name:'', company:'', email:'', phone:'', address:'' });
@@ -1438,7 +1465,7 @@ export default function App() {
         setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
         setCurrentOfferId(offer.id);
         setShareCodeState(offer.share_code);
-        setTab('angebot');
+        setOfferView('builder'); setBuilderTab('angebot');
         window.history.replaceState({}, '', window.location.pathname);
       }).catch(() => {
         alert('Angebot nicht gefunden.');
@@ -1460,7 +1487,7 @@ export default function App() {
       setFinanzOpen(savedOffer.finanzOpen || false);
       setGlobalTier(savedOffer.globalTier || '12mo');
       if (savedOffer.mandatsRef) setMandatsRef(savedOffer.mandatsRef);
-      setTab('angebot');
+      setOfferView('builder'); setBuilderTab('angebot');
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -2030,7 +2057,7 @@ export default function App() {
       setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
       setCurrentOfferId(duplicate ? null : offer.id);
       setShareCodeState(duplicate ? null : offer.share_code || null);
-      setTab('angebot');
+      setOfferView('builder'); setBuilderTab('angebot');
     } catch (err) {
       alert('Fehler beim Laden: ' + err.message);
     }
@@ -2049,7 +2076,8 @@ export default function App() {
     setFinanzOpen(false);
     setGlobalTier('12mo');
     setMandatsRef(Date.now().toString().slice(-12));
-    setTab('kassa');
+    setBuilderTab('kassa');
+    setOfferView('builder');
   }
 
   function handleReset() {
@@ -2066,163 +2094,192 @@ export default function App() {
   }
 
   return (
-    <div style={{fontFamily:"'DM Sans',system-ui,sans-serif",minHeight:'100vh',background:'#f1f5f9',display:'flex',flexDirection:'column'}}>
-      {/* Header */}
-      <div className="no-print" style={{background:'linear-gradient(135deg,#32373c 0%,#23272b 100%)',padding:'16px 20px',color:'white'}}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center bg-white text-red-600 font-bold rounded-lg" style={{width:40,height:40,fontSize:14}}>KITZ</div>
-            <div>
-              <div className="font-bold" style={{fontSize:16,letterSpacing:'-0.3px'}}>Angebotsersteller</div>
-              <div style={{fontSize:11,opacity:0.6}}>bessa Kassa & Module <span style={{opacity:0.5}}>v{__GIT_HASH__}</span></div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {cartCount > 0 && (
-              <button onClick={handleReset} className="flex items-center gap-1 rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20 transition-colors" style={{fontSize:12}}>
-                <Trash2 size={13} /> Neu
-              </button>
-            )}
-          </div>
+    <AppShell activeSection={section} onNavigate={(s) => { setSection(s); if (s === 'angebote') setOfferView('list'); }}>
+      {/* ═══ ANGEBOTE SECTION ═══ */}
+      {section === 'angebote' && offerView === 'list' && (
+        <div className="flex-1 overflow-auto" style={{ padding: '24px 32px' }}>
+          <OfferList onLoad={handleLoadOffer} onNew={handleNewOffer} />
         </div>
+      )}
 
-        {/* Global tier selector */}
-        {tab !== 'angebot' && (
-          <div className="flex gap-1.5 mt-3">
-            {TIERS.map(t => (
-              <button key={t} onClick={() => setGlobalTier(t)}
-                className={`rounded-lg font-medium transition-all ${globalTier===t ? 'bg-red-500 text-white shadow-lg' : 'bg-white/10 text-white/70 hover:bg-white/20'}`}
-                style={{fontSize:12,padding:'6px 12px',flex:1}}>
-                {TIER_SHORT[t]}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Search box */}
-        {tab !== 'angebot' && (
-          <div className="relative mt-3">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Produkt suchen..."
-              className="w-full rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 pl-9 pr-8 py-2 text-sm focus:outline-none focus:bg-white/20 focus:border-white/30"
-            />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/50 hover:text-white">
-                <X size={16} />
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Tab bar */}
-      <div className="flex bg-white border-b border-slate-200 shadow-sm no-print" style={{position:'sticky',top:0,zIndex:20}}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-3 font-semibold transition-colors relative ${tab===t.id ? 'text-red-600' : 'text-slate-400 hover:text-slate-600'}`}
-            style={{fontSize:13}}>
-            <span>{t.label}</span>
-            {t.id === 'angebot' && cartCount > 0 && (
-              <span className="absolute top-1.5 bg-red-600 text-white rounded-full" style={{fontSize:10,padding:'0 5px',lineHeight:'16px',right:'calc(50% - 36px)'}}>{cartCount}</span>
-            )}
-            {tab===t.id && <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-red-600 rounded-full" />}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-auto" style={{padding:'16px 16px calc(120px + env(safe-area-inset-bottom, 0px))'}}>
-        {search.trim() && tab !== 'angebot' ? (
-          // Search results
-          (() => {
-            const q = search.toLowerCase().trim();
-            const allItems = [...KASSA, ...MODULE, ...HARDWARE, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...ORDERMAN, ...DIENSTLEISTUNGEN];
-            const results = allItems.filter(item =>
-              item.name.toLowerCase().includes(q) ||
-              (item.code && item.code.toLowerCase().includes(q)) ||
-              (item.note && item.note.toLowerCase().includes(q))
-            );
-            return (
-              <div>
-                <div className="text-sm text-slate-500 mb-3">{results.length} Ergebnis{results.length !== 1 ? 'se' : ''} für "{search}"</div>
-                {results.length > 0 ? (
-                  <div className="space-y-2">
-                    {results.map(item => (
-                      <ItemCard key={item.id} item={item} cartItem={cart[item.id]} globalTier={globalTier} {...handlers} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-slate-400">
-                    <Search size={32} className="mx-auto mb-2 opacity-50" />
-                    <p>Keine Produkte gefunden</p>
-                  </div>
+      {section === 'angebote' && offerView === 'builder' && (
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Builder header bar */}
+          <div className="no-print border-b border-slate-200 bg-white flex-shrink-0">
+            <div className="flex items-center justify-between px-5 py-3">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setOfferView('list')}
+                  className="flex items-center gap-1.5 text-slate-500 hover:text-red-600 transition-colors"
+                  style={{ fontSize: 13 }}
+                >
+                  <ArrowLeft size={16} />
+                  <span>Alle Angebote</span>
+                </button>
+                <span className="text-slate-300">|</span>
+                <span className="font-semibold text-slate-700" style={{ fontSize: 14 }}>
+                  {currentOfferId ? 'Angebot bearbeiten' : 'Neues Angebot'}
+                </span>
+                {cartCount > 0 && (
+                  <span className="bg-red-100 text-red-600 rounded-full px-2" style={{ fontSize: 11 }}>{cartCount} Pos.</span>
                 )}
               </div>
-            );
-          })()
-        ) : (
-          <>
-            {tab === 'kassa' && <TabContent items={KASSA} cart={cart} globalTier={globalTier} handlers={handlers} />}
-            {tab === 'module' && <TabContent items={MODULE} cart={cart} globalTier={globalTier} handlers={handlers} />}
-            {tab === 'hardware' && (
-              <>
-                <CatGroup title="Hardware" items={HARDWARE} cart={cart} globalTier={globalTier} handlers={handlers} />
-                <CatGroup title="Drucker" items={DRUCKER} cart={cart} globalTier={globalTier} handlers={handlers} />
-                <CatGroup title="Küchenmonitore" items={KUECHENMONITORE} cart={cart} globalTier={globalTier} handlers={handlers} />
-                <CatGroup title="Küchenmonitore Sunmi" items={KUECHENMONITORE_SUNMI} cart={cart} globalTier={globalTier} handlers={handlers} />
-                <CatGroup title="Orderman" items={ORDERMAN} cart={cart} globalTier={globalTier} handlers={handlers} />
-                <CatGroup title="Dienstleistungen" items={DIENSTLEISTUNGEN} cart={cart} globalTier={globalTier} handlers={handlers} />
-              </>
-            )}
-            {tab === 'angebot' && (
-              <>
-                <OfferView cart={cart} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes}
-                  totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
-                  onSave={handleSave} onSend={handleSend} saving={saving} sending={sending} saveSuccess={saveSuccess} currentOfferId={currentOfferId}
-                  onSign={() => setShowSignModal(true)} onAddCustom={() => setShowCustomModal(true)}
-                  cartOrder={cartOrder} onReorder={setCartOrder} onRemoveItem={handlers.onRemove} />
-                {showCustomModal && (
-                  <CustomItemModal onConfirm={handleAddCustomItem} onClose={() => setShowCustomModal(false)} />
+              <div className="flex items-center gap-2">
+                {cartCount > 0 && (
+                  <button onClick={handleReset} className="flex items-center gap-1 rounded-lg bg-slate-100 text-slate-600 px-3 py-1.5 hover:bg-slate-200 transition-colors" style={{ fontSize: 12 }}>
+                    <Trash2 size={13} /> Zurücksetzen
+                  </button>
                 )}
-                {showSignModal && (
-                  <SignModal customer={customer} totals={totals} finanzOpen={finanzOpen} globalTier={globalTier}
-                    onConfirm={handleSign} onClose={() => setShowSignModal(false)} />
-                )}
-              </>
-            )}
-            {tab === 'angebote' && (
-              <OfferList onLoad={handleLoadOffer} onNew={handleNewOffer} />
-            )}
-          </>
-        )}
-      </div>
+              </div>
+            </div>
 
-      {/* Sticky footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-slate-200 shadow-2xl no-print" style={{padding:'12px 20px',paddingBottom:'calc(12px + env(safe-area-inset-bottom, 0px))',zIndex:30}}>
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-1 text-slate-400" style={{fontSize:11}}>
-              <ShoppingCart size={13} />
-              <span>{cartCount} {cartCount === 1 ? 'Position' : 'Positionen'}</span>
+            {/* Builder sub-tabs + tier selector */}
+            <div className="flex items-center justify-between px-5 pb-2">
+              <div className="flex gap-1">
+                {BUILDER_TABS.map(t => (
+                  <button key={t.id} onClick={() => setBuilderTab(t.id)}
+                    className={`relative px-3 py-2 font-medium transition-colors rounded-t-lg ${builderTab === t.id ? 'text-red-600 bg-red-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+                    style={{ fontSize: 13 }}>
+                    {t.label}
+                    {t.id === 'angebot' && cartCount > 0 && (
+                      <span className="ml-1.5 bg-red-600 text-white rounded-full" style={{ fontSize: 9, padding: '1px 5px' }}>{cartCount}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {builderTab !== 'angebot' && (
+                <div className="flex gap-1">
+                  {TIERS.map(t => (
+                    <button key={t} onClick={() => setGlobalTier(t)}
+                      className={`rounded-lg font-medium transition-all ${globalTier === t ? 'bg-red-500 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                      style={{ fontSize: 11, padding: '4px 10px' }}>
+                      {TIER_SHORT[t]}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="flex gap-4 mt-0.5">
-              {totals.monthly > 0 && <span className="font-bold text-slate-800" style={{fontSize:14}}>€ {fmt(totals.monthly)}<span className="font-normal text-slate-400" style={{fontSize:11}}>/Mo</span></span>}
-              {totals.once > 0 && <span className="font-bold text-slate-800" style={{fontSize:14}}>€ {fmt(totals.once)}<span className="font-normal text-slate-400" style={{fontSize:11}}> einm.</span></span>}
-              {totals.monthly === 0 && totals.once === 0 && <span className="text-slate-400" style={{fontSize:13}}>Noch keine Auswahl</span>}
-            </div>
+
+            {/* Product search bar */}
+            {builderTab !== 'angebot' && (
+              <div className="px-5 pb-3">
+                <div className="relative">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Produkt suchen..."
+                    className="w-full rounded-lg bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 pl-9 pr-8 py-2 text-sm focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-100"
+                  />
+                  {search && (
+                    <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-          <button onClick={() => { setTab('angebot'); }}
-            className="flex items-center gap-2 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 active:scale-[0.97] transition-all shadow-lg shadow-red-200"
-            style={{padding:'10px 20px',fontSize:14}}>
-            <FileText size={16} />
-            Angebot
-          </button>
+
+          {/* Builder content */}
+          <div className="flex-1 overflow-auto" style={{ padding: '16px 24px 32px' }}>
+            {search.trim() && builderTab !== 'angebot' ? (
+              (() => {
+                const q = search.toLowerCase().trim();
+                const allItems = [...KASSA, ...MODULE, ...HARDWARE, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...ORDERMAN, ...DIENSTLEISTUNGEN];
+                const results = allItems.filter(item =>
+                  item.name.toLowerCase().includes(q) ||
+                  (item.code && item.code.toLowerCase().includes(q)) ||
+                  (item.note && item.note.toLowerCase().includes(q))
+                );
+                return (
+                  <div>
+                    <div className="text-sm text-slate-500 mb-3">{results.length} Ergebnis{results.length !== 1 ? 'se' : ''} für &ldquo;{search}&rdquo;</div>
+                    {results.length > 0 ? (
+                      <div className="space-y-2">
+                        {results.map(item => (
+                          <ItemCard key={item.id} item={item} cartItem={cart[item.id]} globalTier={globalTier} {...handlers} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-slate-400">
+                        <Search size={32} className="mx-auto mb-2 opacity-50" />
+                        <p>Keine Produkte gefunden</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
+            ) : (
+              <>
+                {builderTab === 'kassa' && <TabContent items={KASSA} cart={cart} globalTier={globalTier} handlers={handlers} />}
+                {builderTab === 'module' && <TabContent items={MODULE} cart={cart} globalTier={globalTier} handlers={handlers} />}
+                {builderTab === 'hardware' && (
+                  <>
+                    <CatGroup title="Hardware" items={HARDWARE} cart={cart} globalTier={globalTier} handlers={handlers} />
+                    <CatGroup title="Drucker" items={DRUCKER} cart={cart} globalTier={globalTier} handlers={handlers} />
+                    <CatGroup title="Küchenmonitore" items={KUECHENMONITORE} cart={cart} globalTier={globalTier} handlers={handlers} />
+                    <CatGroup title="Küchenmonitore Sunmi" items={KUECHENMONITORE_SUNMI} cart={cart} globalTier={globalTier} handlers={handlers} />
+                    <CatGroup title="Orderman" items={ORDERMAN} cart={cart} globalTier={globalTier} handlers={handlers} />
+                    <CatGroup title="Dienstleistungen" items={DIENSTLEISTUNGEN} cart={cart} globalTier={globalTier} handlers={handlers} />
+                  </>
+                )}
+                {builderTab === 'angebot' && (
+                  <>
+                    <OfferView cart={cart} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes}
+                      totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
+                      onSave={handleSave} onSend={handleSend} saving={saving} sending={sending} saveSuccess={saveSuccess} currentOfferId={currentOfferId}
+                      onSign={() => setShowSignModal(true)} onAddCustom={() => setShowCustomModal(true)}
+                      cartOrder={cartOrder} onReorder={setCartOrder} onRemoveItem={handlers.onRemove} />
+                    {showCustomModal && (
+                      <CustomItemModal onConfirm={handleAddCustomItem} onClose={() => setShowCustomModal(false)} />
+                    )}
+                    {showSignModal && (
+                      <SignModal customer={customer} totals={totals} finanzOpen={finanzOpen} globalTier={globalTier}
+                        onConfirm={handleSign} onClose={() => setShowSignModal(false)} />
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Bottom bar — cart summary + go to Angebot tab */}
+          {builderTab !== 'angebot' && (
+            <div className="border-t border-slate-200 bg-white px-5 py-3 flex-shrink-0 no-print">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1 text-slate-400" style={{ fontSize: 11 }}>
+                    <ShoppingCart size={13} />
+                    <span>{cartCount} {cartCount === 1 ? 'Position' : 'Positionen'}</span>
+                  </div>
+                  <div className="flex gap-4 mt-0.5">
+                    {totals.monthly > 0 && <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>€ {fmt(totals.monthly)}<span className="font-normal text-slate-400" style={{ fontSize: 11 }}>/Mo</span></span>}
+                    {totals.once > 0 && <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>€ {fmt(totals.once)}<span className="font-normal text-slate-400" style={{ fontSize: 11 }}> einm.</span></span>}
+                    {totals.monthly === 0 && totals.once === 0 && <span className="text-slate-400" style={{ fontSize: 13 }}>Noch keine Auswahl</span>}
+                  </div>
+                </div>
+                <button onClick={() => setBuilderTab('angebot')}
+                  className="flex items-center gap-2 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 active:scale-[0.97] transition-all shadow-lg shadow-red-200"
+                  style={{ padding: '10px 20px', fontSize: 14 }}>
+                  <FileText size={16} />
+                  Angebot
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
-    </div>
+      )}
+
+      {/* ═══ CRM SECTION ═══ */}
+      {section === 'crm' && (
+        <div className="flex-1 overflow-auto" style={{ padding: '24px 32px' }}>
+          <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
+            <CrmPage />
+          </React.Suspense>
+        </div>
+      )}
+    </AppShell>
   );
 }

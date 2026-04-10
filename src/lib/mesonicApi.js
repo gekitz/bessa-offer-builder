@@ -115,22 +115,23 @@ export async function mesonicImport(type, template, xmlData, opts = {}) {
 
 /** Search customers by name, number, or other fields */
 export async function searchCustomers(query) {
-  // If it looks like a customer number (alphanumeric, no spaces), search by key
-  if (/^[A-Za-z0-9]+$/.test(query)) {
-    return mesonicExport(TYPES.CUSTOMER, TEMPLATES.CUSTOMER_LIST, query);
+  // If it looks like a customer number (pure digits), fetch by key directly
+  if (/^\d+$/.test(query)) {
+    return mesonicExport(TYPES.CUSTOMER, TEMPLATES.CUSTOMER_DETAIL, query);
   }
-  // Otherwise use WHERE clause on name
+  // Otherwise use WHERE clause on name (Mesonic requires %% for LIKE wildcards)
   const escaped = query.replace(/'/g, "''");
   return mesonicExport(
     TYPES.CUSTOMER,
-    TEMPLATES.CUSTOMER_LIST,
-    `where T055.C003 LIKE '%${escaped}%'`
+    TEMPLATES.CUSTOMER_DETAIL,
+    `where T055.C003 LIKE '%%${escaped}%%'`
   );
 }
 
 /** Get all customers (use with caution — may be large) */
 export async function listCustomers() {
-  return mesonicExport(TYPES.CUSTOMER, TEMPLATES.CUSTOMER_LIST, '*');
+  // Wildcard * not supported — use WHERE to get all non-empty accounts
+  return mesonicExport(TYPES.CUSTOMER, TEMPLATES.CUSTOMER_DETAIL, "where T055.C003 <> ''");
 }
 
 /** Get full customer details by customer number */
@@ -144,14 +145,15 @@ export async function getCustomer(customerNumber) {
 
 /** Search articles by number or description */
 export async function searchArticles(query) {
-  if (/^[A-Za-z0-9]+$/.test(query)) {
-    return mesonicExport(TYPES.ARTICLE, TEMPLATES.ARTICLE_LIST, query);
+  if (/^\d+$/.test(query)) {
+    return mesonicExport(TYPES.ARTICLE, TEMPLATES.ARTICLE_DETAIL, query);
   }
+  // Mesonic requires %% for LIKE wildcards
   const escaped = query.replace(/'/g, "''");
   return mesonicExport(
     TYPES.ARTICLE,
-    TEMPLATES.ARTICLE_LIST,
-    `where T024.C003 LIKE '%${escaped}%'`
+    TEMPLATES.ARTICLE_DETAIL,
+    `where T024.C003 LIKE '%%${escaped}%%'`
   );
 }
 

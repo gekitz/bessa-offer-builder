@@ -1,6 +1,6 @@
 # BESSA CRM — Project Plan & Implementation Roadmap
 
-**Last updated:** March 2026 | **Version:** 1.0
+**Last updated:** April 2026 | **Version:** 1.1
 
 ---
 
@@ -63,8 +63,9 @@ Mesonic API Type codes: **1**=Customers, **4**=Articles, **5**=Prices, **7**=Con
 | Auth guard: verify Supabase JWT via getUser() | 1h | ✅ Done | Reject unauthenticated requests |
 | Test with real WinLine: single-key customer export (Type 1) | 2h | ✅ Done | Customer 29385 (Stadtgemeinde Althofen) reads correctly |
 | Environment config: MESONIC_URL, MESONIC_USER, MESONIC_PASS, MESONIC_COMPANY | 1h | ✅ Done | Set as Supabase Edge Function secrets |
-| ⚠️ BLOCKED: WHERE queries and wildcard Key=* return error 000161 | — | Blocked | Mesonic technician needs to enable Exportparameter on templates |
-| ⚠️ BLOCKED: WebKontenListe/WebArtikelListe/WebBelegListe templates don't exist | — | Blocked | Mesonic technician needs to create slim list templates |
+| ✅ WHERE queries (LIKE with %%) | 1h | ✅ Done | Mesonic requires double %% for LIKE wildcards; technician enabled Exportparameter |
+| ⚠️ Wildcard Key=* and range Key=X++Y not supported | — | Won't fix | Use WHERE queries instead (e.g. `where T055.C003 <> ''` for all) |
+| ⚠️ WebKontenListe/WebArtikelListe/WebBelegListe templates don't exist | — | Won't fix | Using WebKontenExport etc. with WHERE queries instead |
 
 ---
 
@@ -72,13 +73,16 @@ Mesonic API Type codes: **1**=Customers, **4**=Articles, **5**=Prices, **7**=Con
 
 **Duration:** 3 weeks | **Depends on:** Phase 1 (Mesonic Proxy)
 
-### Week 3: Customer Management
+### Week 3: Customer Management & Layout Refactoring
 
 | Task | Est. | Status | Notes |
 |------|------|--------|-------|
-| Customer search via Mesonic EXIM (Type 1, Lesen with search params) | 3h | Pending | Search by name, number, city |
-| Customer list view: paginated table with search bar | 3h | Pending | Debounced search, loading states |
-| Customer detail view: master data, addresses, contact info | 3h | Pending | Read from Mesonic |
+| Layout refactoring: sidebar navigation (Angebote / CRM sections) | 4h | ✅ Done | AppShell component, replaces old mobile tab bar |
+| Angebote section: list as default view, builder as sub-view | 2h | ✅ Done | "Neues Angebot" / "Laden" opens builder; back arrow returns to list |
+| Customer search via Mesonic EXIM (WHERE queries with %%) | 3h | ✅ Done | Debounced search, 400ms delay, min 2 chars |
+| Customer list view: card-based results with search bar | 3h | ✅ Done | Shows name, address, phone, email |
+| Customer detail view: master data, quick actions, expandable fields | 3h | ✅ Done | Call/Email/Website buttons, Stammdaten + all fields toggle |
+| CRM page integrated into new sidebar layout | 1h | ✅ Done | Lazy-loaded CrmPage component |
 | Create new customer: form → Mesonic EXIM (Type 1, Schreiben) | 3h | Pending | Validation, required fields |
 | Edit customer: update master data in Mesonic | 2h | Pending | Partial updates |
 | Link customer to offer builder: replace manual customer input | 2h | Pending | Search & select from Mesonic data |

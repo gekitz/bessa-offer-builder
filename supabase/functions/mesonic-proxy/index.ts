@@ -111,15 +111,19 @@ async function mesonicExport(params: {
   const cfg = getMesonicConfig();
 
   const doExport = async (session: string) => {
-    const queryParams = new URLSearchParams({
+    // Build URL manually — Mesonic expects Key value with raw %% for LIKE wildcards,
+    // so we must NOT let URLSearchParams encode the Key parameter.
+    const baseParams = new URLSearchParams({
       Session: session,
       Type: String(params.type),
       Vorlage: params.template,
-      Key: params.key,
       Format: String(params.format ?? 1), // 1 = UTF-8 XML
       byref: String(params.byref ?? 1),
     });
-    const url = `${cfg.url}/ewlservice/export?${queryParams.toString()}`;
+    // Append Key without encoding (spaces → %20 only, keep %% as-is)
+    const keyEncoded = params.key.replace(/ /g, '%20').replace(/'/g, '%27');
+    const url = `${cfg.url}/ewlservice/export?${baseParams.toString()}&Key=${keyEncoded}`;
+    console.log(`[mesonic] export URL: ${url}`);
     const res = await fetch(url);
     return await res.text();
   };
