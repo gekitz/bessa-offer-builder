@@ -1941,7 +1941,10 @@ export default function App() {
 
       // Convert to base64
       const buffer = await pdfBlob.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      const base64 = btoa(binary);
 
       const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
       const customerName = (customer.company || customer.name || 'Kunde')
