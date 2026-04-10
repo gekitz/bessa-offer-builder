@@ -1,6 +1,6 @@
 # BESSA CRM — Project Plan & Implementation Roadmap
 
-**Last updated:** April 2026 | **Version:** 1.1
+**Last updated:** 10 April 2026 | **Version:** 1.2
 
 ---
 
@@ -83,9 +83,9 @@ Mesonic API Type codes: **1**=Customers, **4**=Articles, **5**=Prices, **7**=Con
 | Customer list view: card-based results with search bar | 3h | ✅ Done | Shows name, address, phone, email |
 | Customer detail view: master data, quick actions, expandable fields | 3h | ✅ Done | Call/Email/Website buttons, Stammdaten + all fields toggle |
 | CRM page integrated into new sidebar layout | 1h | ✅ Done | Lazy-loaded CrmPage component |
-| Create new customer: form → Mesonic EXIM (Type 1, Schreiben) | 3h | Pending | Validation, required fields |
-| Edit customer: update master data in Mesonic | 2h | Pending | Partial updates |
-| Link customer to offer builder: replace manual customer input | 2h | Pending | Search & select from Mesonic data |
+| Create new customer: form → Mesonic EXIM (Type 1, Schreiben) | 3h | ✅ Done | CustomerForm component, validates + imports via WebKontenImport |
+| Edit customer: update master data in Mesonic | 2h | ✅ Done | Pre-fills form from existing record, "Bearbeiten" button on detail view |
+| Link customer to offer builder: replace manual customer input | 2h | ✅ Done | CustomerPicker modal in OfferView, auto-fills all fields + Mesonic ID badge |
 
 ### Week 4: Article Catalog
 
@@ -106,7 +106,7 @@ Mesonic API Type codes: **1**=Customers, **4**=Articles, **5**=Prices, **7**=Con
 | Update offer PDF generation to use profile data | 2h | Pending | Creator info from profiles |
 | Add phone, location fields to user_profiles if missing | 1h | Pending | Match current TEAM fields |
 | Customer → Offer flow: select customer, auto-fill offer form | 3h | Pending | End-to-end integration |
-| Offer → Customer link: store Mesonic customer ID on offers | 2h | Pending | Foreign key in offers table |
+| Offer → Customer link: store Mesonic customer ID on offers | 2h | ✅ Done | Migration 20260410, mesonic_customer_id + customer_address columns |
 | Integration testing: full flow from customer search to offer creation | 3h | Pending | |
 
 ---

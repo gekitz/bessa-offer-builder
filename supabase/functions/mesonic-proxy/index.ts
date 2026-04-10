@@ -167,12 +167,28 @@ async function mesonicImport(params: {
       queryParams.set("option", String(params.option));
     }
     const url = `${cfg.url}/ewlservice/import?${queryParams.toString()}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "text/xml; charset=utf-8" },
-      body: params.xmlData,
-    });
-    return await res.text();
+    console.log(`[mesonic] import URL: ${url}`);
+    console.log(`[mesonic] import body: ${params.xmlData}`);
+
+    // Timeout after 30s to avoid Supabase Edge Function 60s hard limit
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "text/xml; charset=utf-8" },
+        body: params.xmlData,
+        signal: controller.signal,
+      });
+      return await res.text();
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw new Error('Mesonic import timeout nach 30 Sekunden — die WinLine API antwortet nicht. Bitte prüfen ob das Template "WebKontenImport" korrekt konfiguriert ist.');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
   };
 
   console.log(`[mesonic] import Type=${params.type} Template=${params.template} ActionCode=${params.actionCode ?? 1}`);
@@ -413,6 +429,34 @@ serve(async (req: Request) => {
       return new Response(rawXml, {
         headers: { ...corsHeaders, "Content-Type": "text/xml; charset=utf-8" },
       });
+    }
+
+    // ── Import dry-run (debug — shows what WOULD be sent to Mesonic) ──
+    if (action === "import_debug") {
+      const { type, template, xmlData, actionCode, option } = body;
+      const session = await getSession();
+      const queryParams = new URLSearchParams({
+        Session: session,
+        Type: String(type),
+        Vorlage: template,
+        ActionCode: String(actionCode ?? 1),
+        Format: "1",
+      });
+      if (option !== undefined) queryParams.set("option", String(option));
+      const cfg = getMesonicConfig();
+      const url = `${cfg.url}/ewlservice/import?${queryParams.toString()}`;
+
+      return new Response(
+        JSON.stringify({
+          debug: true,
+          url: url.replace(session, session.substring(0, 8) + '...'),
+          method: 'POST',
+          contentType: 'text/xml; charset=utf-8',
+          body: xmlData,
+          note: 'This request was NOT sent to Mesonic. Use action="import" to actually send it.',
+        }, null, 2),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // ── Import (write) ──

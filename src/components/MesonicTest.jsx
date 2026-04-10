@@ -1,5 +1,25 @@
 import { useState } from 'react';
-import { ping, mesonicExport, mesonicExportRaw, TYPES, TEMPLATES } from '../lib/mesonicApi';
+import { ping, mesonicExport, mesonicExportRaw, mesonicImport, TYPES, TEMPLATES } from '../lib/mesonicApi';
+
+// Helper: call proxy with import_debug action (doesn't actually send to Mesonic)
+async function importDebug(type, template, xmlData, actionCode = 1) {
+  // Use proxyRequest-like call but with action=import_debug
+  const { supabase } = await import('../lib/supabase');
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  const PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mesonic-proxy`;
+  const res = await fetch(PROXY_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ action: 'import_debug', type, template, xmlData, actionCode }),
+  });
+  return await res.json();
+}
 
 const TESTS = [
   {
@@ -33,6 +53,24 @@ const TESTS = [
   {
     label: '8. Raw XML — WHERE ALTHOFEN',
     run: () => mesonicExportRaw(TYPES.CUSTOMER, TEMPLATES.CUSTOMER_DETAIL, "where T055.C003 LIKE '%%ALTHOFEN%%'"),
+  },
+  {
+    label: '9. Import DEBUG — Testkunde (Dry Run, wird NICHT gesendet)',
+    run: () => importDebug(
+      TYPES.CUSTOMER,
+      TEMPLATES.CUSTOMER_IMPORT,
+      '<WebKontenImport>\n  <Name>Testfirma Debug GmbH</Name>\n  <Ort>Klagenfurt</Ort>\n  <Strasse>Testgasse 1</Strasse>\n  <Postleitzahl>9020</Postleitzahl>\n</WebKontenImport>',
+      1
+    ),
+  },
+  {
+    label: '10. Import LIVE — Testkunde validate only (ActionCode=0)',
+    run: () => mesonicImport(
+      TYPES.CUSTOMER,
+      TEMPLATES.CUSTOMER_IMPORT,
+      '<WebKontenImport>\n  <Name>Testfirma Validate GmbH</Name>\n  <Ort>Klagenfurt</Ort>\n  <Strasse>Testgasse 1</Strasse>\n  <Postleitzahl>9020</Postleitzahl>\n</WebKontenImport>',
+      { actionCode: 0 }
+    ),
   },
 ];
 

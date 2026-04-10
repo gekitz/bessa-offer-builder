@@ -12,6 +12,8 @@ export async function saveOffer({ id, customer, creator, creatorName, cart, glob
     customer_company: customer.company || null,
     customer_email: customer.email || null,
     customer_phone: customer.phone || null,
+    customer_address: customer.address || null,
+    mesonic_customer_id: customer.mesonicId || null,
     creator_id: creator,
     creator_name: creatorName,
     offer_data: offerData,
@@ -49,7 +51,7 @@ export async function listOffers() {
 
   const { data, error } = await supabase
     .from('offers')
-    .select('id, status, stage, customer_name, customer_company, customer_email, creator_name, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at')
+    .select('id, status, stage, customer_name, customer_company, customer_email, mesonic_customer_id, creator_name, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at')
     .order('updated_at', { ascending: false });
 
   if (error) throw error;

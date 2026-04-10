@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, X, Loader2, ArrowLeft, Building2, Phone, Mail, MapPin, User, FileText, ChevronRight, AlertCircle, RefreshCw } from 'lucide-react';
-import { searchCustomers, getCustomer, listCustomers, getCustomerContacts, TYPES, TEMPLATES, mesonicExport } from '../lib/mesonicApi';
+import { Search, X, Loader2, ArrowLeft, Building2, Phone, Mail, MapPin, User, FileText, ChevronRight, AlertCircle, RefreshCw, Plus, Pen, Save, CheckCircle2 } from 'lucide-react';
+import { searchCustomers, getCustomer, listCustomers, getCustomerContacts, saveCustomer, validateCustomer, TYPES, TEMPLATES, mesonicExport } from '../lib/mesonicApi';
+import CustomerForm from './CustomerForm';
 
 // ═══════════════════════════════════════════════════════
 // CRM Page — Customer Search & Detail
@@ -123,7 +124,7 @@ function CustomerCard({ record, onClick }) {
 }
 
 // ─── Customer Detail View ───
-function CustomerDetail({ record, onBack }) {
+function CustomerDetail({ record, onBack, onEdit }) {
   const name = F.name(record) || 'Unbekannt';
   const number = F.number(record);
   const phone = F.phone(record);
@@ -156,14 +157,26 @@ function CustomerDetail({ record, onBack }) {
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         {/* Header */}
         <div className="p-5 border-b border-slate-100" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)' }}>
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center">
-              <Building2 size={22} className="text-red-500" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center">
+                <Building2 size={22} className="text-red-500" />
+              </div>
+              <div>
+                <h2 className="font-bold text-slate-800" style={{ fontSize: 18 }}>{name}</h2>
+                {number && <div className="text-slate-400" style={{ fontSize: 12 }}>Kundennummer: {number}</div>}
+              </div>
             </div>
-            <div>
-              <h2 className="font-bold text-slate-800" style={{ fontSize: 18 }}>{name}</h2>
-              {number && <div className="text-slate-400" style={{ fontSize: 12 }}>Kundennummer: {number}</div>}
-            </div>
+            {onEdit && (
+              <button
+                onClick={onEdit}
+                className="flex items-center gap-1.5 rounded-lg bg-slate-100 text-slate-600 px-3 py-2 hover:bg-slate-200 transition-colors"
+                style={{ fontSize: 13 }}
+              >
+                <Pen size={14} />
+                Bearbeiten
+              </button>
+            )}
           </div>
         </div>
 
@@ -229,6 +242,8 @@ function CustomerDetail({ record, onBack }) {
 
 // ─── Main CRM Page ───
 export default function CrmPage() {
+  // view: 'search' | 'detail' | 'create' | 'edit'
+  const [view, setView] = useState('search');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState(null); // null = no search yet
   const [loading, setLoading] = useState(false);
@@ -267,21 +282,74 @@ export default function CrmPage() {
     return () => { cancelled = true; };
   }, [debouncedQuery]);
 
-  // Handle customer click — if search returned full detail, use it directly
   function handleSelectCustomer(record) {
-    // Search results from WebKontenExport already have full detail
     setSelectedCustomer(record);
+    setView('detail');
   }
 
-  function handleBack() {
+  function handleBackToSearch() {
     setSelectedCustomer(null);
+    setView('search');
+  }
+
+  function handleCreateNew() {
+    setView('create');
+  }
+
+  function handleEditCustomer() {
+    // selectedCustomer is already set from detail view
+    setView('edit');
+  }
+
+  function handleFormSaved(result) {
+    // After save, go back to search so user can find the new/updated customer
+    setSelectedCustomer(null);
+    setView('search');
+  }
+
+  function handleFormCancel() {
+    // If we came from edit, go back to detail; from create, go back to search
+    if (view === 'edit' && selectedCustomer) {
+      setView('detail');
+    } else {
+      setView('search');
+    }
+  }
+
+  // ── Create view ──
+  if (view === 'create') {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <CustomerForm
+          onSaved={handleFormSaved}
+          onCancel={handleFormCancel}
+        />
+      </div>
+    );
+  }
+
+  // ── Edit view ──
+  if (view === 'edit' && selectedCustomer) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <CustomerForm
+          initialData={selectedCustomer}
+          onSaved={handleFormSaved}
+          onCancel={handleFormCancel}
+        />
+      </div>
+    );
   }
 
   // ── Detail view ──
-  if (selectedCustomer) {
+  if (view === 'detail' && selectedCustomer) {
     return (
       <div className="max-w-2xl mx-auto">
-        <CustomerDetail record={selectedCustomer} onBack={handleBack} />
+        <CustomerDetail
+          record={selectedCustomer}
+          onBack={handleBackToSearch}
+          onEdit={handleEditCustomer}
+        />
       </div>
     );
   }
@@ -289,29 +357,39 @@ export default function CrmPage() {
   // ── Search + List view ──
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Search bar */}
-      <div className="relative mb-4">
-        <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Kunde suchen (Name, Ort, Nummer...)"
-          className="w-full rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 pl-11 pr-10 py-3 text-sm focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-100 shadow-sm"
-          autoFocus
-        />
-        {query && (
-          <button
-            onClick={() => { setQuery(''); inputRef.current?.focus(); }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
-          >
-            <X size={18} />
-          </button>
-        )}
-        {loading && (
-          <Loader2 size={18} className="absolute right-10 top-1/2 -translate-y-1/2 text-red-400 animate-spin" />
-        )}
+      {/* Search bar + New customer button */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="relative flex-1">
+          <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Kunde suchen (Name, Ort, Nummer...)"
+            className="w-full rounded-xl bg-white border border-slate-200 text-slate-800 placeholder-slate-400 pl-11 pr-10 py-3 text-sm focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-100 shadow-sm"
+            autoFocus
+          />
+          {query && (
+            <button
+              onClick={() => { setQuery(''); inputRef.current?.focus(); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
+            >
+              <X size={18} />
+            </button>
+          )}
+          {loading && (
+            <Loader2 size={18} className="absolute right-10 top-1/2 -translate-y-1/2 text-red-400 animate-spin" />
+          )}
+        </div>
+        <button
+          onClick={handleCreateNew}
+          className="flex items-center gap-1.5 rounded-xl bg-red-600 text-white px-4 py-3 hover:bg-red-700 transition-colors shadow-sm whitespace-nowrap"
+          style={{ fontSize: 13 }}
+        >
+          <Plus size={16} />
+          Neuer Kunde
+        </button>
       </div>
 
       {/* Status messages */}
