@@ -1153,19 +1153,17 @@ function OfferList({ onLoad, onNew }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Archive size={16} className="text-red-600" />
-          <span className="font-bold text-slate-700" style={{fontSize:14}}>Gespeicherte Angebote</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <Archive size={16} className="text-red-600 flex-shrink-0" />
+          <span className="font-bold text-slate-700" style={{fontSize:14}}>Angebote</span>
           <span className="text-slate-400" style={{fontSize:12}}>({offers.length})</span>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={fetchOffers} className="rounded-lg bg-slate-100 text-slate-600 px-3 py-1.5 hover:bg-slate-200 transition-colors flex items-center gap-1" style={{fontSize:12}}>
-            <RefreshCw size={13} /> Aktualisieren
-          </button>
-          <button onClick={onNew} className="rounded-lg bg-red-600 text-white px-3 py-1.5 hover:bg-red-700 transition-colors flex items-center gap-1" style={{fontSize:12}}>
-            <Plus size={13} /> Neues Angebot
+          <button onClick={fetchOffers} className="rounded-lg bg-slate-100 text-slate-600 p-1.5 hover:bg-slate-200 transition-colors flex-shrink-0 ml-1" title="Aktualisieren">
+            <RefreshCw size={13} />
           </button>
         </div>
+        <button onClick={onNew} className="rounded-lg bg-red-600 text-white px-3 py-1.5 hover:bg-red-700 transition-colors flex items-center gap-1 flex-shrink-0" style={{fontSize:12}}>
+          <Plus size={13} /> <span className="hidden sm:inline">Neues</span> Angebot
+        </button>
       </div>
 
       {/* Stage filter tabs */}
@@ -2100,7 +2098,7 @@ export default function App() {
     <AppShell activeSection={section} onNavigate={(s) => { setSection(s); if (s === 'angebote') setOfferView('list'); }}>
       {/* ═══ ANGEBOTE SECTION ═══ */}
       {section === 'angebote' && offerView === 'list' && (
-        <div className="flex-1 overflow-auto" style={{ padding: '24px 32px' }}>
+        <div className="flex-1 overflow-auto px-4 py-4 md:px-8 md:py-6">
           <OfferList onLoad={handleLoadOffer} onNew={handleNewOffer} />
         </div>
       )}
@@ -2109,53 +2107,53 @@ export default function App() {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Builder header bar */}
           <div className="no-print border-b border-slate-200 bg-white flex-shrink-0">
-            <div className="flex items-center justify-between px-5 py-3">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between px-3 py-2 md:px-5 md:py-3">
+              <div className="flex items-center gap-2 md:gap-3 min-w-0">
                 <button
                   onClick={() => setOfferView('list')}
-                  className="flex items-center gap-1.5 text-slate-500 hover:text-red-600 transition-colors"
+                  className="flex items-center gap-1 text-slate-500 hover:text-red-600 transition-colors flex-shrink-0"
                   style={{ fontSize: 13 }}
                 >
                   <ArrowLeft size={16} />
-                  <span>Alle Angebote</span>
+                  <span className="hidden sm:inline">Alle Angebote</span>
                 </button>
-                <span className="text-slate-300">|</span>
-                <span className="font-semibold text-slate-700" style={{ fontSize: 14 }}>
-                  {currentOfferId ? 'Angebot bearbeiten' : 'Neues Angebot'}
+                <span className="text-slate-300 hidden sm:inline">|</span>
+                <span className="font-semibold text-slate-700 truncate" style={{ fontSize: 14 }}>
+                  {currentOfferId ? 'Bearbeiten' : 'Neues Angebot'}
                 </span>
                 {cartCount > 0 && (
-                  <span className="bg-red-100 text-red-600 rounded-full px-2" style={{ fontSize: 11 }}>{cartCount} Pos.</span>
+                  <span className="bg-red-100 text-red-600 rounded-full px-2 flex-shrink-0" style={{ fontSize: 11 }}>{cartCount}</span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 {cartCount > 0 && (
-                  <button onClick={handleReset} className="flex items-center gap-1 rounded-lg bg-slate-100 text-slate-600 px-3 py-1.5 hover:bg-slate-200 transition-colors" style={{ fontSize: 12 }}>
-                    <Trash2 size={13} /> Zurücksetzen
+                  <button onClick={handleReset} className="flex items-center gap-1 rounded-lg bg-slate-100 text-slate-600 px-2 py-1.5 md:px-3 hover:bg-slate-200 transition-colors" style={{ fontSize: 12 }}>
+                    <Trash2 size={13} /> <span className="hidden sm:inline">Zurücksetzen</span>
                   </button>
                 )}
               </div>
             </div>
 
             {/* Builder sub-tabs + tier selector */}
-            <div className="flex items-center justify-between px-5 pb-2">
-              <div className="flex gap-1">
+            <div className="flex items-center justify-between px-3 pb-2 md:px-5 gap-2">
+              <div className="flex gap-0.5 md:gap-1 overflow-x-auto min-w-0">
                 {BUILDER_TABS.map(t => (
                   <button key={t.id} onClick={() => setBuilderTab(t.id)}
-                    className={`relative px-3 py-2 font-medium transition-colors rounded-t-lg ${builderTab === t.id ? 'text-red-600 bg-red-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
-                    style={{ fontSize: 13 }}>
+                    className={`relative px-2 py-2 md:px-3 font-medium transition-colors rounded-t-lg whitespace-nowrap flex-shrink-0 ${builderTab === t.id ? 'text-red-600 bg-red-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+                    style={{ fontSize: 12 }}>
                     {t.label}
                     {t.id === 'angebot' && cartCount > 0 && (
-                      <span className="ml-1.5 bg-red-600 text-white rounded-full" style={{ fontSize: 9, padding: '1px 5px' }}>{cartCount}</span>
+                      <span className="ml-1 bg-red-600 text-white rounded-full" style={{ fontSize: 9, padding: '1px 5px' }}>{cartCount}</span>
                     )}
                   </button>
                 ))}
               </div>
               {builderTab !== 'angebot' && (
-                <div className="flex gap-1">
+                <div className="flex gap-0.5 md:gap-1 flex-shrink-0">
                   {TIERS.map(t => (
                     <button key={t} onClick={() => setGlobalTier(t)}
                       className={`rounded-lg font-medium transition-all ${globalTier === t ? 'bg-red-500 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                      style={{ fontSize: 11, padding: '4px 10px' }}>
+                      style={{ fontSize: 10, padding: '4px 8px' }}>
                       {TIER_SHORT[t]}
                     </button>
                   ))}
@@ -2165,7 +2163,7 @@ export default function App() {
 
             {/* Product search bar */}
             {builderTab !== 'angebot' && (
-              <div className="px-5 pb-3">
+              <div className="px-3 pb-3 md:px-5">
                 <div className="relative">
                   <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
@@ -2186,7 +2184,7 @@ export default function App() {
           </div>
 
           {/* Builder content */}
-          <div className="flex-1 overflow-auto" style={{ padding: '16px 24px 32px' }}>
+          <div className="flex-1 overflow-auto px-3 py-3 md:px-6 md:py-4 md:pb-8">
             {search.trim() && builderTab !== 'angebot' ? (
               (() => {
                 const q = search.toLowerCase().trim();
@@ -2277,7 +2275,7 @@ export default function App() {
 
       {/* ═══ CRM SECTION ═══ */}
       {section === 'crm' && (
-        <div className="flex-1 overflow-auto" style={{ padding: '24px 32px' }}>
+        <div className="flex-1 overflow-auto px-4 py-4 md:px-8 md:py-6">
           <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
             <CrmPage />
           </React.Suspense>
