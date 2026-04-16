@@ -51,7 +51,7 @@ export async function listOffers() {
 
   const { data, error } = await supabase
     .from('offers')
-    .select('id, status, stage, customer_name, customer_company, customer_email, mesonic_customer_id, creator_name, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at')
+    .select('id, status, stage, customer_name, customer_company, customer_email, mesonic_customer_id, creator_id, creator_name, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at')
     .order('updated_at', { ascending: false });
 
   if (error) throw error;

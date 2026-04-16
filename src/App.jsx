@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
-import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2, Link, Save, Send, Mail, Clock, Eye, RefreshCw, ArrowLeft, Calendar, Building2, AlertCircle, CheckCircle2, XCircle, MailOpen, Archive, Pen, GripVertical } from "lucide-react";
+import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2, Link, Save, Send, Mail, Clock, Eye, RefreshCw, ArrowLeft, Calendar, Building2, AlertCircle, CheckCircle2, XCircle, MailOpen, Archive, Pen, GripVertical, Pencil } from "lucide-react";
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -626,6 +626,71 @@ function CustomItemModal({ onConfirm, onClose }) {
   );
 }
 
+function EditItemModal({ item, cartItem, globalTier, monthly, onSave, onRemove, onClose }) {
+  const [qty, setQty] = useState(cartItem.qty || 0);
+  const [discountQty, setDiscountQty] = useState(cartItem.discountQty || 0);
+  const currentPrice = price(item, cartItem.tier, cartItem.mode);
+  const [itemPrice, setItemPrice] = useState(String(currentPrice ?? 0));
+  const totalQty = qty + discountQty;
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (totalQty < 1) { onRemove(); return; }
+    const result = { qty, discountQty };
+    if (!monthly) {
+      const p = parseFloat(itemPrice);
+      if (isNaN(p) || p < 0) return;
+      result.price = p;
+    }
+    onSave(result);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="bg-slate-800 text-white px-5 py-4 flex items-center justify-between">
+          <span className="font-bold truncate mr-2" style={{ fontSize: 16 }}>{item.name}</span>
+          <button onClick={onClose} className="rounded-full bg-white/10 p-1.5 hover:bg-white/20 flex-shrink-0"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Menge</label>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => setQty(Math.max(0, qty - 1))} className="rounded-lg bg-slate-100 p-2 hover:bg-slate-200 transition-colors"><Minus size={16} /></button>
+              <input type="number" min="0" value={qty} onChange={e => setQty(Math.max(0, parseInt(e.target.value) || 0))}
+                className="w-20 text-center border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+              <button type="button" onClick={() => setQty(qty + 1)} className="rounded-lg bg-slate-100 p-2 hover:bg-slate-200 transition-colors"><Plus size={16} /></button>
+            </div>
+          </div>
+          {hasDiscount(item) && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Rabatt-Menge ({item.discount?.label})</label>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setDiscountQty(Math.max(0, discountQty - 1))} className="rounded-lg bg-slate-100 p-2 hover:bg-slate-200 transition-colors"><Minus size={16} /></button>
+                <input type="number" min="0" value={discountQty} onChange={e => setDiscountQty(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-20 text-center border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+                <button type="button" onClick={() => setDiscountQty(discountQty + 1)} className="rounded-lg bg-slate-100 p-2 hover:bg-slate-200 transition-colors"><Plus size={16} /></button>
+              </div>
+            </div>
+          )}
+          {!monthly && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Preis netto (€)</label>
+              <input type="number" step="0.01" min="0" value={itemPrice} onChange={e => setItemPrice(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+            </div>
+          )}
+          <button type="submit"
+            className={`w-full flex items-center justify-center gap-2 rounded-xl font-semibold py-3 active:scale-[0.98] transition-all ${totalQty < 1 ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-red-600 text-white hover:bg-red-700'}`}
+            style={{ fontSize: 14 }}>
+            {totalQty < 1 ? <><Trash2 size={18} /> Entfernen</> : <><Check size={18} /> Übernehmen</>}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════
 // SORTABLE ITEM ROW
 // ═══════════════════════════════════════════════════════
@@ -653,8 +718,9 @@ function SortableOfferRow({ id, children }) {
 // OFFER / ANGEBOT VIEW
 // ═══════════════════════════════════════════════════════
 
-function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier, onSave, onSend, saving, sending, saveSuccess, currentOfferId, onSign, signLoading, onAddCustom, cartOrder, onReorder, onRemoveItem }) {
+function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier, onSave, onSend, saving, sending, saveSuccess, currentOfferId, onSign, signLoading, onAddCustom, cartOrder, onReorder, onRemoveItem, onEditItem }) {
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+  const [editingItem, setEditingItem] = useState(null); // { id, item, cartItem, monthly }
   const allOrdered = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
   const monthlyItems = allOrdered.filter(([id,c]) => isMonthly(ALL[id], c.mode));
   const onceItems = allOrdered.filter(([id,c]) => !isMonthly(ALL[id], c.mode));
@@ -785,7 +851,8 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
                           {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
                         </div>
                         <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">€ {fmt(lineTotal)}/Mo</span>
-                        {isCustomItem(id) && <button onClick={() => onRemoveItem(id)} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
+                        <button onClick={() => setEditingItem({ id, item, cartItem: c, monthly: true })} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><Pencil size={13} /></button>
+                        {isCustomItem(id) && <button onClick={() => onRemoveItem(id)} className="ml-1 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
                       </div>
                     </SortableOfferRow>
                   );
@@ -829,7 +896,8 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
                           {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
                         </div>
                         <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">€ {fmt(lineTotal)}</span>
-                        {isCustomItem(id) && <button onClick={() => onRemoveItem(id)} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
+                        <button onClick={() => setEditingItem({ id, item, cartItem: c, monthly: false })} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><Pencil size={13} /></button>
+                        {isCustomItem(id) && <button onClick={() => onRemoveItem(id)} className="ml-1 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
                       </div>
                     </SortableOfferRow>
                   );
@@ -994,6 +1062,24 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
           </div>
         </div>
       )}
+
+      {editingItem && (
+        <EditItemModal
+          item={editingItem.item}
+          cartItem={editingItem.cartItem}
+          globalTier={globalTier}
+          monthly={editingItem.monthly}
+          onClose={() => setEditingItem(null)}
+          onSave={(result) => {
+            onEditItem(editingItem.id, result);
+            setEditingItem(null);
+          }}
+          onRemove={() => {
+            onRemoveItem(editingItem.id);
+            setEditingItem(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1045,6 +1131,59 @@ function StageBadge({ stage }) {
   );
 }
 
+function CreatorDropdown({ value, onChange, creators }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const active = value !== 'all';
+  const label = active ? value : 'Alle';
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  function select(v) { onChange(v); setOpen(false); }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-medium border transition-colors ${active ? 'bg-red-50 text-red-700 border-red-300' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}
+        style={{fontSize:11}}
+      >
+        <User size={11} />
+        <span className="max-w-[80px] truncate">{label}</span>
+        <ChevronDown size={11} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-white rounded-xl border border-slate-200 shadow-lg py-1 z-50 min-w-[160px]">
+          <button
+            onClick={() => select('all')}
+            className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${value === 'all' ? 'bg-red-50 text-red-700' : 'text-slate-700 hover:bg-slate-50'}`}
+            style={{fontSize:12}}
+          >
+            {value === 'all' && <Check size={12} />}
+            <span className={value === 'all' ? 'font-medium' : 'ml-5'}>Alle Ersteller</span>
+          </button>
+          {creators.map(name => (
+            <button
+              key={name}
+              onClick={() => select(name)}
+              className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${value === name ? 'bg-red-50 text-red-700' : 'text-slate-700 hover:bg-slate-50'}`}
+              style={{fontSize:12}}
+            >
+              {value === name && <Check size={12} />}
+              <span className={value === name ? 'font-medium' : 'ml-5'}>{name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Offer list component
 function OfferList({ onLoad, onNew }) {
   const [offers, setOffers] = useState([]);
@@ -1054,6 +1193,7 @@ function OfferList({ onLoad, onNew }) {
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [stageFilter, setStageFilter] = useState('new');
+  const [creatorFilter, setCreatorFilter] = useState('all');
   const [stageLoading, setStageLoading] = useState(null);
 
   const fetchOffers = useCallback(async () => {
@@ -1106,11 +1246,13 @@ function OfferList({ onLoad, onNew }) {
     }
   }
 
-  const filteredOffers = stageFilter === 'all' ? offers : offers.filter(o => o.stage === stageFilter);
-  const stageCounts = { all: offers.length };
+  const creatorFiltered = creatorFilter === 'all' ? offers : offers.filter(o => o.creator_name === creatorFilter);
+  const filteredOffers = stageFilter === 'all' ? creatorFiltered : creatorFiltered.filter(o => o.stage === stageFilter);
+  const stageCounts = { all: creatorFiltered.length };
   for (const s of ['new', 'offer_sent', 'closed', 'lost']) {
-    stageCounts[s] = offers.filter(o => o.stage === s).length;
+    stageCounts[s] = creatorFiltered.filter(o => o.stage === s).length;
   }
+  const uniqueCreators = [...new Set(offers.map(o => o.creator_name).filter(Boolean))].sort();
   const closedMonthly = offers.filter(o => o.stage === 'closed').reduce((sum, o) => sum + Number(o.total_monthly || 0), 0);
 
   if (!supabase) {
@@ -1161,9 +1303,18 @@ function OfferList({ onLoad, onNew }) {
             <RefreshCw size={13} />
           </button>
         </div>
-        <button onClick={onNew} className="rounded-lg bg-red-600 text-white px-3 py-1.5 hover:bg-red-700 transition-colors flex items-center gap-1 flex-shrink-0" style={{fontSize:12}}>
-          <Plus size={13} /> <span className="hidden sm:inline">Neues</span> Angebot
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {uniqueCreators.length > 1 && (
+            <CreatorDropdown
+              value={creatorFilter}
+              onChange={setCreatorFilter}
+              creators={uniqueCreators}
+            />
+          )}
+          <button onClick={onNew} className="rounded-lg bg-red-600 text-white px-3 py-1.5 hover:bg-red-700 transition-colors flex items-center gap-1 flex-shrink-0" style={{fontSize:12}}>
+            <Plus size={13} /> <span className="hidden sm:inline">Neues</span> Angebot
+          </button>
+        </div>
       </div>
 
       {/* Stage filter tabs */}
@@ -1546,6 +1697,26 @@ export default function App() {
     onTier: (id, tier) => setCart(c => c[id] ? {...c, [id]: {...c[id], tier}} : c),
     onMode: (id, mode) => setCart(c => c[id] ? {...c, [id]: {...c[id], mode}} : c),
   };
+
+  function handleEditItem(id, { qty, discountQty, price: newPrice }) {
+    setCart(c => {
+      if (!c[id]) return c;
+      return { ...c, [id]: { ...c[id], qty, discountQty } };
+    });
+    if (newPrice !== undefined) {
+      const item = ALL[id];
+      if (item) {
+        if (item.t === 'o' || item.t === 'h') {
+          item.p = { ...item.p, o: newPrice };
+          item.price = newPrice;
+        } else if (item.t === 'term') {
+          const cartItem = cart[id];
+          if (cartItem?.mode === 'buy') item.buy = newPrice;
+          else item.rent = newPrice;
+        }
+      }
+    }
+  }
 
   // Tier period multipliers
   const TIER_MONTHS = { '12mo': 12, '6mo': 6, '2mo': 2, 'event': 1 };
@@ -2232,7 +2403,7 @@ export default function App() {
                       totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
                       onSave={handleSave} onSend={handleSend} saving={saving} sending={sending} saveSuccess={saveSuccess} currentOfferId={currentOfferId}
                       onSign={() => setShowSignModal(true)} onAddCustom={() => setShowCustomModal(true)}
-                      cartOrder={cartOrder} onReorder={setCartOrder} onRemoveItem={handlers.onRemove} />
+                      cartOrder={cartOrder} onReorder={setCartOrder} onRemoveItem={handlers.onRemove} onEditItem={handleEditItem} />
                     {showCustomModal && (
                       <CustomItemModal onConfirm={handleAddCustomItem} onClose={() => setShowCustomModal(false)} />
                     )}
