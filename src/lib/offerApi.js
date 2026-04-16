@@ -100,11 +100,19 @@ export async function updateOfferStage(id, stage) {
 }
 
 // Send offer via edge function
-export async function sendOffer(offerId, pdfBase64, pdfFilename) {
+export async function sendOffer(offerId, pdfBase64, pdfFilename, emailText) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
+  const body = { offerId, pdfBase64, pdfFilename };
+  if (emailText) {
+    body.emailSubject = emailText.subject;
+    body.emailGreeting = emailText.greeting;
+    body.emailBody = emailText.body;
+    body.emailClosing = emailText.closing;
+  }
+
   const { data, error } = await supabase.functions.invoke('send-offer', {
-    body: { offerId, pdfBase64, pdfFilename },
+    body,
     headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
   });
 

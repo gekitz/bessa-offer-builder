@@ -12,7 +12,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { offerId, pdfBase64, pdfFilename } = await req.json();
+    const { offerId, pdfBase64, pdfFilename, emailSubject, emailGreeting, emailBody, emailClosing } = await req.json();
 
     if (!offerId) {
       return new Response(JSON.stringify({ error: 'offerId is required' }), {
@@ -104,6 +104,11 @@ serve(async (req: Request) => {
     const fmtEur = (n: number) =>
       n.toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+    // Use custom text from frontend or fall back to defaults
+    const greeting = emailGreeting || `Sehr geehrte/r ${customerName},`;
+    const bodyText = emailBody || 'vielen Dank für Ihr Interesse. Anbei erhalten Sie Ihr persönliches Angebot als PDF-Anhang.';
+    const closingText = emailClosing || 'Bei Fragen stehe ich Ihnen jederzeit gerne zur Verfügung.';
+
     const emailHtml = `
 <!DOCTYPE html>
 <html lang="de">
@@ -120,10 +125,10 @@ serve(async (req: Request) => {
     <div style="padding:32px;">
       <h1 style="color:#1e293b;font-size:22px;margin:0 0 16px;">Ihr Angebot von Kitz Computer &amp; Office GmbH</h1>
       <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px;">
-        Sehr geehrte/r ${customerName},
+        ${greeting}
       </p>
       <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 24px;">
-        vielen Dank für Ihr Interesse. Anbei erhalten Sie Ihr persönliches Angebot als PDF-Anhang.
+        ${bodyText}
       </p>
 
       <!-- Summary Box -->
@@ -140,7 +145,7 @@ serve(async (req: Request) => {
       </div>
 
       <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 8px;">
-        Bei Fragen stehe ich Ihnen jederzeit gerne zur Verfügung.
+        ${closingText}
       </p>
       <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 32px;">
         Mit freundlichen Grüßen
@@ -170,7 +175,7 @@ serve(async (req: Request) => {
     const emailPayload: Record<string, unknown> = {
       from: 'Kitz Computer & Office GmbH <angebote@kitz.co.at>',
       to: [offer.customer_email],
-      subject: `Ihr Angebot von Kitz Computer & Office GmbH – ${offer.customer_company || offer.customer_name || 'Angebot'}`,
+      subject: emailSubject || `Ihr Angebot von Kitz Computer & Office GmbH – ${offer.customer_company || offer.customer_name || 'Angebot'}`,
       html: emailHtml,
     };
 
