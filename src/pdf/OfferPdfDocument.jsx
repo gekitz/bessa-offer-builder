@@ -103,6 +103,24 @@ function TableHeader() {
   );
 }
 
+// Wartung row component (per-year service fee for Melzer items)
+function WartungRow({ item, index }) {
+  const isAlt = index % 2 === 1;
+  const totalQty = (item.qty || 0) + (item.discountQty || 0);
+  return (
+    <View style={[styles.tableRow, isAlt && styles.tableRowAlt]} wrap={false}>
+      <Text style={[styles.cellText, styles.colQty]}>{totalQty}</Text>
+      <Text style={[styles.cellCode, styles.colCode]}>{item.code || '-'}</Text>
+      <View style={styles.colName}>
+        <Text style={styles.cellText}>{item.name}</Text>
+        <Text style={styles.cellInfo}>{item.servicePercent}% Wartung (UVP)</Text>
+      </View>
+      <Text style={[styles.cellText, styles.colTier]}>pro Jahr</Text>
+      <Text style={[styles.cellPrice, styles.colPrice]}>{fmt(item.wartungLine)}</Text>
+    </View>
+  );
+}
+
 // Table row component
 function TableRow({ item, index, isMonthly }) {
   const isAlt = index % 2 === 1;
@@ -184,30 +202,31 @@ function TotalsBox({ netto, isMonthly }) {
 }
 
 // Period total summary component
-function PeriodSummary({ periodTotal, periodMonthly, hasMonthly, hasOnce }) {
+function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce, hasYearly }) {
   const brutto = periodTotal * 1.2;
-  const showMonthlyRow = hasMonthly && hasOnce;
+  const recurring = periodMonthly + yearly;
+  const showRecurringRow = (hasMonthly && hasOnce) || hasYearly;
+  const firstYearLabel =
+    'Kosten im ersten Jahr (monatlich × Laufzeit + einmalig' + (hasYearly ? ' + Wartung' : '') + ')';
+  const recurringLabel =
+    'Kosten jedes weitere Jahr (monatlich × Laufzeit' + (hasYearly ? ' + Wartung' : '') + ')';
 
   return (
     <View style={styles.periodSummary} wrap={false}>
       <Text style={styles.periodSummaryTitle}>GESAMTÜBERSICHT</Text>
-      <View style={[styles.periodSummaryContent, { borderBottomWidth: showMonthlyRow ? 0.5 : 0, borderBottomColor: '#e2e8f0', paddingBottom: showMonthlyRow ? 6 : 0, marginBottom: showMonthlyRow ? 4 : 0 }]}>
-        <Text style={styles.periodSummaryLabel}>
-          Kosten im ersten Jahr (monatlich × Laufzeit + einmalig)
-        </Text>
+      <View style={[styles.periodSummaryContent, { borderBottomWidth: showRecurringRow ? 0.5 : 0, borderBottomColor: '#e2e8f0', paddingBottom: showRecurringRow ? 6 : 0, marginBottom: showRecurringRow ? 4 : 0 }]}>
+        <Text style={styles.periodSummaryLabel}>{firstYearLabel}</Text>
         <View style={styles.periodSummaryValues}>
           <Text style={styles.periodSummaryNetto}>{fmt(periodTotal)} netto</Text>
           <Text style={styles.periodSummaryBrutto}>{fmt(brutto)} brutto</Text>
         </View>
       </View>
-      {showMonthlyRow && (
+      {showRecurringRow && (
         <View style={styles.periodSummaryContent}>
-          <Text style={styles.periodSummaryLabel}>
-            Kosten jedes weitere Jahr (monatlich × Laufzeit)
-          </Text>
+          <Text style={styles.periodSummaryLabel}>{recurringLabel}</Text>
           <View style={styles.periodSummaryValues}>
-            <Text style={styles.periodSummaryNetto}>{fmt(periodMonthly)} netto</Text>
-            <Text style={styles.periodSummaryBrutto}>{fmt(periodMonthly * 1.2)} brutto</Text>
+            <Text style={styles.periodSummaryNetto}>{fmt(recurring)} netto</Text>
+            <Text style={styles.periodSummaryBrutto}>{fmt(recurring * 1.2)} brutto</Text>
           </View>
         </View>
       )}
@@ -403,6 +422,8 @@ export default function OfferPdfDocument({
   customer,
   monthlyItems,
   onceItems,
+  wartungItems = [],
+  autoTerms = [],
   totals,
   notes,
   raten,
@@ -476,9 +497,40 @@ export default function OfferPdfDocument({
           </View>
         )}
 
+        {/* Wartung pro Jahr (Melzer) */}
+        {wartungItems.length > 0 && (
+          <View style={styles.table}>
+            <Text style={[styles.sectionTitle, styles.sectionTitleOnce]}>
+              WARTUNG PRO JAHR
+            </Text>
+            <TableHeader />
+            {wartungItems.map((item, idx) => (
+              <WartungRow key={`w-${item.id}`} item={item} index={idx} />
+            ))}
+            <TotalsBox netto={totals.yearly} isMonthly={false} />
+          </View>
+        )}
+
         {/* Period Total Summary */}
-        {(totals.monthly > 0 || totals.once > 0) && (
-          <PeriodSummary periodTotal={totals.periodTotal} periodMonthly={totals.periodMonthly} hasMonthly={totals.monthly > 0} hasOnce={totals.once > 0} />
+        {(totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
+          <PeriodSummary
+            periodTotal={totals.periodTotal}
+            periodMonthly={totals.periodMonthly}
+            yearly={totals.yearly || 0}
+            hasMonthly={totals.monthly > 0}
+            hasOnce={totals.once > 0}
+            hasYearly={(totals.yearly || 0) > 0}
+          />
+        )}
+
+        {/* Auto-generated terms */}
+        {autoTerms.length > 0 && (
+          <View style={styles.notesSection} wrap={false}>
+            <Text style={styles.notesTitle}>Bedingungen</Text>
+            {autoTerms.map((t, i) => (
+              <Text key={i} style={styles.notesText}>• {t}</Text>
+            ))}
+          </View>
         )}
 
         {/* Notes */}
@@ -504,7 +556,7 @@ export default function OfferPdfDocument({
         <SignatureSection signature={signatures?.offer} signedAt={signedAt} />
 
         {/* Footer - only on last page */}
-        {!(showFinancing && (totals.monthly > 0 || totals.once > 0)) && (
+        {!(showFinancing && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0)) && (
           <PdfFooter />
         )}
 
@@ -519,7 +571,7 @@ export default function OfferPdfDocument({
       </Page>
 
       {/* Financing Options - Separate Page */}
-      {showFinancing && (totals.monthly > 0 || totals.once > 0) && (
+      {showFinancing && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
         <Page size="A4" style={styles.page}>
           {/* Header */}
           <PdfHeader />
@@ -545,7 +597,7 @@ export default function OfferPdfDocument({
       )}
 
       {/* SEPA Mandate Page */}
-      {showFinancing && (totals.monthly > 0 || totals.once > 0) && (
+      {showFinancing && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
         <Page size="A4" style={styles.page}>
           <PdfHeader />
           <SepaMandate customer={customer} mandatsRef={mandatsRef} signature={signatures?.sepa} signedAt={signedAt} />

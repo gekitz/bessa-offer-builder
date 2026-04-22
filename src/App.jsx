@@ -34,45 +34,138 @@ const COMPANY_DEFAULT = {
   logo: 'https://www.kitz.co.at/wp-content/uploads/2019/12/kitz-logo-2020-300x138.png',
 };
 
-const KASSA = [
-  { id:'3942f638-1abb-4be9-85a5-d3bf442aa3d8', code:'100', name:'Mobile Kassa', cat:'Mobil', p:{y:19,s:25,m:30,e:38}, t:'m' },
-  { id:'c4aca644-5fb4-46cf-9fea-8ddc1bee8c30', code:'109', name:'bessa Mobil', cat:'Mobil', p:{y:119}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
-  { id:'cb003c42-11dc-48c9-a5de-68a2c998501a', code:'110', name:'Kleiner Handelsbetrieb', cat:'Handel', p:{y:24,s:30,m:40,e:48}, t:'m' },
-  { id:'4d6ee0aa-32ad-480a-aa2f-4d1ddf620b12', code:'111', name:'Großer Handelsbetrieb', cat:'Handel', p:{y:42,s:55,m:70,e:84}, t:'m' },
-  { id:'6fa5da94-d90b-41a1-ab17-f515d172b940', code:'115', name:'Web Kassa / Auftragsverwaltung', cat:'Handel', p:{y:19,s:25,m:30}, t:'m' },
-  { id:'1dfe4874-04a7-47e9-9230-e1696b6e8901', code:'119', name:'bessa Handelsbetrieb', cat:'Handel', p:{y:160}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
-  { id:'a4e9ba39-ee22-41b9-8f94-936ee3ce3de3', code:'120', name:'Kleiner Gastrobetrieb', cat:'Gastro', p:{y:45,s:55,m:70,e:90}, t:'m' },
-  { id:'95cd9f0f-ec0d-46eb-aaa6-330a8ce129d4', code:'121', name:'Großer Gastrobetrieb', cat:'Gastro', p:{y:62,s:80,m:100,e:124}, t:'m' },
-  { id:'6f8ed70a-8388-40d6-8e9e-516f524cd3e5', code:'129', name:'bessa Gastrobetrieb', cat:'Gastro', p:{y:240}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
-  { id:'40769d58-ebbb-40f8-b4b8-9a89da35a934', code:'020', name:'Zusätzlicher Bediener', cat:'Einzelfunktionen', p:{y:3,s:4,m:5,e:6}, t:'m' },
-  { id:'4bc73978-ee15-4858-8107-87d3faa210e2', code:'021', name:'Kundenverwaltung', cat:'Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
-  { id:'f7a4cb27-d3cf-4e84-ba58-a273da596c06', code:'022', name:'Lagerverwaltung', cat:'Einzelfunktionen', p:{y:15,s:18,m:20,e:30}, t:'m', note:'+10h Arbeitszeit' },
-  { id:'00c9aca1-e463-4c63-a5c2-9fd51d70010a', code:'023', name:'Lokale Gutscheinverwaltung', cat:'Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
-  { id:'3296ada4-f7f8-47a1-9cf5-a3dc64326f3a', code:'024', name:'Erweitertes Berichtswesen', cat:'Einzelfunktionen', p:{y:18,s:22,m:28,e:36}, t:'m' },
-  { id:'b2a3bb5a-370c-49d4-96e3-874b5df66c56', code:'030', name:'bessa Signieren', cat:'Einzelfunktionen', p:{y:9,s:11,m:25,e:50}, t:'m', note:'derzeit nur DE' },
-  { id:'14105277-c0ca-400f-9444-3ec9414fb279', code:'040a', name:'Anbindung bessa Zahlen (Kartenzahlung)', cat:'Externe Systeme', p:{y:0,s:0,m:0,e:0}, t:'m' },
-  { id:'65e7e1a8-23b3-444f-8b18-c5ca7312cf28', code:'040', name:'Anbindung Kartenzahlungsterminal', cat:'Externe Systeme', p:{y:12,s:15,m:18,e:24}, t:'m' },
-  { id:'117be9d9-f2b0-409d-9ec6-9497f943ff4f', code:'041', name:'Anbindung Barzahlungsterminal', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
-  { id:'eceb4278-06cc-4fe5-9413-d41ae999166c', code:'042', name:'Nebenterminal', cat:'Externe Systeme', p:{y:14,s:16,m:18,e:28}, t:'m' },
-  { id:'0824405f-8780-4371-919b-5cee2c6efb07', code:'043', name:'Bestellmonitor', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
-  { id:'ad5d1834-f864-43a1-8be4-2bae0bfeade4', code:'044', name:'Anbindung Schankanlage', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m', note:'+10h Arbeitszeit' },
-  { id:'a336d467-a39f-4acd-8872-e7d185c45ea9', code:'049', name:'Öffentliche Schnittstelle', cat:'Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+const BESSA = [
+  // Kassa
+  { id:'3942f638-1abb-4be9-85a5-d3bf442aa3d8', code:'100', name:'Mobile Kassa', cat:'Kassa – Mobil', p:{y:19,s:25,m:30,e:38}, t:'m' },
+  { id:'c4aca644-5fb4-46cf-9fea-8ddc1bee8c30', code:'109', name:'bessa Mobil', cat:'Kassa – Mobil', p:{y:119}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'cb003c42-11dc-48c9-a5de-68a2c998501a', code:'110', name:'Kleiner Handelsbetrieb', cat:'Kassa – Handel', p:{y:24,s:30,m:40,e:48}, t:'m' },
+  { id:'4d6ee0aa-32ad-480a-aa2f-4d1ddf620b12', code:'111', name:'Großer Handelsbetrieb', cat:'Kassa – Handel', p:{y:42,s:55,m:70,e:84}, t:'m' },
+  { id:'6fa5da94-d90b-41a1-ab17-f515d172b940', code:'115', name:'Web Kassa / Auftragsverwaltung', cat:'Kassa – Handel', p:{y:19,s:25,m:30}, t:'m' },
+  { id:'1dfe4874-04a7-47e9-9230-e1696b6e8901', code:'119', name:'bessa Handelsbetrieb', cat:'Kassa – Handel', p:{y:160}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'a4e9ba39-ee22-41b9-8f94-936ee3ce3de3', code:'120', name:'Kleiner Gastrobetrieb', cat:'Kassa – Gastro', p:{y:45,s:55,m:70,e:90}, t:'m' },
+  { id:'95cd9f0f-ec0d-46eb-aaa6-330a8ce129d4', code:'121', name:'Großer Gastrobetrieb', cat:'Kassa – Gastro', p:{y:62,s:80,m:100,e:124}, t:'m' },
+  { id:'6f8ed70a-8388-40d6-8e9e-516f524cd3e5', code:'129', name:'bessa Gastrobetrieb', cat:'Kassa – Gastro', p:{y:240}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'40769d58-ebbb-40f8-b4b8-9a89da35a934', code:'020', name:'Zusätzlicher Bediener', cat:'Kassa – Einzelfunktionen', p:{y:3,s:4,m:5,e:6}, t:'m' },
+  { id:'4bc73978-ee15-4858-8107-87d3faa210e2', code:'021', name:'Kundenverwaltung', cat:'Kassa – Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
+  { id:'f7a4cb27-d3cf-4e84-ba58-a273da596c06', code:'022', name:'Lagerverwaltung', cat:'Kassa – Einzelfunktionen', p:{y:15,s:18,m:20,e:30}, t:'m', note:'+10h Arbeitszeit' },
+  { id:'00c9aca1-e463-4c63-a5c2-9fd51d70010a', code:'023', name:'Lokale Gutscheinverwaltung', cat:'Kassa – Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
+  { id:'3296ada4-f7f8-47a1-9cf5-a3dc64326f3a', code:'024', name:'Erweitertes Berichtswesen', cat:'Kassa – Einzelfunktionen', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'b2a3bb5a-370c-49d4-96e3-874b5df66c56', code:'030', name:'bessa Signieren', cat:'Kassa – Einzelfunktionen', p:{y:9,s:11,m:25,e:50}, t:'m', note:'derzeit nur DE' },
+  { id:'14105277-c0ca-400f-9444-3ec9414fb279', code:'040a', name:'Anbindung bessa Zahlen (Kartenzahlung)', cat:'Kassa – Externe Systeme', p:{y:0,s:0,m:0,e:0}, t:'m' },
+  { id:'65e7e1a8-23b3-444f-8b18-c5ca7312cf28', code:'040', name:'Anbindung Kartenzahlungsterminal', cat:'Kassa – Externe Systeme', p:{y:12,s:15,m:18,e:24}, t:'m' },
+  { id:'117be9d9-f2b0-409d-9ec6-9497f943ff4f', code:'041', name:'Anbindung Barzahlungsterminal', cat:'Kassa – Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'eceb4278-06cc-4fe5-9413-d41ae999166c', code:'042', name:'Nebenterminal', cat:'Kassa – Externe Systeme', p:{y:14,s:16,m:18,e:28}, t:'m' },
+  { id:'0824405f-8780-4371-919b-5cee2c6efb07', code:'043', name:'Bestellmonitor', cat:'Kassa – Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'ad5d1834-f864-43a1-8be4-2bae0bfeade4', code:'044', name:'Anbindung Schankanlage', cat:'Kassa – Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m', note:'+10h Arbeitszeit' },
+  { id:'a336d467-a39f-4acd-8872-e7d185c45ea9', code:'049', name:'Öffentliche Schnittstelle', cat:'Kassa – Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  // Module
+  { id:'3ad3609d-c87a-485f-b96f-827e60c79e81', code:'300', name:'App (pro Filiale)', cat:'Module – Pakete', p:{y:109}, t:'m', note:'50% Rabatt je weitere Filiale', discount:{type:'percent',value:50,label:'Weitere Filiale'} },
+  { id:'d3a94a99-982c-4969-aab8-9aed654ed0cb', code:'310', name:'Handel (pro Filiale)', cat:'Module – Pakete', p:{y:139}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'37551e30-8b3f-44cf-a126-702dfd2539ea', code:'320', name:'Gastro (pro Filiale)', cat:'Module – Pakete', p:{y:199}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'bfa4ca0e-b5ed-4cd2-a1a7-12c02854082f', code:'200', name:'Web-Bestellungen', cat:'Module – Einzelfunktionen', p:{y:39,s:49}, t:'m' },
+  { id:'48065ab3-b47f-46ae-a32e-2176ae41dd30', code:'201', name:'Kundenbindung Kundenkarte', cat:'Module – Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'35518df7-6eb3-4bd3-a21c-33e379d23271', code:'202', name:'Lieferservice-Bestellungen', cat:'Module – Einzelfunktionen', p:{y:39}, t:'m', info:'Lieferando, Foodora, Wolt and UberEATS' },
+  { id:'d2c207cf-3c6f-41f6-a1df-739e8e48d4bb', code:'203', name:'Gastro-Kiosk-Bestellungen', cat:'Module – Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weiterer Kiosk', discount:{type:'percent',value:50,label:'Weiterer Kiosk'} },
+  { id:'d0c56974-678a-41b0-9924-e5353cc0891b', code:'204', name:'Tisch-Tablet-Bestellungen', cat:'Module – Einzelfunktionen', p:{y:9,s:12}, t:'m' },
+  { id:'cdc84a4d-99b6-48c5-b414-c5be9daeff03', code:'205', name:'Schank-Bestellungen', cat:'Module – Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weitere Schank', discount:{type:'percent',value:50,label:'Weitere Schank'} },
+  { id:'ec32520e-cbba-4739-8cf0-fd8bb918ca55', code:'206', name:'Kantinen-Bestellungen', cat:'Module – Einzelfunktionen', p:{y:99}, t:'m', note:'50% für öffentl. Einr.' },
+  { id:'01289762-3f01-486f-8ab8-d5aa9038996e', code:'207', name:'Online Gutscheinverwaltung', cat:'Module – Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'33da16d1-bbaf-40b1-bac4-9160ce593952', code:'208', name:'Gutscheine Shopify/WooCommerce', cat:'Module – Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'f2d30dd5-e54f-426d-8ea5-20ccb6396b06', code:'209', name:'Gastrotouch Kennzahlen', cat:'Module – Einzelfunktionen', p:{y:39}, t:'m' },
 ];
 
-const MODULE = [
-  { id:'3ad3609d-c87a-485f-b96f-827e60c79e81', code:'300', name:'App (pro Filiale)', cat:'Pakete', p:{y:109}, t:'m', note:'50% Rabatt je weitere Filiale', discount:{type:'percent',value:50,label:'Weitere Filiale'} },
-  { id:'d3a94a99-982c-4969-aab8-9aed654ed0cb', code:'310', name:'Handel (pro Filiale)', cat:'Pakete', p:{y:139}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
-  { id:'37551e30-8b3f-44cf-a126-702dfd2539ea', code:'320', name:'Gastro (pro Filiale)', cat:'Pakete', p:{y:199}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
-  { id:'bfa4ca0e-b5ed-4cd2-a1a7-12c02854082f', code:'200', name:'Web-Bestellungen', cat:'Einzelfunktionen', p:{y:39,s:49}, t:'m' },
-  { id:'48065ab3-b47f-46ae-a32e-2176ae41dd30', code:'201', name:'Kundenbindung Kundenkarte', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
-  { id:'35518df7-6eb3-4bd3-a21c-33e379d23271', code:'202', name:'Lieferservice-Bestellungen', cat:'Einzelfunktionen', p:{y:39}, t:'m', info:'Lieferando, Foodora, Wolt and UberEATS' },
-  { id:'d2c207cf-3c6f-41f6-a1df-739e8e48d4bb', code:'203', name:'Gastro-Kiosk-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weiterer Kiosk', discount:{type:'percent',value:50,label:'Weiterer Kiosk'} },
-  { id:'d0c56974-678a-41b0-9924-e5353cc0891b', code:'204', name:'Tisch-Tablet-Bestellungen', cat:'Einzelfunktionen', p:{y:9,s:12}, t:'m' },
-  { id:'cdc84a4d-99b6-48c5-b414-c5be9daeff03', code:'205', name:'Schank-Bestellungen', cat:'Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weitere Schank', discount:{type:'percent',value:50,label:'Weitere Schank'} },
-  { id:'ec32520e-cbba-4739-8cf0-fd8bb918ca55', code:'206', name:'Kantinen-Bestellungen', cat:'Einzelfunktionen', p:{y:99}, t:'m', note:'50% für öffentl. Einr.' },
-  { id:'01289762-3f01-486f-8ab8-d5aa9038996e', code:'207', name:'Online Gutscheinverwaltung', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
-  { id:'33da16d1-bbaf-40b1-bac4-9160ce593952', code:'208', name:'Gutscheine Shopify/WooCommerce', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
-  { id:'f2d30dd5-e54f-426d-8ea5-20ccb6396b06', code:'209', name:'Gastrotouch Kennzahlen', cat:'Einzelfunktionen', p:{y:39}, t:'m' },
+// Melzer X3000 – UVP-Preisliste gültig ab 01.01.2026
+// Einmaliger Softwarepreis + 30% Wartung pro Jahr (servicePercent). Pepper-Terminal-Varianten sind ausgelassen.
+const MELZER = [
+  // Arbeitsplätze (pro Platz/Gerät)
+  { id:'mel-ap-kasse', name:'Kasse', cat:'Arbeitsplätze', price:990, t:'o', servicePercent:30 },
+  { id:'mel-ap-kasse-light', name:'Kasse Light', cat:'Arbeitsplätze', price:690, t:'o', servicePercent:30, info:'Vollwertiger Kassenplatz, kein Büroplatz, keine Module, kein Ablöserabatt' },
+  { id:'mel-ap-kasse-handel', name:'Kasse Handel', cat:'Arbeitsplätze', price:690, t:'o', servicePercent:30, info:'Automatisch SB-Modus, kein Bestellbon, kein grafischer Tischplan' },
+  { id:'mel-ap-buero', name:'Büro', cat:'Arbeitsplätze', price:690, t:'o', servicePercent:30, info:'Boniersystem aufrufbar, bonieren möglich (kein Bestellbon)' },
+  { id:'mel-ap-buero-light', name:'Büro Light', cat:'Arbeitsplätze', price:290, t:'o', servicePercent:30, info:'Pro Dongel ohne „Kasse" ist Büro Light notwendig' },
+  { id:'mel-ap-kiosk', name:'Kiosk (Android)', cat:'Arbeitsplätze', price:790, t:'o', servicePercent:30 },
+  { id:'mel-ap-mob-tablet', name:'MobileKasse Tablet (Android)', cat:'Arbeitsplätze', price:790, t:'o', servicePercent:30, info:'Cloud ohne Wartung: +19 €/Mo Lizenzgebühr' },
+  { id:'mel-ap-mob-phone', name:'MobileKasse Smartphone / Tablet Hochformat', cat:'Arbeitsplätze', price:390, t:'o', servicePercent:30, info:'Cloud ohne Wartung: +19 €/Mo Lizenzgebühr' },
+  { id:'mel-ap-bondisplay', name:'Bondisplay', cat:'Arbeitsplätze', price:590, t:'o', servicePercent:30 },
+  { id:'mel-ap-abholdisplay', name:'Abholdisplay (Web)', cat:'Arbeitsplätze', price:290, t:'o', servicePercent:30 },
+
+  // Interface Kreditkarten-Terminal (Direkt-Anschluss, pro Anschluss)
+  { id:'mel-kk-kasse', name:'Kreditkarten-Terminal – Kasse', cat:'Interface Kreditkarten (Direkt)', price:390, t:'o', servicePercent:30, info:'pro Direkt-Anschluss' },
+  { id:'mel-kk-kiosk', name:'Kreditkarten-Terminal – Kiosk', cat:'Interface Kreditkarten (Direkt)', price:390, t:'o', servicePercent:30, info:'pro Direkt-Anschluss' },
+  { id:'mel-kk-mob-tablet', name:'Kreditkarten-Terminal – MobileKasse Tablet', cat:'Interface Kreditkarten (Direkt)', price:390, t:'o', servicePercent:30, info:'pro Direkt-Anschluss' },
+  { id:'mel-kk-mob-phone', name:'Kreditkarten-Terminal – MobileKasse Smartphone/Hochformat', cat:'Interface Kreditkarten (Direkt)', price:190, t:'o', servicePercent:30, info:'pro Direkt-Anschluss' },
+
+  // Interface Chipleser (pro Anschluss) – kostenpflichtig nur mit Stammdaten-Chipverwaltung
+  { id:'mel-chip-kasse', name:'Chipleser – Kasse', cat:'Interface Chipleser', price:390, t:'o', servicePercent:30 },
+  { id:'mel-chip-kiosk', name:'Chipleser – Kiosk', cat:'Interface Chipleser', price:390, t:'o', servicePercent:30 },
+  { id:'mel-chip-mob-tablet', name:'Chipleser – MobileKasse Tablet', cat:'Interface Chipleser', price:390, t:'o', servicePercent:30 },
+  { id:'mel-chip-mob-phone', name:'Chipleser – MobileKasse Smartphone/Hochformat', cat:'Interface Chipleser', price:190, t:'o', servicePercent:30 },
+
+  // Diverse Interfaces zu externen Geräten
+  { id:'mel-if-vision-checkout', name:'Vision Checkout', cat:'Interfaces externe Geräte', price:690, t:'o', servicePercent:30, info:'zusätzlich: Kassenplatz + Interface Kreditkarten und/oder Chipleser' },
+  { id:'mel-if-waage', name:'Waage', cat:'Interfaces externe Geräte', price:390, t:'o', servicePercent:30 },
+  { id:'mel-if-scanner', name:'Scanner mit Preis-/Grammberechnung', cat:'Interfaces externe Geräte', price:190, t:'o', servicePercent:30 },
+  { id:'mel-if-cashdispenser', name:'Cashdispenser', cat:'Interfaces externe Geräte', price:690, t:'o', servicePercent:30 },
+  { id:'mel-if-schankanlage', name:'Schankanlage', cat:'Interfaces externe Geräte', price:690, t:'o', servicePercent:30, info:'pro Dongel' },
+
+  // Interne Module (pro Dongel)
+  { id:'mel-int-rechnung-online', name:'Rechnung Online', cat:'Interne Module', price:490, t:'o', servicePercent:30, info:'Ohne Wartung: +19 €/Mo Lizenzgebühr' },
+  { id:'mel-int-lieferschein', name:'Lieferschein + Sammelrechnung', cat:'Interne Module', price:390, t:'o', servicePercent:30 },
+  { id:'mel-int-menuebestellung', name:'Menübestellung und -abruf', cat:'Interne Module', price:390, t:'o', servicePercent:30 },
+  { id:'mel-int-gutschein', name:'Gutscheinverwaltung intern', cat:'Interne Module', price:690, t:'o', servicePercent:30 },
+  { id:'mel-int-kassabuch', name:'Kassabuch', cat:'Interne Module', price:490, t:'o', servicePercent:30 },
+  { id:'mel-int-tischreservierung', name:'Tischreservierung intern', cat:'Interne Module', price:490, t:'o', servicePercent:30 },
+  { id:'mel-int-mixmatch', name:'Mix and Match', cat:'Interne Module', price:290, t:'o', servicePercent:30 },
+  { id:'mel-int-filial-zentrale', name:'Filialverwaltung Zentrale', cat:'Interne Module', price:890, t:'o', servicePercent:30, info:'Zumindest ein kostenpflichtiger Büro- oder Kassenplatz zusätzlich notwendig' },
+  { id:'mel-int-filial-filiale', name:'Filialverwaltung Filiale', cat:'Interne Module', price:490, t:'o', servicePercent:30 },
+  { id:'mel-int-webreports', name:'WebReports', cat:'Interne Module', price:290, t:'o', servicePercent:30, info:'pro Dongel und User · Ohne Wartung: +19 €/Mo Lizenzgebühr' },
+
+  // Interfaces zu Fremdsoftware (pro Dongel und Anbieter)
+  { id:'mel-fs-gutschein-ext', name:'Gutscheinverwaltung extern', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30 },
+  { id:'mel-fs-hotelsoftware', name:'Hotelsoftware pro Zimmer', cat:'Interfaces Fremdsoftware', price:25, t:'o', servicePercent:30, info:'Max. 60 Zimmer verrechnet, weitere Zimmer kostenlos' },
+  { id:'mel-fs-fibu-wawi', name:'Fibu / Wawi', cat:'Interfaces Fremdsoftware', price:490, t:'o', servicePercent:30 },
+  { id:'mel-fs-datev', name:'Datev Kassenarchiv online (D)', cat:'Interfaces Fremdsoftware', price:490, t:'o', servicePercent:30 },
+  { id:'mel-fs-selford-ordering', name:'Selfordering – Ordering', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30 },
+  { id:'mel-fs-selford-plattform', name:'Selfordering – Plattform (Lieferando …)', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30 },
+  { id:'mel-fs-selford-payment', name:'Selfordering – Payment', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30 },
+  { id:'mel-fs-selford-kiosk', name:'Selfordering – Kiosk', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30, info:'pro Kiosk' },
+  { id:'mel-fs-bonus-ext', name:'Bonussystem extern', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30 },
+  { id:'mel-fs-tisch-ext', name:'Tischreservierung extern', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30 },
+  { id:'mel-fs-zutritt', name:'Zutrittsystem (HKS, TAC, N-TREE)', cat:'Interfaces Fremdsoftware', price:1200, t:'o', servicePercent:30, info:'Evt. Sonderprogrammierung separat verrechnet' },
+  { id:'mel-fs-signieren', name:'Signieren BelegExtern pro Transfer.exe', cat:'Interfaces Fremdsoftware', price:890, t:'o', servicePercent:30, info:'Zumindest ein kostenpflichtiger Büro- oder Kassenplatz notwendig' },
+
+  // Import (pro Dongel und Interface)
+  { id:'mel-imp-artikel', name:'Artikel', cat:'Import', price:490, t:'o', servicePercent:30 },
+  { id:'mel-imp-gaestekartei', name:'Gästekartei', cat:'Import', price:490, t:'o', servicePercent:30 },
+  { id:'mel-imp-chipdetails', name:'Chipdetails', cat:'Import', price:490, t:'o', servicePercent:30 },
+
+  // Lagerverwaltung (pro Dongel)
+  { id:'mel-lag-basis', name:'Lager Basismodul', cat:'Lagerverwaltung', price:290, t:'o', servicePercent:30, info:'Stammdaten, Lieferanten, Inventur, Lagerzuordnung' },
+  { id:'mel-lag-kontrolle', name:'Lager Kontrollmodul', cat:'Lagerverwaltung', price:290, t:'o', servicePercent:30, info:'Voraussetzung: Lager Basismodul' },
+  { id:'mel-lag-bestellung', name:'Lager Bestellung / Einkauf', cat:'Lagerverwaltung', price:290, t:'o', servicePercent:30, info:'Voraussetzung: Basismodul + Kontrolle' },
+  { id:'mel-lag-etiketten', name:'Etikettendruck', cat:'Lagerverwaltung', price:290, t:'o', servicePercent:30 },
+  { id:'mel-lag-mobileinv', name:'MobileInventur', cat:'Lagerverwaltung', price:290, t:'o', servicePercent:30, info:'Voraussetzung: Basismodul + Kontrolle' },
+  { id:'mel-lag-edi-import', name:'Import Lieferanten Lieferscheine (EDI 2.0)', cat:'Lagerverwaltung', price:290, t:'o', servicePercent:30, info:'Voraussetzung: Basismodul, Kontrolle, Bestellung/Einkauf' },
+
+  // Dienstleistungen / Stundensätze
+  { id:'mel-ds-dev', name:'Softwareentwicklung', cat:'Dienstleistungen', price:160, t:'h', info:'pro Stunde' },
+  { id:'mel-ds-service', name:'Dienstleistung', cat:'Dienstleistungen', price:120, t:'h', info:'pro Stunde' },
+  { id:'mel-ds-dongel', name:'Dongel', cat:'Dienstleistungen', price:25, t:'o', info:'EK pro Dongel' },
+];
+
+const UNIFY = [
+  { id:'unify-dream-router-7', name:'Netzwerk - Dream Router 7', price:300, t:'o' },
+  { id:'unify-cloud-gateway-max', name:'Netzwerk - Cloud Gateway Max', price:249, t:'o' },
+  { id:'unify-lite-8-poe', name:'Netzwerk - Lite 8 PoE', price:139, t:'o' },
+  { id:'unify-lite-16-poe', name:'Netzwerk - Lite 16 PoE', price:249, t:'o' },
+  { id:'unify-u7-pro', name:'Netzwerk - U7 Pro', price:225, t:'o' },
+  { id:'unify-u7-pro-outdoor', name:'Netzwerk - U7 Pro Outdoor', price:350, t:'o' },
+];
+
+const RCH = [
+  { id:'rch-ape3', name:'RCH APE3', cat:'Kassensysteme', price:1390, t:'o', info:'Snapdragon OctaCore · 4 GB RAM · 64 GB ROM · 10" Display · Bondrucker integriert · Android 13 · Software: RCH Atos · 12 Monate Bring-In · zzgl. Installation und Einschulung' },
+  { id:'rch-at15-iron-slim', name:'RCH AT15 IRON SLIM', cat:'Kassensysteme', price:1790, t:'o', info:'4 GB RAM · 32 GB Flash · 10" Display · inkl. Bondrucker · Android 10 · Software: RCH Atos · 12 Monate Bring-In · zzgl. Installation und Einschulung' },
+  { id:'rch-walle-8t', name:'RCH WALLE 8T', cat:'Kassensysteme', price:990, t:'o', info:'1 GB RAM · 8 GB MMC · 8" Display · Bondrucker integriert · Android 5.0.2 oder höher · Software: RCH Atos · 12 Monate Bring-In · zzgl. Installation und Einschulung' },
 ];
 
 const HARDWARE = [
@@ -134,6 +227,12 @@ const ORDERMAN = [
   { id:'a252444d-0ac6-4809-9ede-16125a3bc5f0', name:'Orderman Ersatzbatterie', price:60, t:'o' },
   { id:'d1697574-cac7-4fec-8e72-89a582a0d6d5', name:'Orderman Gürteltasche', price:25, t:'o' },
   { id:'0134901e-4d85-4e1d-a65b-c53be99e8ef4', name:'Orderman Safety-Cord', price:14, t:'o' },
+  { id:'orderman-magellan-celeron', name:'Magellan Celeron', price:1780, t:'o', info:'Intel N95/N97 · 15,1" 4:3 · 8 GB RAM · 128 GB SSD' },
+  { id:'orderman-magellan-celeron-garantie', name:'Magellan Celeron Garantieverlängerung', price:623, t:'o', info:'auf 60 Monate (35%)' },
+  { id:'orderman-magellan-i3', name:'Magellan i3', price:2080, t:'o', info:'Intel N305 · 15,1" 4:3 · 8 GB RAM · 128 GB SSD' },
+  { id:'orderman-magellan-i3-garantie', name:'Magellan i3 Garantieverlängerung', price:728, t:'o', info:'auf 60 Monate (35%)' },
+  { id:'orderman-magellan-i5', name:'Magellan i5', price:3120, t:'o', info:'Intel Ultra 5 · 15,1" 4:3 · 16 GB RAM · 256 GB SSD' },
+  { id:'orderman-magellan-i5-garantie', name:'Magellan i5 Garantieverlängerung', price:1092, t:'o', info:'auf 60 Monate (35%)' },
 ];
 
 const TEAM = [
@@ -151,7 +250,7 @@ const TEAM = [
 
 // Build lookup
 const ALL = {};
-[...KASSA,...MODULE,...HARDWARE,...DRUCKER,...KUECHENMONITORE,...KUECHENMONITORE_SUNMI,...ORDERMAN,...DIENSTLEISTUNGEN].forEach(i => ALL[i.id] = i);
+[...BESSA,...MELZER,...RCH,...HARDWARE,...UNIFY,...DRUCKER,...KUECHENMONITORE,...KUECHENMONITORE_SUNMI,...ORDERMAN,...DIENSTLEISTUNGEN].forEach(i => ALL[i.id] = i);
 const CATALOG_IDS = new Set(Object.keys(ALL));
 const isCustomItem = (id) => !CATALOG_IDS.has(id);
 
@@ -206,6 +305,14 @@ function isMonthly(item, mode) {
   return item.t === 'm';
 }
 
+// Annual Wartung fee per unit for items with a servicePercent (Melzer).
+// Applied to the one-time price, returns 0 for items without servicePercent.
+function yearlyServicePerUnit(item) {
+  if (!item || !item.servicePercent) return 0;
+  const base = item.price ?? item.p?.o ?? 0;
+  return base * (item.servicePercent / 100);
+}
+
 // Returns [id, cartItem][] in user-defined order, with fallback for items not in cartOrder
 function orderedCartEntries(cart, cartOrder) {
   const ids = Object.keys(cart);
@@ -219,6 +326,53 @@ function orderedCartEntries(cart, cartOrder) {
     if (!seen.has(id)) ordered.push([id, cart[id]]);
   }
   return ordered;
+}
+
+// Auto-generated terms that append to every offer when certain items are in the cart.
+// Each rule: { id, condition(cart): boolean, text: string }
+const AUTO_TERM_RULES = [
+  {
+    id: 'delivery-time',
+    condition: () => true,
+    text: 'Lieferzeit: 2 Wochen',
+  },
+  {
+    id: 'payment-term',
+    condition: () => true,
+    text: 'Zahlungsziel: 10 Tage netto Kassa',
+  },
+  {
+    id: 'network-cabling',
+    condition: (cart) => Object.keys(cart).some(id => id.startsWith('unify-')),
+    text: 'Kabel müssen vom Kunden eigenständig verlegt werden',
+  },
+];
+
+function computeAutoTerms(cart) {
+  return AUTO_TERM_RULES.filter(r => r.condition(cart)).map(r => r.text);
+}
+
+// Build wartung rows for PDF rendering from filtered cart entries.
+function buildWartungItems(entries) {
+  return entries
+    .filter(([id]) => ALL[id]?.servicePercent > 0)
+    .map(([id, c]) => {
+      const item = ALL[id];
+      const fullQty = c.qty || 0;
+      const discQty = c.discountQty || 0;
+      const totalQty = fullQty + discQty;
+      const unit = yearlyServicePerUnit(item);
+      return {
+        id,
+        qty: fullQty,
+        discountQty: discQty,
+        code: item.code || '',
+        name: item.name,
+        servicePercent: item.servicePercent,
+        wartungUnit: unit,
+        wartungLine: unit * totalQty,
+      };
+    });
 }
 
 function groupBy(items, key) {
@@ -363,6 +517,14 @@ function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onDiscou
               </span>
             </div>
           )}
+
+          {/* Melzer Wartung pro Jahr */}
+          {item.servicePercent > 0 && (
+            <div className="flex justify-end mt-1 text-amber-700" style={{fontSize:11}}>
+              + € {fmt(yearlyServicePerUnit(item) * (fullQty + discQty))} Wartung/Jahr
+              <span className="text-slate-400 ml-1">({item.servicePercent}%)</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -371,6 +533,11 @@ function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onDiscou
           <span className="text-slate-500" style={{fontSize:12}}>
             € {fmt(p)}{monthly ? '/Mo' : item.t==='h' ? '/h' : ''}
           </span>
+          {item.servicePercent > 0 && (
+            <span className="text-amber-700 ml-2" style={{fontSize:11}}>
+              + € {fmt(yearlyServicePerUnit(item))}/Jahr Wartung
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -477,7 +644,7 @@ function SignModal({ customer, totals, finanzOpen, globalTier, onConfirm, onClos
   const sepaPadRef = useRef(null);
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState(null);
-  const showSepa = finanzOpen && (totals.monthly > 0 || totals.once > 0);
+  const showSepa = finanzOpen && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0);
 
   const TIER_LABEL_MAP = { '12mo':'12 Monate','6mo':'6 Monate','2mo':'2 Monate','event':'1-3 Tage' };
 
@@ -850,6 +1017,8 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
   const allOrdered = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
   const monthlyItems = allOrdered.filter(([id,c]) => isMonthly(ALL[id], c.mode));
   const onceItems = allOrdered.filter(([id,c]) => !isMonthly(ALL[id], c.mode));
+  const wartungItems = allOrdered.filter(([id]) => ALL[id]?.servicePercent > 0);
+  const autoTerms = computeAutoTerms(cart);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -945,7 +1114,7 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
         <div className="text-center py-12 text-slate-400">
           <ShoppingCart size={48} className="mx-auto mb-3 opacity-50" />
           <p className="font-medium">Noch keine Positionen gewählt</p>
-          <p style={{fontSize:13}}>Wechsle zu Kassa, Module oder Hardware um Produkte hinzuzufügen.</p>
+          <p style={{fontSize:13}}>Wechsle zu Bessa, Melzer, RCH oder Hardware um Produkte hinzuzufügen.</p>
         </div>
       )}
 
@@ -1039,8 +1208,39 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
         </div>
       )}
 
+      {/* Wartung pro Jahr (Melzer) */}
+      {wartungItems.length > 0 && (
+        <div className="bg-white rounded-xl border-2 border-amber-200 mb-4 overflow-hidden">
+          <div className="bg-amber-100 px-4 py-2 border-b border-amber-200">
+            <span className="font-bold text-amber-900" style={{fontSize:13}}>WARTUNG PRO JAHR</span>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {wartungItems.map(([id, c]) => {
+              const item = ALL[id];
+              const totalQty = (c.qty || 0) + (c.discountQty || 0);
+              const unit = yearlyServicePerUnit(item);
+              const line = unit * totalQty;
+              return (
+                <div key={id} className="flex items-center justify-between px-4 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-slate-700">{totalQty}x {item.code ? item.code+' ' : ''}{item.name}</span>
+                    <span className="text-xs text-slate-400 ml-2">{item.servicePercent}% Wartung</span>
+                  </div>
+                  <span className="font-semibold text-amber-800 text-sm whitespace-nowrap">€ {fmt(line)}/Jahr</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="bg-slate-50 px-4 py-3 border-t border-slate-200">
+            <div className="flex justify-between text-sm"><span className="text-slate-500">Netto/Jahr</span><span className="font-medium">€ {fmt(totals.yearly)}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-slate-500">20% USt</span><span className="font-medium">€ {fmt(totals.yearly*0.2)}</span></div>
+            <div className="flex justify-between text-sm font-bold mt-1 pt-1 border-t border-slate-300"><span>Brutto/Jahr</span><span className="text-amber-700">€ {fmt(totals.yearly*1.2)}</span></div>
+          </div>
+        </div>
+      )}
+
       {/* Yearly summary */}
-      {(totals.monthly > 0 || totals.once > 0) && (
+      {(totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl mb-4 text-white overflow-hidden">
           <div className="px-4 py-3 border-b border-white/10">
             <span className="font-bold" style={{fontSize:13}}>GESAMTÜBERSICHT</span>
@@ -1049,31 +1249,31 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
             <div className="flex justify-between items-center pb-3 border-b border-white/10">
               <div>
                 <div className="text-sm text-slate-300">Kosten im ersten Jahr</div>
-                <div className="text-xs text-slate-400">(monatlich × Laufzeit + einmalig)</div>
+                <div className="text-xs text-slate-400">(monatlich × Laufzeit + einmalig{totals.yearly > 0 ? ' + Wartung' : ''})</div>
               </div>
               <div className="text-right">
                 <div className="text-sm text-slate-400">€ {fmt(totals.periodTotal)} netto</div>
                 <div className="font-bold text-lg text-red-400">€ {fmt(totals.periodTotal * 1.2)} brutto</div>
               </div>
             </div>
-            {totals.monthly > 0 && totals.once > 0 && (
+            {(totals.monthly > 0 && totals.once > 0) || totals.yearly > 0 ? (
               <div className="flex justify-between items-center">
                 <div>
                   <div className="text-sm text-slate-300">Kosten jedes weitere Jahr</div>
-                  <div className="text-xs text-slate-400">(monatlich × Laufzeit)</div>
+                  <div className="text-xs text-slate-400">(monatlich × Laufzeit{totals.yearly > 0 ? ' + Wartung' : ''})</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm text-slate-400">€ {fmt(totals.periodMonthly)} netto</div>
-                  <div className="font-bold text-lg text-white">€ {fmt(totals.periodMonthly * 1.2)} brutto</div>
+                  <div className="text-sm text-slate-400">€ {fmt(totals.periodMonthly + totals.yearly)} netto</div>
+                  <div className="font-bold text-lg text-white">€ {fmt((totals.periodMonthly + totals.yearly) * 1.2)} brutto</div>
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       )}
 
       {/* Financing options */}
-      {(totals.monthly > 0 || totals.once > 0) && (
+      {(totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
         <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 overflow-hidden">
           <button onClick={() => setFinanzOpen(!finanzOpen)} className="w-full bg-red-50 px-4 py-3 border-b border-red-100 flex items-center justify-between hover:bg-red-100 transition-colors">
             <span className="font-bold text-red-800" style={{fontSize:13}}>FINANZIERUNGSOPTIONEN</span>
@@ -1127,6 +1327,16 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
             </div>
           </div>
           </>}
+        </div>
+      )}
+
+      {/* Auto-generated terms */}
+      {autoTerms.length > 0 && (
+        <div className="bg-amber-50 rounded-xl border-2 border-amber-200 mb-4" style={{padding:'14px 16px'}}>
+          <span className="font-bold text-amber-900 block mb-2" style={{fontSize:13}}>Bedingungen</span>
+          <ul className="list-disc pl-5 text-amber-900 space-y-1" style={{fontSize:12}}>
+            {autoTerms.map((t, i) => <li key={i}>{t}</li>)}
+          </ul>
         </div>
       )}
 
@@ -1215,8 +1425,9 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
 // ═══════════════════════════════════════════════════════
 
 const BUILDER_TABS = [
-  { id: 'kassa', label: 'Kassa' },
-  { id: 'module', label: 'Module' },
+  { id: 'bessa', label: 'Bessa' },
+  { id: 'melzer', label: 'Melzer' },
+  { id: 'rch', label: 'RCH' },
   { id: 'hardware', label: 'Hardware' },
   { id: 'angebot', label: 'Angebot' },
 ];
@@ -1613,7 +1824,7 @@ export default function App() {
   const { profile } = useAuth();
   const [section, setSection] = useState('angebote'); // 'angebote' | 'crm'
   const [offerView, setOfferView] = useState('list'); // 'list' | 'builder'
-  const [builderTab, setBuilderTab] = useState('kassa');
+  const [builderTab, setBuilderTab] = useState('bessa');
   const [globalTier, setGlobalTier] = useState('12mo');
   const [cart, setCart] = useState({});
   const [customer, setCustomer] = useState({ name:'', company:'', email:'', phone:'', address:'' });
@@ -1850,7 +2061,7 @@ export default function App() {
 
   // Totals
   const totals = useMemo(() => {
-    let monthly = 0, once = 0, periodTotal = 0, periodMonthly = 0, maxMonths = 0;
+    let monthly = 0, once = 0, yearly = 0, periodTotal = 0, periodMonthly = 0, maxMonths = 0;
     Object.entries(cart).forEach(([id, c]) => {
       const item = ALL[id];
       if (!item) return;
@@ -1869,9 +2080,14 @@ export default function App() {
       } else {
         once += line;
         periodTotal += line;
+        const svc = yearlyServicePerUnit(item) * (fullQty + discQty);
+        if (svc > 0) {
+          yearly += svc;
+          periodTotal += svc;
+        }
       }
     });
-    return { monthly, once, periodTotal, periodMonthly, maxMonths: maxMonths || 12 };
+    return { monthly, once, yearly, periodTotal, periodMonthly, maxMonths: maxMonths || 12 };
   }, [cart]);
 
   const cartCount = Object.keys(cart).length;
@@ -2013,6 +2229,9 @@ export default function App() {
           };
         });
 
+      const wartungItems = buildWartungItems(validEntries);
+      const autoTerms = computeAutoTerms(cart);
+
       // Find creator info
       const creatorInfo = TEAM.find(t => t.id === creator) || null;
 
@@ -2022,6 +2241,8 @@ export default function App() {
           customer={customer}
           monthlyItems={monthlyItems}
           onceItems={onceItems}
+          wartungItems={wartungItems}
+          autoTerms={autoTerms}
           totals={totals}
           notes={notes}
           raten={raten}
@@ -2228,9 +2449,13 @@ export default function App() {
           };
         });
 
+      const wartungItems = buildWartungItems(validSendEntries);
+      const autoTerms = computeAutoTerms(cart);
+
       const pdfBlob = await pdf(
         <OfferPdfDocument
           customer={customer} monthlyItems={monthlyItems} onceItems={onceItems}
+          wartungItems={wartungItems} autoTerms={autoTerms}
           totals={totals} notes={notes} raten={raten}
           showFinancing={finanzOpen} creator={creatorInfo}
           mandatsRef={mandatsRef}
@@ -2296,10 +2521,14 @@ export default function App() {
         };
       });
 
+    const wartungItems = buildWartungItems(validSignEntries);
+    const autoTerms = computeAutoTerms(cart);
+
     // Generate signed PDF
     const pdfBlob = await pdf(
       <OfferPdfDocument
         customer={customer} monthlyItems={monthlyItems} onceItems={onceItems}
+        wartungItems={wartungItems} autoTerms={autoTerms}
         totals={totals} notes={notes} raten={raten}
         showFinancing={finanzOpen} creator={creatorInfo}
         mandatsRef={mandatsRef} signatures={signatures}
@@ -2378,7 +2607,7 @@ export default function App() {
     setFinanzOpen(false);
     setGlobalTier('12mo');
     setMandatsRef(Date.now().toString().slice(-12));
-    setBuilderTab('kassa');
+    setBuilderTab('bessa');
     setOfferView('builder');
   }
 
@@ -2435,7 +2664,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Builder sub-tabs + tier selector */}
+            {/* Builder sub-tabs */}
             <div className="flex items-center justify-between px-3 pb-2 md:px-5 gap-2">
               <div className="flex gap-0.5 md:gap-1 overflow-x-auto min-w-0">
                 {BUILDER_TABS.map(t => (
@@ -2449,8 +2678,13 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              {builderTab !== 'angebot' && (
-                <div className="flex gap-0.5 md:gap-1 flex-shrink-0">
+            </div>
+
+            {/* Tier selector – Bessa tab only */}
+            {builderTab === 'bessa' && (
+              <div className="flex items-center gap-2 px-3 pb-2 md:px-5">
+                <span className="text-slate-500" style={{ fontSize: 11 }}>Laufzeit:</span>
+                <div className="flex gap-0.5 md:gap-1">
                   {TIERS.map(t => (
                     <button key={t} onClick={() => setGlobalTier(t)}
                       className={`rounded-lg font-medium transition-all ${globalTier === t ? 'bg-red-500 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
@@ -2459,8 +2693,8 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Product search bar */}
             {builderTab !== 'angebot' && (
@@ -2489,7 +2723,7 @@ export default function App() {
             {search.trim() && builderTab !== 'angebot' ? (
               (() => {
                 const q = search.toLowerCase().trim();
-                const allItems = [...KASSA, ...MODULE, ...HARDWARE, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...ORDERMAN, ...DIENSTLEISTUNGEN];
+                const allItems = [...BESSA, ...MELZER, ...RCH, ...HARDWARE, ...UNIFY, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...ORDERMAN, ...DIENSTLEISTUNGEN];
                 const results = allItems.filter(item =>
                   item.name.toLowerCase().includes(q) ||
                   (item.code && item.code.toLowerCase().includes(q)) ||
@@ -2515,11 +2749,17 @@ export default function App() {
               })()
             ) : (
               <>
-                {builderTab === 'kassa' && <TabContent items={KASSA} cart={cart} globalTier={globalTier} handlers={handlers} />}
-                {builderTab === 'module' && <TabContent items={MODULE} cart={cart} globalTier={globalTier} handlers={handlers} />}
+                {builderTab === 'bessa' && <TabContent items={BESSA} cart={cart} globalTier={globalTier} handlers={handlers} />}
+                {builderTab === 'melzer' && <TabContent items={MELZER} cart={cart} globalTier={globalTier} handlers={handlers} />}
+                {builderTab === 'rch' && (
+                  RCH.length > 0
+                    ? <TabContent items={RCH} cart={cart} globalTier={globalTier} handlers={handlers} />
+                    : <div className="text-center py-12 text-slate-400"><p className="font-medium">Noch keine RCH-Produkte hinterlegt</p></div>
+                )}
                 {builderTab === 'hardware' && (
                   <>
                     <CatGroup title="Hardware" items={HARDWARE} cart={cart} globalTier={globalTier} handlers={handlers} />
+                    <CatGroup title="Netzwerk (Unify)" items={UNIFY} cart={cart} globalTier={globalTier} handlers={handlers} />
                     <CatGroup title="Drucker" items={DRUCKER} cart={cart} globalTier={globalTier} handlers={handlers} />
                     <CatGroup title="Küchenmonitore" items={KUECHENMONITORE} cart={cart} globalTier={globalTier} handlers={handlers} />
                     <CatGroup title="Küchenmonitore Sunmi" items={KUECHENMONITORE_SUNMI} cart={cart} globalTier={globalTier} handlers={handlers} />
