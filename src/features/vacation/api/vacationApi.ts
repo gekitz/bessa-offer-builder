@@ -110,6 +110,35 @@ export async function getEmployeeByCode(code: string): Promise<Employee | null> 
   return data ? rowToEmployee(data) : null;
 }
 
+// Per-employee subscription token used as auth on the public ICS
+// feed endpoint. Returns the existing token; the column is NOT NULL
+// in the schema so every employee row has one.
+export async function getCalendarToken(employeeId: string): Promise<string> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('employees')
+    .select('calendar_token')
+    .eq('id', employeeId)
+    .single();
+  if (error) throw error;
+  return (data as { calendar_token: string }).calendar_token;
+}
+
+// Rotate the employee's calendar token. Any existing calendar
+// subscriptions set up against the old URL stop receiving updates.
+export async function regenerateCalendarToken(employeeId: string): Promise<string> {
+  const sb = requireSupabase();
+  const fresh = crypto.randomUUID();
+  const { data, error } = await sb
+    .from('employees')
+    .update({ calendar_token: fresh })
+    .eq('id', employeeId)
+    .select('calendar_token')
+    .single();
+  if (error) throw error;
+  return (data as { calendar_token: string }).calendar_token;
+}
+
 export async function updateEmployee(id: string, patch: Partial<Employee>): Promise<Employee> {
   const sb = requireSupabase();
   const dbPatch: Record<string, unknown> = {};

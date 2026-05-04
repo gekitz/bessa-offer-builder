@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -232,17 +232,13 @@ describe('LeaveRequestsList', () => {
 });
 
 describe('LeaveRequestsList — iCal export button', () => {
-  const originalCreateObjectURL = URL.createObjectURL;
-  const originalRevokeObjectURL = URL.revokeObjectURL;
-
+  // jsdom doesn't ship URL.createObjectURL / URL.revokeObjectURL
+  // natively, so we install no-op stubs once per test and leave them
+  // in place — the delayed setTimeout that revokes the blob URL
+  // can fire after afterEach if we restore originals.
   beforeEach(() => {
-    URL.createObjectURL = vi.fn(() => 'blob:mock-url');
-    URL.revokeObjectURL = vi.fn();
-  });
-
-  afterEach(() => {
-    URL.createObjectURL = originalCreateObjectURL;
-    URL.revokeObjectURL = originalRevokeObjectURL;
+    URL.createObjectURL = vi.fn(() => 'blob:mock-url') as unknown as typeof URL.createObjectURL;
+    URL.revokeObjectURL = vi.fn() as unknown as typeof URL.revokeObjectURL;
   });
 
   it('renders an Export button in the header', async () => {

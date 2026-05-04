@@ -39,6 +39,8 @@ import {
   decideLeaveRequest,
   cancelLeaveRequest,
   updateLeaveRequest,
+  getCalendarToken,
+  regenerateCalendarToken,
   listLeaveBalances,
   loadRuleContext,
   LEAVE_TYPE_ID_BY_CODE,
@@ -336,6 +338,45 @@ describe('leave requests', () => {
     await cancelLeaveRequest('lr1');
     expect(chain.update).toHaveBeenCalledWith({ status: 'cancelled' });
     expect(chain.eq).toHaveBeenCalledWith('id', 'lr1');
+  });
+});
+
+describe('calendar token', () => {
+  it('getCalendarToken returns the existing token for the employee', async () => {
+    const chain = makeChain({ data: { calendar_token: 'abc-123' }, error: null });
+    fromMock.mockReturnValue(chain);
+
+    const token = await getCalendarToken('emp-1');
+
+    expect(fromMock).toHaveBeenCalledWith('employees');
+    expect(chain.eq).toHaveBeenCalledWith('id', 'emp-1');
+    expect(chain.single).toHaveBeenCalled();
+    expect(token).toBe('abc-123');
+  });
+
+  it('getCalendarToken throws on supabase error', async () => {
+    fromMock.mockReturnValue(makeChain({ data: null, error: new Error('rls denied') }));
+    await expect(getCalendarToken('emp-1')).rejects.toThrow('rls denied');
+  });
+
+  it('regenerateCalendarToken patches employees.calendar_token with a new UUID', async () => {
+    const chain = makeChain({ data: { calendar_token: 'fresh-uuid' }, error: null });
+    fromMock.mockReturnValue(chain);
+    // jsdom polyfills crypto.randomUUID — make it deterministic so we
+    // can assert the exact patch payload.
+    const uuidSpy = vi.spyOn(crypto, 'randomUUID').mockReturnValue('fresh-uuid' as `${string}-${string}-${string}-${string}-${string}`);
+
+    const token = await regenerateCalendarToken('emp-1');
+
+    expect(chain.update).toHaveBeenCalledWith({ calendar_token: 'fresh-uuid' });
+    expect(chain.eq).toHaveBeenCalledWith('id', 'emp-1');
+    expect(token).toBe('fresh-uuid');
+    uuidSpy.mockRestore();
+  });
+
+  it('regenerateCalendarToken throws on supabase error', async () => {
+    fromMock.mockReturnValue(makeChain({ data: null, error: new Error('rls denied') }));
+    await expect(regenerateCalendarToken('emp-1')).rejects.toThrow('rls denied');
   });
 });
 
