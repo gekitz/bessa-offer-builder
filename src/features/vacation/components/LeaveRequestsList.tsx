@@ -228,65 +228,60 @@ export default function LeaveRequestsList({
         </div>
       )}
 
-      {(myEmployeeId || leaveTypes.length > 0) && (
-        <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap gap-3 items-center justify-end">
-          {myEmployeeId && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-500" style={{ fontSize: 11 }}>Mitarbeiter:</span>
+      {(showStatusTabs || myEmployeeId || leaveTypes.length > 0) && (
+        <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          {showStatusTabs && (
+            <div className="flex flex-wrap gap-1.5">
+              {STATUS_TABS.map((tab) => {
+                const active = tab.key === selectedStatus;
+                const count = statusCounts[tab.key];
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setSelectedStatus(tab.key)}
+                    className={`rounded-full px-3 py-1 font-medium transition-colors ${
+                      active
+                        ? 'bg-red-600 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                    style={{ fontSize: 11 }}
+                  >
+                    {tab.label} ({count})
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5 ml-auto">
+            {myEmployeeId && (
               <Select
                 value={myOnly ? 'mine' : 'all'}
                 onChange={(v) => setMyOnly(v === 'mine')}
                 size="sm"
-                className="w-44"
+                className="w-40"
                 ariaLabel="Mitarbeiter filtern"
                 options={[
                   { value: 'all',  label: 'Alle Mitarbeiter' },
                   { value: 'mine', label: 'Nur meine' },
                 ]}
               />
-            </div>
-          )}
-
-          {leaveTypes.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-500" style={{ fontSize: 11 }}>Art:</span>
+            )}
+            {leaveTypes.length > 0 && (
               <Select
                 value={typeFilter}
                 onChange={(v) => setTypeFilter(v as LeaveTypeCode | 'all')}
                 size="sm"
-                className="w-44"
+                className="w-36"
                 ariaLabel="Art filtern"
                 options={[
                   { value: 'all', label: 'Alle Arten' },
                   ...leaveTypes.map((t) => ({ value: t.code, label: t.label })),
                 ]}
               />
-            </div>
-          )}
-        </div>
-      )}
-
-      {showStatusTabs && (
-        <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap gap-1.5">
-          {STATUS_TABS.map((tab) => {
-            const active = tab.key === selectedStatus;
-            const count = statusCounts[tab.key];
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setSelectedStatus(tab.key)}
-                className={`rounded-full px-3 py-1 font-medium transition-colors ${
-                  active
-                    ? 'bg-red-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-                style={{ fontSize: 11 }}
-              >
-                {tab.label} ({count})
-              </button>
-            );
-          })}
+            )}
+          </div>
         </div>
       )}
 
