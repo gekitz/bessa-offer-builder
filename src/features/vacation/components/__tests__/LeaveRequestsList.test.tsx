@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -14,6 +14,11 @@ vi.mock('../../api/vacationApi', () => ({
   listLeaveTypes: () => listLeaveTypesMock(),
   decideLeaveRequest: (...args: unknown[]) => decideLeaveRequestMock(...args),
   cancelLeaveRequest: (...args: unknown[]) => cancelLeaveRequestMock(...args),
+}));
+
+const buildICalendarMock = vi.fn<(opts: unknown) => string>(() => 'BEGIN:VCALENDAR\r\nEND:VCALENDAR');
+vi.mock('../../lib/ical', () => ({
+  buildICalendar: (opts: unknown) => buildICalendarMock(opts),
 }));
 
 import LeaveRequestsList from '../LeaveRequestsList';
@@ -223,6 +228,104 @@ describe('LeaveRequestsList', () => {
     render(<LeaveRequestsList showHeader={false} />);
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
     expect(screen.queryByLabelText('Aktualisieren')).not.toBeInTheDocument();
+  });
+});
+
+describe('LeaveRequestsList — iCal export button', () => {
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  afterEach(() => {
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+  });
+
+  it('renders an Export button in the header', async () => {
+    render(<LeaveRequestsList />);
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
+    expect(screen.getByLabelText('Als iCal exportieren')).toBeInTheDocument();
+  });
+
+  it('disables the Export button when there are no rows to export', async () => {
+    listLeaveRequestsMock.mockResolvedValue([]);
+    render(<LeaveRequestsList />);
+    await waitFor(() => expect(screen.getByText('Keine Anträge.')).toBeInTheDocument());
+    expect(screen.getByLabelText('Als iCal exportieren')).toBeDisabled();
+  });
+
+  it('clicking Export creates a blob and triggers a download anchor', async () => {
+    const u = userEvent.setup();
+    let capturedBlob: Blob | null = null;
+    const createSpy = vi.fn((b: Blob) => {
+      capturedBlob = b;
+      return 'blob:mock-url';
+    });
+    URL.createObjectURL = createSpy as unknown as typeof URL.createObjectURL;
+
+    // Spy on the anchor's click() so we can assert the download was triggered
+    // without the test actually navigating.
+    const anchorClicks: HTMLAnchorElement[] = [];
+    const originalCreateElement = document.createElement.bind(document);
+    const createSpyEl = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'a') {
+        const anchor = el as HTMLAnchorElement;
+        anchor.click = () => { anchorClicks.push(anchor); };
+      }
+      return el;
+    });
+
+    render(<LeaveRequestsList />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    await u.click(screen.getByLabelText('Als iCal exportieren'));
+
+    expect(createSpy).toHaveBeenCalledTimes(1);
+    expect(capturedBlob).not.toBeNull();
+    expect(capturedBlob!.type).toBe('text/calendar;charset=utf-8');
+    expect(capturedBlob!.size).toBeGreaterThan(0);
+
+    expect(anchorClicks).toHaveLength(1);
+    expect(anchorClicks[0]!.download).toBe('kitz-urlaub.ics');
+    expect(anchorClicks[0]!.href).toContain('blob:mock-url');
+
+    createSpyEl.mockRestore();
+  });
+
+  it('exports only the visible requests (respects status tab filter)', async () => {
+    buildICalendarMock.mockClear();
+    const u = userEvent.setup();
+    listLeaveRequestsMock.mockResolvedValue([
+      { id: 'pend',     employeeId: stefan.id, leaveTypeCode: 'urlaub',       startDate: '2026-08-10', endDate: '2026-08-15', status: 'pending' },
+      { id: 'approved', employeeId: mario.id,  leaveTypeCode: 'krankenstand', startDate: '2026-05-04', endDate: '2026-05-04', status: 'approved' },
+    ]);
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = document.createElementNS('http://www.w3.org/1999/xhtml', tag) as HTMLElement;
+      if (tag === 'a') (el as HTMLAnchorElement).click = () => {};
+      return el;
+    });
+
+    render(<LeaveRequestsList showStatusTabs />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    // Default tab "Offen" — only the pending request is visible.
+    await u.click(screen.getByLabelText('Als iCal exportieren'));
+
+    expect(buildICalendarMock).toHaveBeenCalledTimes(1);
+    const opts = buildICalendarMock.mock.calls[0]?.[0] as { leaves: Array<{ id: string }> };
+    expect(opts.leaves.map((l) => l.id)).toEqual(['pend']);
+
+    // Switch to Genehmigt — only Mario's record visible.
+    buildICalendarMock.mockClear();
+    await u.click(screen.getByRole('button', { name: /^Genehmigt / }));
+    await u.click(screen.getByLabelText('Als iCal exportieren'));
+    const opts2 = buildICalendarMock.mock.calls[0]?.[0] as { leaves: Array<{ id: string }> };
+    expect(opts2.leaves.map((l) => l.id)).toEqual(['approved']);
   });
 });
 

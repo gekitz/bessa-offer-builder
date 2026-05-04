@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Calendar as CalendarIcon, Check, FileText, Loader2, RefreshCw, User, X } from 'lucide-react';
+import { AlertCircle, Calendar as CalendarIcon, Check, Download, FileText, Loader2, RefreshCw, User, X } from 'lucide-react';
 import {
   cancelLeaveRequest,
   decideLeaveRequest,
@@ -12,6 +12,7 @@ import LeaveStatusBadge from './LeaveStatusBadge';
 import DecisionDialog from './DecisionDialog';
 import Select from '../../../components/Select';
 import { formatRange } from '../lib/formatDate';
+import { buildICalendar } from '../lib/ical';
 import type { Employee, LeaveRequest, LeaveStatus, LeaveTypeCode } from '../types';
 
 interface LeaveRequestsListProps {
@@ -206,6 +207,24 @@ export default function LeaveRequestsList({
     }
   }
 
+  function handleExport() {
+    const ics = buildICalendar({
+      leaves: visibleRequests,
+      employeesById: employeeById,
+      leaveTypesByCode: typeByCode,
+      calendarName: 'KITZ Urlaubsplaner',
+    });
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'kitz-urlaub.ics';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   return (
     <div className="bg-white rounded-xl border-2 border-slate-200 overflow-hidden">
       {showHeader && (
@@ -216,15 +235,27 @@ export default function LeaveRequestsList({
               Anträge {!loading && !error ? `(${typeFiltered.length})` : ''}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => setInternalReload((k) => k + 1)}
-            className="rounded-lg bg-white border border-slate-200 text-slate-500 p-1.5 hover:text-slate-700 hover:border-slate-300 transition-colors"
-            title="Aktualisieren"
-            aria-label="Aktualisieren"
-          >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={loading || !!error || visibleRequests.length === 0}
+              className="rounded-lg bg-white border border-slate-200 text-slate-500 p-1.5 hover:text-slate-700 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title="Als iCal exportieren"
+              aria-label="Als iCal exportieren"
+            >
+              <Download size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setInternalReload((k) => k + 1)}
+              className="rounded-lg bg-white border border-slate-200 text-slate-500 p-1.5 hover:text-slate-700 hover:border-slate-300 transition-colors"
+              title="Aktualisieren"
+              aria-label="Aktualisieren"
+            >
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </div>
         </div>
       )}
 
