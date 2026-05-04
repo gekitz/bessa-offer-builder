@@ -229,35 +229,26 @@ export default function LeaveRequestsList({
       )}
 
       {(myEmployeeId || leaveTypes.length > 0) && (
-        <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap gap-2 items-center">
+        <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap gap-3 items-center justify-end">
           {myEmployeeId && (
-            <>
-              <span className="text-slate-500" style={{ fontSize: 11 }}>Anzeigen:</span>
-              <button
-                type="button"
-                onClick={() => setMyOnly(false)}
-                className={`rounded-full px-3 py-1 font-medium transition-colors ${
-                  !myOnly ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-                style={{ fontSize: 11 }}
-              >
-                Alle Mitarbeiter
-              </button>
-              <button
-                type="button"
-                onClick={() => setMyOnly(true)}
-                className={`rounded-full px-3 py-1 font-medium transition-colors ${
-                  myOnly ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-                style={{ fontSize: 11 }}
-              >
-                Nur meine
-              </button>
-            </>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500" style={{ fontSize: 11 }}>Mitarbeiter:</span>
+              <Select
+                value={myOnly ? 'mine' : 'all'}
+                onChange={(v) => setMyOnly(v === 'mine')}
+                size="sm"
+                className="w-44"
+                ariaLabel="Mitarbeiter filtern"
+                options={[
+                  { value: 'all',  label: 'Alle Mitarbeiter' },
+                  { value: 'mine', label: 'Nur meine' },
+                ]}
+              />
+            </div>
           )}
 
           {leaveTypes.length > 0 && (
-            <div className="flex items-center gap-1.5 ml-auto">
+            <div className="flex items-center gap-1.5">
               <span className="text-slate-500" style={{ fontSize: 11 }}>Art:</span>
               <Select
                 value={typeFilter}

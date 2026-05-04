@@ -355,13 +355,13 @@ describe('LeaveRequestsList — status tabs', () => {
     render(<LeaveRequestsList showStatusTabs myEmployeeId="e-1" emptyLabel="Keine Anträge." />);
     await waitFor(() => expect(screen.getByText('Keine Anträge.')).toBeInTheDocument());
 
-    const toggle = screen.getByRole('button', { name: 'Alle Mitarbeiter' });
+    const filterRow = screen.getByRole('button', { name: 'Mitarbeiter filtern' });
     const offenTab = screen.getByRole('button', { name: /^Offen / });
     const empty = screen.getByText('Keine Anträge.');
 
     // Bit 4 of compareDocumentPosition = "the other node follows".
-    // Toggle and tabs must come before the empty state.
-    expect(toggle.compareDocumentPosition(empty) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Filter row and tabs must come before the empty state.
+    expect(filterRow.compareDocumentPosition(empty) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(offenTab.compareDocumentPosition(empty) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -389,19 +389,17 @@ describe('LeaveRequestsList — status tabs', () => {
   });
 });
 
-describe('LeaveRequestsList — "Nur meine" toggle', () => {
-  it('hides the toggle when myEmployeeId is not provided', async () => {
+describe('LeaveRequestsList — Mitarbeiter filter', () => {
+  it('hides the Mitarbeiter dropdown when myEmployeeId is not provided', async () => {
     render(<LeaveRequestsList />);
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
-    expect(screen.queryByRole('button', { name: 'Nur meine' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Alle Mitarbeiter' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mitarbeiter filtern' })).not.toBeInTheDocument();
   });
 
-  it('renders both toggle buttons when myEmployeeId is provided', async () => {
+  it('renders the Mitarbeiter dropdown when myEmployeeId is provided', async () => {
     render(<LeaveRequestsList myEmployeeId="e-1" />);
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
-    expect(screen.getByRole('button', { name: 'Alle Mitarbeiter' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Nur meine' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mitarbeiter filtern' })).toBeInTheDocument();
   });
 
   it('defaults to "Alle Mitarbeiter" — no employee filter on the API call', async () => {
@@ -410,7 +408,7 @@ describe('LeaveRequestsList — "Nur meine" toggle', () => {
     expect(listLeaveRequestsMock).toHaveBeenCalledWith(
       expect.objectContaining({ employeeId: undefined }),
     );
-    expect(screen.getByRole('button', { name: 'Alle Mitarbeiter' }).className).toMatch(/bg-slate-700/);
+    expect(screen.getByRole('button', { name: 'Mitarbeiter filtern' }).textContent).toContain('Alle Mitarbeiter');
   });
 
   it('respects defaultMyOnly=true and seeds the API with the employee id', async () => {
@@ -419,21 +417,23 @@ describe('LeaveRequestsList — "Nur meine" toggle', () => {
     expect(listLeaveRequestsMock).toHaveBeenCalledWith(
       expect.objectContaining({ employeeId: 'e-1' }),
     );
-    expect(screen.getByRole('button', { name: 'Nur meine' }).className).toMatch(/bg-slate-700/);
+    expect(screen.getByRole('button', { name: 'Mitarbeiter filtern' }).textContent).toContain('Nur meine');
   });
 
-  it('refetches with the employee id when toggled to "Nur meine"', async () => {
+  it('refetches with the employee id when switched to "Nur meine" via the dropdown', async () => {
     const u = userEvent.setup();
     render(<LeaveRequestsList myEmployeeId="e-1" />);
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(1));
 
-    await u.click(screen.getByRole('button', { name: 'Nur meine' }));
+    await u.click(screen.getByRole('button', { name: 'Mitarbeiter filtern' }));
+    await u.click(await screen.findByRole('option', { name: 'Nur meine' }));
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(2));
     expect(listLeaveRequestsMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ employeeId: 'e-1' }),
     );
 
-    await u.click(screen.getByRole('button', { name: 'Alle Mitarbeiter' }));
+    await u.click(screen.getByRole('button', { name: 'Mitarbeiter filtern' }));
+    await u.click(await screen.findByRole('option', { name: 'Alle Mitarbeiter' }));
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(3));
     expect(listLeaveRequestsMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ employeeId: undefined }),

@@ -237,7 +237,7 @@ describe('VacationPage', () => {
     expect(screen.getByRole('button', { name: /Ablehnen/ })).toBeInTheDocument();
   });
 
-  it('defaults the "Nur meine" toggle to ON for non-approver SSO users', async () => {
+  it('defaults the Mitarbeiter dropdown to "Nur meine" for non-approver SSO users', async () => {
     listLeaveRequestsMock.mockClear().mockResolvedValue([]);
     // Helmut Bauer (hbauer) — SSO format bh — non-approver.
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bh@kitz.co.at' }, user: null });
@@ -245,17 +245,17 @@ describe('VacationPage', () => {
     await waitFor(() => expect(screen.getByText('Helmut Bauer')).toBeInTheDocument());
     const lastCall = listLeaveRequestsMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
     expect(lastCall.employeeId).toBe(helmut.id);
-    expect(screen.getByRole('button', { name: 'Nur meine' }).className).toMatch(/bg-slate-700/);
+    expect(screen.getByRole('button', { name: 'Mitarbeiter filtern' }).textContent).toContain('Nur meine');
   });
 
-  it('defaults the toggle to "Alle Mitarbeiter" for approvers', async () => {
+  it('defaults the Mitarbeiter dropdown to "Alle Mitarbeiter" for approvers', async () => {
     listLeaveRequestsMock.mockClear().mockResolvedValue([]);
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
     render(<VacationPage />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
     const lastCall = listLeaveRequestsMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
     expect(lastCall.employeeId).toBeUndefined();
-    expect(screen.getByRole('button', { name: 'Alle Mitarbeiter' }).className).toMatch(/bg-slate-700/);
+    expect(screen.getByRole('button', { name: 'Mitarbeiter filtern' }).textContent).toContain('Alle Mitarbeiter');
   });
 
   it('passes the SSO-matched employee id to LeaveRequestsList as decidedBy', async () => {
