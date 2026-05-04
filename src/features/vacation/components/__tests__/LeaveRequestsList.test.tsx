@@ -296,6 +296,21 @@ describe('LeaveRequestsList — status tabs', () => {
     expect(screen.getByText('Mario Graf')).toBeInTheDocument();
   });
 
+  it('renders the empty state below the toggle + tab rows (DOM order)', async () => {
+    listLeaveRequestsMock.mockResolvedValue([]);
+    render(<LeaveRequestsList showStatusTabs myEmployeeId="e-1" emptyLabel="Keine Anträge." />);
+    await waitFor(() => expect(screen.getByText('Keine Anträge.')).toBeInTheDocument());
+
+    const toggle = screen.getByRole('button', { name: 'Alle Mitarbeiter' });
+    const offenTab = screen.getByRole('button', { name: /^Offen / });
+    const empty = screen.getByText('Keine Anträge.');
+
+    // Bit 4 of compareDocumentPosition = "the other node follows".
+    // Toggle and tabs must come before the empty state.
+    expect(toggle.compareDocumentPosition(empty) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(offenTab.compareDocumentPosition(empty) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('shows the empty-label when the selected tab has no rows', async () => {
     listLeaveRequestsMock.mockResolvedValue([
       { id: '1', employeeId: stefan.id, leaveTypeCode: 'urlaub', startDate: '2026-08-10', endDate: '2026-08-15', status: 'pending' },

@@ -163,6 +163,34 @@ describe('LeaveCalendar', () => {
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(3));
   });
 
+  it('keeps the grid mounted on month navigation (no full loading panel after the first load)', async () => {
+    // Hold the second-month fetch open with a manually-resolved
+    // promise so we can observe the in-flight state.
+    let resolveSecond: (value: unknown[]) => void = () => {};
+    const u = userEvent.setup();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} />);
+    // First load shows the loading panel until data arrives.
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+    expect(screen.getByTestId('calendar-grid')).toBeInTheDocument();
+
+    // Stub the next listLeaveRequests call to be slow so the
+    // in-flight UI is observable.
+    listLeaveRequestsMock.mockImplementationOnce(() => new Promise((res) => { resolveSecond = res; }));
+
+    await u.click(screen.getByLabelText('Nächster Monat'));
+
+    // The full loading panel must NOT have replaced the grid.
+    expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('calendar-grid')).toBeInTheDocument();
+    // The subtle inline indicator IS shown.
+    expect(screen.getByText(/Aktualisieren…/)).toBeInTheDocument();
+
+    // Resolve the slow fetch — indicator goes away.
+    resolveSecond([]);
+    await waitFor(() => expect(screen.queryByText(/Aktualisieren…/)).not.toBeInTheDocument());
+    expect(screen.getByTestId('calendar-grid')).toBeInTheDocument();
+  });
+
   it('jumps back to today when the Heute button is clicked', async () => {
     const u = userEvent.setup();
     render(<LeaveCalendar initialYear={2025} initialMonth={0} />);

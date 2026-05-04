@@ -216,34 +216,6 @@ export default function LeaveRequestsList({
         </div>
       )}
 
-      {loading && (
-        <div className="text-center py-8 text-slate-400">
-          <Loader2 size={20} className="mx-auto mb-2 animate-spin" />
-          <p style={{ fontSize: 12 }}>Anträge werden geladen…</p>
-        </div>
-      )}
-
-      {!loading && error && (
-        <div className="p-5 bg-red-50 border-t-2 border-red-200">
-          <div className="flex items-start gap-2 text-red-700">
-            <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-            <div>
-              <div className="font-semibold" style={{ fontSize: 13 }}>
-                Anträge konnten nicht geladen werden
-              </div>
-              <div className="font-mono mt-0.5" style={{ fontSize: 11 }}>{error}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!loading && !error && visibleRequests.length === 0 && (
-        <div className="text-center py-10 text-slate-400">
-          <CalendarIcon size={28} className="mx-auto mb-2 opacity-50" />
-          <p style={{ fontSize: 12 }}>{emptyLabel}</p>
-        </div>
-      )}
-
       {myEmployeeId && (
         <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap gap-1.5 items-center">
           <span className="text-slate-500 mr-1" style={{ fontSize: 11 }}>Anzeigen:</span>
@@ -298,6 +270,34 @@ export default function LeaveRequestsList({
         <div className="px-4 py-2 bg-red-50 border-b border-red-200 text-red-700 flex items-start gap-2" style={{ fontSize: 12 }}>
           <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
           <span>Aktion fehlgeschlagen: {actionError}</span>
+        </div>
+      )}
+
+      {loading && (
+        <div className="text-center py-8 text-slate-400">
+          <Loader2 size={20} className="mx-auto mb-2 animate-spin" />
+          <p style={{ fontSize: 12 }}>Anträge werden geladen…</p>
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="p-5 bg-red-50 border-t-2 border-red-200">
+          <div className="flex items-start gap-2 text-red-700">
+            <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+            <div>
+              <div className="font-semibold" style={{ fontSize: 13 }}>
+                Anträge konnten nicht geladen werden
+              </div>
+              <div className="font-mono mt-0.5" style={{ fontSize: 11 }}>{error}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && visibleRequests.length === 0 && (
+        <div className="text-center py-10 text-slate-400">
+          <CalendarIcon size={28} className="mx-auto mb-2 opacity-50" />
+          <p style={{ fontSize: 12 }}>{emptyLabel}</p>
         </div>
       )}
 

@@ -90,6 +90,11 @@ export default function LeaveCalendar({
   const [leaves, setLeaves] = useState<Array<LeaveRequest & { id: string }>>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [loading, setLoading] = useState(true);
+  // Becomes true after the first successful (or failed) fetch.
+  // Subsequent month navigations keep the previous grid mounted
+  // and only show a small inline spinner — no full panel swap, no
+  // height collapse, no flicker.
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // ISO of the cell the user clicked, if any. Drives the day-detail modal.
   const [openDay, setOpenDay] = useState<IsoDate | null>(null);
@@ -121,7 +126,10 @@ export default function LeaveCalendar({
     }).catch((e) => {
       if (!cancelled) setError(e instanceof Error ? e.message : String(e));
     }).finally(() => {
-      if (!cancelled) setLoading(false);
+      if (!cancelled) {
+        setLoading(false);
+        setHasLoadedOnce(true);
+      }
     });
     return () => { cancelled = true; };
   }, [rangeStart, rangeEnd, reloadKey]);
@@ -215,7 +223,10 @@ export default function LeaveCalendar({
         <div style={{ width: 76 }} />{/* spacer to balance the nav block */}
       </div>
 
-      {loading && (
+      {/* Only show the full loading panel before we have any data
+          to draw. Subsequent navigations keep the previous grid
+          mounted to avoid a height jump + flicker. */}
+      {loading && !hasLoadedOnce && (
         <div className="text-center py-8 text-slate-400">
           <Loader2 size={20} className="mx-auto mb-2 animate-spin" />
           <p style={{ fontSize: 12 }}>Kalender wird geladen…</p>
@@ -236,8 +247,19 @@ export default function LeaveCalendar({
         </div>
       )}
 
-      {!loading && !error && (
-        <div className="p-3" data-testid="calendar-grid">
+      {(!loading || hasLoadedOnce) && !error && (
+        <div className="p-3 relative" data-testid="calendar-grid">
+          {/* Subtle in-flight indicator on month navigation. */}
+          {loading && hasLoadedOnce && (
+            <div
+              className="absolute top-2 right-3 flex items-center gap-1.5 text-slate-400"
+              style={{ fontSize: 10 }}
+              aria-live="polite"
+            >
+              <Loader2 size={11} className="animate-spin" />
+              <span>Aktualisieren…</span>
+            </div>
+          )}
           {/* Weekday header */}
           <div className="grid grid-cols-7 gap-1 mb-1">
             {WEEKDAYS_DE.map((w) => (
