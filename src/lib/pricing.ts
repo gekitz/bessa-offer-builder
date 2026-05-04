@@ -22,6 +22,7 @@ export interface Item {
   code?: string;
   cat?: string;
   note?: string;
+  info?: string;
 }
 
 export type Catalog = Record<string, Item>;

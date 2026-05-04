@@ -12,11 +12,13 @@ function makeChain(response: { data: unknown; error: unknown }) {
   return builder as { [key: string]: ReturnType<typeof vi.fn> } & PromiseLike<unknown>;
 }
 
-const fromMock = vi.fn();
-const invokeMock = vi.fn();
-const uploadMock = vi.fn();
-const getPublicUrlMock = vi.fn();
-const storageFromMock = vi.fn(() => ({ upload: uploadMock, getPublicUrl: getPublicUrlMock }));
+type AnyFn = (...args: unknown[]) => unknown;
+
+const fromMock = vi.fn<AnyFn>();
+const invokeMock = vi.fn<AnyFn>();
+const uploadMock = vi.fn<AnyFn>();
+const getPublicUrlMock = vi.fn<AnyFn>();
+const storageFromMock = vi.fn<AnyFn>(() => ({ upload: uploadMock, getPublicUrl: getPublicUrlMock }));
 
 vi.mock('../supabase', () => ({
   supabase: {
@@ -50,6 +52,7 @@ beforeEach(() => {
 });
 
 const baseOfferArgs = {
+  id: undefined as string | undefined,
   customer: { name: 'Max', company: 'ACME', email: 'm@a.at', phone: '+43 1', address: '' },
   creator: 'gk',
   creatorName: 'Georg Kitz',
@@ -61,6 +64,7 @@ const baseOfferArgs = {
   totalMonthly: 30,
   totalOnce: 0,
   totalPeriod: 360,
+  mandatsRef: '',
   customItems: {},
   cartOrder: [],
   serviceStartDate: null,
@@ -160,7 +164,7 @@ describe('sendOffer', () => {
     const result = await sendOffer('off-1', 'BASE64', 'angebot.pdf');
 
     expect(invokeMock).toHaveBeenCalledTimes(1);
-    const [name, opts] = invokeMock.mock.calls[0];
+    const [name, opts] = invokeMock.mock.calls[0] as [string, { body: unknown; headers: { Authorization: string } }];
     expect(name).toBe('send-offer');
     expect(opts.body).toEqual({
       offerId: 'off-1',
@@ -177,7 +181,7 @@ describe('sendOffer', () => {
 
     await sendOffer('off-1', 'X', 'a.pdf', emailText, { includeAcceptLink: true });
 
-    const opts = invokeMock.mock.calls[0][1];
+    const opts = invokeMock.mock.calls[0][1] as { body: Record<string, unknown> };
     expect(opts.body.emailSubject).toBe('Hi');
     expect(opts.body.emailGreeting).toBe('Sehr');
     expect(opts.body.emailBody).toBe('Body');
