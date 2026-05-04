@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Calendar, Loader2, MapPin, Plus, Users } from 'lucide-react';
+import { AlertCircle, Calendar, CalendarPlus, Loader2, MapPin, Plus, Users } from 'lucide-react';
 import { listEmployees, listStandorte } from '../api/vacationApi';
 import LeaveRequestForm from '../components/LeaveRequestForm';
 import LeaveRequestsList from '../components/LeaveRequestsList';
 import LeaveCalendar from '../components/LeaveCalendar';
+import CalendarSubscriptionModal from '../components/CalendarSubscriptionModal';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { TEAM } from '../../offers/data/catalogs';
@@ -28,6 +29,7 @@ export default function VacationPage() {
   // (right-click context menu sends start === end; drag-to-range sends
   // start <= end). Mutually exclusive with the other create flows.
   const [requestForRange, setRequestForRange] = useState(null);
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
 
   // Match the logged-in SSO user to one of our employees. The TEAM
   // array's `id` field happens to equal employees.code (both 'gkitz',
@@ -84,13 +86,24 @@ export default function VacationPage() {
             <h1 className="font-bold text-slate-700" style={{ fontSize: 18 }}>Urlaubsplaner</h1>
           </div>
           {!loading && !error && employees.length > 0 && (
-            <button
-              onClick={() => setRequestForEmployeeId(currentEmployee?.id ?? employees[0].id)}
-              className="flex items-center gap-1.5 rounded-lg bg-red-600 text-white px-3 py-1.5 hover:bg-red-700 transition-colors"
-              style={{ fontSize: 12 }}
-            >
-              <Plus size={13} /> Neuer Antrag
-            </button>
+            <div className="flex items-center gap-2">
+              {currentEmployee && (
+                <button
+                  onClick={() => setShowSubscribeModal(true)}
+                  className="flex items-center gap-1.5 rounded-lg bg-slate-100 text-slate-700 px-3 py-1.5 hover:bg-slate-200 transition-colors"
+                  style={{ fontSize: 12 }}
+                >
+                  <CalendarPlus size={13} /> Kalender abonnieren
+                </button>
+              )}
+              <button
+                onClick={() => setRequestForEmployeeId(currentEmployee?.id ?? employees[0].id)}
+                className="flex items-center gap-1.5 rounded-lg bg-red-600 text-white px-3 py-1.5 hover:bg-red-700 transition-colors"
+                style={{ fontSize: 12 }}
+              >
+                <Plus size={13} /> Neuer Antrag
+              </button>
+            </div>
           )}
         </div>
 
@@ -218,6 +231,14 @@ export default function VacationPage() {
           existingRequest={editingRequest ?? undefined}
           onClose={handleCloseForm}
           onSuccess={handleRequestSuccess}
+        />
+      )}
+
+      {showSubscribeModal && currentEmployee && (
+        <CalendarSubscriptionModal
+          employeeId={currentEmployee.id}
+          employeeName={currentEmployee.name}
+          onClose={() => setShowSubscribeModal(false)}
         />
       )}
     </div>
