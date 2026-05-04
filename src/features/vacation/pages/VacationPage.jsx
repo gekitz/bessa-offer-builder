@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, Calendar, Loader2, MapPin, Plus, Users } from 'lucide-react';
 import { listEmployees, listStandorte } from '../api/vacationApi';
 import LeaveRequestForm from '../components/LeaveRequestForm';
+import LeaveRequestsList from '../components/LeaveRequestsList';
 
 // Urlaubsplaner landing page. Shows the team grouped by Standort and
 // gives every row a "Antrag stellen" button that opens the request
@@ -87,6 +88,13 @@ export default function VacationPage() {
                 <p className="text-amber-700 font-mono" style={{ fontSize: 11 }}>{error}</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Leave requests — visible once employees load (so the list has names to render). */}
+        {!loading && !error && employees.length > 0 && (
+          <div className="mb-4">
+            <LeaveRequestsList reloadKey={reloadKey} />
           </div>
         )}
 
