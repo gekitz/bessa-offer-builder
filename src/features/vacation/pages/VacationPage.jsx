@@ -42,6 +42,7 @@ export default function VacationPage() {
     if (!teamId) return null;
     return employees.find((e) => e.code === teamId) ?? null;
   }, [currentEmail, employees]);
+  const userIsApprover = isApprover(currentEmployee);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,17 +155,20 @@ export default function VacationPage() {
               reloadKey={reloadKey}
               actionable
               showStatusTabs
-              canDecide={isApprover(currentEmployee)}
+              canDecide={userIsApprover}
               decidedBy={currentEmployee?.id}
               myEmployeeId={currentEmployee?.id}
-              defaultMyOnly={!!currentEmployee && !isApprover(currentEmployee)}
+              defaultMyOnly={!!currentEmployee && !userIsApprover}
               onEdit={(req) => setEditingRequest(req)}
             />
           </div>
         )}
 
-        {/* State: success — employee list grouped by Standort, each row a button */}
-        {!loading && !error && employees.length > 0 && (
+        {/* Team roster — approvers only. Lets Georg/Herbert create a
+            request on behalf of any employee (the per-row "Antrag"
+            button). Regular employees use the header "Neuer Antrag"
+            button which pre-fills with themselves. */}
+        {!loading && !error && employees.length > 0 && userIsApprover && (
           <div className="bg-white rounded-xl border-2 border-slate-200 overflow-hidden">
             <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center gap-2">
               <Users size={14} className="text-slate-500" />
@@ -229,6 +233,7 @@ export default function VacationPage() {
           defaultStartDate={requestForRange?.start ?? undefined}
           defaultEndDate={requestForRange?.end ?? undefined}
           existingRequest={editingRequest ?? undefined}
+          lockEmployee={!userIsApprover}
           onClose={handleCloseForm}
           onSuccess={handleRequestSuccess}
         />

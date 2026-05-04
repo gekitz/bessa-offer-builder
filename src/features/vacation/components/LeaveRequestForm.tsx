@@ -28,6 +28,10 @@ interface LeaveRequestFormProps {
   // editable (status='pending') — that's a UI-level guard the
   // caller is responsible for.
   existingRequest?: LeaveRequest & { id: string };
+  // When true, the employee selector is hidden — non-approvers can
+  // only request for themselves. Approvers keep the picker so they
+  // can create on behalf of any employee.
+  lockEmployee?: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -38,6 +42,7 @@ export default function LeaveRequestForm({
   defaultStartDate,
   defaultEndDate,
   existingRequest,
+  lockEmployee = false,
   onClose,
   onSuccess,
 }: LeaveRequestFormProps) {
@@ -195,17 +200,19 @@ export default function LeaveRequestForm({
         {/* Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-auto">
           <div className="p-5 space-y-4">
-            {/* Employee selector */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Mitarbeiter</label>
-              <Select
-                value={employeeId}
-                onChange={setEmployeeId}
-                options={employees.map((e) => ({ value: e.id, label: e.name, hint: e.code }))}
-                placeholder="Mitarbeiter wählen…"
-                ariaLabel="Mitarbeiter"
-              />
-            </div>
+            {/* Employee selector — hidden when locked (non-approvers can only request for themselves) */}
+            {!lockEmployee && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Mitarbeiter</label>
+                <Select
+                  value={employeeId}
+                  onChange={setEmployeeId}
+                  options={employees.map((e) => ({ value: e.id, label: e.name, hint: e.code }))}
+                  placeholder="Mitarbeiter wählen…"
+                  ariaLabel="Mitarbeiter"
+                />
+              </div>
+            )}
 
             {/* Leave type */}
             <div>

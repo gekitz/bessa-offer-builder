@@ -97,7 +97,9 @@ describe('VacationPage', () => {
     expect(screen.getByText(/Mitarbeiter werden geladen/)).toBeInTheDocument();
   });
 
-  it('renders employees grouped by Standort with code and weekly hours', async () => {
+  it('renders the team roster grouped by Standort for approvers', async () => {
+    // Roster is approver-only; sign in as Georg.
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
     render(<VacationPage />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
 
@@ -109,6 +111,19 @@ describe('VacationPage', () => {
 
     // Apprentice badge for Marc
     expect(screen.getByText('apprentice')).toBeInTheDocument();
+  });
+
+  it('hides the team roster from non-approvers', async () => {
+    // Helmut Bauer (hbauer) — non-approver.
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bh@kitz.co.at' }, user: null });
+    render(<VacationPage />);
+    // Wait for the always-visible Anträge panel header.
+    await waitFor(() => expect(screen.getByText(/^Anträge/)).toBeInTheDocument());
+
+    // The roster section title and Standort headers are not rendered.
+    expect(screen.queryByText(/^Mitarbeiter \(\d+\)/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Klagenfurt')).not.toBeInTheDocument();
+    expect(screen.queryByText('Wolfsberg')).not.toBeInTheDocument();
   });
 
   it('shows a friendly migration-not-applied warning when listEmployees throws', async () => {
@@ -135,7 +150,7 @@ describe('VacationPage', () => {
   it('opens the leave-request form when the page-level "Neuer Antrag" button is clicked', async () => {
     const u = userEvent.setup();
     render(<VacationPage />);
-    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: /Neuer Antrag/ })).toBeInTheDocument());
 
     await u.click(screen.getByRole('button', { name: /Neuer Antrag/ }));
 
@@ -144,6 +159,8 @@ describe('VacationPage', () => {
   });
 
   it('opens the form pre-filled with the row\'s employee when clicking a per-row Antrag button', async () => {
+    // Per-row Antrag buttons live in the approver-only roster.
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
     const u = userEvent.setup();
     render(<VacationPage />);
     await waitFor(() => expect(screen.getByText('Mario Graf')).toBeInTheDocument());
@@ -177,8 +194,22 @@ describe('VacationPage', () => {
     expect(mitarbeiterTrigger.textContent).toContain('Georg Kitz');
   });
 
-  it('falls back to the first employee when the SSO email matches no team member', async () => {
-    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'unknown@kitz.co.at' }, user: null });
+  it('locks the form to a non-approver SSO user (no Mitarbeiter selector)', async () => {
+    // Helmut Bauer (hbauer) — non-approver. The form should open
+    // without a Mitarbeiter dropdown so he can only request for himself.
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bh@kitz.co.at' }, user: null });
+    const u = userEvent.setup();
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Neuer Antrag/ })).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: /Neuer Antrag/ }));
+    await screen.findByText('Neuer Urlaubsantrag');
+
+    expect(screen.queryByRole('button', { name: 'Mitarbeiter' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the Mitarbeiter selector for approvers (create on behalf)', async () => {
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
     const u = userEvent.setup();
     render(<VacationPage />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
@@ -186,10 +217,7 @@ describe('VacationPage', () => {
     await u.click(screen.getByRole('button', { name: /Neuer Antrag/ }));
     await screen.findByText('Neuer Urlaubsantrag');
 
-    // listEmployees returns [stefan, mario, georg, marc, helmut]; the first
-    // employee id wins when nothing matches the SSO email.
-    const mitarbeiterTrigger = screen.getByRole('button', { name: 'Mitarbeiter' });
-    expect(mitarbeiterTrigger.textContent).toContain('Stefan Bauer');
+    expect(screen.getByRole('button', { name: 'Mitarbeiter' })).toBeInTheDocument();
   });
 
   it('hides Genehmigen/Ablehnen for non-approver SSO users', async () => {
@@ -242,7 +270,9 @@ describe('VacationPage', () => {
     // Helmut Bauer (hbauer) — SSO format bh — non-approver.
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bh@kitz.co.at' }, user: null });
     render(<VacationPage />);
-    await waitFor(() => expect(screen.getByText('Helmut Bauer')).toBeInTheDocument());
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Mitarbeiter filtern' })).toBeInTheDocument();
+    });
     const lastCall = listLeaveRequestsMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
     expect(lastCall.employeeId).toBe(helmut.id);
     expect(screen.getByRole('button', { name: 'Mitarbeiter filtern' }).textContent).toContain('Nur meine');
@@ -295,7 +325,7 @@ describe('VacationPage', () => {
     listStandorteMock.mockResolvedValueOnce(STANDORTE);
 
     render(<VacationPage />);
-    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: /Neuer Antrag/ })).toBeInTheDocument());
     // VacationPage + LeaveRequestsList + LeaveCalendar each call it.
     expect(listEmployeesMock).toHaveBeenCalledTimes(3);
     listEmployeesMock.mockClear();

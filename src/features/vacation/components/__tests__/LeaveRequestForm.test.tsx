@@ -329,3 +329,59 @@ describe('LeaveRequestForm — submit', () => {
     expect(createLeaveRequestMock).not.toHaveBeenCalled();
   });
 });
+
+describe('LeaveRequestForm — lockEmployee', () => {
+  it('shows the Mitarbeiter selector by default (approver flow)', async () => {
+    render(
+      <LeaveRequestForm
+        employees={[stefan, mario, georg]}
+        defaultEmployeeId={stefan.id}
+        defaultStartDate="2026-08-10"
+        defaultEndDate="2026-08-15"
+        onClose={() => {}}
+        onSuccess={() => {}}
+      />,
+    );
+    await waitFor(() => expect(loadRuleContextMock).toHaveBeenCalled());
+    expect(screen.getByRole('button', { name: 'Mitarbeiter' })).toBeInTheDocument();
+  });
+
+  it('hides the Mitarbeiter selector when lockEmployee is true', async () => {
+    render(
+      <LeaveRequestForm
+        employees={[stefan, mario, georg]}
+        defaultEmployeeId={stefan.id}
+        defaultStartDate="2026-08-10"
+        defaultEndDate="2026-08-15"
+        lockEmployee
+        onClose={() => {}}
+        onSuccess={() => {}}
+      />,
+    );
+    await waitFor(() => expect(loadRuleContextMock).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Mitarbeiter' })).not.toBeInTheDocument();
+  });
+
+  it('still submits with the locked-in employeeId when locked', async () => {
+    const onSuccess = vi.fn();
+    render(
+      <LeaveRequestForm
+        employees={[stefan, mario, georg]}
+        defaultEmployeeId={stefan.id}
+        defaultStartDate="2026-08-10"
+        defaultEndDate="2026-08-15"
+        lockEmployee
+        onClose={() => {}}
+        onSuccess={onSuccess}
+      />,
+    );
+    await waitFor(() => expect(loadRuleContextMock).toHaveBeenCalled());
+
+    const submit = await screen.findByRole('button', { name: /Antrag einreichen/ });
+    await waitFor(() => expect(submit).not.toBeDisabled());
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(createLeaveRequestMock).toHaveBeenCalledTimes(1));
+    expect(createLeaveRequestMock.mock.calls[0][0]).toMatchObject({ employeeId: stefan.id });
+  });
+});
