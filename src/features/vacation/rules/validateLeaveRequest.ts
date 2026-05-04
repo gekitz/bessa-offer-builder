@@ -4,6 +4,7 @@ import { hardBlock } from './hardBlock';
 import { blackout } from './blackout';
 import { coverageMin } from './coverageMin';
 import { entitlement } from './entitlement';
+import { fenstertage50pct } from './fenstertage50pct';
 
 type Rule = (req: LeaveRequest, ctx: RuleContext) => RuleResult;
 
@@ -15,11 +16,8 @@ const ALL_RULES: Rule[] = [
   hardBlock,
   coverageMin,
   blackout,
+  fenstertage50pct,
 ];
-
-// TODO once the schema supports them:
-//   * fenstertage50pct  (needs a fenstertage_days lookup table)
-//   * halfYearPlanning  (needs the year's leave_balances + planned)
 
 export function validateLeaveRequest(request: LeaveRequest, ctx: RuleContext): RuleResult {
   const violations: RuleViolation[] = [];

@@ -95,6 +95,14 @@ export interface RuleContext {
   existingLeaves: LeaveRequest[];
   coverageRules: CoverageRule[];
   blackouts: BlackoutPeriod[];
+  // Bridge days between holidays and weekends (e.g. Fri after Christi
+  // Himmelfahrt). Used by the fenstertage50pct rule to flag high-demand
+  // dates. Empty/undefined disables the rule.
+  fenstertage?: IsoDate[];
+  // Per-employee leave balance rows (any year). Used by halfYearPlanning
+  // to know each employee's entitlement. Optional — rule passes when
+  // missing.
+  leaveBalances?: { employeeId: string; year: number; leaveTypeCode: LeaveTypeCode; entitled: number; carriedOver: number }[];
 }
 
 export interface RuleViolation {

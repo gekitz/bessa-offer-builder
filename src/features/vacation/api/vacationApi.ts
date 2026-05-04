@@ -482,5 +482,10 @@ export async function loadRuleContext(opts: LoadRuleContextOpts = {}): Promise<R
     listCoverageRules({ activeOnly: true }),
     listBlackoutPeriods({ activeOnly: true }),
   ]);
-  return { today, employees, roles, existingLeaves, coverageRules, blackouts };
+  // Static Fenstertage list — covers the year of `today` plus the next
+  // year so requests crossing year-end still get evaluated.
+  const { getFenstertageForRange } = await import('../lib/fenstertage');
+  const startYear = Number(today.slice(0, 4));
+  const fenstertage = getFenstertageForRange(startYear, startYear + 1);
+  return { today, employees, roles, existingLeaves, coverageRules, blackouts, fenstertage };
 }
