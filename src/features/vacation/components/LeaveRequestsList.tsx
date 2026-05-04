@@ -86,8 +86,18 @@ export default function LeaveRequestsList({
   const [actionInFlight, setActionInFlight] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   // When set, the DecisionDialog renders for that request + decision.
+  // The dialog gets approver context (balance + substitute) so the
+  // decision is made with full info.
   const [decisionTarget, setDecisionTarget] = useState<
-    { id: string; decision: 'approved' | 'rejected'; summary: string } | null
+    {
+      id: string;
+      decision: 'approved' | 'rejected';
+      summary: string;
+      employeeId: string;
+      year: number;
+      leaveTypeCode: LeaveTypeCode;
+      substituteName: string | null;
+    } | null
   >(null);
   // Tab selection — defaults to "Offen" since approvers care about
   // pending requests first. Used only when showStatusTabs is on.
@@ -172,7 +182,17 @@ export default function LeaveRequestsList({
     const emp = employeeById.get(req.employeeId);
     const type = typeByCode.get(req.leaveTypeCode);
     const summary = `${emp?.name ?? req.employeeId} · ${type?.label ?? req.leaveTypeCode} · ${formatRange(req.startDate, req.endDate, req.halfDayStart, req.halfDayEnd)}`;
-    setDecisionTarget({ id: req.id, decision, summary });
+    const sub = req.substituteId ? employeeById.get(req.substituteId) : null;
+    const year = Number(req.startDate.slice(0, 4));
+    setDecisionTarget({
+      id: req.id,
+      decision,
+      summary,
+      employeeId: req.employeeId,
+      year,
+      leaveTypeCode: req.leaveTypeCode,
+      substituteName: sub?.name ?? null,
+    });
   }
 
   async function submitDecision(note: string | undefined) {
@@ -455,6 +475,10 @@ export default function LeaveRequestsList({
         <DecisionDialog
           decision={decisionTarget.decision}
           summary={decisionTarget.summary}
+          contextEmployeeId={decisionTarget.employeeId}
+          contextYear={decisionTarget.year}
+          contextLeaveTypeCode={decisionTarget.leaveTypeCode}
+          contextSubstituteName={decisionTarget.substituteName}
           onConfirm={submitDecision}
           onClose={() => setDecisionTarget(null)}
         />

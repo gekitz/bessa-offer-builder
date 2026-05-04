@@ -7,6 +7,7 @@ const listEmployeesMock = vi.fn();
 const listLeaveTypesMock = vi.fn();
 const decideLeaveRequestMock = vi.fn();
 const cancelLeaveRequestMock = vi.fn();
+const listLeaveBalancesMock = vi.fn();
 
 vi.mock('../../api/vacationApi', () => ({
   listLeaveRequests: (filter?: unknown) => listLeaveRequestsMock(filter),
@@ -14,6 +15,7 @@ vi.mock('../../api/vacationApi', () => ({
   listLeaveTypes: () => listLeaveTypesMock(),
   decideLeaveRequest: (...args: unknown[]) => decideLeaveRequestMock(...args),
   cancelLeaveRequest: (...args: unknown[]) => cancelLeaveRequestMock(...args),
+  listLeaveBalances: (id: string, year: number) => listLeaveBalancesMock(id, year),
 }));
 
 const buildICalendarMock = vi.fn<(opts: unknown) => string>(() => 'BEGIN:VCALENDAR\r\nEND:VCALENDAR');
@@ -64,6 +66,7 @@ beforeEach(() => {
   listLeaveTypesMock.mockReset().mockResolvedValue(TYPES);
   decideLeaveRequestMock.mockReset().mockResolvedValue({ id: 'lr-1', status: 'approved' });
   cancelLeaveRequestMock.mockReset().mockResolvedValue(undefined);
+  listLeaveBalancesMock.mockReset().mockResolvedValue([]);
 });
 
 describe('LeaveRequestsList', () => {
@@ -629,7 +632,12 @@ describe('LeaveRequestsList — actionable mode', () => {
 
     await waitFor(() => expect(decideLeaveRequestMock).toHaveBeenCalledTimes(1));
     expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'approved', null, 'OK, Vertretung Mario');
-    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(2));
+    // listLeaveRequests is called: 1× on mount, 1× by DecisionDialog
+    // for the year context, 1× refetch after success = 3 total.
+    const refetchCalls = listLeaveRequestsMock.mock.calls.filter(
+      (c) => !(c[0] as Record<string, unknown>)?.rangeStart,
+    );
+    expect(refetchCalls.length).toBeGreaterThanOrEqual(2);
     // Dialog dismissed after success.
     expect(screen.queryByText('Antrag genehmigen')).not.toBeInTheDocument();
   });
