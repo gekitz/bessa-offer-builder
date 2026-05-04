@@ -35,6 +35,14 @@ interface LeaveRequestsListProps {
   // tab row. Internal state takes over from the statusFilter prop —
   // statusFilter is treated as the seed value only.
   showStatusTabs?: boolean;
+  // When set, render a "Nur meine / Alle Mitarbeiter" toggle that
+  // filters the list to leaves belonging to this employee. Useful
+  // for the page-level Urlaub view where the same component serves
+  // both employees (their own leaves) and approvers (everyone's).
+  myEmployeeId?: string;
+  // Initial state of the toggle; only matters when myEmployeeId is
+  // set. Default is false (= "Alle Mitarbeiter").
+  defaultMyOnly?: boolean;
 }
 
 type StatusTab = 'all' | LeaveStatus;
@@ -66,6 +74,8 @@ export default function LeaveRequestsList({
   canDecide = false,
   decidedBy,
   showStatusTabs = false,
+  myEmployeeId,
+  defaultMyOnly = false,
 }: LeaveRequestsListProps) {
   const [requests, setRequests] = useState<Array<LeaveRequest & { id: string }>>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -78,19 +88,24 @@ export default function LeaveRequestsList({
   // Tab selection — defaults to "Offen" since approvers care about
   // pending requests first. Used only when showStatusTabs is on.
   const [selectedStatus, setSelectedStatus] = useState<StatusTab>('pending');
+  // Own-leaves toggle. Rendered + active only when myEmployeeId is set.
+  const [myOnly, setMyOnly] = useState(defaultMyOnly);
 
   // When tabs are on, fetch the full set unfiltered and filter
   // client-side so the tab labels can show accurate counts.
   // When tabs are off, the API filter still does the work.
   const apiStatusFilter = showStatusTabs ? undefined : statusFilter;
   const statusKey = Array.isArray(apiStatusFilter) ? apiStatusFilter.join(',') : (apiStatusFilter ?? '');
+  // Effective employee filter: the explicit prop takes precedence,
+  // otherwise the toggle decides between myEmployeeId and "all".
+  const effectiveEmployeeId = employeeId ?? (myEmployeeId && myOnly ? myEmployeeId : undefined);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
     Promise.all([
-      listLeaveRequests({ status: apiStatusFilter, employeeId }),
+      listLeaveRequests({ status: apiStatusFilter, employeeId: effectiveEmployeeId }),
       listEmployees({ activeOnly: false }),
       listLeaveTypes(),
     ]).then(([reqs, emps, types]) => {
@@ -105,7 +120,7 @@ export default function LeaveRequestsList({
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusKey, employeeId, reloadKey, internalReload]);
+  }, [statusKey, effectiveEmployeeId, reloadKey, internalReload]);
 
   // Per-status counts + the visible slice when tabs are on.
   const statusCounts = useMemo(() => {
@@ -214,6 +229,32 @@ export default function LeaveRequestsList({
         <div className="text-center py-10 text-slate-400">
           <CalendarIcon size={28} className="mx-auto mb-2 opacity-50" />
           <p style={{ fontSize: 12 }}>{emptyLabel}</p>
+        </div>
+      )}
+
+      {myEmployeeId && (
+        <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap gap-1.5 items-center">
+          <span className="text-slate-500 mr-1" style={{ fontSize: 11 }}>Anzeigen:</span>
+          <button
+            type="button"
+            onClick={() => setMyOnly(false)}
+            className={`rounded-full px-3 py-1 font-medium transition-colors ${
+              !myOnly ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+            style={{ fontSize: 11 }}
+          >
+            Alle Mitarbeiter
+          </button>
+          <button
+            type="button"
+            onClick={() => setMyOnly(true)}
+            className={`rounded-full px-3 py-1 font-medium transition-colors ${
+              myOnly ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+            style={{ fontSize: 11 }}
+          >
+            Nur meine
+          </button>
         </div>
       )}
 

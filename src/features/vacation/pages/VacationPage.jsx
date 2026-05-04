@@ -125,6 +125,8 @@ export default function VacationPage() {
               showStatusTabs
               canDecide={isApprover(currentEmployee)}
               decidedBy={currentEmployee?.id}
+              myEmployeeId={currentEmployee?.id}
+              defaultMyOnly={!!currentEmployee && !isApprover(currentEmployee)}
             />
           </div>
         )}

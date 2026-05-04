@@ -273,6 +273,75 @@ describe('LeaveRequestsList — status tabs', () => {
   });
 });
 
+describe('LeaveRequestsList — "Nur meine" toggle', () => {
+  it('hides the toggle when myEmployeeId is not provided', async () => {
+    render(<LeaveRequestsList />);
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Nur meine' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Alle Mitarbeiter' })).not.toBeInTheDocument();
+  });
+
+  it('renders both toggle buttons when myEmployeeId is provided', async () => {
+    render(<LeaveRequestsList myEmployeeId="e-1" />);
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
+    expect(screen.getByRole('button', { name: 'Alle Mitarbeiter' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nur meine' })).toBeInTheDocument();
+  });
+
+  it('defaults to "Alle Mitarbeiter" — no employee filter on the API call', async () => {
+    render(<LeaveRequestsList myEmployeeId="e-1" />);
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
+    expect(listLeaveRequestsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ employeeId: undefined }),
+    );
+    expect(screen.getByRole('button', { name: 'Alle Mitarbeiter' }).className).toMatch(/bg-slate-700/);
+  });
+
+  it('respects defaultMyOnly=true and seeds the API with the employee id', async () => {
+    render(<LeaveRequestsList myEmployeeId="e-1" defaultMyOnly />);
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
+    expect(listLeaveRequestsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ employeeId: 'e-1' }),
+    );
+    expect(screen.getByRole('button', { name: 'Nur meine' }).className).toMatch(/bg-slate-700/);
+  });
+
+  it('refetches with the employee id when toggled to "Nur meine"', async () => {
+    const u = userEvent.setup();
+    render(<LeaveRequestsList myEmployeeId="e-1" />);
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(1));
+
+    await u.click(screen.getByRole('button', { name: 'Nur meine' }));
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(2));
+    expect(listLeaveRequestsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ employeeId: 'e-1' }),
+    );
+
+    await u.click(screen.getByRole('button', { name: 'Alle Mitarbeiter' }));
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(3));
+    expect(listLeaveRequestsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ employeeId: undefined }),
+    );
+  });
+
+  it('combines tabs + toggle: tabs override status, toggle controls employeeId', async () => {
+    render(<LeaveRequestsList showStatusTabs myEmployeeId="e-1" defaultMyOnly />);
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
+    expect(listLeaveRequestsMock).toHaveBeenCalledWith({
+      status: undefined,
+      employeeId: 'e-1',
+    });
+  });
+
+  it('explicit employeeId prop wins over the toggle', async () => {
+    render(<LeaveRequestsList myEmployeeId="e-1" defaultMyOnly employeeId="other" />);
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
+    expect(listLeaveRequestsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ employeeId: 'other' }),
+    );
+  });
+});
+
 describe('LeaveRequestsList — actionable mode', () => {
   // window.confirm is opened before every API call. Default-allow it
   // so happy-path tests aren't littered with confirm mocks. Tests

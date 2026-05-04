@@ -50,6 +50,13 @@ const marc: Employee = {
   id: 'mmaier-id', code: 'mmaier', name: 'Marc Maier',
   standortId: 2, weeklyHours: 38.5, employmentType: 'apprentice', active: true,
 };
+// Helmut Bauer is in the offers TEAM array (id 'hbauer', email
+// 'h.bauer@kitz.co.at') and is not an approver — useful for tests
+// covering non-approver SSO behaviour.
+const helmut: Employee = {
+  id: 'hbauer-id', code: 'hbauer', name: 'Helmut Bauer',
+  standortId: 2, weeklyHours: 38.5, employmentType: 'fulltime', active: true,
+};
 
 const STANDORTE = [
   { id: 1, name: 'Klagenfurt' },
@@ -59,7 +66,7 @@ const STANDORTE = [
 function ctx(overrides: Partial<RuleContext> = {}): RuleContext {
   return {
     today: '2026-05-04',
-    employees: [stefan, mario, georg, marc],
+    employees: [stefan, mario, georg, marc, helmut],
     roles: [],
     existingLeaves: [],
     coverageRules: [],
@@ -69,7 +76,7 @@ function ctx(overrides: Partial<RuleContext> = {}): RuleContext {
 }
 
 beforeEach(() => {
-  listEmployeesMock.mockReset().mockResolvedValue([stefan, mario, georg, marc]);
+  listEmployeesMock.mockReset().mockResolvedValue([stefan, mario, georg, marc, helmut]);
   listStandorteMock.mockReset().mockResolvedValue(STANDORTE);
   listLeaveRequestsMock.mockReset().mockResolvedValue([]);
   listLeaveTypesMock.mockReset().mockResolvedValue([
@@ -98,7 +105,7 @@ describe('VacationPage', () => {
     expect(screen.getByText('Klagenfurt')).toBeInTheDocument();
     expect(screen.getByText('(1)')).toBeInTheDocument(); // Klagenfurt: just Georg
     expect(screen.getByText('Wolfsberg')).toBeInTheDocument();
-    expect(screen.getByText('(3)')).toBeInTheDocument(); // Wolfsberg: 3
+    expect(screen.getByText('(4)')).toBeInTheDocument(); // Wolfsberg: 4 (Stefan, Mario, Marc, Helmut)
 
     // Apprentice badge for Marc
     expect(screen.getByText('apprentice')).toBeInTheDocument();
@@ -179,28 +186,31 @@ describe('VacationPage', () => {
     await u.click(screen.getByRole('button', { name: /Neuer Antrag/ }));
     await screen.findByText('Neuer Urlaubsantrag');
 
-    // listEmployees returns [stefan, mario, georg, marc]; the first
+    // listEmployees returns [stefan, mario, georg, marc, helmut]; the first
     // employee id wins when nothing matches the SSO email.
     const mitarbeiterTrigger = screen.getByRole('button', { name: 'Mitarbeiter' });
     expect(mitarbeiterTrigger.textContent).toContain('Stefan Bauer');
   });
 
   it('hides Genehmigen/Ablehnen for non-approver SSO users', async () => {
+    // The non-approver here is Helmut Bauer ('hbauer'). His TEAM
+    // email is 'h.bauer@kitz.co.at', SSO format = 'bh' + first
+    // initial -> 'bh@kitz.co.at'.
+    // We list the request under helmut so it survives the default
+    // "Nur meine" filter that non-approvers get.
     listLeaveRequestsMock.mockResolvedValue([
       {
         id: 'lr-1',
-        employeeId: stefan.id,
+        employeeId: helmut.id,
         leaveTypeCode: 'urlaub',
         startDate: '2026-08-10',
         endDate: '2026-08-15',
         status: 'pending',
       },
     ]);
-    // 'sb' is the SSO format for Stefan Bauer (s.bauer -> bs).
-    // Stefan is not gkitz/hkitz -> not an approver.
-    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bs@kitz.co.at' }, user: null });
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bh@kitz.co.at' }, user: null });
     render(<VacationPage />);
-    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Helmut Bauer')).toBeInTheDocument());
 
     expect(screen.queryByRole('button', { name: /Genehmigen/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Ablehnen/ })).not.toBeInTheDocument();
@@ -225,6 +235,27 @@ describe('VacationPage', () => {
 
     expect(screen.getByRole('button', { name: /Genehmigen/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Ablehnen/ })).toBeInTheDocument();
+  });
+
+  it('defaults the "Nur meine" toggle to ON for non-approver SSO users', async () => {
+    listLeaveRequestsMock.mockClear().mockResolvedValue([]);
+    // Helmut Bauer (hbauer) — SSO format bh — non-approver.
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bh@kitz.co.at' }, user: null });
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getByText('Helmut Bauer')).toBeInTheDocument());
+    const lastCall = listLeaveRequestsMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(lastCall.employeeId).toBe(helmut.id);
+    expect(screen.getByRole('button', { name: 'Nur meine' }).className).toMatch(/bg-slate-700/);
+  });
+
+  it('defaults the toggle to "Alle Mitarbeiter" for approvers', async () => {
+    listLeaveRequestsMock.mockClear().mockResolvedValue([]);
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    const lastCall = listLeaveRequestsMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(lastCall.employeeId).toBeUndefined();
+    expect(screen.getByRole('button', { name: 'Alle Mitarbeiter' }).className).toMatch(/bg-slate-700/);
   });
 
   it('passes the SSO-matched employee id to LeaveRequestsList as decidedBy', async () => {
@@ -253,11 +284,11 @@ describe('VacationPage', () => {
   it('refreshes employee + leave lists after a successful new request', async () => {
     const u = userEvent.setup();
     // First-render fixtures
-    listEmployeesMock.mockResolvedValueOnce([stefan, mario, georg, marc]);
+    listEmployeesMock.mockResolvedValueOnce([stefan, mario, georg, marc, helmut]);
     listStandorteMock.mockResolvedValueOnce(STANDORTE);
     // Second-render (post-success) returns the same set — we just want to
     // verify the API is called twice.
-    listEmployeesMock.mockResolvedValueOnce([stefan, mario, georg, marc]);
+    listEmployeesMock.mockResolvedValueOnce([stefan, mario, georg, marc, helmut]);
     listStandorteMock.mockResolvedValueOnce(STANDORTE);
 
     render(<VacationPage />);
