@@ -1,21 +1,24 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, Calendar, Loader2, MapPin, Users } from 'lucide-react';
+import { AlertCircle, Calendar, Loader2, MapPin, Plus, Users } from 'lucide-react';
 import { listEmployees, listStandorte } from '../api/vacationApi';
+import LeaveRequestForm from '../components/LeaveRequestForm';
 
-// Placeholder Urlaubsplaner page — wires the AppShell nav entry to a
-// real screen and verifies the API + migration round-trip.
-//
-// Once the rules-engine UI lands (Phase F-3 onwards: leave-request
-// form, calendar view, approver inbox, balance dashboard) this file
-// becomes the layout/router for those subviews.
+// Urlaubsplaner landing page. Shows the team grouped by Standort and
+// gives every row a "Antrag stellen" button that opens the request
+// form pre-filled with that employee. Future iterations add: my
+// requests list, calendar view, approver inbox, balance dashboard.
 export default function VacationPage() {
   const [employees, setEmployees] = useState([]);
   const [standorte, setStandorte] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [requestForEmployeeId, setRequestForEmployeeId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     async function load() {
       try {
         const [es, ss] = await Promise.all([listEmployees(), listStandorte()]);
@@ -30,23 +33,31 @@ export default function VacationPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadKey]);
+
+  function handleRequestSuccess() {
+    setRequestForEmployeeId(null);
+    setReloadKey((k) => k + 1);
+  }
 
   return (
     <div className="flex-1 overflow-auto px-4 py-4 md:px-8 md:py-6">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-2 mb-4">
-          <Calendar size={20} className="text-red-600" />
-          <h1 className="font-bold text-slate-700" style={{ fontSize: 18 }}>Urlaubsplaner</h1>
-        </div>
-
-        <div className="bg-white rounded-xl border-2 border-slate-200 p-5 mb-4">
-          <p className="text-slate-600" style={{ fontSize: 13 }}>
-            Modul in Entwicklung. Datenmodell und Regelwerk sind verdrahtet,
-            die UI (Antrag stellen, Kalenderansicht, Genehmigungs-Inbox)
-            folgt in den nächsten Schritten.
-          </p>
+        <div className="flex items-center justify-between mb-4 gap-2">
+          <div className="flex items-center gap-2">
+            <Calendar size={20} className="text-red-600" />
+            <h1 className="font-bold text-slate-700" style={{ fontSize: 18 }}>Urlaubsplaner</h1>
+          </div>
+          {!loading && !error && employees.length > 0 && (
+            <button
+              onClick={() => setRequestForEmployeeId(employees[0].id)}
+              className="flex items-center gap-1.5 rounded-lg bg-red-600 text-white px-3 py-1.5 hover:bg-red-700 transition-colors"
+              style={{ fontSize: 12 }}
+            >
+              <Plus size={13} /> Neuer Antrag
+            </button>
+          )}
         </div>
 
         {/* State: loading */}
@@ -79,7 +90,7 @@ export default function VacationPage() {
           </div>
         )}
 
-        {/* State: success — read-only employee list grouped by Standort */}
+        {/* State: success — employee list grouped by Standort, each row a button */}
         {!loading && !error && employees.length > 0 && (
           <div className="bg-white rounded-xl border-2 border-slate-200 overflow-hidden">
             <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center gap-2">
@@ -100,19 +111,21 @@ export default function VacationPage() {
                   </div>
                   <div className="divide-y divide-slate-100">
                     {ours.map((e) => (
-                      <div key={e.id} className="px-4 py-2.5 flex items-center justify-between">
-                        <div>
-                          <div className="font-medium text-slate-700" style={{ fontSize: 13 }}>{e.name}</div>
-                          <div className="text-slate-400" style={{ fontSize: 11 }}>{e.code}</div>
+                      <div key={e.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-slate-700 truncate" style={{ fontSize: 13 }}>{e.name}</div>
+                          <div className="text-slate-400" style={{ fontSize: 11 }}>
+                            {e.code} · {e.weeklyHours}h/Woche
+                            {e.employmentType !== 'fulltime' && <span className="ml-1.5 bg-slate-100 text-slate-500 rounded-full px-2 py-0.5">{e.employmentType}</span>}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-slate-400" style={{ fontSize: 11 }}>
-                          <span>{e.weeklyHours}h/Woche</span>
-                          {e.employmentType !== 'fulltime' && (
-                            <span className="bg-slate-100 text-slate-500 rounded-full px-2 py-0.5">
-                              {e.employmentType}
-                            </span>
-                          )}
-                        </div>
+                        <button
+                          onClick={() => setRequestForEmployeeId(e.id)}
+                          className="flex items-center gap-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors px-2.5 py-1 flex-shrink-0"
+                          style={{ fontSize: 11 }}
+                        >
+                          <Plus size={11} /> Antrag
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -130,6 +143,15 @@ export default function VacationPage() {
           </div>
         )}
       </div>
+
+      {requestForEmployeeId && (
+        <LeaveRequestForm
+          employees={employees}
+          defaultEmployeeId={requestForEmployeeId}
+          onClose={() => setRequestForEmployeeId(null)}
+          onSuccess={handleRequestSuccess}
+        />
+      )}
     </div>
   );
 }
