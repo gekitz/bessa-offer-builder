@@ -17,6 +17,10 @@ import type { Employee, IsoDate, LeaveTypeCode, RuleContext, RuleResult } from '
 interface LeaveRequestFormProps {
   employees: Employee[];
   defaultEmployeeId?: string;
+  // Pre-fill the date pickers — used by integration tests to avoid
+  // navigating the calendar popover. Production callers pass neither.
+  defaultStartDate?: IsoDate;
+  defaultEndDate?: IsoDate;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -24,13 +28,15 @@ interface LeaveRequestFormProps {
 export default function LeaveRequestForm({
   employees,
   defaultEmployeeId,
+  defaultStartDate,
+  defaultEndDate,
   onClose,
   onSuccess,
 }: LeaveRequestFormProps) {
   const [employeeId, setEmployeeId] = useState<string>(defaultEmployeeId ?? employees[0]?.id ?? '');
   const [leaveTypeCode, setLeaveTypeCode] = useState<LeaveTypeCode>('urlaub');
-  const [startDate, setStartDate] = useState<IsoDate>('');
-  const [endDate, setEndDate] = useState<IsoDate>('');
+  const [startDate, setStartDate] = useState<IsoDate>(defaultStartDate ?? '');
+  const [endDate, setEndDate] = useState<IsoDate>(defaultEndDate ?? '');
   const [halfDayStart, setHalfDayStart] = useState(false);
   const [halfDayEnd, setHalfDayEnd] = useState(false);
   const [reason, setReason] = useState('');
