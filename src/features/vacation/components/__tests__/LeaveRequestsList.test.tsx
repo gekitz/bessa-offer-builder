@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const listLeaveRequestsMock = vi.fn();
@@ -431,29 +431,52 @@ describe('LeaveRequestsList — actionable mode', () => {
     expect(cancelButtons).toHaveLength(2); // Stefan (pending) + Mario (approved)
   });
 
-  it('approves a request and refetches the list', async () => {
+  it('opens the DecisionDialog when Genehmigen is clicked', async () => {
+    const u = userEvent.setup();
+    render(<LeaveRequestsList actionable canDecide />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: /Genehmigen/ }));
+    expect(await screen.findByText('Antrag genehmigen')).toBeInTheDocument();
+    // Dialog summary mentions employee + type + date range.
+    expect(screen.getByText(/Stefan Bauer · Urlaub · 10\.08\.2026.*15\.08\.2026/)).toBeInTheDocument();
+    // The API has not been called yet — the dialog gates it.
+    expect(decideLeaveRequestMock).not.toHaveBeenCalled();
+  });
+
+  it('confirming the dialog calls the API with the typed note and refetches', async () => {
     const u = userEvent.setup();
     render(<LeaveRequestsList actionable canDecide />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
     expect(listLeaveRequestsMock).toHaveBeenCalledTimes(1);
 
     await u.click(screen.getByRole('button', { name: /Genehmigen/ }));
+    await screen.findByText('Antrag genehmigen');
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'OK, Vertretung Mario' } });
+    // The dialog button is "Genehmigen" — there are two on screen
+    // (the row trigger + the dialog confirm). The dialog one is
+    // inside the modal, scoped to the role.
+    const confirmButtons = screen.getAllByRole('button', { name: 'Genehmigen' });
+    await u.click(confirmButtons[confirmButtons.length - 1]!);
 
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/genehmigen/i));
     await waitFor(() => expect(decideLeaveRequestMock).toHaveBeenCalledTimes(1));
-    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'approved', null);
+    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'approved', null, 'OK, Vertretung Mario');
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(2));
+    // Dialog dismissed after success.
+    expect(screen.queryByText('Antrag genehmigen')).not.toBeInTheDocument();
   });
 
-  it('rejects a request', async () => {
+  it('confirming with no note sends undefined for decision_note', async () => {
     const u = userEvent.setup();
     render(<LeaveRequestsList actionable canDecide />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
 
     await u.click(screen.getByRole('button', { name: /Ablehnen/ }));
+    const confirmButtons = await screen.findAllByRole('button', { name: 'Ablehnen' });
+    await u.click(confirmButtons[confirmButtons.length - 1]!);
 
     await waitFor(() => expect(decideLeaveRequestMock).toHaveBeenCalledTimes(1));
-    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'rejected', null);
+    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'rejected', null, undefined);
   });
 
   it('passes decidedBy to decideLeaveRequest when the prop is set', async () => {
@@ -462,19 +485,23 @@ describe('LeaveRequestsList — actionable mode', () => {
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
 
     await u.click(screen.getByRole('button', { name: /Genehmigen/ }));
+    const confirmButtons = await screen.findAllByRole('button', { name: 'Genehmigen' });
+    await u.click(confirmButtons[confirmButtons.length - 1]!);
 
     await waitFor(() => expect(decideLeaveRequestMock).toHaveBeenCalledTimes(1));
-    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'approved', 'gkitz-id');
+    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'approved', 'gkitz-id', undefined);
   });
 
-  it('skips the API call when the user dismisses the confirm dialog', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('Abbrechen on the dialog closes it without calling the API', async () => {
     const u = userEvent.setup();
     render(<LeaveRequestsList actionable canDecide />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
 
     await u.click(screen.getByRole('button', { name: /Genehmigen/ }));
+    await screen.findByText('Antrag genehmigen');
+    await u.click(screen.getByRole('button', { name: 'Abbrechen' }));
 
+    expect(screen.queryByText('Antrag genehmigen')).not.toBeInTheDocument();
     expect(decideLeaveRequestMock).not.toHaveBeenCalled();
   });
 
@@ -492,15 +519,38 @@ describe('LeaveRequestsList — actionable mode', () => {
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(2));
   });
 
-  it('shows an inline error banner when an action fails', async () => {
+  it('shows the API error inline in the dialog when decideLeaveRequest rejects', async () => {
     decideLeaveRequestMock.mockRejectedValueOnce(new Error('rls denied'));
     const u = userEvent.setup();
     render(<LeaveRequestsList actionable canDecide />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
 
     await u.click(screen.getByRole('button', { name: /Genehmigen/ }));
+    const confirmButtons = await screen.findAllByRole('button', { name: 'Genehmigen' });
+    await u.click(confirmButtons[confirmButtons.length - 1]!);
 
-    expect(await screen.findByText(/Aktion fehlgeschlagen/)).toBeInTheDocument();
+    expect(await screen.findByText(/Fehler beim Speichern/)).toBeInTheDocument();
     expect(screen.getByText(/rls denied/)).toBeInTheDocument();
+    // Dialog stays open so the user can retry or cancel.
+    expect(screen.getByText('Antrag genehmigen')).toBeInTheDocument();
+  });
+
+  it('renders the decisionNote on a decided row', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-decided',
+        employeeId: stefan.id,
+        leaveTypeCode: 'urlaub',
+        startDate: '2026-08-10',
+        endDate: '2026-08-15',
+        status: 'rejected',
+        decisionNote: 'Konflikt mit MFP-Lehrling',
+        decidedAt: '2026-05-04T10:00:00Z',
+      },
+    ]);
+    render(<LeaveRequestsList actionable />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    expect(screen.getByText(/Entscheidung:/)).toBeInTheDocument();
+    expect(screen.getByText(/Konflikt mit MFP-Lehrling/)).toBeInTheDocument();
   });
 });

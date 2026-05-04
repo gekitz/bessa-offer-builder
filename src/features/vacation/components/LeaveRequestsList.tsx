@@ -9,6 +9,7 @@ import {
   type LeaveType,
 } from '../api/vacationApi';
 import LeaveStatusBadge from './LeaveStatusBadge';
+import DecisionDialog from './DecisionDialog';
 import type { Employee, IsoDate, LeaveRequest, LeaveStatus, LeaveTypeCode } from '../types';
 
 interface LeaveRequestsListProps {
@@ -90,6 +91,10 @@ export default function LeaveRequestsList({
   const [internalReload, setInternalReload] = useState(0);
   const [actionInFlight, setActionInFlight] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // When set, the DecisionDialog renders for that request + decision.
+  const [decisionTarget, setDecisionTarget] = useState<
+    { id: string; decision: 'approved' | 'rejected'; summary: string } | null
+  >(null);
   // Tab selection — defaults to "Offen" since approvers care about
   // pending requests first. Used only when showStatusTabs is on.
   const [selectedStatus, setSelectedStatus] = useState<StatusTab>('pending');
@@ -158,16 +163,26 @@ export default function LeaveRequestsList({
     [leaveTypes],
   );
 
-  async function handleDecide(id: string, decision: 'approved' | 'rejected') {
-    const verb = decision === 'approved' ? 'genehmigen' : 'ablehnen';
-    if (!window.confirm(`Antrag ${verb}?`)) return;
+  function openDecisionDialog(req: LeaveRequest & { id: string }, decision: 'approved' | 'rejected') {
+    const emp = employeeById.get(req.employeeId);
+    const type = typeByCode.get(req.leaveTypeCode);
+    const summary = `${emp?.name ?? req.employeeId} · ${type?.label ?? req.leaveTypeCode} · ${formatRange(req.startDate, req.endDate, req.halfDayStart, req.halfDayEnd)}`;
+    setDecisionTarget({ id: req.id, decision, summary });
+  }
+
+  async function submitDecision(note: string | undefined) {
+    if (!decisionTarget) return;
+    const { id, decision } = decisionTarget;
     setActionInFlight(id);
     setActionError(null);
     try {
-      await decideLeaveRequest(id, decision, decidedBy ?? null);
+      await decideLeaveRequest(id, decision, decidedBy ?? null, note);
+      setDecisionTarget(null);
       setInternalReload((k) => k + 1);
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : String(e));
+      // The DecisionDialog surfaces the error; re-throw so it can
+      // render the message in-place.
+      throw e;
     } finally {
       setActionInFlight(null);
     }
@@ -331,13 +346,20 @@ export default function LeaveRequestsList({
                   </div>
                 )}
 
+                {req.decisionNote && (
+                  <div className="mt-1.5 rounded-md bg-slate-50 px-2 py-1.5 text-slate-600" style={{ fontSize: 11 }}>
+                    <span className="font-semibold text-slate-700">Entscheidung:</span>{' '}
+                    <span className="italic">„{req.decisionNote}"</span>
+                  </div>
+                )}
+
                 {(showDecide || showCancel) && (
                   <div className="mt-2 flex gap-1.5">
                     {showDecide && (
                       <>
                         <button
                           type="button"
-                          onClick={() => handleDecide(req.id, 'approved')}
+                          onClick={() => openDecisionDialog(req, 'approved')}
                           disabled={isBusy}
                           className="flex items-center gap-1 rounded-lg bg-emerald-50 text-emerald-700 px-2.5 py-1 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
                           style={{ fontSize: 11 }}
@@ -347,7 +369,7 @@ export default function LeaveRequestsList({
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDecide(req.id, 'rejected')}
+                          onClick={() => openDecisionDialog(req, 'rejected')}
                           disabled={isBusy}
                           className="flex items-center gap-1 rounded-lg bg-red-50 text-red-600 px-2.5 py-1 hover:bg-red-100 disabled:opacity-50 transition-colors"
                           style={{ fontSize: 11 }}
@@ -373,6 +395,15 @@ export default function LeaveRequestsList({
             );
           })}
         </ul>
+      )}
+
+      {decisionTarget && (
+        <DecisionDialog
+          decision={decisionTarget.decision}
+          summary={decisionTarget.summary}
+          onConfirm={submitDecision}
+          onClose={() => setDecisionTarget(null)}
+        />
       )}
     </div>
   );

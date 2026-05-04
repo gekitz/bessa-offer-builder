@@ -270,15 +270,18 @@ describe('VacationPage', () => {
       },
     ]);
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     const u = userEvent.setup();
     render(<VacationPage />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
 
     await u.click(screen.getByRole('button', { name: /Genehmigen/ }));
+    // The DecisionDialog opens — click the inner Genehmigen button
+    // (last in DOM order, since the row trigger is also named that).
+    const confirmButtons = await screen.findAllByRole('button', { name: 'Genehmigen' });
+    await u.click(confirmButtons[confirmButtons.length - 1]!);
 
     await waitFor(() => expect(decideLeaveRequestMock).toHaveBeenCalled());
-    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'approved', georg.id);
+    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'approved', georg.id, undefined);
   });
 
   it('refreshes employee + leave lists after a successful new request', async () => {
