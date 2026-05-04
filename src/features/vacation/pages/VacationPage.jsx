@@ -122,6 +122,7 @@ export default function VacationPage() {
             <LeaveRequestsList
               reloadKey={reloadKey}
               actionable
+              showStatusTabs
               canDecide={isApprover(currentEmployee)}
               decidedBy={currentEmployee?.id}
             />

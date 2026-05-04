@@ -31,7 +31,21 @@ interface LeaveRequestsListProps {
   // when an approve/reject succeeds. Falls back to NULL on the
   // server when omitted.
   decidedBy?: string;
+  // When true, render the Alle/Offen/Genehmigt/Abgelehnt/Storniert
+  // tab row. Internal state takes over from the statusFilter prop —
+  // statusFilter is treated as the seed value only.
+  showStatusTabs?: boolean;
 }
+
+type StatusTab = 'all' | LeaveStatus;
+
+const STATUS_TABS: Array<{ key: StatusTab; label: string }> = [
+  { key: 'all',       label: 'Alle' },
+  { key: 'pending',   label: 'Offen' },
+  { key: 'approved',  label: 'Genehmigt' },
+  { key: 'rejected',  label: 'Abgelehnt' },
+  { key: 'cancelled', label: 'Storniert' },
+];
 
 function formatGermanDate(iso: IsoDate): string {
   const [y, m, d] = iso.split('-');
@@ -51,6 +65,7 @@ export default function LeaveRequestsList({
   actionable = false,
   canDecide = false,
   decidedBy,
+  showStatusTabs = false,
 }: LeaveRequestsListProps) {
   const [requests, setRequests] = useState<Array<LeaveRequest & { id: string }>>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -58,20 +73,26 @@ export default function LeaveRequestsList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [internalReload, setInternalReload] = useState(0);
-  // Per-row pending state so the right buttons spin while their
-  // action is in flight.
   const [actionInFlight, setActionInFlight] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Tab selection — defaults to "Offen" since approvers care about
+  // pending requests first. Used only when showStatusTabs is on.
+  const [selectedStatus, setSelectedStatus] = useState<StatusTab>('pending');
 
-  // Stabilise the status array so it doesn't trigger an effect re-run on every parent render.
-  const statusKey = Array.isArray(statusFilter) ? statusFilter.join(',') : statusFilter;
+  // Effective filter sent to the API. Tabs override the prop.
+  const effectiveFilter: LeaveStatus | LeaveStatus[] | undefined = showStatusTabs
+    ? (selectedStatus === 'all' ? undefined : selectedStatus)
+    : statusFilter;
+  // Stabilise the status value so it doesn't trigger a re-fetch on
+  // every render when the prop is an array reference.
+  const statusKey = Array.isArray(effectiveFilter) ? effectiveFilter.join(',') : (effectiveFilter ?? '');
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
     Promise.all([
-      listLeaveRequests({ status: statusFilter, employeeId }),
+      listLeaveRequests({ status: effectiveFilter, employeeId }),
       listEmployees({ activeOnly: false }),
       listLeaveTypes(),
     ]).then(([reqs, emps, types]) => {
@@ -173,6 +194,29 @@ export default function LeaveRequestsList({
         <div className="text-center py-10 text-slate-400">
           <CalendarIcon size={28} className="mx-auto mb-2 opacity-50" />
           <p style={{ fontSize: 12 }}>{emptyLabel}</p>
+        </div>
+      )}
+
+      {showStatusTabs && (
+        <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap gap-1.5">
+          {STATUS_TABS.map((tab) => {
+            const active = tab.key === selectedStatus;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setSelectedStatus(tab.key)}
+                className={`rounded-full px-3 py-1 font-medium transition-colors ${
+                  active
+                    ? 'bg-red-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+                style={{ fontSize: 11 }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       )}
 
