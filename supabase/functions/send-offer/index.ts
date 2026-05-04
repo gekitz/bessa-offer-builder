@@ -12,7 +12,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { offerId, pdfBase64, pdfFilename, emailSubject, emailGreeting, emailBody, emailClosing } = await req.json();
+    const { offerId, pdfBase64, pdfFilename, emailSubject, emailGreeting, emailBody, emailClosing, includeAcceptLink } = await req.json();
 
     if (!offerId) {
       return new Response(JSON.stringify({ error: 'offerId is required' }), {
@@ -27,6 +27,7 @@ serve(async (req: Request) => {
     const resendApiKey = Deno.env.get('RESEND_API_KEY')!;
     const trackingBaseUrl = Deno.env.get('TRACKING_BASE_URL') || `${supabaseUrl}/functions/v1`;
     const trackingSecret = Deno.env.get('TRACKING_SECRET') || '';
+    const publicAppUrl = Deno.env.get('PUBLIC_APP_URL') || '';
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -43,6 +44,14 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Ensure a share_code exists so the accept link works (only when the feature is enabled for this send)
+    let shareCode = offer.share_code as string | null;
+    if (includeAcceptLink && !shareCode) {
+      shareCode = Math.random().toString(36).slice(2, 10);
+      await supabase.from('offers').update({ share_code: shareCode }).eq('id', offerId);
+    }
+    const acceptUrl = includeAcceptLink && publicAppUrl && shareCode ? `${publicAppUrl}/?a=${shareCode}` : '';
 
     if (!offer.customer_email) {
       return new Response(JSON.stringify({ error: 'Keine Kunden-E-Mail vorhanden' }), {
@@ -143,6 +152,14 @@ serve(async (req: Request) => {
           <span style="font-weight:600;color:#1e293b;">€ ${fmtEur(totalOnce)}</span>
         </div>` : ''}
       </div>
+
+      ${acceptUrl ? `
+      <div style="text-align:center;margin:0 0 24px;">
+        <a href="${acceptUrl}" style="display:inline-block;background:#dc2626;color:#ffffff;text-decoration:none;font-weight:bold;padding:14px 28px;border-radius:8px;font-size:15px;">
+          Angebot online annehmen
+        </a>
+        <div style="color:#94a3b8;font-size:12px;margin-top:8px;">Wählen Sie Ihre Zahlungsart &amp; starten Sie direkt</div>
+      </div>` : ''}
 
       <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 8px;">
         ${closingText}

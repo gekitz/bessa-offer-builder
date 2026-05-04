@@ -8,6 +8,7 @@ import OfferPdfDocument from './pdf/OfferPdfDocument';
 import { getOfferFromURL } from './lib/urlState';
 import { saveOffer, listOffers, getOffer, deleteOffer, sendOffer, getEmailEvents, setShareCode, getOfferByShareCode, updateOfferStage, signOffer, getSignedPdfUrl } from './lib/offerApi';
 import { supabase } from './lib/supabase';
+import { generateAcceptQr } from './lib/qr';
 import { useAuth } from './lib/auth';
 import AppShell from './components/AppShell';
 import CustomerPicker from './components/CustomerPicker';
@@ -19,6 +20,7 @@ const CrmPage = React.lazy(() => import('./components/CrmPage.jsx'));
 // ═══════════════════════════════════════════════════════
 
 const TIERS = ['12mo','6mo','2mo','event'];
+const TIER_MONTHS = { '12mo': 12, '6mo': 6, '2mo': 2, 'event': 1 };
 const TIER_LABEL = { '12mo':'12 Monate','6mo':'6 Monate','2mo':'2 Monate','event':'1-3 Tage' };
 const TIER_SHORT = { '12mo':'Jahr','6mo':'Saison','2mo':'Märkte','event':'Events' };
 const TIER_LABEL_OFFER = { '12mo':'12 Monate mtl.','6mo':'6 Monate mtl.','2mo':'2 Monate mtl.','event':'1-3 Tage/Event' };
@@ -1011,7 +1013,7 @@ function SortableOfferRow({ id, children }) {
 // OFFER / ANGEBOT VIEW
 // ═══════════════════════════════════════════════════════
 
-function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier, onSave, onSend, saving, sending, saveSuccess, currentOfferId, onSign, signLoading, onAddCustom, cartOrder, onReorder, onRemoveItem, onEditItem }) {
+function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, setNotes, totals, onPrint, onCopy, copied, onCopyLink, linkCopied, raten, setRaten, pdfLoading, finanzOpen, setFinanzOpen, globalTier, serviceStartDate, setServiceStartDate, billingEnabled = false, onSave, onSend, saving, sending, saveSuccess, currentOfferId, onSign, signLoading, onAddCustom, cartOrder, onReorder, onRemoveItem, onEditItem }) {
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // { id, item, cartItem, monthly }
   const allOrdered = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
@@ -1100,6 +1102,13 @@ function OfferView({ cart, customer, setCustomer, creator, setCreator, notes, se
             </select>
           )}
         </div>
+        {billingEnabled && (
+          <div className="mt-3">
+            <label className="block text-xs font-medium text-slate-500 mb-1">Leistungsbeginn</label>
+            <input type="date" value={serviceStartDate || ''} onChange={e => setServiceStartDate(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 bg-white" />
+          </div>
+        )}
       </div>
 
       {/* Add custom item */}
@@ -1810,6 +1819,369 @@ function OfferList({ onLoad, onNew }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════
+// ACCEPT PAGE (customer-facing, loaded via ?a=<share_code>)
+// ═══════════════════════════════════════════════════════
+function AcceptPlanCard({ title, subtitle, rows, cta, onSelect, loading, disabled, highlight }) {
+  return (
+    <div className={`bg-white rounded-xl border-2 ${highlight ? 'border-red-300' : 'border-slate-200'} mb-4 overflow-hidden`}>
+      <div className="p-5">
+        <div className="mb-3">
+          <div className="font-bold text-slate-800 text-lg">{title}</div>
+          <div className="text-sm text-slate-500">{subtitle}</div>
+        </div>
+        <div className="space-y-2 text-sm bg-slate-50 rounded-lg p-3 mb-4">
+          {rows.map((r, i) => (
+            <div key={i} className={`flex justify-between ${r.emphasis ? 'pt-2 border-t border-slate-200 font-semibold text-slate-800' : 'text-slate-700'}`}>
+              <span>{r.label}</span>
+              <span className={r.emphasis ? '' : 'font-medium'}>€ {fmt(r.value)}{r.per ? r.per : ''}</span>
+            </div>
+          ))}
+        </div>
+        <button onClick={onSelect} disabled={disabled}
+          className="w-full bg-red-600 text-white font-semibold py-3 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-wait transition-colors">
+          {loading ? 'Wird weitergeleitet…' : cta}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AcceptanceDetails({ offer }) {
+  const data = offer.offer_data || {};
+  const tier = data.globalTier || '12mo';
+  const raten = data.raten || 12;
+  const tierMonths = TIER_MONTHS[tier] || 12;
+  const isOpenEnded = tier === '12mo';
+
+  const monthlyNet = Number(offer.total_monthly || 0);
+  const onceNet = Number(offer.total_once || 0);
+  const periodNet = Number(offer.total_period || 0);
+  const yearlyNet = Math.max(0, periodNet - monthlyNet * tierMonths - onceNet);
+
+  const VAT = 1.2, FIN = 1.08;
+  const monthlyBrutto = monthlyNet * VAT;
+  const onceBrutto = onceNet * VAT;
+  const yearlyBrutto = yearlyNet * VAT;
+  const periodBrutto = periodNet * VAT;
+
+  const plan = offer.plan_chosen;
+  const planName = plan === 'standard' ? 'Standard'
+    : plan === 'ratenzahlung' ? 'Ratenzahlung'
+    : plan === 'miete' ? 'Miete' : '—';
+
+  const startDate = offer.service_start_date
+    ? new Date(offer.service_start_date + 'T00:00:00Z')
+    : new Date(offer.accepted_at);
+  const formattedStart = startDate.toLocaleDateString('de-AT');
+  let endDate = null;
+  if (plan === 'miete' || !isOpenEnded) {
+    endDate = new Date(startDate.getTime());
+    endDate.setUTCMonth(endDate.getUTCMonth() + tierMonths);
+  }
+  const formattedEnd = endDate ? endDate.toLocaleDateString('de-AT') : null;
+
+  const rows = [];
+  if (plan === 'standard') {
+    if (onceBrutto > 0) rows.push({ label: 'Einmalig', value: onceBrutto, per: ' brutto' });
+    if (monthlyBrutto > 0) rows.push({ label: 'Monatsgebühr', value: monthlyBrutto, per: '/Monat brutto' });
+    if (yearlyBrutto > 0) rows.push({ label: 'Wartung', value: yearlyBrutto, per: '/Jahr brutto' });
+  } else if (plan === 'ratenzahlung') {
+    const totalFinanced = periodBrutto * FIN;
+    const anzahlung = totalFinanced * 0.3;
+    const ratePerMonth = (totalFinanced * 0.7) / raten;
+    rows.push({ label: 'Gesamtbetrag (inkl. 8%)', value: totalFinanced, per: ' brutto' });
+    rows.push({ label: 'Anzahlung (30%)', value: anzahlung, per: ' brutto' });
+    rows.push({ label: `${raten} × Rate`, value: ratePerMonth, per: '/Monat brutto' });
+    if (isOpenEnded && monthlyBrutto > 0) {
+      rows.push({ label: `Ab Monat ${raten + 1}: Monatsgebühr`, value: monthlyBrutto, per: '/Monat brutto' });
+    }
+    if (isOpenEnded && yearlyBrutto > 0) {
+      rows.push({ label: 'Wartung', value: yearlyBrutto, per: '/Jahr brutto' });
+    }
+  } else if (plan === 'miete') {
+    const mieteMonthly = (periodBrutto / tierMonths) * FIN;
+    rows.push({ label: 'Kaution (einmalig)', value: 500, per: ' brutto' });
+    rows.push({ label: 'Miete monatlich (inkl. 8%)', value: mieteMonthly, per: '/Monat brutto' });
+  }
+
+  return (
+    <div className="min-h-screen p-4 md:p-8 bg-slate-100">
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white border-2 border-emerald-200 rounded-xl p-6 mb-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="text-emerald-600 flex-shrink-0" size={32} />
+            <div>
+              <div className="font-bold text-slate-800 text-lg">Angebot angenommen</div>
+              <div className="text-sm text-slate-500">
+                {new Date(offer.accepted_at).toLocaleString('de-AT', { dateStyle: 'long', timeStyle: 'short' })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 p-5">
+          <div className="flex items-baseline justify-between mb-3">
+            <div className="font-bold text-slate-700" style={{fontSize: 13}}>ZAHLUNGSPLAN</div>
+            <div className="text-sm font-semibold text-slate-800">{planName}</div>
+          </div>
+          <div className="space-y-2 text-sm bg-slate-50 rounded-lg p-3">
+            {rows.length === 0 ? (
+              <div className="text-slate-500 text-center py-2">Keine Details verfügbar</div>
+            ) : rows.map((r, i) => (
+              <div key={i} className="flex justify-between">
+                <span className="text-slate-600">{r.label}</span>
+                <span className="font-semibold text-slate-800 whitespace-nowrap">€ {fmt(r.value)}{r.per}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 p-5">
+          <div className="font-bold text-slate-700 mb-3" style={{fontSize: 13}}>ABRECHNUNG</div>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-600">Leistungsbeginn / erste Abbuchung</span>
+              <span className="font-medium text-slate-800">{formattedStart}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-600">Laufzeit</span>
+              <span className="font-medium text-slate-800">
+                {plan === 'miete' ? `${tierMonths} Monate` : isOpenEnded ? 'Unbefristet' : `${tierMonths} Monate`}
+              </span>
+            </div>
+            {formattedEnd && (
+              <div className="flex justify-between">
+                <span className="text-slate-600">Vertragsende</span>
+                <span className="font-medium text-slate-800">{formattedEnd}</span>
+              </div>
+            )}
+            {monthlyBrutto > 0 && (
+              <div className="flex justify-between">
+                <span className="text-slate-600">Folge-Abbuchungen Monatsgebühr</span>
+                <span className="font-medium text-slate-800">jeweils zum {startDate.getDate()}.</span>
+              </div>
+            )}
+            {yearlyBrutto > 0 && (
+              <div className="flex justify-between">
+                <span className="text-slate-600">Wartung-Verrechnung</span>
+                <span className="font-medium text-slate-800">jährlich ab {formattedStart}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 p-4 text-sm text-slate-600 text-center">
+          Bei Fragen melden Sie sich bitte bei Ihrem Ansprechpartner.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AcceptPage({ shareCode }) {
+  const [offer, setOffer] = useState(null);
+  const [error, setError] = useState('');
+  const [submittingPlan, setSubmittingPlan] = useState(null);
+  const [processingReturn, setProcessingReturn] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stage = params.get('s');
+    const cs = params.get('cs');
+
+    async function load() {
+      try {
+        const fresh = await getOfferByShareCode(shareCode);
+        if (stage === 'success' && cs && !fresh.accepted_at) {
+          setProcessingReturn(true);
+          const { data: result, error: fnErr } = await supabase.functions.invoke(
+            'stripe-complete-acceptance',
+            { body: { shareCode, checkoutSessionId: cs } }
+          );
+          if (fnErr) throw new Error(fnErr.message || 'Verarbeitungsfehler');
+          if (result?.error) throw new Error(result.error);
+          // Re-fetch so UI reflects accepted state
+          const updated = await getOfferByShareCode(shareCode);
+          setOffer(updated);
+          window.history.replaceState({}, '', `${window.location.pathname}?a=${shareCode}`);
+        } else {
+          setOffer(fresh);
+        }
+      } catch (e) {
+        setError(e?.message || 'Angebot nicht gefunden.');
+      } finally {
+        setProcessingReturn(false);
+      }
+    }
+    load();
+  }, [shareCode]);
+
+  if (processingReturn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+        <div className="text-center">
+          <Loader2 className="animate-spin text-red-600 mx-auto mb-3" size={36} />
+          <div className="font-medium text-slate-700">Zahlung wird eingerichtet…</div>
+          <div className="text-xs text-slate-500 mt-1">Bitte Seite nicht schließen</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8 bg-slate-100">
+        <div className="bg-white border-2 border-red-200 rounded-xl p-6 max-w-md text-center">
+          <div className="font-bold text-red-800 mb-2">Angebot nicht gefunden</div>
+          <div className="text-sm text-slate-600">{error}</div>
+        </div>
+      </div>
+    );
+  }
+  if (!offer) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+        <Loader2 className="animate-spin text-slate-400" size={32} />
+      </div>
+    );
+  }
+
+  if (offer.accepted_at) {
+    return <AcceptanceDetails offer={offer} />;
+  }
+
+  const data = offer.offer_data || {};
+  const cart = data.cart || {};
+  const customItems = data.customItems || {};
+  const raten = data.raten || 12;
+
+  // Recompute totals from saved cart
+  let monthly = 0, once = 0, yearly = 0, periodTotal = 0, maxMonths = 0;
+  Object.entries(cart).forEach(([id, c]) => {
+    const item = ALL[id] || customItems[id];
+    if (!item) return;
+    const p = price(item, c.tier, c.mode);
+    const dp = discountedPrice(item, c.tier, c.mode);
+    if (p === null) return;
+    const line = (p * (c.qty || 0)) + (dp * (c.discountQty || 0));
+    if (isMonthly(item, c.mode)) {
+      monthly += line;
+      const months = TIER_MONTHS[c.tier] || 12;
+      periodTotal += line * months;
+      if (months > maxMonths) maxMonths = months;
+    } else {
+      once += line;
+      periodTotal += line;
+      const svc = yearlyServicePerUnit(item) * ((c.qty || 0) + (c.discountQty || 0));
+      if (svc > 0) { yearly += svc; periodTotal += svc; }
+    }
+  });
+  maxMonths = maxMonths || 12;
+
+  const onceBrutto = once * 1.2;
+  const monthlyBrutto = monthly * 1.2;
+  const yearlyBrutto = yearly * 1.2;
+  const periodBrutto = periodTotal * 1.2;
+
+  async function pickPlan(planId) {
+    setSubmittingPlan(planId);
+    try {
+      const { data: result, error } = await supabase.functions.invoke('stripe-create-checkout', {
+        body: { shareCode, plan: planId },
+      });
+      if (error) throw new Error(error.message || 'Checkout-Fehler');
+      if (!result?.url) throw new Error(result?.error || 'Keine Checkout-URL erhalten');
+      window.location.href = result.url;
+    } catch (e) {
+      alert(e.message);
+      setSubmittingPlan(null);
+    }
+  }
+
+  const startDateText = offer.service_start_date
+    ? new Date(offer.service_start_date).toLocaleDateString('de-AT')
+    : 'sofort';
+
+  const planA = [];
+  if (onceBrutto > 0) planA.push({ label: 'Einmalige Kosten', value: onceBrutto });
+  if (monthlyBrutto > 0) planA.push({ label: 'Monatlich', value: monthlyBrutto, per: '/Mo' });
+  if (yearlyBrutto > 0) planA.push({ label: 'Wartung jährlich', value: yearlyBrutto, per: '/J' });
+
+  const ratenTotal = periodBrutto * 1.08;
+  const planB = [
+    { label: `Gesamtbetrag (${raten} Raten, +8%)`, value: ratenTotal },
+    { label: 'Anzahlung (30%)', value: ratenTotal * 0.3 },
+    { label: `Rate (${raten}×)`, value: (ratenTotal * 0.7) / raten, per: '/Mo', emphasis: true },
+  ];
+
+  const mieteMonthly = (periodBrutto / maxMonths) * 1.08;
+  const planC = [
+    { label: 'Kaution (rückzahlbar)', value: 500 },
+    { label: `Miete (${maxMonths} Monate)`, value: mieteMonthly, per: '/Mo', emphasis: true },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-100 py-8 px-4" style={{ fontFamily: 'DM Sans, system-ui, sans-serif' }}>
+      <div className="max-w-xl mx-auto">
+        <div className="text-center mb-6">
+          <div className="inline-block bg-red-600 text-white font-bold px-4 py-2 rounded-lg mb-3" style={{ fontSize: 18 }}>KITZ</div>
+          <h1 className="text-2xl font-bold text-slate-800 mb-1">Angebot annehmen</h1>
+          <p className="text-slate-600 text-sm">Wählen Sie Ihre bevorzugte Zahlungsart</p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+          <div className="text-xs text-slate-500 mb-1">Angebot für</div>
+          <div className="font-bold text-slate-800 mb-3">
+            {offer.customer_company || offer.customer_name || 'Kunde'}
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-500">Leistungsbeginn</span>
+            <span className="font-semibold text-slate-800">{startDateText}</span>
+          </div>
+        </div>
+
+        <AcceptPlanCard
+          title="Standard"
+          subtitle="Monatliche Zahlung, Einmalkosten bei Start"
+          rows={planA}
+          cta="Standard wählen"
+          onSelect={() => pickPlan('standard')}
+          loading={submittingPlan === 'standard'}
+          disabled={!!submittingPlan}
+          highlight
+        />
+        {periodBrutto > 0 && (
+          <AcceptPlanCard
+            title="Ratenzahlung"
+            subtitle={`${raten} Raten, danach Standardtarif`}
+            rows={planB}
+            cta="Ratenzahlung wählen"
+            onSelect={() => pickPlan('ratenzahlung')}
+            loading={submittingPlan === 'ratenzahlung'}
+            disabled={!!submittingPlan}
+          />
+        )}
+        {periodBrutto > 0 && (
+          <AcceptPlanCard
+            title="Miete"
+            subtitle={`${maxMonths} Monate Mietvertrag inkl. Hardware`}
+            rows={planC}
+            cta="Miete wählen"
+            onSelect={() => pickPlan('miete')}
+            loading={submittingPlan === 'miete'}
+            disabled={!!submittingPlan}
+          />
+        )}
+
+        <div className="text-center text-xs text-slate-500 mt-8">
+          Sichere Zahlung über Stripe · alle Preise inkl. 20% USt
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   // Quick access: add #test to URL to show Mesonic API test page
   if (window.location.hash === '#test') {
@@ -1821,7 +2193,22 @@ export default function App() {
     );
   }
 
-  const { profile } = useAuth();
+  // Customer-facing accept flow: ?a=<share_code>
+  const acceptCode = new URLSearchParams(window.location.search).get('a');
+  if (acceptCode) return <AcceptPage shareCode={acceptCode} />;
+
+  const { profile, user } = useAuth();
+  const currentEmail = (profile?.microsoft_email || user?.email || '').toLowerCase();
+  const isBillingAdmin = currentEmail === 'kg@kitz.co.at';
+  const [billingToggle, setBillingToggle] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const v = window.localStorage.getItem('billingEnabled');
+    return v == null ? true : v === 'true';
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem('billingEnabled', String(billingToggle)); } catch {}
+  }, [billingToggle]);
+  const billingEnabled = isBillingAdmin && billingToggle;
   const [section, setSection] = useState('angebote'); // 'angebote' | 'crm'
   const [offerView, setOfferView] = useState('list'); // 'list' | 'builder'
   const [builderTab, setBuilderTab] = useState('bessa');
@@ -1837,6 +2224,7 @@ export default function App() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [finanzOpen, setFinanzOpen] = useState(false);
   const [mandatsRef, setMandatsRef] = useState(() => Date.now().toString().slice(-12));
+  const [serviceStartDate, setServiceStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [currentOfferId, setCurrentOfferId] = useState(null);
   const [shareCode, setShareCodeState] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -1950,6 +2338,7 @@ export default function App() {
         setFinanzOpen(data.finanzOpen || false);
         setGlobalTier(data.globalTier || '12mo');
         setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
+        setServiceStartDate(offer.service_start_date || new Date().toISOString().slice(0, 10));
         setCurrentOfferId(offer.id);
         setShareCodeState(offer.share_code);
         setOfferView('builder'); setBuilderTab('angebot');
@@ -2055,9 +2444,6 @@ export default function App() {
       }
     }
   }
-
-  // Tier period multipliers
-  const TIER_MONTHS = { '12mo': 12, '6mo': 6, '2mo': 2, 'event': 1 };
 
   // Totals
   const totals = useMemo(() => {
@@ -2235,7 +2621,38 @@ export default function App() {
       // Find creator info
       const creatorInfo = TEAM.find(t => t.id === creator) || null;
 
+      // Ensure the offer is saved and has a share_code so the QR accept URL works
+      let effectiveShareCode = shareCode;
+      if (billingEnabled) {
+        let effectiveOfferId = currentOfferId;
+        if (!effectiveOfferId) {
+          const saved = await saveOffer({
+            id: null,
+            customer,
+            creator,
+            creatorName: creatorInfo?.name || creator,
+            cart, globalTier, notes, raten, finanzOpen,
+            totalMonthly: totals.monthly,
+            totalOnce: totals.once,
+            totalPeriod: totals.periodTotal,
+            mandatsRef,
+            customItems: getCustomItemsFromCart(),
+            cartOrder,
+            serviceStartDate,
+          });
+          effectiveOfferId = saved.id;
+          setCurrentOfferId(effectiveOfferId);
+          effectiveShareCode = effectiveShareCode || saved.share_code;
+        }
+        if (!effectiveShareCode) {
+          effectiveShareCode = Math.random().toString(36).slice(2, 10);
+          await setShareCode(effectiveOfferId, effectiveShareCode);
+          setShareCodeState(effectiveShareCode);
+        }
+      }
+
       // Generate PDF blob
+      const acceptQrDataUrl = billingEnabled ? await generateAcceptQr(effectiveShareCode) : null;
       const pdfBlob = await pdf(
         <OfferPdfDocument
           customer={customer}
@@ -2249,6 +2666,8 @@ export default function App() {
           showFinancing={finanzOpen}
           creator={creatorInfo}
           mandatsRef={mandatsRef}
+          acceptQrDataUrl={acceptQrDataUrl}
+          serviceStartDate={serviceStartDate}
         />
       ).toBlob();
       // Ensure correct MIME type for mobile browsers
@@ -2323,6 +2742,7 @@ export default function App() {
         mandatsRef,
         customItems: getCustomItemsFromCart(),
         cartOrder,
+        serviceStartDate,
       });
       setCurrentOfferId(result.id);
 
@@ -2365,6 +2785,7 @@ export default function App() {
         mandatsRef,
         customItems: getCustomItemsFromCart(),
         cartOrder,
+        serviceStartDate,
       });
       setCurrentOfferId(result.id);
       setSaveSuccess(true);
@@ -2402,6 +2823,7 @@ export default function App() {
         mandatsRef,
         customItems: getCustomItemsFromCart(),
         cartOrder,
+        serviceStartDate,
       });
       offerId = result.id;
       setCurrentOfferId(offerId);
@@ -2452,6 +2874,14 @@ export default function App() {
       const wartungItems = buildWartungItems(validSendEntries);
       const autoTerms = computeAutoTerms(cart);
 
+      // Ensure a share_code exists so the accept URL works (only needed when billing is enabled)
+      let effectiveShareCode = shareCode;
+      if (billingEnabled && !effectiveShareCode) {
+        effectiveShareCode = Math.random().toString(36).slice(2, 10);
+        await setShareCode(offerId, effectiveShareCode);
+        setShareCodeState(effectiveShareCode);
+      }
+      const acceptQrDataUrl = billingEnabled ? await generateAcceptQr(effectiveShareCode) : null;
       const pdfBlob = await pdf(
         <OfferPdfDocument
           customer={customer} monthlyItems={monthlyItems} onceItems={onceItems}
@@ -2459,6 +2889,8 @@ export default function App() {
           totals={totals} notes={notes} raten={raten}
           showFinancing={finanzOpen} creator={creatorInfo}
           mandatsRef={mandatsRef}
+          acceptQrDataUrl={acceptQrDataUrl}
+          serviceStartDate={serviceStartDate}
         />
       ).toBlob();
 
@@ -2474,7 +2906,7 @@ export default function App() {
         .replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_').replace(/_+/g, '_').substring(0, 30);
       const filename = `KITZ_Angebot_${customerName}_${dateStr}.pdf`;
 
-      await sendOffer(offerId, base64, filename, emailText);
+      await sendOffer(offerId, base64, filename, emailText, { includeAcceptLink: billingEnabled });
       try { await updateOfferStage(offerId, 'offer_sent'); } catch {}
       setShowEmailPreview(false);
       alert('Angebot erfolgreich gesendet!');
@@ -2525,6 +2957,7 @@ export default function App() {
     const autoTerms = computeAutoTerms(cart);
 
     // Generate signed PDF
+    const acceptQrDataUrl = billingEnabled ? await generateAcceptQr(shareCode) : null;
     const pdfBlob = await pdf(
       <OfferPdfDocument
         customer={customer} monthlyItems={monthlyItems} onceItems={onceItems}
@@ -2532,6 +2965,8 @@ export default function App() {
         totals={totals} notes={notes} raten={raten}
         showFinancing={finanzOpen} creator={creatorInfo}
         mandatsRef={mandatsRef} signatures={signatures}
+        acceptQrDataUrl={acceptQrDataUrl}
+        serviceStartDate={serviceStartDate}
       />
     ).toBlob();
     const blob = new Blob([pdfBlob], { type: 'application/pdf' });
@@ -2586,6 +3021,7 @@ export default function App() {
       setFinanzOpen(data.finanzOpen || false);
       setGlobalTier(data.globalTier || '12mo');
       setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
+      setServiceStartDate(offer.service_start_date || new Date().toISOString().slice(0, 10));
       setCurrentOfferId(duplicate ? null : offer.id);
       setShareCodeState(duplicate ? null : offer.share_code || null);
       setOfferView('builder'); setBuilderTab('angebot');
@@ -2607,6 +3043,7 @@ export default function App() {
     setFinanzOpen(false);
     setGlobalTier('12mo');
     setMandatsRef(Date.now().toString().slice(-12));
+    setServiceStartDate(new Date().toISOString().slice(0, 10));
     setBuilderTab('bessa');
     setOfferView('builder');
   }
@@ -2625,7 +3062,13 @@ export default function App() {
   }
 
   return (
-    <AppShell activeSection={section} onNavigate={(s) => { setSection(s); if (s === 'angebote') setOfferView('list'); }}>
+    <AppShell
+      activeSection={section}
+      onNavigate={(s) => { setSection(s); if (s === 'angebote') setOfferView('list'); }}
+      showBillingToggle={isBillingAdmin}
+      billingToggle={billingToggle}
+      onToggleBilling={setBillingToggle}
+    >
       {/* ═══ ANGEBOTE SECTION ═══ */}
       {section === 'angebote' && offerView === 'list' && (
         <div className="flex-1 overflow-auto px-4 py-4 md:px-8 md:py-6">
@@ -2771,6 +3214,8 @@ export default function App() {
                   <>
                     <OfferView cart={cart} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes}
                       totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
+                      serviceStartDate={serviceStartDate} setServiceStartDate={setServiceStartDate}
+                      billingEnabled={billingEnabled}
                       onSave={handleSave} onSend={openEmailPreview} saving={saving} sending={sending} saveSuccess={saveSuccess} currentOfferId={currentOfferId}
                       onSign={() => setShowSignModal(true)} onAddCustom={() => setShowCustomModal(true)}
                       cartOrder={cartOrder} onReorder={setCartOrder} onRemoveItem={handlers.onRemove} onEditItem={handleEditItem} />

@@ -431,6 +431,8 @@ export default function OfferPdfDocument({
   creator = null,
   mandatsRef = '',
   signatures = null,
+  acceptQrDataUrl = null,
+  serviceStartDate = null,
 }) {
   const date = new Date().toLocaleDateString('de-AT');
   const signedAt = signatures ? new Date().toLocaleDateString('de-AT') : null;
@@ -549,6 +551,38 @@ export default function OfferPdfDocument({
             <Text style={styles.creatorDetail}>{creator.role}</Text>
             <Text style={styles.creatorDetail}>Tel: {creator.phone}</Text>
             <Text style={styles.creatorDetail}>E-Mail: {creator.email}</Text>
+          </View>
+        )}
+
+        {/* Online acceptance via QR code */}
+        {acceptQrDataUrl && !signatures && (
+          <View
+            wrap={false}
+            style={{
+              marginTop: 16,
+              padding: 12,
+              borderWidth: 1,
+              borderColor: COLORS.red || '#dc2626',
+              borderRadius: 6,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <Image src={acceptQrDataUrl} style={{ width: 80, height: 80 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>
+                Angebot online annehmen
+              </Text>
+              <Text style={{ fontSize: 9, color: '#475569', marginBottom: 2 }}>
+                QR-Code scannen, Zahlungsart wählen und direkt starten.
+              </Text>
+              {serviceStartDate && (
+                <Text style={{ fontSize: 9, color: '#475569' }}>
+                  Leistungsbeginn: {new Date(serviceStartDate).toLocaleDateString('de-AT')}
+                </Text>
+              )}
+            </View>
           </View>
         )}
 

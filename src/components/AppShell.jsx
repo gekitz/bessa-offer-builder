@@ -11,7 +11,14 @@ const NAV_ITEMS = [
   { id: 'crm', label: 'CRM', icon: Users },
 ];
 
-export default function AppShell({ activeSection, onNavigate, children }) {
+export default function AppShell({
+  activeSection,
+  onNavigate,
+  showBillingToggle = false,
+  billingToggle = false,
+  onToggleBilling,
+  children,
+}) {
   const [collapsed, setCollapsed] = useState(false);
   const { profile, logout } = useAuth();
 
@@ -80,6 +87,38 @@ export default function AppShell({ activeSection, onNavigate, children }) {
 
           {/* Footer: user + collapse */}
           <div className="border-t border-slate-100 flex-shrink-0" style={{ padding: collapsed ? '12px 8px' : '12px' }}>
+            {showBillingToggle && !collapsed && (
+              <div className="flex items-center justify-between mb-3 px-1">
+                <span className="text-slate-500" style={{ fontSize: 11, fontWeight: 500 }}>Stripe-Billing</span>
+                <button
+                  onClick={() => onToggleBilling?.(!billingToggle)}
+                  className={`relative inline-flex items-center rounded-full transition-colors ${billingToggle ? 'bg-red-500' : 'bg-slate-300'}`}
+                  style={{ width: 32, height: 18 }}
+                  title={billingToggle ? 'Stripe-Billing aktiv' : 'Stripe-Billing aus'}
+                >
+                  <span
+                    className="inline-block bg-white rounded-full shadow"
+                    style={{
+                      width: 14, height: 14,
+                      transform: billingToggle ? 'translateX(15px)' : 'translateX(2px)',
+                      transition: 'transform 120ms ease',
+                    }}
+                  />
+                </button>
+              </div>
+            )}
+            {showBillingToggle && collapsed && (
+              <button
+                onClick={() => onToggleBilling?.(!billingToggle)}
+                className={`w-full flex justify-center mb-3 transition-colors ${billingToggle ? 'text-red-500 hover:text-red-600' : 'text-slate-300 hover:text-slate-500'}`}
+                title={billingToggle ? 'Stripe-Billing aktiv' : 'Stripe-Billing aus'}
+              >
+                <span
+                  className={`inline-block rounded-full ${billingToggle ? 'bg-red-500' : 'bg-slate-300'}`}
+                  style={{ width: 10, height: 10 }}
+                />
+              </button>
+            )}
             {!collapsed && displayName && (
               <div className="flex items-center gap-2 mb-2 px-1">
                 <div
@@ -90,6 +129,9 @@ export default function AppShell({ activeSection, onNavigate, children }) {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-slate-600 truncate" style={{ fontSize: 12, fontWeight: 500 }}>{displayName}</div>
+                  {profile?.microsoft_email && (
+                    <div className="text-slate-400 truncate" style={{ fontSize: 10 }}>{profile.microsoft_email}</div>
+                  )}
                 </div>
                 <button
                   onClick={logout}

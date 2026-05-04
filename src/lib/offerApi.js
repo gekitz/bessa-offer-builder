@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, cart, globalTier, notes, raten, finanzOpen, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder }) {
+export async function saveOffer({ id, customer, creator, creatorName, cart, globalTier, notes, raten, finanzOpen, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   const offerData = { cart, globalTier, notes, raten, finanzOpen, address: customer.address || '', mandatsRef: mandatsRef || '' };
@@ -20,6 +20,7 @@ export async function saveOffer({ id, customer, creator, creatorName, cart, glob
     total_monthly: totalMonthly,
     total_once: totalOnce,
     total_period: totalPeriod,
+    service_start_date: serviceStartDate || null,
     updated_at: new Date().toISOString(),
   };
 
@@ -100,7 +101,7 @@ export async function updateOfferStage(id, stage) {
 }
 
 // Send offer via edge function
-export async function sendOffer(offerId, pdfBase64, pdfFilename, emailText) {
+export async function sendOffer(offerId, pdfBase64, pdfFilename, emailText, opts = {}) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   const body = { offerId, pdfBase64, pdfFilename };
@@ -110,6 +111,7 @@ export async function sendOffer(offerId, pdfBase64, pdfFilename, emailText) {
     body.emailBody = emailText.body;
     body.emailClosing = emailText.closing;
   }
+  if (opts.includeAcceptLink) body.includeAcceptLink = true;
 
   const { data, error } = await supabase.functions.invoke('send-offer', {
     body,

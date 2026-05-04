@@ -5,12 +5,18 @@ import { AuthProvider } from './lib/auth.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import './index.css'
 
+const isAcceptFlow = new URLSearchParams(window.location.search).has('a');
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <AuthProvider>
-      <ProtectedRoute>
+      {isAcceptFlow ? (
         <App />
-      </ProtectedRoute>
+      ) : (
+        <ProtectedRoute>
+          <App />
+        </ProtectedRoute>
+      )}
     </AuthProvider>
   </React.StrictMode>,
 )
