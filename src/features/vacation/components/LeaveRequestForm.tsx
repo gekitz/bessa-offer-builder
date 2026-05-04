@@ -73,14 +73,17 @@ export default function LeaveRequestForm({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Load static reference data + rule context once on mount.
+  // Load static reference data + rule context once whenever the
+  // selected employee changes. The employee id flows into
+  // loadRuleContext so the halfYearPlanning rule has the right
+  // entitlement to compare against.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const [types, ctx] = await Promise.all([
           listLeaveTypes(),
-          loadRuleContext(),
+          loadRuleContext({ forEmployeeId: employeeId || undefined }),
         ]);
         if (cancelled) return;
         setLeaveTypes(types);
@@ -92,7 +95,7 @@ export default function LeaveRequestForm({
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [employeeId]);
 
   // Reload substitutes whenever the selected employee changes.
   useEffect(() => {

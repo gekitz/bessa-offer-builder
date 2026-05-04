@@ -467,6 +467,9 @@ export interface LoadRuleContextOpts {
   // Used to filter existingLeaves so we only load overlapping records.
   rangeStart?: IsoDate;
   rangeEnd?: IsoDate;
+  // When set, the loader populates leaveBalances for this employee
+  // for the current year. Used by the halfYearPlanning rule.
+  forEmployeeId?: string;
 }
 
 export async function loadRuleContext(opts: LoadRuleContextOpts = {}): Promise<RuleContext> {
@@ -487,5 +490,30 @@ export async function loadRuleContext(opts: LoadRuleContextOpts = {}): Promise<R
   const { getFenstertageForRange } = await import('../lib/fenstertage');
   const startYear = Number(today.slice(0, 4));
   const fenstertage = getFenstertageForRange(startYear, startYear + 1);
-  return { today, employees, roles, existingLeaves, coverageRules, blackouts, fenstertage };
+
+  // Optionally load this employee's balance row(s) for the current
+  // year — the halfYearPlanning rule needs entitlement to compute
+  // the 50%-by-mid-year threshold.
+  let leaveBalances: RuleContext['leaveBalances'];
+  if (opts.forEmployeeId) {
+    const rows = await listLeaveBalances(opts.forEmployeeId, startYear);
+    leaveBalances = rows.map((r) => ({
+      employeeId: r.employeeId,
+      year: r.year,
+      leaveTypeCode: r.leaveTypeCode,
+      entitled: r.entitled,
+      carriedOver: r.carriedOver,
+    }));
+  }
+
+  return {
+    today,
+    employees,
+    roles,
+    existingLeaves,
+    coverageRules,
+    blackouts,
+    fenstertage,
+    leaveBalances,
+  };
 }

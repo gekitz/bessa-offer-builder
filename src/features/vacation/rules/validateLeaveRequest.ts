@@ -5,6 +5,7 @@ import { blackout } from './blackout';
 import { coverageMin } from './coverageMin';
 import { entitlement } from './entitlement';
 import { fenstertage50pct } from './fenstertage50pct';
+import { halfYearPlanning } from './halfYearPlanning';
 
 type Rule = (req: LeaveRequest, ctx: RuleContext) => RuleResult;
 
@@ -17,6 +18,7 @@ const ALL_RULES: Rule[] = [
   coverageMin,
   blackout,
   fenstertage50pct,
+  halfYearPlanning,
 ];
 
 export function validateLeaveRequest(request: LeaveRequest, ctx: RuleContext): RuleResult {
