@@ -7,6 +7,7 @@ import {
   type LeaveType,
 } from '../api/vacationApi';
 import type { Employee, IsoDate, LeaveRequest, LeaveTypeCode } from '../types';
+import DayDetailModal from './DayDetailModal';
 
 interface LeaveCalendarProps {
   initialYear?: number;
@@ -86,6 +87,8 @@ export default function LeaveCalendar({
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // ISO of the cell the user clicked, if any. Drives the day-detail modal.
+  const [openDay, setOpenDay] = useState<IsoDate | null>(null);
 
   const grid = useMemo(() => buildMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
   const rangeStart = grid[0]!.iso;
@@ -117,7 +120,16 @@ export default function LeaveCalendar({
   }, [rangeStart, rangeEnd, reloadKey]);
 
   const employeeById = useMemo(() => new Map(employees.map((e) => [e.id, e])), [employees]);
+  const typeByCode = useMemo(
+    () => new Map<LeaveTypeCode, LeaveType>(leaveTypes.map((t) => [t.code, t])),
+    [leaveTypes],
+  );
   const todayIso: IsoDate = toIso(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const leavesOnOpenDay = useMemo(() => {
+    if (!openDay) return [];
+    return leaves.filter((l) => leaveCoversDay(l, openDay));
+  }, [openDay, leaves]);
 
   function handlePrev() {
     if (viewMonth === 0) { setViewYear((y) => y - 1); setViewMonth(11); }
@@ -212,10 +224,12 @@ export default function LeaveCalendar({
               const visible = dayLeaves.slice(0, 3);
               const overflow = dayLeaves.length - visible.length;
               return (
-                <div
+                <button
+                  type="button"
                   key={cell.iso}
                   data-testid={`cal-cell-${cell.iso}`}
-                  className={`min-h-[64px] rounded-md border p-1 text-left flex flex-col gap-0.5 ${
+                  onClick={() => setOpenDay(cell.iso)}
+                  className={`min-h-[64px] rounded-md border p-1 text-left flex flex-col gap-0.5 hover:border-red-300 transition-colors ${
                     cell.current
                       ? 'bg-white border-slate-200'
                       : 'bg-slate-50 border-slate-100'
@@ -258,10 +272,20 @@ export default function LeaveCalendar({
                       +{overflow} weitere
                     </div>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
+
+          {openDay && (
+            <DayDetailModal
+              day={openDay}
+              leaves={leavesOnOpenDay}
+              employees={employeeById}
+              leaveTypes={typeByCode}
+              onClose={() => setOpenDay(null)}
+            />
+          )}
 
           {/* Legend */}
           {leaveTypes.length > 0 && (

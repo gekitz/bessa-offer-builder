@@ -242,6 +242,35 @@ describe('LeaveCalendar', () => {
     expect(within(screen.getByTestId('cal-cell-2026-05-13')).getByText('½ Mario')).toBeInTheDocument();
   });
 
+  it('opens the day-detail modal when a cell is clicked', async () => {
+    const stefanLeave: LeaveRequest & { id: string } = {
+      id: 'lr-1',
+      employeeId: stefan.id,
+      leaveTypeCode: 'urlaub',
+      startDate: '2026-05-11',
+      endDate: '2026-05-13',
+      status: 'approved',
+    };
+    listLeaveRequestsMock.mockResolvedValue([stefanLeave]);
+    const u = userEvent.setup();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    await u.click(screen.getByTestId('cal-cell-2026-05-12'));
+    // Modal header has the day text + count.
+    expect(await screen.findByText('12.05.2026')).toBeInTheDocument();
+    expect(screen.getByText('(1 Abwesenheit)')).toBeInTheDocument();
+  });
+
+  it('day-detail modal shows the day-empty state for a day with no leaves', async () => {
+    const u = userEvent.setup();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    await u.click(screen.getByTestId('cal-cell-2026-05-15'));
+    expect(await screen.findByText(/Niemand abwesend an diesem Tag/)).toBeInTheDocument();
+  });
+
   it('shows ½ on both ends for a single-day request flagged half on both sides', async () => {
     listLeaveRequestsMock.mockResolvedValue([
       {
