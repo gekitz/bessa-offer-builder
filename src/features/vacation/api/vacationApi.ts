@@ -404,6 +404,15 @@ export async function decideLeaveRequest(
     .select(LEAVE_REQUEST_COLUMNS)
     .single();
   if (error) throw error;
+
+  // Fire-and-forget notification. We deliberately do not await so an
+  // email/Resend outage cannot rollback or fail the decision; the
+  // approver already saw the row update succeed in their UI.
+  void sb.functions.invoke('notify-leave-decision', { body: { leaveRequestId: id } })
+    .catch((err) => {
+      console.warn('notify-leave-decision invoke failed:', err);
+    });
+
   return rowToLeaveRequest(data);
 }
 

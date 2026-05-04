@@ -16,10 +16,14 @@ function makeChain(response: { data: unknown; error: unknown }) {
 }
 
 const fromMock = vi.fn<AnyFn>();
+const invokeMock = vi.fn<AnyFn>();
 
 vi.mock('../../../../lib/supabase', () => ({
   supabase: {
     from: (...args: unknown[]) => fromMock(...args),
+    functions: {
+      invoke: (...args: unknown[]) => invokeMock(...args),
+    },
   },
 }));
 
@@ -48,6 +52,7 @@ import {
 
 beforeEach(() => {
   fromMock.mockReset();
+  invokeMock.mockReset().mockResolvedValue({ data: { success: true }, error: null });
 });
 
 describe('lookup tables', () => {
@@ -330,6 +335,31 @@ describe('leave requests', () => {
     expect(updateArg.status).toBe('rejected');
     expect(updateArg.decided_by).toBeNull();
     expect(updateArg.decision_note).toBeNull();
+  });
+
+  it('decideLeaveRequest invokes the notify-leave-decision edge function with the request id', async () => {
+    const chain = makeChain({ data: { ...leaveRow, status: 'approved' }, error: null });
+    fromMock.mockReturnValue(chain);
+    await decideLeaveRequest('lr1', 'approved', 'gkitz-id');
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(invokeMock).toHaveBeenCalledWith('notify-leave-decision', { body: { leaveRequestId: 'lr1' } });
+  });
+
+  it('decideLeaveRequest swallows notify errors so the decision still resolves', async () => {
+    const chain = makeChain({ data: { ...leaveRow, status: 'approved' }, error: null });
+    fromMock.mockReturnValue(chain);
+    invokeMock.mockRejectedValueOnce(new Error('resend down'));
+
+    // Suppress the warning we deliberately log on invoke failure.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await decideLeaveRequest('lr1', 'approved', 'gkitz-id');
+    expect(result.id).toBe(leaveRow.id);
+    // Wait a microtask so the rejected invoke promise is observed.
+    await Promise.resolve();
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 
   it('cancelLeaveRequest sets status=cancelled', async () => {
