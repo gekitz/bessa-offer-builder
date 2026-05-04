@@ -7,6 +7,7 @@ import LeaveCalendar from '../components/LeaveCalendar';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { TEAM } from '../../offers/data/catalogs';
+import { isApprover } from '../lib/permissions';
 
 // Urlaubsplaner landing page. Shows the team grouped by Standort and
 // gives every row a "Antrag stellen" button that opens the request
@@ -121,6 +122,7 @@ export default function VacationPage() {
             <LeaveRequestsList
               reloadKey={reloadKey}
               actionable
+              canDecide={isApprover(currentEmployee)}
               decidedBy={currentEmployee?.id}
             />
           </div>

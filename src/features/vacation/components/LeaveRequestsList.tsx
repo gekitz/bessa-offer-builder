@@ -20,10 +20,13 @@ interface LeaveRequestsListProps {
   // when embedding inside a parent that already provides a header.
   showHeader?: boolean;
   emptyLabel?: string;
-  // When true, render approve/reject (for pending) and cancel
-  // (for pending+approved) buttons per row. Each click confirms()
-  // before calling the API.
+  // When true, render the cancel button on pending/approved rows.
+  // Each click confirms() before calling the API.
   actionable?: boolean;
+  // When true, render the Genehmigen / Ablehnen buttons on pending
+  // rows. Independent of `actionable` because cancellation is a
+  // self-service action while decisions are approver-only.
+  canDecide?: boolean;
   // Currently logged-in user's employees.id, recorded as decided_by
   // when an approve/reject succeeds. Falls back to NULL on the
   // server when omitted.
@@ -46,6 +49,7 @@ export default function LeaveRequestsList({
   showHeader = true,
   emptyLabel = 'Keine Anträge.',
   actionable = false,
+  canDecide = false,
   decidedBy,
 }: LeaveRequestsListProps) {
   const [requests, setRequests] = useState<Array<LeaveRequest & { id: string }>>([]);
@@ -187,8 +191,8 @@ export default function LeaveRequestsList({
             const sub = req.substituteId ? employeeById.get(req.substituteId) : undefined;
             const status = req.status ?? 'pending';
             const isBusy = actionInFlight === req.id;
-            const canDecide = actionable && status === 'pending';
-            const canCancel = actionable && (status === 'pending' || status === 'approved');
+            const showDecide = canDecide && status === 'pending';
+            const showCancel = actionable && (status === 'pending' || status === 'approved');
             return (
               <li key={req.id} className="px-4 py-3">
                 <div className="flex items-start justify-between gap-2 mb-1">
@@ -216,9 +220,9 @@ export default function LeaveRequestsList({
                   </div>
                 )}
 
-                {(canDecide || canCancel) && (
+                {(showDecide || showCancel) && (
                   <div className="mt-2 flex gap-1.5">
-                    {canDecide && (
+                    {showDecide && (
                       <>
                         <button
                           type="button"
@@ -241,7 +245,7 @@ export default function LeaveRequestsList({
                         </button>
                       </>
                     )}
-                    {canCancel && (
+                    {showCancel && (
                       <button
                         type="button"
                         onClick={() => handleCancel(req.id)}

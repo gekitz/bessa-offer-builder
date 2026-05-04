@@ -195,8 +195,19 @@ describe('LeaveRequestsList — actionable mode', () => {
     expect(screen.queryByRole('button', { name: /Stornieren/ })).not.toBeInTheDocument();
   });
 
-  it('renders Genehmigen + Ablehnen + Stornieren only on pending rows', async () => {
+  it('hides Genehmigen + Ablehnen when actionable=true but canDecide=false (non-approver)', async () => {
     render(<LeaveRequestsList actionable />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    // Stornieren is still allowed (cancellation is self-service).
+    expect(screen.getAllByRole('button', { name: /Stornieren/ }).length).toBeGreaterThan(0);
+    // But the approver-only buttons must not render.
+    expect(screen.queryByRole('button', { name: /Genehmigen/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Ablehnen/ })).not.toBeInTheDocument();
+  });
+
+  it('renders Genehmigen + Ablehnen + Stornieren when actionable + canDecide', async () => {
+    render(<LeaveRequestsList actionable canDecide />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
 
     // Stefan's request is pending -> all three actions
@@ -212,7 +223,7 @@ describe('LeaveRequestsList — actionable mode', () => {
 
   it('approves a request and refetches the list', async () => {
     const u = userEvent.setup();
-    render(<LeaveRequestsList actionable />);
+    render(<LeaveRequestsList actionable canDecide />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
     expect(listLeaveRequestsMock).toHaveBeenCalledTimes(1);
 
@@ -220,14 +231,13 @@ describe('LeaveRequestsList — actionable mode', () => {
 
     expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/genehmigen/i));
     await waitFor(() => expect(decideLeaveRequestMock).toHaveBeenCalledTimes(1));
-    // decidedBy defaults to null when no current user is supplied.
     expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'approved', null);
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(2));
   });
 
   it('rejects a request', async () => {
     const u = userEvent.setup();
-    render(<LeaveRequestsList actionable />);
+    render(<LeaveRequestsList actionable canDecide />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
 
     await u.click(screen.getByRole('button', { name: /Ablehnen/ }));
@@ -238,7 +248,7 @@ describe('LeaveRequestsList — actionable mode', () => {
 
   it('passes decidedBy to decideLeaveRequest when the prop is set', async () => {
     const u = userEvent.setup();
-    render(<LeaveRequestsList actionable decidedBy="gkitz-id" />);
+    render(<LeaveRequestsList actionable canDecide decidedBy="gkitz-id" />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
 
     await u.click(screen.getByRole('button', { name: /Genehmigen/ }));
@@ -250,7 +260,7 @@ describe('LeaveRequestsList — actionable mode', () => {
   it('skips the API call when the user dismisses the confirm dialog', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false);
     const u = userEvent.setup();
-    render(<LeaveRequestsList actionable />);
+    render(<LeaveRequestsList actionable canDecide />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
 
     await u.click(screen.getByRole('button', { name: /Genehmigen/ }));
@@ -263,7 +273,6 @@ describe('LeaveRequestsList — actionable mode', () => {
     render(<LeaveRequestsList actionable />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
 
-    // Click the Stornieren button on Stefan's row (first match in DOM order).
     const cancelButtons = screen.getAllByRole('button', { name: /Stornieren/ });
     await u.click(cancelButtons[0]!);
 
@@ -276,7 +285,7 @@ describe('LeaveRequestsList — actionable mode', () => {
   it('shows an inline error banner when an action fails', async () => {
     decideLeaveRequestMock.mockRejectedValueOnce(new Error('rls denied'));
     const u = userEvent.setup();
-    render(<LeaveRequestsList actionable />);
+    render(<LeaveRequestsList actionable canDecide />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
 
     await u.click(screen.getByRole('button', { name: /Genehmigen/ }));

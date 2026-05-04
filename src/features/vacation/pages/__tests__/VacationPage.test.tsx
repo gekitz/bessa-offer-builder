@@ -185,6 +185,48 @@ describe('VacationPage', () => {
     expect(mitarbeiterTrigger.textContent).toContain('Stefan Bauer');
   });
 
+  it('hides Genehmigen/Ablehnen for non-approver SSO users', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-1',
+        employeeId: stefan.id,
+        leaveTypeCode: 'urlaub',
+        startDate: '2026-08-10',
+        endDate: '2026-08-15',
+        status: 'pending',
+      },
+    ]);
+    // 'sb' is the SSO format for Stefan Bauer (s.bauer -> bs).
+    // Stefan is not gkitz/hkitz -> not an approver.
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bs@kitz.co.at' }, user: null });
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    expect(screen.queryByRole('button', { name: /Genehmigen/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Ablehnen/ })).not.toBeInTheDocument();
+    // Stornieren stays available.
+    expect(screen.getAllByRole('button', { name: /Stornieren/ }).length).toBeGreaterThan(0);
+  });
+
+  it('shows Genehmigen/Ablehnen for an approver (Georg)', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-1',
+        employeeId: stefan.id,
+        leaveTypeCode: 'urlaub',
+        startDate: '2026-08-10',
+        endDate: '2026-08-15',
+        status: 'pending',
+      },
+    ]);
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    expect(screen.getByRole('button', { name: /Genehmigen/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ablehnen/ })).toBeInTheDocument();
+  });
+
   it('passes the SSO-matched employee id to LeaveRequestsList as decidedBy', async () => {
     listLeaveRequestsMock.mockResolvedValue([
       {
