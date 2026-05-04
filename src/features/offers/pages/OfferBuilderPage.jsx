@@ -61,6 +61,7 @@ import OfferListPage from './OfferListPage';
 import { orderedCartEntries } from '../../../lib/cartOrder';
 import { fmt } from '../../../lib/format';
 import AppShell from '../../../components/AppShell';
+import VacationPage from '../../vacation/pages/VacationPage';
 
 const CrmPage = React.lazy(() => import('../../../components/CrmPage.jsx'));
 
@@ -108,7 +109,7 @@ export default function OfferBuilderPage() {
     try { window.localStorage.setItem('billingEnabled', String(billingToggle)); } catch {}
   }, [billingToggle]);
   const billingEnabled = isBillingAdmin && billingToggle;
-  const [section, setSection] = useState('angebote'); // 'angebote' | 'crm'
+  const [section, setSection] = useState('angebote'); // 'angebote' | 'crm' | 'urlaub'
   const [offerView, setOfferView] = useState('list'); // 'list' | 'builder'
   const [builderTab, setBuilderTab] = useState('bessa');
   const [globalTier, setGlobalTier] = useState('12mo');
@@ -1107,6 +1108,9 @@ export default function OfferBuilderPage() {
           </React.Suspense>
         </div>
       )}
+
+      {/* ═══ URLAUB SECTION ═══ */}
+      {section === 'urlaub' && <VacationPage />}
     </AppShell>
   );
 }

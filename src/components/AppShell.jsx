@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, X } from 'lucide-react';
+import { Calendar, FileText, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
 // ═══════════════════════════════════════════════════════
@@ -8,7 +8,8 @@ import { useAuth } from '../lib/auth';
 
 const NAV_ITEMS = [
   { id: 'angebote', label: 'Angebote', icon: FileText },
-  { id: 'crm', label: 'CRM', icon: Users },
+  { id: 'crm',      label: 'CRM',      icon: Users },
+  { id: 'urlaub',   label: 'Urlaub',   icon: Calendar },
 ];
 
 export default function AppShell({
