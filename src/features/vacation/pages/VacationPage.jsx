@@ -24,6 +24,9 @@ export default function VacationPage() {
   // When set, the request form opens in edit mode pre-filled with this
   // existing leave request. Mutually exclusive with the create flow.
   const [editingRequest, setEditingRequest] = useState(null);
+  // ISO day pre-filled for new-request creation from the calendar
+  // right-click context menu. Mutually exclusive with the others.
+  const [requestForDay, setRequestForDay] = useState(null);
 
   // Match the logged-in SSO user to one of our employees. The TEAM
   // array's `id` field happens to equal employees.code (both 'gkitz',
@@ -60,12 +63,14 @@ export default function VacationPage() {
   function handleRequestSuccess() {
     setRequestForEmployeeId(null);
     setEditingRequest(null);
+    setRequestForDay(null);
     setReloadKey((k) => k + 1);
   }
 
   function handleCloseForm() {
     setRequestForEmployeeId(null);
     setEditingRequest(null);
+    setRequestForDay(null);
   }
 
   return (
@@ -121,7 +126,10 @@ export default function VacationPage() {
         {/* Calendar — visible once employees load. */}
         {!loading && !error && employees.length > 0 && (
           <div className="mb-4">
-            <LeaveCalendar reloadKey={reloadKey} />
+            <LeaveCalendar
+              reloadKey={reloadKey}
+              onAddRequest={(day) => setRequestForDay(day)}
+            />
           </div>
         )}
 
@@ -195,10 +203,17 @@ export default function VacationPage() {
         )}
       </div>
 
-      {(requestForEmployeeId || editingRequest) && (
+      {(requestForEmployeeId || editingRequest || requestForDay) && (
         <LeaveRequestForm
           employees={employees}
-          defaultEmployeeId={requestForEmployeeId ?? editingRequest?.employeeId}
+          defaultEmployeeId={
+            requestForEmployeeId
+            ?? editingRequest?.employeeId
+            ?? currentEmployee?.id
+            ?? undefined
+          }
+          defaultStartDate={requestForDay ?? undefined}
+          defaultEndDate={requestForDay ?? undefined}
           existingRequest={editingRequest ?? undefined}
           onClose={handleCloseForm}
           onSuccess={handleRequestSuccess}

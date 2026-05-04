@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const listLeaveRequestsMock = vi.fn();
@@ -260,6 +260,60 @@ describe('LeaveCalendar', () => {
     // Modal header has the day text + count.
     expect(await screen.findByText('12.05.2026')).toBeInTheDocument();
     expect(screen.getByText('(1 Abwesenheit)')).toBeInTheDocument();
+  });
+
+  it('does not render the context menu when onAddRequest is omitted', async () => {
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    fireEvent.contextMenu(screen.getByTestId('cal-cell-2026-05-15'));
+    expect(screen.queryByTestId('calendar-context-menu')).not.toBeInTheDocument();
+  });
+
+  it('right-click on a cell opens the context menu with "Antrag erstellen"', async () => {
+    const onAddRequest = vi.fn();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} onAddRequest={onAddRequest} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    fireEvent.contextMenu(screen.getByTestId('cal-cell-2026-05-15'), { clientX: 120, clientY: 80 });
+    const menu = await screen.findByTestId('calendar-context-menu');
+    expect(within(menu).getByRole('menuitem', { name: 'Antrag erstellen' })).toBeInTheDocument();
+    // The default left-click handler must NOT have fired (no day-detail modal opened).
+    expect(screen.queryByText('15.05.2026')).not.toBeInTheDocument();
+  });
+
+  it('selecting "Antrag erstellen" calls onAddRequest with the cell ISO and closes the menu', async () => {
+    const onAddRequest = vi.fn();
+    const u = userEvent.setup();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} onAddRequest={onAddRequest} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    fireEvent.contextMenu(screen.getByTestId('cal-cell-2026-05-15'));
+    await screen.findByTestId('calendar-context-menu');
+    await u.click(screen.getByRole('menuitem', { name: 'Antrag erstellen' }));
+
+    expect(onAddRequest).toHaveBeenCalledTimes(1);
+    expect(onAddRequest).toHaveBeenCalledWith('2026-05-15');
+    expect(screen.queryByTestId('calendar-context-menu')).not.toBeInTheDocument();
+  });
+
+  it('Escape and outside click close the context menu without calling onAddRequest', async () => {
+    const onAddRequest = vi.fn();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} onAddRequest={onAddRequest} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    fireEvent.contextMenu(screen.getByTestId('cal-cell-2026-05-15'));
+    await screen.findByTestId('calendar-context-menu');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByTestId('calendar-context-menu')).not.toBeInTheDocument();
+
+    // Re-open and dismiss via outside click
+    fireEvent.contextMenu(screen.getByTestId('cal-cell-2026-05-16'));
+    await screen.findByTestId('calendar-context-menu');
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByTestId('calendar-context-menu')).not.toBeInTheDocument();
+
+    expect(onAddRequest).not.toHaveBeenCalled();
   });
 
   it('day-detail modal shows the day-empty state for a day with no leaves', async () => {

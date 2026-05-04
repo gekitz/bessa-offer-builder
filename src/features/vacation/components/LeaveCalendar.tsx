@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import {
   listEmployees,
@@ -14,6 +14,9 @@ interface LeaveCalendarProps {
   initialMonth?: number; // 0..11
   // Bumping this counter externally forces a re-fetch.
   reloadKey?: number;
+  // When set, right-clicking a cell opens a context menu with
+  // "Antrag erstellen" — selecting it calls this with the day ISO.
+  onAddRequest?: (day: IsoDate) => void;
 }
 
 const MONTHS_DE = [
@@ -78,6 +81,7 @@ export default function LeaveCalendar({
   initialYear,
   initialMonth,
   reloadKey = 0,
+  onAddRequest,
 }: LeaveCalendarProps) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(initialYear ?? today.getFullYear());
@@ -89,6 +93,9 @@ export default function LeaveCalendar({
   const [error, setError] = useState<string | null>(null);
   // ISO of the cell the user clicked, if any. Drives the day-detail modal.
   const [openDay, setOpenDay] = useState<IsoDate | null>(null);
+  // Right-click context menu state — null when closed.
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; day: IsoDate } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
 
   const grid = useMemo(() => buildMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
   const rangeStart = grid[0]!.iso;
@@ -144,6 +151,34 @@ export default function LeaveCalendar({
     setViewYear(t.getFullYear());
     setViewMonth(t.getMonth());
   }
+
+  // Right-click any cell opens the context menu, anchored at the
+  // mouse position. No-op when the parent didn't supply onAddRequest.
+  function handleCellContextMenu(e: React.MouseEvent, day: IsoDate) {
+    if (!onAddRequest) return;
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, day });
+  }
+
+  // Close the context menu on any click outside the menu, or Escape.
+  // Use a target-aware bubble-phase listener so a click on the
+  // menuitem itself can fire its own onClick before we tear the
+  // menu down.
+  useEffect(() => {
+    if (!contextMenu) return;
+    function maybeClose(e: MouseEvent) {
+      const target = e.target;
+      if (target instanceof Node && contextMenuRef.current?.contains(target)) return;
+      setContextMenu(null);
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setContextMenu(null); }
+    document.addEventListener('mousedown', maybeClose);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', maybeClose);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [contextMenu]);
 
   return (
     <div className="bg-white rounded-xl border-2 border-slate-200 overflow-hidden">
@@ -229,6 +264,7 @@ export default function LeaveCalendar({
                   key={cell.iso}
                   data-testid={`cal-cell-${cell.iso}`}
                   onClick={() => setOpenDay(cell.iso)}
+                  onContextMenu={(e) => handleCellContextMenu(e, cell.iso)}
                   className={`min-h-[64px] rounded-md border p-1 text-left flex flex-col gap-0.5 hover:border-red-300 transition-colors ${
                     cell.current
                       ? 'bg-white border-slate-200'
@@ -285,6 +321,29 @@ export default function LeaveCalendar({
               leaveTypes={typeByCode}
               onClose={() => setOpenDay(null)}
             />
+          )}
+
+          {contextMenu && onAddRequest && (
+            <div
+              ref={contextMenuRef}
+              role="menu"
+              data-testid="calendar-context-menu"
+              className="fixed z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1"
+              style={{ left: contextMenu.x, top: contextMenu.y, minWidth: 160 }}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onAddRequest(contextMenu.day);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-50 transition-colors"
+                style={{ fontSize: 13 }}
+              >
+                Antrag erstellen
+              </button>
+            </div>
           )}
 
           {/* Legend */}
