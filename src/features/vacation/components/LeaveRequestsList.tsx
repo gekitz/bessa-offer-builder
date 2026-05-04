@@ -10,7 +10,8 @@ import {
 } from '../api/vacationApi';
 import LeaveStatusBadge from './LeaveStatusBadge';
 import DecisionDialog from './DecisionDialog';
-import type { Employee, IsoDate, LeaveRequest, LeaveStatus, LeaveTypeCode } from '../types';
+import { formatRange } from '../lib/formatDate';
+import type { Employee, LeaveRequest, LeaveStatus, LeaveTypeCode } from '../types';
 
 interface LeaveRequestsListProps {
   statusFilter?: LeaveStatus | LeaveStatus[];
@@ -59,20 +60,6 @@ const STATUS_TABS: Array<{ key: StatusTab; label: string }> = [
   { key: 'rejected',  label: 'Abgelehnt' },
   { key: 'cancelled', label: 'Storniert' },
 ];
-
-function formatGermanDate(iso: IsoDate): string {
-  const [y, m, d] = iso.split('-');
-  return `${d}.${m}.${y}`;
-}
-
-function formatRange(start: IsoDate, end: IsoDate, halfStart?: boolean, halfEnd?: boolean): string {
-  const base = start === end ? formatGermanDate(start) : `${formatGermanDate(start)} – ${formatGermanDate(end)}`;
-  if (!halfStart && !halfEnd) return base;
-  const markers: string[] = [];
-  if (halfStart) markers.push('½ Anfang');
-  if (halfEnd) markers.push('½ Ende');
-  return `${base} (${markers.join(', ')})`;
-}
 
 export default function LeaveRequestsList({
   statusFilter = ['pending', 'approved'],
