@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
+import Checkbox from '../../../components/Checkbox';
 import { validateLeaveRequest } from '../rules/validateLeaveRequest';
 import {
   createLeaveRequest,
@@ -193,10 +194,13 @@ export default function LeaveRequestForm({
                   onChange={setStartDate}
                   ariaLabel="Startdatum"
                 />
-                <label className="flex items-center gap-1.5 mt-1 text-slate-500" style={{ fontSize: 11 }}>
-                  <input type="checkbox" checked={halfDayStart} onChange={(e) => setHalfDayStart(e.target.checked)} />
-                  halber Tag (vormittags frei)
-                </label>
+                <Checkbox
+                  checked={halfDayStart}
+                  onChange={setHalfDayStart}
+                  className="mt-1.5 text-slate-500"
+                >
+                  <span style={{ fontSize: 11 }}>halber Tag (vormittags frei)</span>
+                </Checkbox>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Bis</label>
@@ -206,10 +210,13 @@ export default function LeaveRequestForm({
                   ariaLabel="Enddatum"
                   min={startDate || undefined}
                 />
-                <label className="flex items-center gap-1.5 mt-1 text-slate-500" style={{ fontSize: 11 }}>
-                  <input type="checkbox" checked={halfDayEnd} onChange={(e) => setHalfDayEnd(e.target.checked)} />
-                  halber Tag (nachmittags frei)
-                </label>
+                <Checkbox
+                  checked={halfDayEnd}
+                  onChange={setHalfDayEnd}
+                  className="mt-1.5 text-slate-500"
+                >
+                  <span style={{ fontSize: 11 }}>halber Tag (nachmittags frei)</span>
+                </Checkbox>
               </div>
             </div>
 
