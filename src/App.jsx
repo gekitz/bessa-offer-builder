@@ -10,6 +10,8 @@ import { saveOffer, listOffers, getOffer, deleteOffer, sendOffer, getEmailEvents
 import { supabase } from './lib/supabase';
 import { generateAcceptQr } from './lib/qr';
 import { useAuth } from './lib/auth';
+import { TIERS, TIER_MONTHS, TIER_LABEL, TIER_SHORT, TIER_LABEL_OFFER, TKEY, TKEY_REV } from './data/tiers';
+import { AUTO_TERM_RULES, computeAutoTerms } from './data/autoTermRules';
 import AppShell from './components/AppShell';
 import CustomerPicker from './components/CustomerPicker';
 
@@ -18,12 +20,6 @@ const CrmPage = React.lazy(() => import('./components/CrmPage.jsx'));
 // ═══════════════════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════════════════
-
-const TIERS = ['12mo','6mo','2mo','event'];
-const TIER_MONTHS = { '12mo': 12, '6mo': 6, '2mo': 2, 'event': 1 };
-const TIER_LABEL = { '12mo':'12 Monate','6mo':'6 Monate','2mo':'2 Monate','event':'1-3 Tage' };
-const TIER_SHORT = { '12mo':'Jahr','6mo':'Saison','2mo':'Märkte','event':'Events' };
-const TIER_LABEL_OFFER = { '12mo':'12 Monate mtl.','6mo':'6 Monate mtl.','2mo':'2 Monate mtl.','event':'1-3 Tage/Event' };
 
 const COMPANY_DEFAULT = {
   name: 'KITZ Computer + Office GmbH',
@@ -261,8 +257,6 @@ const isCustomItem = (id) => !CATALOG_IDS.has(id);
 // ═══════════════════════════════════════════════════════
 
 const fmt = n => n.toLocaleString('de-AT',{minimumFractionDigits:2,maximumFractionDigits:2});
-const TKEY = {y:'12mo',s:'6mo',m:'2mo',e:'event'};
-const TKEY_REV = {'12mo':'y','6mo':'s','2mo':'m','event':'e'};
 
 function availableTiers(item) {
   if (item.t !== 'm') return [];
@@ -328,30 +322,6 @@ function orderedCartEntries(cart, cartOrder) {
     if (!seen.has(id)) ordered.push([id, cart[id]]);
   }
   return ordered;
-}
-
-// Auto-generated terms that append to every offer when certain items are in the cart.
-// Each rule: { id, condition(cart): boolean, text: string }
-const AUTO_TERM_RULES = [
-  {
-    id: 'delivery-time',
-    condition: () => true,
-    text: 'Lieferzeit: 2 Wochen',
-  },
-  {
-    id: 'payment-term',
-    condition: () => true,
-    text: 'Zahlungsziel: 10 Tage netto Kassa',
-  },
-  {
-    id: 'network-cabling',
-    condition: (cart) => Object.keys(cart).some(id => id.startsWith('unify-')),
-    text: 'Kabel müssen vom Kunden eigenständig verlegt werden',
-  },
-];
-
-function computeAutoTerms(cart) {
-  return AUTO_TERM_RULES.filter(r => r.condition(cart)).map(r => r.text);
 }
 
 // Build wartung rows for PDF rendering from filtered cart entries.

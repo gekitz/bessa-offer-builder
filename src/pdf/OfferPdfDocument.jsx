@@ -8,6 +8,7 @@ import {
 } from '@react-pdf/renderer';
 import { styles, COLORS } from './pdfStyles';
 import kitzLogo from '/kitz-logo.png';
+import { TIER_LABEL_OFFER } from '../data/tiers';
 
 // Format number to German locale
 const fmt = (n) =>
@@ -15,14 +16,6 @@ const fmt = (n) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-
-// Tier labels
-const TIER_LABEL_OFFER = {
-  '12mo': '12 Monate mtl.',
-  '6mo': '6 Monate mtl.',
-  '2mo': '2 Monate mtl.',
-  event: '1-3 Tage/Event',
-};
 
 // Company default info
 const COMPANY = {
