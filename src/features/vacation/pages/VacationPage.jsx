@@ -1,20 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Calendar, Loader2, MapPin, Plus, Users } from 'lucide-react';
 import { listEmployees, listStandorte } from '../api/vacationApi';
 import LeaveRequestForm from '../components/LeaveRequestForm';
 import LeaveRequestsList from '../components/LeaveRequestsList';
+import { useAuth } from '../../../lib/auth';
+import { findIdBySsoEmail } from '../../../lib/ssoMatch';
+import { TEAM } from '../../offers/data/catalogs';
 
 // Urlaubsplaner landing page. Shows the team grouped by Standort and
 // gives every row a "Antrag stellen" button that opens the request
 // form pre-filled with that employee. Future iterations add: my
 // requests list, calendar view, approver inbox, balance dashboard.
 export default function VacationPage() {
+  const { profile, user } = useAuth();
   const [employees, setEmployees] = useState([]);
   const [standorte, setStandorte] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [requestForEmployeeId, setRequestForEmployeeId] = useState(null);
+
+  // Match the logged-in SSO user to one of our employees. The TEAM
+  // array's `id` field happens to equal employees.code (both 'gkitz',
+  // 'hbauer', etc.), so we go SSO email -> TEAM id -> employees row
+  // by code. Once employees.email is populated by HR we can match
+  // employees directly.
+  const currentEmail = profile?.microsoft_email || user?.email || '';
+  const currentEmployee = useMemo(() => {
+    const teamId = findIdBySsoEmail(currentEmail, TEAM);
+    if (!teamId) return null;
+    return employees.find((e) => e.code === teamId) ?? null;
+  }, [currentEmail, employees]);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +68,7 @@ export default function VacationPage() {
           </div>
           {!loading && !error && employees.length > 0 && (
             <button
-              onClick={() => setRequestForEmployeeId(employees[0].id)}
+              onClick={() => setRequestForEmployeeId(currentEmployee?.id ?? employees[0].id)}
               className="flex items-center gap-1.5 rounded-lg bg-red-600 text-white px-3 py-1.5 hover:bg-red-700 transition-colors"
               style={{ fontSize: 12 }}
             >
@@ -94,7 +110,11 @@ export default function VacationPage() {
         {/* Leave requests — visible once employees load (so the list has names to render). */}
         {!loading && !error && employees.length > 0 && (
           <div className="mb-4">
-            <LeaveRequestsList reloadKey={reloadKey} actionable />
+            <LeaveRequestsList
+              reloadKey={reloadKey}
+              actionable
+              decidedBy={currentEmployee?.id}
+            />
           </div>
         )}
 

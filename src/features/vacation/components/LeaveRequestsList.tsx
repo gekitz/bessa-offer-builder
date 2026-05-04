@@ -24,6 +24,10 @@ interface LeaveRequestsListProps {
   // (for pending+approved) buttons per row. Each click confirms()
   // before calling the API.
   actionable?: boolean;
+  // Currently logged-in user's employees.id, recorded as decided_by
+  // when an approve/reject succeeds. Falls back to NULL on the
+  // server when omitted.
+  decidedBy?: string;
 }
 
 function formatGermanDate(iso: IsoDate): string {
@@ -42,6 +46,7 @@ export default function LeaveRequestsList({
   showHeader = true,
   emptyLabel = 'Keine Anträge.',
   actionable = false,
+  decidedBy,
 }: LeaveRequestsListProps) {
   const [requests, setRequests] = useState<Array<LeaveRequest & { id: string }>>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -94,7 +99,7 @@ export default function LeaveRequestsList({
     setActionInFlight(id);
     setActionError(null);
     try {
-      await decideLeaveRequest(id, decision);
+      await decideLeaveRequest(id, decision, decidedBy ?? null);
       setInternalReload((k) => k + 1);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : String(e));

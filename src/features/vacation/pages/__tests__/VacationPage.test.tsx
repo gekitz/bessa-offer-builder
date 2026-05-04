@@ -24,6 +24,13 @@ vi.mock('../../api/vacationApi', () => ({
   cancelLeaveRequest: (...args: unknown[]) => cancelLeaveRequestMock(...args),
 }));
 
+// Allow tests to set the SSO email returned from useAuth.
+type AuthShape = { profile: { microsoft_email?: string } | null; user: { email?: string } | null };
+const useAuthMock = vi.fn<() => AuthShape>(() => ({ profile: null, user: null }));
+vi.mock('../../../../lib/auth', () => ({
+  useAuth: () => useAuthMock(),
+}));
+
 import VacationPage from '../VacationPage';
 import type { Employee, RuleContext } from '../../types';
 
@@ -74,6 +81,7 @@ beforeEach(() => {
   createLeaveRequestMock.mockReset().mockResolvedValue({ id: 'lr-new' });
   decideLeaveRequestMock.mockReset().mockResolvedValue({ id: 'lr-1' });
   cancelLeaveRequestMock.mockReset();
+  useAuthMock.mockReturnValue({ profile: null, user: null });
 });
 
 describe('VacationPage', () => {
@@ -144,6 +152,60 @@ describe('VacationPage', () => {
     // The Mitarbeiter trigger should reflect Mario as the selected employee.
     const mitarbeiterTrigger = screen.getByRole('button', { name: 'Mitarbeiter' });
     expect(mitarbeiterTrigger.textContent).toContain('Mario Graf');
+  });
+
+  it('pre-fills the form with the SSO-matched employee when the page-level button is clicked', async () => {
+    // 'kg@kitz.co.at' is the SSO format for Georg Kitz (g.kitz). The TEAM
+    // array in catalogs.ts maps it to id='gkitz', and the employees
+    // seed uses 'gkitz' as the code, so the page resolves it to Georg.
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
+    const u = userEvent.setup();
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getByText('Georg Kitz')).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: /Neuer Antrag/ }));
+    await screen.findByText('Neuer Urlaubsantrag');
+
+    const mitarbeiterTrigger = screen.getByRole('button', { name: 'Mitarbeiter' });
+    expect(mitarbeiterTrigger.textContent).toContain('Georg Kitz');
+  });
+
+  it('falls back to the first employee when the SSO email matches no team member', async () => {
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'unknown@kitz.co.at' }, user: null });
+    const u = userEvent.setup();
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: /Neuer Antrag/ }));
+    await screen.findByText('Neuer Urlaubsantrag');
+
+    // listEmployees returns [stefan, mario, georg, marc]; the first
+    // employee id wins when nothing matches the SSO email.
+    const mitarbeiterTrigger = screen.getByRole('button', { name: 'Mitarbeiter' });
+    expect(mitarbeiterTrigger.textContent).toContain('Stefan Bauer');
+  });
+
+  it('passes the SSO-matched employee id to LeaveRequestsList as decidedBy', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-1',
+        employeeId: stefan.id,
+        leaveTypeCode: 'urlaub',
+        startDate: '2026-08-10',
+        endDate: '2026-08-15',
+        status: 'pending',
+      },
+    ]);
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const u = userEvent.setup();
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: /Genehmigen/ }));
+
+    await waitFor(() => expect(decideLeaveRequestMock).toHaveBeenCalled());
+    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'approved', georg.id);
   });
 
   it('refreshes employee + leave lists after a successful new request', async () => {

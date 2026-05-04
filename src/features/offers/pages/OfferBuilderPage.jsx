@@ -60,6 +60,7 @@ import EmailPreviewModal from '../components/modals/EmailPreviewModal';
 import OfferListPage from './OfferListPage';
 import { orderedCartEntries } from '../../../lib/cartOrder';
 import { fmt } from '../../../lib/format';
+import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import AppShell from '../../../components/AppShell';
 import VacationPage from '../../vacation/pages/VacationPage';
 
@@ -135,30 +136,12 @@ export default function OfferBuilderPage() {
   const [showEmailPreview, setShowEmailPreview] = useState(false);
   const [cartOrder, setCartOrder] = useState([]);
 
-  // Auto-select creator from logged-in user.
-  // Handles two email formats at @kitz.co.at:
-  //   TEAM uses:  <first_initial>.<lastname>@kitz.co.at  (e.g. g.kitz)
-  //   SSO  uses:  <last_initial><first_initial>@kitz.co.at (e.g. kg)
+  // Auto-select creator from the logged-in user. Email matching
+  // logic lives in lib/ssoMatch (tested in isolation).
   useEffect(() => {
     if (profile?.microsoft_email && !creator) {
-      const ssoEmail = profile.microsoft_email.toLowerCase();
-      let match = TEAM.find(t => t.email.toLowerCase() === ssoEmail);
-      if (!match) {
-        const [ssoLocal, ssoDomain] = ssoEmail.split('@');
-        if (ssoDomain) {
-          match = TEAM.find(t => {
-            const [teamLocal, teamDomain] = t.email.toLowerCase().split('@');
-            if (teamDomain !== ssoDomain) return false;
-            const dotIdx = teamLocal.indexOf('.');
-            if (dotIdx < 1) return false;
-            const firstInitial = teamLocal.charAt(0);
-            const lastName = teamLocal.substring(dotIdx + 1);
-            const ssoVariant = lastName.charAt(0) + firstInitial;
-            return ssoLocal === ssoVariant;
-          });
-        }
-      }
-      if (match) setCreator(match.id);
+      const id = findIdBySsoEmail(profile.microsoft_email, TEAM);
+      if (id) setCreator(id);
     }
   }, [profile]);
 

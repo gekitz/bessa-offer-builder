@@ -220,8 +220,8 @@ describe('LeaveRequestsList — actionable mode', () => {
 
     expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/genehmigen/i));
     await waitFor(() => expect(decideLeaveRequestMock).toHaveBeenCalledTimes(1));
-    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'approved');
-    // After success the list refetches.
+    // decidedBy defaults to null when no current user is supplied.
+    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'approved', null);
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(2));
   });
 
@@ -233,7 +233,18 @@ describe('LeaveRequestsList — actionable mode', () => {
     await u.click(screen.getByRole('button', { name: /Ablehnen/ }));
 
     await waitFor(() => expect(decideLeaveRequestMock).toHaveBeenCalledTimes(1));
-    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'rejected');
+    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'rejected', null);
+  });
+
+  it('passes decidedBy to decideLeaveRequest when the prop is set', async () => {
+    const u = userEvent.setup();
+    render(<LeaveRequestsList actionable decidedBy="gkitz-id" />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: /Genehmigen/ }));
+
+    await waitFor(() => expect(decideLeaveRequestMock).toHaveBeenCalledTimes(1));
+    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'approved', 'gkitz-id');
   });
 
   it('skips the API call when the user dismisses the confirm dialog', async () => {
