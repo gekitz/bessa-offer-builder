@@ -32,6 +32,7 @@ import {
 
 import { supabase } from '../../../lib/supabase';
 import CustomerPicker from '../../../components/CustomerPicker';
+import Select from '../../../components/Select';
 import SortableOfferRow from './SortableOfferRow';
 import EditItemModal from './modals/EditItemModal';
 import { TIER_LABEL } from '../../../data/tiers';
@@ -164,13 +165,16 @@ export default function OfferView({
               Ersteller: <span className="font-medium">{TEAM.find(t => t.id === creator)?.name}</span>
             </div>
           ) : (
-            <select value={creator} onChange={e => setCreator(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 bg-white">
-              <option value="">Angebot erstellt von...</option>
-              {TEAM.map(t => (
-                <option key={t.id} value={t.id}>{t.name} ({t.role}, {t.location})</option>
-              ))}
-            </select>
+            <Select
+              value={creator}
+              onChange={setCreator}
+              placeholder="Angebot erstellt von…"
+              options={TEAM.map((t) => ({
+                value: t.id,
+                label: t.name,
+                hint: `${t.role} · ${t.location}`,
+              }))}
+            />
           )}
         </div>
         {billingEnabled && (
@@ -379,10 +383,16 @@ export default function OfferView({
                 <div className="flex justify-between items-center pt-2 border-t border-slate-200">
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-slate-600">Restbetrag in</span>
-                    <select value={raten} onChange={e => setRaten(Number(e.target.value))}
-                      className="border border-slate-300 rounded px-2 py-1 text-sm font-medium focus:outline-none focus:border-red-500">
-                      {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => <option key={n} value={n}>{n} Raten</option>)}
-                    </select>
+                    <Select
+                      value={String(raten)}
+                      onChange={(v) => setRaten(Number(v))}
+                      size="sm"
+                      className="w-28"
+                      options={[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => ({
+                        value: String(n),
+                        label: `${n} Raten`,
+                      }))}
+                    />
                   </div>
                   <span className="font-semibold">€ {fmt(periodBrutto * 1.08 * 0.7 / raten)}/Rate</span>
                 </div>

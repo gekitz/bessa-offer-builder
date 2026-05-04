@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react';
+import Select from '../../../components/Select';
 import { validateLeaveRequest } from '../rules/validateLeaveRequest';
 import {
   createLeaveRequest,
@@ -162,31 +163,24 @@ export default function LeaveRequestForm({
             {/* Employee selector */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Mitarbeiter</label>
-              <select
+              <Select
                 value={employeeId}
-                onChange={(e) => setEmployeeId(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 bg-white"
-                required
-              >
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>{e.name}</option>
-                ))}
-              </select>
+                onChange={setEmployeeId}
+                options={employees.map((e) => ({ value: e.id, label: e.name, hint: e.code }))}
+                placeholder="Mitarbeiter wählen…"
+                ariaLabel="Mitarbeiter"
+              />
             </div>
 
             {/* Leave type */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Art</label>
-              <select
+              <Select
                 value={leaveTypeCode}
-                onChange={(e) => setLeaveTypeCode(e.target.value as LeaveTypeCode)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 bg-white"
-                required
-              >
-                {leaveTypes.map((t) => (
-                  <option key={t.id} value={t.code}>{t.label}</option>
-                ))}
-              </select>
+                onChange={(v) => setLeaveTypeCode(v as LeaveTypeCode)}
+                options={leaveTypes.map((t) => ({ value: t.code, label: t.label }))}
+                ariaLabel="Art der Abwesenheit"
+              />
             </div>
 
             {/* Dates */}
@@ -224,18 +218,19 @@ export default function LeaveRequestForm({
             {/* Substitute */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Vertretung (optional)</label>
-              <select
+              <Select
                 value={substituteId}
-                onChange={(e) => setSubstituteId(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 bg-white"
-              >
-                <option value="">Keine Auswahl</option>
-                {substituteOptions.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.priority}. {s.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setSubstituteId}
+                options={[
+                  { value: '', label: 'Keine Auswahl' },
+                  ...substituteOptions.map((s) => ({
+                    value: s.id,
+                    label: s.name,
+                    hint: `Priorität ${s.priority}`,
+                  })),
+                ]}
+                ariaLabel="Vertretung"
+              />
               {substitutes.length === 0 && employeeId && (
                 <p className="text-slate-400 mt-1" style={{ fontSize: 11 }}>
                   Keine vordefinierten Vertretungen für diesen Mitarbeiter.
