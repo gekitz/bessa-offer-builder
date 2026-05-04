@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react';
 import Select from '../../../components/Select';
+import DatePicker from '../../../components/DatePicker';
 import { validateLeaveRequest } from '../rules/validateLeaveRequest';
 import {
   createLeaveRequest,
@@ -187,12 +188,10 @@ export default function LeaveRequestForm({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Von</label>
-                <input
-                  type="date"
+                <DatePicker
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
-                  required
+                  onChange={setStartDate}
+                  ariaLabel="Startdatum"
                 />
                 <label className="flex items-center gap-1.5 mt-1 text-slate-500" style={{ fontSize: 11 }}>
                   <input type="checkbox" checked={halfDayStart} onChange={(e) => setHalfDayStart(e.target.checked)} />
@@ -201,12 +200,11 @@ export default function LeaveRequestForm({
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Bis</label>
-                <input
-                  type="date"
+                <DatePicker
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
-                  required
+                  onChange={setEndDate}
+                  ariaLabel="Enddatum"
+                  min={startDate || undefined}
                 />
                 <label className="flex items-center gap-1.5 mt-1 text-slate-500" style={{ fontSize: 11 }}>
                   <input type="checkbox" checked={halfDayEnd} onChange={(e) => setHalfDayEnd(e.target.checked)} />

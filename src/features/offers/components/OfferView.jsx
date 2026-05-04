@@ -33,6 +33,7 @@ import {
 import { supabase } from '../../../lib/supabase';
 import CustomerPicker from '../../../components/CustomerPicker';
 import Select from '../../../components/Select';
+import DatePicker from '../../../components/DatePicker';
 import SortableOfferRow from './SortableOfferRow';
 import EditItemModal from './modals/EditItemModal';
 import { TIER_LABEL } from '../../../data/tiers';
@@ -180,8 +181,11 @@ export default function OfferView({
         {billingEnabled && (
           <div className="mt-3">
             <label className="block text-xs font-medium text-slate-500 mb-1">Leistungsbeginn</label>
-            <input type="date" value={serviceStartDate || ''} onChange={e => setServiceStartDate(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 bg-white" />
+            <DatePicker
+              value={serviceStartDate || ''}
+              onChange={setServiceStartDate}
+              ariaLabel="Leistungsbeginn"
+            />
           </div>
         )}
       </div>
