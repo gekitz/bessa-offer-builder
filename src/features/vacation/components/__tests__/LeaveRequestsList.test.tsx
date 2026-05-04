@@ -191,56 +191,83 @@ describe('LeaveRequestsList — status tabs', () => {
   it('renders all five tabs when showStatusTabs is on', async () => {
     render(<LeaveRequestsList showStatusTabs />);
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
+    // Tab labels include the count, e.g. "Offen (1)" — match by prefix.
     for (const label of ['Alle', 'Offen', 'Genehmigt', 'Abgelehnt', 'Storniert']) {
-      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: new RegExp(`^${label} `) })).toBeInTheDocument();
     }
   });
 
-  it('defaults to "Offen" and queries with status=pending', async () => {
+  it('fetches the unfiltered set so counts are accurate (status=undefined)', async () => {
     render(<LeaveRequestsList showStatusTabs />);
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
     expect(listLeaveRequestsMock).toHaveBeenCalledWith({
-      status: 'pending',
-      employeeId: undefined,
-    });
-    // Active tab has the red background.
-    expect(screen.getByRole('button', { name: 'Offen' }).className).toMatch(/bg-red-600/);
-  });
-
-  it('refetches with the new status when a tab is clicked', async () => {
-    const u = userEvent.setup();
-    render(<LeaveRequestsList showStatusTabs />);
-    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(1));
-
-    await u.click(screen.getByRole('button', { name: 'Genehmigt' }));
-    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(2));
-    expect(listLeaveRequestsMock).toHaveBeenLastCalledWith({
-      status: 'approved',
-      employeeId: undefined,
-    });
-  });
-
-  it('clicking "Alle" omits the status filter from the API call', async () => {
-    const u = userEvent.setup();
-    render(<LeaveRequestsList showStatusTabs />);
-    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(1));
-
-    await u.click(screen.getByRole('button', { name: 'Alle' }));
-    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(2));
-    expect(listLeaveRequestsMock).toHaveBeenLastCalledWith({
       status: undefined,
       employeeId: undefined,
     });
+    // Default tab "Offen" highlights with red.
+    expect(screen.getByRole('button', { name: /^Offen/ }).className).toMatch(/bg-red-600/);
   });
 
-  it('overrides the statusFilter prop when tabs are enabled', async () => {
-    // Even though the parent passes statusFilter='approved', the tab
-    // default of 'pending' wins because tabs are the source of truth
-    // when enabled.
+  it('shows accurate per-status counts on each tab label', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      { id: '1', employeeId: stefan.id, leaveTypeCode: 'urlaub', startDate: '2026-08-10', endDate: '2026-08-15', status: 'pending' },
+      { id: '2', employeeId: mario.id,  leaveTypeCode: 'urlaub', startDate: '2026-08-10', endDate: '2026-08-15', status: 'pending' },
+      { id: '3', employeeId: stefan.id, leaveTypeCode: 'urlaub', startDate: '2026-09-01', endDate: '2026-09-05', status: 'approved' },
+      { id: '4', employeeId: mario.id,  leaveTypeCode: 'urlaub', startDate: '2026-09-01', endDate: '2026-09-05', status: 'rejected' },
+      { id: '5', employeeId: stefan.id, leaveTypeCode: 'urlaub', startDate: '2026-10-01', endDate: '2026-10-05', status: 'cancelled' },
+    ]);
+    render(<LeaveRequestsList showStatusTabs />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Alle/ })).toBeInTheDocument());
+
+    expect(screen.getByRole('button', { name: 'Alle (5)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Offen (2)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Genehmigt (1)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Abgelehnt (1)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Storniert (1)' })).toBeInTheDocument();
+  });
+
+  it('filters client-side when a tab is selected, no extra API calls', async () => {
+    const u = userEvent.setup();
+    listLeaveRequestsMock.mockResolvedValue([
+      { id: '1', employeeId: stefan.id, leaveTypeCode: 'urlaub', startDate: '2026-08-10', endDate: '2026-08-15', status: 'pending' },
+      { id: '2', employeeId: mario.id,  leaveTypeCode: 'urlaub', startDate: '2026-09-01', endDate: '2026-09-05', status: 'approved' },
+    ]);
+    render(<LeaveRequestsList showStatusTabs />);
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('Stefan Bauer')).toBeInTheDocument();
+    expect(screen.queryByText('Mario Graf')).not.toBeInTheDocument();
+
+    await u.click(screen.getByRole('button', { name: /Genehmigt/ }));
+    // No refetch — purely a client-side filter switch.
+    expect(listLeaveRequestsMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Stefan Bauer')).not.toBeInTheDocument();
+    expect(screen.getByText('Mario Graf')).toBeInTheDocument();
+
+    await u.click(screen.getByRole('button', { name: /^Alle/ }));
+    expect(listLeaveRequestsMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Stefan Bauer')).toBeInTheDocument();
+    expect(screen.getByText('Mario Graf')).toBeInTheDocument();
+  });
+
+  it('shows the empty-label when the selected tab has no rows', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      { id: '1', employeeId: stefan.id, leaveTypeCode: 'urlaub', startDate: '2026-08-10', endDate: '2026-08-15', status: 'pending' },
+    ]);
+    const u = userEvent.setup();
+    render(<LeaveRequestsList showStatusTabs />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: /Storniert/ }));
+    expect(screen.getByText('Keine Anträge.')).toBeInTheDocument();
+  });
+
+  it('overrides the statusFilter prop when tabs are enabled (fetches the unfiltered set)', async () => {
+    // Even though the parent passes statusFilter='approved', tabs
+    // are the source of truth — the API gets `status: undefined`.
     render(<LeaveRequestsList showStatusTabs statusFilter="approved" />);
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
     expect(listLeaveRequestsMock).toHaveBeenCalledWith({
-      status: 'pending',
+      status: undefined,
       employeeId: undefined,
     });
   });

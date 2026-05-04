@@ -79,20 +79,18 @@ export default function LeaveRequestsList({
   // pending requests first. Used only when showStatusTabs is on.
   const [selectedStatus, setSelectedStatus] = useState<StatusTab>('pending');
 
-  // Effective filter sent to the API. Tabs override the prop.
-  const effectiveFilter: LeaveStatus | LeaveStatus[] | undefined = showStatusTabs
-    ? (selectedStatus === 'all' ? undefined : selectedStatus)
-    : statusFilter;
-  // Stabilise the status value so it doesn't trigger a re-fetch on
-  // every render when the prop is an array reference.
-  const statusKey = Array.isArray(effectiveFilter) ? effectiveFilter.join(',') : (effectiveFilter ?? '');
+  // When tabs are on, fetch the full set unfiltered and filter
+  // client-side so the tab labels can show accurate counts.
+  // When tabs are off, the API filter still does the work.
+  const apiStatusFilter = showStatusTabs ? undefined : statusFilter;
+  const statusKey = Array.isArray(apiStatusFilter) ? apiStatusFilter.join(',') : (apiStatusFilter ?? '');
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
     Promise.all([
-      listLeaveRequests({ status: effectiveFilter, employeeId }),
+      listLeaveRequests({ status: apiStatusFilter, employeeId }),
       listEmployees({ activeOnly: false }),
       listLeaveTypes(),
     ]).then(([reqs, emps, types]) => {
@@ -108,6 +106,28 @@ export default function LeaveRequestsList({
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusKey, employeeId, reloadKey, internalReload]);
+
+  // Per-status counts + the visible slice when tabs are on.
+  const statusCounts = useMemo(() => {
+    const counts: Record<StatusTab, number> = {
+      all: requests.length,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      cancelled: 0,
+    };
+    for (const req of requests) {
+      const s = (req.status ?? 'pending') as LeaveStatus;
+      counts[s] += 1;
+    }
+    return counts;
+  }, [requests]);
+
+  const visibleRequests = useMemo(() => {
+    if (!showStatusTabs) return requests;
+    if (selectedStatus === 'all') return requests;
+    return requests.filter((r) => (r.status ?? 'pending') === selectedStatus);
+  }, [requests, showStatusTabs, selectedStatus]);
 
   const employeeById = useMemo(
     () => new Map(employees.map((e) => [e.id, e])),
@@ -154,7 +174,7 @@ export default function LeaveRequestsList({
           <div className="flex items-center gap-2">
             <FileText size={14} className="text-slate-500" />
             <span className="font-bold text-slate-600" style={{ fontSize: 12 }}>
-              Anträge {!loading && !error ? `(${requests.length})` : ''}
+              Anträge {!loading && !error ? `(${visibleRequests.length})` : ''}
             </span>
           </div>
           <button
@@ -190,7 +210,7 @@ export default function LeaveRequestsList({
         </div>
       )}
 
-      {!loading && !error && requests.length === 0 && (
+      {!loading && !error && visibleRequests.length === 0 && (
         <div className="text-center py-10 text-slate-400">
           <CalendarIcon size={28} className="mx-auto mb-2 opacity-50" />
           <p style={{ fontSize: 12 }}>{emptyLabel}</p>
@@ -201,6 +221,7 @@ export default function LeaveRequestsList({
         <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap gap-1.5">
           {STATUS_TABS.map((tab) => {
             const active = tab.key === selectedStatus;
+            const count = statusCounts[tab.key];
             return (
               <button
                 key={tab.key}
@@ -213,7 +234,7 @@ export default function LeaveRequestsList({
                 }`}
                 style={{ fontSize: 11 }}
               >
-                {tab.label}
+                {tab.label} ({count})
               </button>
             );
           })}
@@ -227,9 +248,9 @@ export default function LeaveRequestsList({
         </div>
       )}
 
-      {!loading && !error && requests.length > 0 && (
+      {!loading && !error && visibleRequests.length > 0 && (
         <ul className="divide-y divide-slate-100">
-          {requests.map((req) => {
+          {visibleRequests.map((req) => {
             const emp = employeeById.get(req.employeeId);
             const type = typeByCode.get(req.leaveTypeCode);
             const sub = req.substituteId ? employeeById.get(req.substituteId) : undefined;
