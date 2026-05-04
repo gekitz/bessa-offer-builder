@@ -320,6 +320,37 @@ export async function createLeaveRequest(input: CreateLeaveRequestInput): Promis
   return rowToLeaveRequest(data);
 }
 
+export type UpdateLeaveRequestPatch = Partial<CreateLeaveRequestInput>;
+
+// Update a leave request. Status / decided_* fields are not
+// editable here — use decideLeaveRequest / cancelLeaveRequest for
+// transitions. Caller is expected to scope this to status='pending'
+// rows (a UI concern); the server permits any status to be patched.
+export async function updateLeaveRequest(
+  id: string,
+  patch: UpdateLeaveRequestPatch,
+): Promise<LeaveRequest & { id: string }> {
+  const sb = requireSupabase();
+  const dbPatch: Record<string, unknown> = {};
+  if (patch.employeeId !== undefined) dbPatch.employee_id = patch.employeeId;
+  if (patch.leaveTypeCode !== undefined) dbPatch.leave_type_id = LEAVE_TYPE_ID_BY_CODE[patch.leaveTypeCode];
+  if (patch.startDate !== undefined) dbPatch.start_date = patch.startDate;
+  if (patch.endDate !== undefined) dbPatch.end_date = patch.endDate;
+  if (patch.halfDayStart !== undefined) dbPatch.half_day_start = patch.halfDayStart;
+  if (patch.halfDayEnd !== undefined) dbPatch.half_day_end = patch.halfDayEnd;
+  if (patch.reason !== undefined) dbPatch.reason = patch.reason || null;
+  if (patch.substituteId !== undefined) dbPatch.substitute_id = patch.substituteId || null;
+
+  const { data, error } = await sb
+    .from('leave_requests')
+    .update(dbPatch)
+    .eq('id', id)
+    .select(LEAVE_REQUEST_COLUMNS)
+    .single();
+  if (error) throw error;
+  return rowToLeaveRequest(data);
+}
+
 // decidedBy is optional today because we don't have a Microsoft-SSO ->
 // employees.id mapping yet. The `decided_by` column is nullable in the
 // schema; once the mapping lands, callers should pass the approver's

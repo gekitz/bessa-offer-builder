@@ -38,6 +38,7 @@ import {
   createLeaveRequest,
   decideLeaveRequest,
   cancelLeaveRequest,
+  updateLeaveRequest,
   listLeaveBalances,
   loadRuleContext,
   LEAVE_TYPE_ID_BY_CODE,
@@ -272,6 +273,40 @@ describe('leave requests', () => {
     expect(insertArg.leave_type_id).toBe(LEAVE_TYPE_ID_BY_CODE.krankenstand);
     expect(insertArg.status).toBe('pending');
     expect(insertArg.half_day_start).toBe(false);
+  });
+
+  it('updateLeaveRequest maps camelCase patch -> snake_case columns', async () => {
+    const chain = makeChain({ data: { ...leaveRow, start_date: '2026-08-12' }, error: null });
+    fromMock.mockReturnValue(chain);
+    await updateLeaveRequest('lr1', {
+      startDate: '2026-08-12',
+      halfDayStart: true,
+      reason: 'updated reason',
+      leaveTypeCode: 'krankenstand',
+    });
+    expect(chain.eq).toHaveBeenCalledWith('id', 'lr1');
+    const updateArg = chain.update.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(updateArg.start_date).toBe('2026-08-12');
+    expect(updateArg.half_day_start).toBe(true);
+    expect(updateArg.reason).toBe('updated reason');
+    expect(updateArg.leave_type_id).toBe(LEAVE_TYPE_ID_BY_CODE.krankenstand);
+    // Untouched fields stay out of the patch.
+    expect(updateArg.end_date).toBeUndefined();
+    expect(updateArg.employee_id).toBeUndefined();
+  });
+
+  it('updateLeaveRequest converts empty strings on optional refs to null', async () => {
+    const chain = makeChain({ data: leaveRow, error: null });
+    fromMock.mockReturnValue(chain);
+    await updateLeaveRequest('lr1', { reason: '', substituteId: '' });
+    const updateArg = chain.update.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(updateArg.reason).toBeNull();
+    expect(updateArg.substitute_id).toBeNull();
+  });
+
+  it('updateLeaveRequest throws on supabase error', async () => {
+    fromMock.mockReturnValue(makeChain({ data: null, error: new Error('rls denied') }));
+    await expect(updateLeaveRequest('lr1', { startDate: '2026-08-12' })).rejects.toThrow('rls denied');
   });
 
   it('decideLeaveRequest sets decided_by + decided_at + status', async () => {
