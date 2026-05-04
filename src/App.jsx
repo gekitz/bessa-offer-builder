@@ -1,8 +1,7 @@
-import React, { useState, useMemo, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
-import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2, Link, Save, Send, Mail, Clock, Eye, RefreshCw, ArrowLeft, Calendar, Building2, AlertCircle, CheckCircle2, XCircle, MailOpen, Archive, Pen, GripVertical, Pencil } from "lucide-react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { Plus, Minus, X, Download, ShoppingCart, ChevronDown, User, FileText, Trash2, Copy, Check, Search, Loader2, Link, Save, Send, Mail, Clock, Eye, RefreshCw, ArrowLeft, Calendar, Building2, AlertCircle, CheckCircle2, XCircle, MailOpen, Archive, Pen, Pencil } from "lucide-react";
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { pdf } from '@react-pdf/renderer';
 import OfferPdfDocument from './pdf/OfferPdfDocument';
 import { getOfferFromURL } from './lib/urlState';
@@ -31,6 +30,9 @@ import {
   CATALOG_IDS,
   isCustomItem,
 } from './features/offers/data/catalogs';
+import SignaturePad from './features/offers/components/SignaturePad';
+import SortableOfferRow from './features/offers/components/SortableOfferRow';
+import { StatusBadge, StageBadge, STATUS_CONFIG } from './features/offers/components/Badges';
 import AppShell from './components/AppShell';
 import CustomerPicker from './components/CustomerPicker';
 
@@ -288,66 +290,8 @@ function TabContent({ items, cart, globalTier, handlers }) {
 }
 
 // ═══════════════════════════════════════════════════════
-// SIGNATURE PAD + SIGN MODAL
+// SIGN MODAL
 // ═══════════════════════════════════════════════════════
-
-const SignaturePad = forwardRef(function SignaturePad({ width = 400, height = 150 }, ref) {
-  const canvasRef = useRef(null);
-  const drawing = useRef(false);
-  const empty = useRef(true);
-
-  function getPos(e) {
-    const rect = canvasRef.current.getBoundingClientRect();
-    const t = e.touches ? e.touches[0] : e;
-    return { x: (t.clientX - rect.left) * (canvasRef.current.width / rect.width), y: (t.clientY - rect.top) * (canvasRef.current.height / rect.height) };
-  }
-
-  function begin(e) {
-    e.preventDefault();
-    drawing.current = true;
-    empty.current = false;
-    const ctx = canvasRef.current.getContext('2d');
-    const p = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-  }
-
-  function move(e) {
-    if (!drawing.current) return;
-    e.preventDefault();
-    const ctx = canvasRef.current.getContext('2d');
-    const p = getPos(e);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-  }
-
-  function end() { drawing.current = false; }
-
-  useEffect(() => {
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#1e293b';
-  }, []);
-
-  useImperativeHandle(ref, () => ({
-    clear() {
-      const ctx = canvasRef.current.getContext('2d');
-      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      empty.current = true;
-    },
-    toDataURL() { return canvasRef.current.toDataURL('image/png'); },
-    isEmpty() { return empty.current; },
-  }));
-
-  return (
-    <canvas ref={canvasRef} width={width * 2} height={height * 2}
-      style={{ width, height, border: '2px solid #e2e8f0', borderRadius: 12, background: '#fff', touchAction: 'none', cursor: 'crosshair' }}
-      onMouseDown={begin} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
-      onTouchStart={begin} onTouchMove={move} onTouchEnd={end} />
-  );
-});
 
 function SignModal({ customer, totals, finanzOpen, globalTier, onConfirm, onClose }) {
   const offerPadRef = useRef(null);
@@ -698,24 +642,6 @@ function EmailPreviewModal({ customer, creator, totals, onSend, onClose, sending
 // SORTABLE ITEM ROW
 // ═══════════════════════════════════════════════════════
 
-function SortableOfferRow({ id, children }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    position: 'relative',
-    zIndex: isDragging ? 10 : undefined,
-  };
-  return (
-    <div ref={setNodeRef} style={style} className="flex items-center">
-      <button {...attributes} {...listeners} className="flex-shrink-0 touch-none px-2 py-2.5 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing">
-        <GripVertical size={14} />
-      </button>
-      <div className="flex-1 min-w-0">{children}</div>
-    </div>
-  );
-}
 
 // ═══════════════════════════════════════════════════════
 // OFFER / ANGEBOT VIEW
@@ -1149,41 +1075,6 @@ const BUILDER_TABS = [
   { id: 'angebot', label: 'Angebot' },
 ];
 
-const STATUS_CONFIG = {
-  draft:     { label: 'Entwurf',    color: 'bg-slate-100 text-slate-600' },
-  sent:      { label: 'Gesendet',   color: 'bg-blue-100 text-blue-700' },
-  delivered: { label: 'Zugestellt', color: 'bg-green-100 text-green-700' },
-  opened:    { label: 'Gelesen',    color: 'bg-yellow-100 text-yellow-700' },
-  accepted:  { label: 'Angenommen', color: 'bg-emerald-100 text-emerald-700' },
-  rejected:  { label: 'Abgelehnt', color: 'bg-red-100 text-red-700' },
-  expired:   { label: 'Abgelaufen', color: 'bg-slate-100 text-slate-400' },
-  bounced:   { label: 'Unzustellbar', color: 'bg-red-100 text-red-700' },
-};
-
-function StatusBadge({ status }) {
-  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
-  return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${cfg.color}`} style={{fontSize:11}}>
-      {cfg.label}
-    </span>
-  );
-}
-
-const STAGE_CONFIG = {
-  new:        { label: 'Neu',                color: 'bg-slate-100 text-slate-600' },
-  offer_sent: { label: 'Angebot gesendet',  color: 'bg-blue-100 text-blue-700' },
-  closed:     { label: 'Abgeschlossen',     color: 'bg-emerald-100 text-emerald-700' },
-  lost:       { label: 'Verloren',           color: 'bg-red-100 text-red-700' },
-};
-
-function StageBadge({ stage }) {
-  const cfg = STAGE_CONFIG[stage] || STAGE_CONFIG.new;
-  return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${cfg.color}`} style={{fontSize:11}}>
-      {cfg.label}
-    </span>
-  );
-}
 
 function CreatorDropdown({ value, onChange, creators }) {
   const [open, setOpen] = useState(false);
