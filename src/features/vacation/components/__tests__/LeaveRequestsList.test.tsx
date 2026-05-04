@@ -296,6 +296,20 @@ describe('LeaveRequestsList — status tabs', () => {
     expect(screen.getByText('Mario Graf')).toBeInTheDocument();
   });
 
+  it('header count reflects the scope total, not the filtered visible count', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      { id: '1', employeeId: stefan.id, leaveTypeCode: 'urlaub',       startDate: '2026-08-10', endDate: '2026-08-15', status: 'rejected' },
+      { id: '2', employeeId: stefan.id, leaveTypeCode: 'krankenstand', startDate: '2026-09-01', endDate: '2026-09-02', status: 'approved' },
+    ]);
+    render(<LeaveRequestsList showStatusTabs />);
+    // Default tab is "Offen" -> visible rows = 0, but header should
+    // still report 2 (the unfiltered scope total) so it matches the
+    // "Alle (2)" pill instead of contradicting it.
+    await waitFor(() => expect(screen.getByText('Anträge (2)')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Alle (2)' })).toBeInTheDocument();
+    expect(screen.getByText('Keine Anträge.')).toBeInTheDocument();
+  });
+
   it('filters visible rows + tab counts when an Art is selected', async () => {
     listLeaveRequestsMock.mockResolvedValue([
       { id: '1', employeeId: stefan.id, leaveTypeCode: 'urlaub',       startDate: '2026-08-10', endDate: '2026-08-15', status: 'pending' },

@@ -213,7 +213,7 @@ export default function LeaveRequestsList({
           <div className="flex items-center gap-2">
             <FileText size={14} className="text-slate-500" />
             <span className="font-bold text-slate-600" style={{ fontSize: 12 }}>
-              Anträge {!loading && !error ? `(${visibleRequests.length})` : ''}
+              Anträge {!loading && !error ? `(${typeFiltered.length})` : ''}
             </span>
           </div>
           <button
