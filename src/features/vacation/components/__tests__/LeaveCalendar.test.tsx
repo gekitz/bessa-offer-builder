@@ -321,7 +321,7 @@ describe('LeaveCalendar', () => {
     await u.click(screen.getByRole('menuitem', { name: 'Antrag erstellen' }));
 
     expect(onAddRequest).toHaveBeenCalledTimes(1);
-    expect(onAddRequest).toHaveBeenCalledWith('2026-05-15');
+    expect(onAddRequest).toHaveBeenCalledWith('2026-05-15', '2026-05-15');
     expect(screen.queryByTestId('calendar-context-menu')).not.toBeInTheDocument();
   });
 
@@ -342,6 +342,81 @@ describe('LeaveCalendar', () => {
     expect(screen.queryByTestId('calendar-context-menu')).not.toBeInTheDocument();
 
     expect(onAddRequest).not.toHaveBeenCalled();
+  });
+
+  it('drag-to-range across cells calls onAddRequest with [min, max] sorted', async () => {
+    const onAddRequest = vi.fn();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} onAddRequest={onAddRequest} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    const startCell = screen.getByTestId('cal-cell-2026-05-12');
+    const middleCell = screen.getByTestId('cal-cell-2026-05-13');
+    const endCell = screen.getByTestId('cal-cell-2026-05-15');
+
+    fireEvent.mouseDown(startCell, { button: 0 });
+    fireEvent.mouseEnter(middleCell);
+    fireEvent.mouseEnter(endCell);
+    fireEvent.mouseUp(endCell);
+
+    expect(onAddRequest).toHaveBeenCalledTimes(1);
+    expect(onAddRequest).toHaveBeenCalledWith('2026-05-12', '2026-05-15');
+    // The day-detail modal must NOT have opened — drag commits suppress
+    // the click-on-same-cell day-detail handler.
+    expect(screen.queryByText('15.05.2026')).not.toBeInTheDocument();
+  });
+
+  it('drag in reverse (later cell to earlier) sorts the result before calling onAddRequest', async () => {
+    const onAddRequest = vi.fn();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} onAddRequest={onAddRequest} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    fireEvent.mouseDown(screen.getByTestId('cal-cell-2026-05-20'), { button: 0 });
+    fireEvent.mouseEnter(screen.getByTestId('cal-cell-2026-05-15'));
+    fireEvent.mouseUp(screen.getByTestId('cal-cell-2026-05-15'));
+
+    expect(onAddRequest).toHaveBeenCalledWith('2026-05-15', '2026-05-20');
+  });
+
+  it('mouseDown + mouseUp on the same cell with no movement still opens day-detail (not the form)', async () => {
+    const onAddRequest = vi.fn();
+    const u = userEvent.setup();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} onAddRequest={onAddRequest} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    // userEvent.click fires mouseDown + mouseUp + click in sequence
+    // on the same target with no movement, which is the "single click"
+    // case — must keep the day-detail-opening behavior.
+    await u.click(screen.getByTestId('cal-cell-2026-05-15'));
+
+    expect(onAddRequest).not.toHaveBeenCalled();
+    expect(await screen.findByText('15.05.2026')).toBeInTheDocument();
+  });
+
+  it('does not start a drag on right-click (button !== 0)', async () => {
+    const onAddRequest = vi.fn();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} onAddRequest={onAddRequest} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    fireEvent.mouseDown(screen.getByTestId('cal-cell-2026-05-15'), { button: 2 });
+    fireEvent.mouseEnter(screen.getByTestId('cal-cell-2026-05-20'));
+    fireEvent.mouseUp(screen.getByTestId('cal-cell-2026-05-20'));
+
+    // Right-click is the context-menu trigger, not a range-select trigger.
+    expect(onAddRequest).not.toHaveBeenCalled();
+  });
+
+  it('mouse-up outside the calendar still commits the drag', async () => {
+    const onAddRequest = vi.fn();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} onAddRequest={onAddRequest} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    fireEvent.mouseDown(screen.getByTestId('cal-cell-2026-05-12'), { button: 0 });
+    fireEvent.mouseEnter(screen.getByTestId('cal-cell-2026-05-14'));
+    // User releases the mouse outside any calendar cell — the document-
+    // level mouseup listener finishes the gesture.
+    fireEvent.mouseUp(document.body);
+
+    expect(onAddRequest).toHaveBeenCalledWith('2026-05-12', '2026-05-14');
   });
 
   it('day-detail modal shows the day-empty state for a day with no leaves', async () => {

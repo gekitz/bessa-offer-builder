@@ -14,9 +14,10 @@ interface LeaveCalendarProps {
   initialMonth?: number; // 0..11
   // Bumping this counter externally forces a re-fetch.
   reloadKey?: number;
-  // When set, right-clicking a cell opens a context menu with
-  // "Antrag erstellen" — selecting it calls this with the day ISO.
-  onAddRequest?: (day: IsoDate) => void;
+  // When set, both the right-click context menu ("Antrag erstellen")
+  // and the drag-to-range gesture across cells call this. For single-day
+  // creates start === end; for ranges, start <= end.
+  onAddRequest?: (start: IsoDate, end: IsoDate) => void;
 }
 
 const MONTHS_DE = [
@@ -101,6 +102,13 @@ export default function LeaveCalendar({
   // Right-click context menu state — null when closed.
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; day: IsoDate } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
+  // Drag-to-range select. While `drag` is set, mouse-enter on a cell
+  // updates `drag.end`; mouse-up commits the range.
+  const [drag, setDrag] = useState<{ start: IsoDate; end: IsoDate } | null>(null);
+  // Tracks whether the user actually moved across cells during the
+  // drag — used to suppress the onClick day-detail modal on drag-end
+  // (mouseUp on a different cell than mouseDown).
+  const dragMovedRef = useRef(false);
 
   const grid = useMemo(() => buildMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
   const rangeStart = grid[0]!.iso;
@@ -166,6 +174,51 @@ export default function LeaveCalendar({
     if (!onAddRequest) return;
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY, day });
+  }
+
+  function handleCellMouseDown(e: React.MouseEvent, day: IsoDate) {
+    // Only the primary button starts a drag. Right-click is handled
+    // separately, middle-click does nothing.
+    if (e.button !== 0 || !onAddRequest) return;
+    dragMovedRef.current = false;
+    setDrag({ start: day, end: day });
+  }
+
+  function handleCellMouseEnter(day: IsoDate) {
+    if (!drag) return;
+    if (day !== drag.end) {
+      dragMovedRef.current = true;
+      setDrag({ start: drag.start, end: day });
+    }
+  }
+
+  // Single document-level mouseup handler commits the drag — works
+  // whether the user releases on a cell, on the calendar header, or
+  // outside the component entirely. Multi-cell drags commit as a
+  // range; single-cell mouseDown+mouseUp with no movement falls
+  // through to the cell's normal onClick (which opens day-detail).
+  useEffect(() => {
+    if (!drag) return;
+    function onUp() {
+      if (dragMovedRef.current && onAddRequest && drag) {
+        const a = drag.start;
+        const b = drag.end;
+        const start = a <= b ? a : b;
+        const end = a <= b ? b : a;
+        onAddRequest(start, end);
+      }
+      setDrag(null);
+    }
+    document.addEventListener('mouseup', onUp);
+    return () => document.removeEventListener('mouseup', onUp);
+  }, [drag, onAddRequest]);
+
+  // Membership check for highlighting cells inside the active drag.
+  function isInDrag(iso: IsoDate): boolean {
+    if (!drag) return false;
+    const lo = drag.start <= drag.end ? drag.start : drag.end;
+    const hi = drag.start <= drag.end ? drag.end : drag.start;
+    return lo <= iso && iso <= hi;
   }
 
   // Close the context menu on any click outside the menu, or Escape.
@@ -280,6 +333,7 @@ export default function LeaveCalendar({
               const isToday = cell.iso === todayIso;
               const visible = dayLeaves.slice(0, 3);
               const overflow = dayLeaves.length - visible.length;
+              const inDrag = isInDrag(cell.iso);
               return (
                 <button
                   type="button"
@@ -287,10 +341,14 @@ export default function LeaveCalendar({
                   data-testid={`cal-cell-${cell.iso}`}
                   onClick={() => setOpenDay(cell.iso)}
                   onContextMenu={(e) => handleCellContextMenu(e, cell.iso)}
-                  className={`min-h-[64px] rounded-md border p-1 text-left flex flex-col gap-0.5 hover:border-red-300 transition-colors ${
-                    cell.current
-                      ? 'bg-white border-slate-200'
-                      : 'bg-slate-50 border-slate-100'
+                  onMouseDown={(e) => handleCellMouseDown(e, cell.iso)}
+                  onMouseEnter={() => handleCellMouseEnter(cell.iso)}
+                  className={`min-h-[64px] rounded-md border p-1 text-left flex flex-col gap-0.5 hover:border-red-300 transition-colors select-none ${
+                    inDrag
+                      ? 'bg-red-50 border-red-300'
+                      : cell.current
+                        ? 'bg-white border-slate-200'
+                        : 'bg-slate-50 border-slate-100'
                   }`}
                 >
                   <div
@@ -357,7 +415,7 @@ export default function LeaveCalendar({
                 type="button"
                 role="menuitem"
                 onClick={() => {
-                  onAddRequest(contextMenu.day);
+                  onAddRequest(contextMenu.day, contextMenu.day);
                   setContextMenu(null);
                 }}
                 className="w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-50 transition-colors"

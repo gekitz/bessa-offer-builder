@@ -24,9 +24,10 @@ export default function VacationPage() {
   // When set, the request form opens in edit mode pre-filled with this
   // existing leave request. Mutually exclusive with the create flow.
   const [editingRequest, setEditingRequest] = useState(null);
-  // ISO day pre-filled for new-request creation from the calendar
-  // right-click context menu. Mutually exclusive with the others.
-  const [requestForDay, setRequestForDay] = useState(null);
+  // Date range pre-filled for new-request creation from the calendar
+  // (right-click context menu sends start === end; drag-to-range sends
+  // start <= end). Mutually exclusive with the other create flows.
+  const [requestForRange, setRequestForRange] = useState(null);
 
   // Match the logged-in SSO user to one of our employees. The TEAM
   // array's `id` field happens to equal employees.code (both 'gkitz',
@@ -63,14 +64,14 @@ export default function VacationPage() {
   function handleRequestSuccess() {
     setRequestForEmployeeId(null);
     setEditingRequest(null);
-    setRequestForDay(null);
+    setRequestForRange(null);
     setReloadKey((k) => k + 1);
   }
 
   function handleCloseForm() {
     setRequestForEmployeeId(null);
     setEditingRequest(null);
-    setRequestForDay(null);
+    setRequestForRange(null);
   }
 
   return (
@@ -128,7 +129,7 @@ export default function VacationPage() {
           <div className="mb-4">
             <LeaveCalendar
               reloadKey={reloadKey}
-              onAddRequest={(day) => setRequestForDay(day)}
+              onAddRequest={(start, end) => setRequestForRange({ start, end })}
             />
           </div>
         )}
@@ -203,7 +204,7 @@ export default function VacationPage() {
         )}
       </div>
 
-      {(requestForEmployeeId || editingRequest || requestForDay) && (
+      {(requestForEmployeeId || editingRequest || requestForRange) && (
         <LeaveRequestForm
           employees={employees}
           defaultEmployeeId={
@@ -212,8 +213,8 @@ export default function VacationPage() {
             ?? currentEmployee?.id
             ?? undefined
           }
-          defaultStartDate={requestForDay ?? undefined}
-          defaultEndDate={requestForDay ?? undefined}
+          defaultStartDate={requestForRange?.start ?? undefined}
+          defaultEndDate={requestForRange?.end ?? undefined}
           existingRequest={editingRequest ?? undefined}
           onClose={handleCloseForm}
           onSuccess={handleRequestSuccess}
