@@ -255,6 +255,9 @@ function rowToLeaveRequest(row: any): LeaveRequest & { id: string } {
     status: row.status,
     reason: row.reason ?? undefined,
     substituteId: row.substitute_id ?? undefined,
+    decidedAt: row.decided_at ?? undefined,
+    decidedBy: row.decided_by ?? undefined,
+    decisionNote: row.decision_note ?? undefined,
   };
 }
 

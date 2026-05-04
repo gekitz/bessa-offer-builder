@@ -227,6 +227,38 @@ describe('leave requests', () => {
     expect(result[0]?.leaveTypeCode).toBe('urlaub');
   });
 
+  it('listLeaveRequests maps decided_at / decided_by / decision_note from the row', async () => {
+    const chain = makeChain({
+      data: [{
+        ...leaveRow,
+        status: 'rejected',
+        decided_at: '2026-05-04T10:00:00Z',
+        decided_by: 'gkitz-id',
+        decision_note: 'Konflikt mit MFP-Lehrling',
+      }],
+      error: null,
+    });
+    fromMock.mockReturnValue(chain);
+    const result = await listLeaveRequests();
+    expect(result[0]).toMatchObject({
+      decidedAt: '2026-05-04T10:00:00Z',
+      decidedBy: 'gkitz-id',
+      decisionNote: 'Konflikt mit MFP-Lehrling',
+    });
+  });
+
+  it('listLeaveRequests leaves decision fields undefined when null on the row', async () => {
+    const chain = makeChain({
+      data: [{ ...leaveRow, decided_at: null, decided_by: null, decision_note: null }],
+      error: null,
+    });
+    fromMock.mockReturnValue(chain);
+    const result = await listLeaveRequests();
+    expect(result[0]?.decidedAt).toBeUndefined();
+    expect(result[0]?.decidedBy).toBeUndefined();
+    expect(result[0]?.decisionNote).toBeUndefined();
+  });
+
   it('createLeaveRequest converts the leaveTypeCode to leave_type_id', async () => {
     const chain = makeChain({ data: leaveRow, error: null });
     fromMock.mockReturnValue(chain);

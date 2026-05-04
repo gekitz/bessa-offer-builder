@@ -76,6 +76,12 @@ export interface LeaveRequest {
   status?: LeaveStatus;
   reason?: string;
   substituteId?: string;
+  // Populated by decideLeaveRequest. ISO timestamp of the decision.
+  decidedAt?: string;
+  // employees.id of the approver who decided.
+  decidedBy?: string;
+  // Optional note attached to the approve/reject decision.
+  decisionNote?: string;
 }
 
 export interface RuleContext {
