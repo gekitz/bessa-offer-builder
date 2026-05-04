@@ -296,6 +296,46 @@ describe('LeaveRequestsList — status tabs', () => {
     expect(screen.getByText('Mario Graf')).toBeInTheDocument();
   });
 
+  it('filters visible rows + tab counts when an Art is selected', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      { id: '1', employeeId: stefan.id, leaveTypeCode: 'urlaub',       startDate: '2026-08-10', endDate: '2026-08-15', status: 'pending' },
+      { id: '2', employeeId: mario.id,  leaveTypeCode: 'krankenstand', startDate: '2026-05-04', endDate: '2026-05-04', status: 'approved' },
+      { id: '3', employeeId: stefan.id, leaveTypeCode: 'krankenstand', startDate: '2026-09-01', endDate: '2026-09-02', status: 'rejected' },
+    ]);
+    const u = userEvent.setup();
+    render(<LeaveRequestsList showStatusTabs />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    // Default: "Alle Arten" — Alle (3), Offen (1), Genehmigt (1), Abgelehnt (1)
+    expect(screen.getByRole('button', { name: 'Alle (3)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Offen (1)' })).toBeInTheDocument();
+
+    // Filter to Krankenstand
+    await u.click(screen.getByRole('button', { name: 'Art filtern' }));
+    await u.click(await screen.findByRole('option', { name: 'Krankenstand' }));
+
+    // Counts now reflect only the Krankenstand subset (2 of the 3)
+    expect(screen.getByRole('button', { name: 'Alle (2)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Offen (0)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Genehmigt (1)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Abgelehnt (1)' })).toBeInTheDocument();
+
+    // Default tab is Offen — but no pending Krankenstand exists, so empty.
+    expect(screen.getByText('Keine Anträge.')).toBeInTheDocument();
+
+    // Switch to Genehmigt to see Mario's Krankenstand
+    await u.click(screen.getByRole('button', { name: /^Genehmigt / }));
+    expect(screen.getByText('Mario Graf')).toBeInTheDocument();
+    expect(screen.queryByText('Stefan Bauer')).not.toBeInTheDocument();
+  });
+
+  it('hides the type filter when leaveTypes haven\'t loaded yet', async () => {
+    listLeaveTypesMock.mockResolvedValue([]);
+    render(<LeaveRequestsList showStatusTabs />);
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Art filtern' })).not.toBeInTheDocument();
+  });
+
   it('renders the empty state below the toggle + tab rows (DOM order)', async () => {
     listLeaveRequestsMock.mockResolvedValue([]);
     render(<LeaveRequestsList showStatusTabs myEmployeeId="e-1" emptyLabel="Keine Anträge." />);

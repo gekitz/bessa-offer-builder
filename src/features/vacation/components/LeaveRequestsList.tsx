@@ -10,6 +10,7 @@ import {
 } from '../api/vacationApi';
 import LeaveStatusBadge from './LeaveStatusBadge';
 import DecisionDialog from './DecisionDialog';
+import Select from '../../../components/Select';
 import { formatRange } from '../lib/formatDate';
 import type { Employee, LeaveRequest, LeaveStatus, LeaveTypeCode } from '../types';
 
@@ -92,6 +93,11 @@ export default function LeaveRequestsList({
   const [selectedStatus, setSelectedStatus] = useState<StatusTab>('pending');
   // Own-leaves toggle. Rendered + active only when myEmployeeId is set.
   const [myOnly, setMyOnly] = useState(defaultMyOnly);
+  // Leave-type filter. 'all' means no filter. The dropdown is only
+  // useful when the full set is loaded — i.e. when showStatusTabs
+  // is on; otherwise it's still rendered but has fewer rows to
+  // narrow down.
+  const [typeFilter, setTypeFilter] = useState<LeaveTypeCode | 'all'>('all');
 
   // When tabs are on, fetch the full set unfiltered and filter
   // client-side so the tab labels can show accurate counts.
@@ -124,27 +130,33 @@ export default function LeaveRequestsList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusKey, effectiveEmployeeId, reloadKey, internalReload]);
 
-  // Per-status counts + the visible slice when tabs are on.
+  // Apply the type filter once — counts AND the visible slice both
+  // respect it so the tab numbers reflect the user's current scope.
+  const typeFiltered = useMemo(
+    () => (typeFilter === 'all' ? requests : requests.filter((r) => r.leaveTypeCode === typeFilter)),
+    [requests, typeFilter],
+  );
+
   const statusCounts = useMemo(() => {
     const counts: Record<StatusTab, number> = {
-      all: requests.length,
+      all: typeFiltered.length,
       pending: 0,
       approved: 0,
       rejected: 0,
       cancelled: 0,
     };
-    for (const req of requests) {
+    for (const req of typeFiltered) {
       const s = (req.status ?? 'pending') as LeaveStatus;
       counts[s] += 1;
     }
     return counts;
-  }, [requests]);
+  }, [typeFiltered]);
 
   const visibleRequests = useMemo(() => {
-    if (!showStatusTabs) return requests;
-    if (selectedStatus === 'all') return requests;
-    return requests.filter((r) => (r.status ?? 'pending') === selectedStatus);
-  }, [requests, showStatusTabs, selectedStatus]);
+    if (!showStatusTabs) return typeFiltered;
+    if (selectedStatus === 'all') return typeFiltered;
+    return typeFiltered.filter((r) => (r.status ?? 'pending') === selectedStatus);
+  }, [typeFiltered, showStatusTabs, selectedStatus]);
 
   const employeeById = useMemo(
     () => new Map(employees.map((e) => [e.id, e])),
@@ -216,29 +228,50 @@ export default function LeaveRequestsList({
         </div>
       )}
 
-      {myEmployeeId && (
-        <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap gap-1.5 items-center">
-          <span className="text-slate-500 mr-1" style={{ fontSize: 11 }}>Anzeigen:</span>
-          <button
-            type="button"
-            onClick={() => setMyOnly(false)}
-            className={`rounded-full px-3 py-1 font-medium transition-colors ${
-              !myOnly ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-            style={{ fontSize: 11 }}
-          >
-            Alle Mitarbeiter
-          </button>
-          <button
-            type="button"
-            onClick={() => setMyOnly(true)}
-            className={`rounded-full px-3 py-1 font-medium transition-colors ${
-              myOnly ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-            style={{ fontSize: 11 }}
-          >
-            Nur meine
-          </button>
+      {(myEmployeeId || leaveTypes.length > 0) && (
+        <div className="px-4 py-2 border-b border-slate-100 flex flex-wrap gap-2 items-center">
+          {myEmployeeId && (
+            <>
+              <span className="text-slate-500" style={{ fontSize: 11 }}>Anzeigen:</span>
+              <button
+                type="button"
+                onClick={() => setMyOnly(false)}
+                className={`rounded-full px-3 py-1 font-medium transition-colors ${
+                  !myOnly ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+                style={{ fontSize: 11 }}
+              >
+                Alle Mitarbeiter
+              </button>
+              <button
+                type="button"
+                onClick={() => setMyOnly(true)}
+                className={`rounded-full px-3 py-1 font-medium transition-colors ${
+                  myOnly ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+                style={{ fontSize: 11 }}
+              >
+                Nur meine
+              </button>
+            </>
+          )}
+
+          {leaveTypes.length > 0 && (
+            <div className="flex items-center gap-1.5 ml-auto">
+              <span className="text-slate-500" style={{ fontSize: 11 }}>Art:</span>
+              <Select
+                value={typeFilter}
+                onChange={(v) => setTypeFilter(v as LeaveTypeCode | 'all')}
+                size="sm"
+                className="w-44"
+                ariaLabel="Art filtern"
+                options={[
+                  { value: 'all', label: 'Alle Arten' },
+                  ...leaveTypes.map((t) => ({ value: t.code, label: t.label })),
+                ]}
+              />
+            </div>
+          )}
         </div>
       )}
 
