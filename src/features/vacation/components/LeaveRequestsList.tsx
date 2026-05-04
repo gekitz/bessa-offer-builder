@@ -60,8 +60,13 @@ function formatGermanDate(iso: IsoDate): string {
   return `${d}.${m}.${y}`;
 }
 
-function formatRange(start: IsoDate, end: IsoDate): string {
-  return start === end ? formatGermanDate(start) : `${formatGermanDate(start)} – ${formatGermanDate(end)}`;
+function formatRange(start: IsoDate, end: IsoDate, halfStart?: boolean, halfEnd?: boolean): string {
+  const base = start === end ? formatGermanDate(start) : `${formatGermanDate(start)} – ${formatGermanDate(end)}`;
+  if (!halfStart && !halfEnd) return base;
+  const markers: string[] = [];
+  if (halfStart) markers.push('½ Anfang');
+  if (halfEnd) markers.push('½ Ende');
+  return `${base} (${markers.join(', ')})`;
 }
 
 export default function LeaveRequestsList({
@@ -313,7 +318,7 @@ export default function LeaveRequestsList({
                 <div className="flex items-center gap-2 text-slate-600" style={{ fontSize: 12 }}>
                   <span className="font-medium text-slate-700">{type?.label ?? req.leaveTypeCode}</span>
                   <span className="text-slate-300">·</span>
-                  <span className="text-slate-500">{formatRange(req.startDate, req.endDate)}</span>
+                  <span className="text-slate-500">{formatRange(req.startDate, req.endDate, req.halfDayStart, req.halfDayEnd)}</span>
                 </div>
                 {(req.reason || sub) && (
                   <div className="mt-1.5 space-y-0.5 text-slate-500" style={{ fontSize: 11 }}>

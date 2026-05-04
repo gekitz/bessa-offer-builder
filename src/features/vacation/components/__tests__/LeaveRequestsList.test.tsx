@@ -91,6 +91,53 @@ describe('LeaveRequestsList', () => {
     expect(screen.getByText('Genehmigt')).toBeInTheDocument();
   });
 
+  it('appends "(½ Anfang)" / "(½ Ende)" markers to the date range when half-day flags are set', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-half-start',
+        employeeId: stefan.id,
+        leaveTypeCode: 'urlaub',
+        startDate: '2026-08-10',
+        endDate: '2026-08-15',
+        halfDayStart: true,
+        halfDayEnd: false,
+        status: 'approved',
+      },
+      {
+        id: 'lr-half-end',
+        employeeId: mario.id,
+        leaveTypeCode: 'urlaub',
+        startDate: '2026-08-10',
+        endDate: '2026-08-15',
+        halfDayStart: false,
+        halfDayEnd: true,
+        status: 'approved',
+      },
+      {
+        id: 'lr-half-both',
+        employeeId: 'gkitz-id',
+        leaveTypeCode: 'urlaub',
+        startDate: '2026-08-10',
+        endDate: '2026-08-15',
+        halfDayStart: true,
+        halfDayEnd: true,
+        status: 'approved',
+      },
+    ]);
+    listEmployeesMock.mockResolvedValue([
+      stefan,
+      mario,
+      { id: 'gkitz-id', code: 'gkitz', name: 'Georg Kitz', standortId: 1, weeklyHours: 38.5, employmentType: 'fulltime' as const, active: true },
+    ]);
+    render(<LeaveRequestsList />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    // Each marker case appears as its own row.
+    expect(screen.getByText(/15\.08\.2026 \(½ Anfang\)$/)).toBeInTheDocument();
+    expect(screen.getByText(/15\.08\.2026 \(½ Ende\)$/)).toBeInTheDocument();
+    expect(screen.getByText(/15\.08\.2026 \(½ Anfang, ½ Ende\)$/)).toBeInTheDocument();
+  });
+
   it('renders the optional reason and substitute when present', async () => {
     render(<LeaveRequestsList />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());

@@ -234,14 +234,22 @@ export default function LeaveCalendar({
                   {visible.map((l) => {
                     const emp = employeeById.get(l.employeeId);
                     const colorClass = TYPE_COLORS[l.leaveTypeCode] ?? 'bg-slate-100 text-slate-700';
+                    // Mark half days only on the start or end day
+                    // they apply to. A multi-day leave with a half-day
+                    // start renders as "½ Stefan" on its first cell
+                    // and plain "Stefan" on subsequent cells.
+                    const isHalfStart = l.startDate === cell.iso && l.halfDayStart;
+                    const isHalfEnd = l.endDate === cell.iso && l.halfDayEnd;
+                    const halfMarker = isHalfStart || isHalfEnd ? '½ ' : '';
+                    const tooltip = `${emp?.name ?? l.employeeId} · ${l.leaveTypeCode}${halfMarker ? ' · halber Tag' : ''}`;
                     return (
                       <div
                         key={l.id}
                         className={`truncate rounded px-1 ${colorClass}`}
                         style={{ fontSize: 10 }}
-                        title={`${emp?.name ?? l.employeeId} · ${l.leaveTypeCode}`}
+                        title={tooltip}
                       >
-                        {emp ? firstName(emp.name) : l.employeeId}
+                        {halfMarker}{emp ? firstName(emp.name) : l.employeeId}
                       </div>
                     );
                   })}

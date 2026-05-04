@@ -194,4 +194,70 @@ describe('LeaveCalendar', () => {
     await waitFor(() => expect(screen.getByText('Urlaub')).toBeInTheDocument());
     expect(screen.getByText('Krankenstand')).toBeInTheDocument();
   });
+
+  it('marks half-day start with a ½ prefix only on the start date', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-h1',
+        employeeId: stefan.id,
+        leaveTypeCode: 'urlaub',
+        startDate: '2026-05-11',
+        endDate: '2026-05-13',
+        halfDayStart: true,
+        halfDayEnd: false,
+        status: 'approved',
+      },
+    ]);
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    // Half marker on the start day only.
+    const startCell = screen.getByTestId('cal-cell-2026-05-11');
+    expect(within(startCell).getByText('½ Stefan')).toBeInTheDocument();
+    // Plain pill on subsequent days.
+    const middleCell = screen.getByTestId('cal-cell-2026-05-12');
+    expect(within(middleCell).getByText('Stefan')).toBeInTheDocument();
+    expect(within(middleCell).queryByText(/^½/)).not.toBeInTheDocument();
+    const endCell = screen.getByTestId('cal-cell-2026-05-13');
+    expect(within(endCell).getByText('Stefan')).toBeInTheDocument();
+  });
+
+  it('marks half-day end with a ½ prefix only on the end date', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-h2',
+        employeeId: mario.id,
+        leaveTypeCode: 'urlaub',
+        startDate: '2026-05-11',
+        endDate: '2026-05-13',
+        halfDayStart: false,
+        halfDayEnd: true,
+        status: 'approved',
+      },
+    ]);
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    expect(within(screen.getByTestId('cal-cell-2026-05-11')).getByText('Mario')).toBeInTheDocument();
+    expect(within(screen.getByTestId('cal-cell-2026-05-13')).getByText('½ Mario')).toBeInTheDocument();
+  });
+
+  it('shows ½ on both ends for a single-day request flagged half on both sides', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-h3',
+        employeeId: stefan.id,
+        leaveTypeCode: 'urlaub',
+        startDate: '2026-05-11',
+        endDate: '2026-05-11',
+        halfDayStart: true,
+        halfDayEnd: false,
+        status: 'approved',
+      },
+    ]);
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    expect(within(screen.getByTestId('cal-cell-2026-05-11')).getByText('½ Stefan')).toBeInTheDocument();
+  });
 });
