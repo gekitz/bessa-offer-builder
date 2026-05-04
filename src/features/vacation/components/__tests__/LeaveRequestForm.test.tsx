@@ -11,12 +11,14 @@ const listLeaveTypesMock = vi.fn();
 const listSubstitutesMock = vi.fn();
 const loadRuleContextMock = vi.fn();
 const createLeaveRequestMock = vi.fn();
+const updateLeaveRequestMock = vi.fn();
 
 vi.mock('../../api/vacationApi', () => ({
   listLeaveTypes: () => listLeaveTypesMock(),
   listSubstitutes: (id?: string) => listSubstitutesMock(id),
   loadRuleContext: (opts?: unknown) => loadRuleContextMock(opts),
   createLeaveRequest: (input: unknown) => createLeaveRequestMock(input),
+  updateLeaveRequest: (id: string, patch: unknown) => updateLeaveRequestMock(id, patch),
 }));
 
 import LeaveRequestForm from '../LeaveRequestForm';
@@ -119,6 +121,13 @@ beforeEach(() => {
     leaveTypeCode: 'urlaub',
     startDate: '2026-08-10',
     endDate: '2026-08-15',
+  });
+  updateLeaveRequestMock.mockReset().mockResolvedValue({
+    id: 'lr-existing',
+    employeeId: stefan.id,
+    leaveTypeCode: 'urlaub',
+    startDate: '2026-08-12',
+    endDate: '2026-08-18',
   });
 });
 
@@ -233,6 +242,78 @@ describe('LeaveRequestForm — submit', () => {
 
     expect(await screen.findByText(/Fehler beim Speichern/)).toBeInTheDocument();
     expect(screen.getByText(/rls denied/)).toBeInTheDocument();
+  });
+
+  it('renders the edit-mode title and CTA when existingRequest is supplied', async () => {
+    const existing: LeaveRequest & { id: string } = {
+      id: 'lr-existing',
+      employeeId: stefan.id,
+      leaveTypeCode: 'urlaub',
+      startDate: '2026-08-10',
+      endDate: '2026-08-15',
+      halfDayStart: false,
+      halfDayEnd: true,
+      reason: 'Sommerurlaub',
+      status: 'pending',
+    };
+    render(
+      <LeaveRequestForm
+        employees={[stefan, mario, georg]}
+        existingRequest={existing}
+        onClose={() => {}}
+        onSuccess={() => {}}
+      />,
+    );
+    await waitFor(() => expect(loadRuleContextMock).toHaveBeenCalled());
+
+    expect(screen.getByText('Antrag bearbeiten')).toBeInTheDocument();
+    const submit = await screen.findByRole('button', { name: /Änderungen speichern/ });
+    expect(submit).toBeInTheDocument();
+  });
+
+  it('edit submit calls updateLeaveRequest with the existing id and round-trips the form values', async () => {
+    const existing: LeaveRequest & { id: string } = {
+      id: 'lr-existing',
+      employeeId: stefan.id,
+      leaveTypeCode: 'urlaub',
+      startDate: '2026-08-10',
+      endDate: '2026-08-15',
+      halfDayStart: true,
+      halfDayEnd: false,
+      reason: 'Sommerurlaub',
+      substituteId: undefined,
+      status: 'pending',
+    };
+    const onSuccess = vi.fn();
+    const u = userEvent.setup();
+    render(
+      <LeaveRequestForm
+        employees={[stefan, mario, georg]}
+        existingRequest={existing}
+        onClose={() => {}}
+        onSuccess={onSuccess}
+      />,
+    );
+    await waitFor(() => expect(loadRuleContextMock).toHaveBeenCalled());
+
+    const submit = await screen.findByRole('button', { name: /Änderungen speichern/ });
+    await waitFor(() => expect(submit).not.toBeDisabled());
+    await u.click(submit);
+
+    await waitFor(() => expect(updateLeaveRequestMock).toHaveBeenCalledTimes(1));
+    expect(updateLeaveRequestMock).toHaveBeenCalledWith('lr-existing', {
+      employeeId: stefan.id,
+      leaveTypeCode: 'urlaub',
+      startDate: '2026-08-10',
+      endDate: '2026-08-15',
+      halfDayStart: true,
+      halfDayEnd: false,
+      reason: 'Sommerurlaub',
+      substituteId: undefined,
+    });
+    // Must NOT call createLeaveRequest in edit mode.
+    expect(createLeaveRequestMock).not.toHaveBeenCalled();
+    expect(onSuccess).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the submit button disabled and does not call the API when violations are present', async () => {

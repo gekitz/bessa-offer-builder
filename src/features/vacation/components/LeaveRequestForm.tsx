@@ -9,10 +9,11 @@ import {
   listLeaveTypes,
   listSubstitutes,
   loadRuleContext,
+  updateLeaveRequest,
   type LeaveType,
   type Substitute,
 } from '../api/vacationApi';
-import type { Employee, IsoDate, LeaveTypeCode, RuleContext, RuleResult } from '../types';
+import type { Employee, IsoDate, LeaveRequest, LeaveTypeCode, RuleContext, RuleResult } from '../types';
 
 interface LeaveRequestFormProps {
   employees: Employee[];
@@ -21,6 +22,12 @@ interface LeaveRequestFormProps {
   // navigating the calendar popover. Production callers pass neither.
   defaultStartDate?: IsoDate;
   defaultEndDate?: IsoDate;
+  // When set, the form runs in edit mode: pre-fills with the
+  // existing request's values and submits via updateLeaveRequest
+  // instead of createLeaveRequest. The request must still be
+  // editable (status='pending') — that's a UI-level guard the
+  // caller is responsible for.
+  existingRequest?: LeaveRequest & { id: string };
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -30,17 +37,27 @@ export default function LeaveRequestForm({
   defaultEmployeeId,
   defaultStartDate,
   defaultEndDate,
+  existingRequest,
   onClose,
   onSuccess,
 }: LeaveRequestFormProps) {
-  const [employeeId, setEmployeeId] = useState<string>(defaultEmployeeId ?? employees[0]?.id ?? '');
-  const [leaveTypeCode, setLeaveTypeCode] = useState<LeaveTypeCode>('urlaub');
-  const [startDate, setStartDate] = useState<IsoDate>(defaultStartDate ?? '');
-  const [endDate, setEndDate] = useState<IsoDate>(defaultEndDate ?? '');
-  const [halfDayStart, setHalfDayStart] = useState(false);
-  const [halfDayEnd, setHalfDayEnd] = useState(false);
-  const [reason, setReason] = useState('');
-  const [substituteId, setSubstituteId] = useState<string>('');
+  const isEdit = !!existingRequest;
+  const [employeeId, setEmployeeId] = useState<string>(
+    existingRequest?.employeeId ?? defaultEmployeeId ?? employees[0]?.id ?? '',
+  );
+  const [leaveTypeCode, setLeaveTypeCode] = useState<LeaveTypeCode>(
+    existingRequest?.leaveTypeCode ?? 'urlaub',
+  );
+  const [startDate, setStartDate] = useState<IsoDate>(
+    existingRequest?.startDate ?? defaultStartDate ?? '',
+  );
+  const [endDate, setEndDate] = useState<IsoDate>(
+    existingRequest?.endDate ?? defaultEndDate ?? '',
+  );
+  const [halfDayStart, setHalfDayStart] = useState(existingRequest?.halfDayStart ?? false);
+  const [halfDayEnd, setHalfDayEnd] = useState(existingRequest?.halfDayEnd ?? false);
+  const [reason, setReason] = useState(existingRequest?.reason ?? '');
+  const [substituteId, setSubstituteId] = useState<string>(existingRequest?.substituteId ?? '');
 
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [substitutes, setSubstitutes] = useState<Substitute[]>([]);
@@ -100,6 +117,9 @@ export default function LeaveRequestForm({
     }
     return validateLeaveRequest(
       {
+        // Pass the existing id when editing so the rules engine
+        // doesn't treat the request as conflicting with itself.
+        id: existingRequest?.id,
         employeeId,
         leaveTypeCode,
         startDate,
@@ -111,7 +131,7 @@ export default function LeaveRequestForm({
       },
       ruleCtx,
     );
-  }, [ruleCtx, employeeId, leaveTypeCode, startDate, endDate, halfDayStart, halfDayEnd, reason, substituteId]);
+  }, [ruleCtx, employeeId, leaveTypeCode, startDate, endDate, halfDayStart, halfDayEnd, reason, substituteId, existingRequest?.id]);
 
   const canSubmit =
     !submitting
@@ -127,7 +147,7 @@ export default function LeaveRequestForm({
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await createLeaveRequest({
+      const payload = {
         employeeId,
         leaveTypeCode,
         startDate,
@@ -136,7 +156,12 @@ export default function LeaveRequestForm({
         halfDayEnd,
         reason: reason || undefined,
         substituteId: substituteId || undefined,
-      });
+      };
+      if (existingRequest) {
+        await updateLeaveRequest(existingRequest.id, payload);
+      } else {
+        await createLeaveRequest(payload);
+      }
       onSuccess();
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : String(err));
@@ -159,7 +184,9 @@ export default function LeaveRequestForm({
       >
         {/* Header */}
         <div className="bg-slate-800 text-white px-5 py-4 flex items-center justify-between flex-shrink-0">
-          <span className="font-bold" style={{ fontSize: 16 }}>Neuer Urlaubsantrag</span>
+          <span className="font-bold" style={{ fontSize: 16 }}>
+            {isEdit ? 'Antrag bearbeiten' : 'Neuer Urlaubsantrag'}
+          </span>
           <button onClick={onClose} className="rounded-full bg-white/10 p-1.5 hover:bg-white/20">
             <X size={18} />
           </button>
@@ -344,7 +371,9 @@ export default function LeaveRequestForm({
               style={{ fontSize: 14 }}
             >
               {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
-              {submitting ? 'Wird gespeichert…' : 'Antrag einreichen'}
+              {submitting
+                ? 'Wird gespeichert…'
+                : isEdit ? 'Änderungen speichern' : 'Antrag einreichen'}
             </button>
           </div>
         </form>

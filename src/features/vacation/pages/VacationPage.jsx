@@ -21,6 +21,9 @@ export default function VacationPage() {
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [requestForEmployeeId, setRequestForEmployeeId] = useState(null);
+  // When set, the request form opens in edit mode pre-filled with this
+  // existing leave request. Mutually exclusive with the create flow.
+  const [editingRequest, setEditingRequest] = useState(null);
 
   // Match the logged-in SSO user to one of our employees. The TEAM
   // array's `id` field happens to equal employees.code (both 'gkitz',
@@ -56,7 +59,13 @@ export default function VacationPage() {
 
   function handleRequestSuccess() {
     setRequestForEmployeeId(null);
+    setEditingRequest(null);
     setReloadKey((k) => k + 1);
+  }
+
+  function handleCloseForm() {
+    setRequestForEmployeeId(null);
+    setEditingRequest(null);
   }
 
   return (
@@ -127,6 +136,7 @@ export default function VacationPage() {
               decidedBy={currentEmployee?.id}
               myEmployeeId={currentEmployee?.id}
               defaultMyOnly={!!currentEmployee && !isApprover(currentEmployee)}
+              onEdit={(req) => setEditingRequest(req)}
             />
           </div>
         )}
@@ -185,11 +195,12 @@ export default function VacationPage() {
         )}
       </div>
 
-      {requestForEmployeeId && (
+      {(requestForEmployeeId || editingRequest) && (
         <LeaveRequestForm
           employees={employees}
-          defaultEmployeeId={requestForEmployeeId}
-          onClose={() => setRequestForEmployeeId(null)}
+          defaultEmployeeId={requestForEmployeeId ?? editingRequest?.employeeId}
+          existingRequest={editingRequest ?? undefined}
+          onClose={handleCloseForm}
           onSuccess={handleRequestSuccess}
         />
       )}

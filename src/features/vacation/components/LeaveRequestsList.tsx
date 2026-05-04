@@ -32,6 +32,10 @@ interface LeaveRequestsListProps {
   // when an approve/reject succeeds. Falls back to NULL on the
   // server when omitted.
   decidedBy?: string;
+  // When set, pending rows render a "Bearbeiten" button. The
+  // callback receives the full request object so the parent can
+  // open an edit form pre-filled with it.
+  onEdit?: (request: LeaveRequest & { id: string }) => void;
   // When true, render the Alle/Offen/Genehmigt/Abgelehnt/Storniert
   // tab row. Internal state takes over from the statusFilter prop —
   // statusFilter is treated as the seed value only.
@@ -82,6 +86,7 @@ export default function LeaveRequestsList({
   showStatusTabs = false,
   myEmployeeId,
   defaultMyOnly = false,
+  onEdit,
 }: LeaveRequestsListProps) {
   const [requests, setRequests] = useState<Array<LeaveRequest & { id: string }>>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -319,6 +324,7 @@ export default function LeaveRequestsList({
             const isBusy = actionInFlight === req.id;
             const showDecide = canDecide && status === 'pending';
             const showCancel = actionable && (status === 'pending' || status === 'approved');
+            const showEdit = !!onEdit && status === 'pending';
             return (
               <li key={req.id} className="px-4 py-3">
                 <div className="flex items-start justify-between gap-2 mb-1">
@@ -353,8 +359,19 @@ export default function LeaveRequestsList({
                   </div>
                 )}
 
-                {(showDecide || showCancel) && (
+                {(showDecide || showCancel || showEdit) && (
                   <div className="mt-2 flex gap-1.5">
+                    {showEdit && (
+                      <button
+                        type="button"
+                        onClick={() => onEdit!(req)}
+                        disabled={isBusy}
+                        className="flex items-center gap-1 rounded-lg bg-slate-100 text-slate-700 px-2.5 py-1 hover:bg-slate-200 disabled:opacity-50 transition-colors"
+                        style={{ fontSize: 11 }}
+                      >
+                        Bearbeiten
+                      </button>
+                    )}
                     {showDecide && (
                       <>
                         <button

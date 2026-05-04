@@ -535,6 +535,38 @@ describe('LeaveRequestsList — actionable mode', () => {
     expect(screen.getByText('Antrag genehmigen')).toBeInTheDocument();
   });
 
+  it('does not render the Bearbeiten button when onEdit is omitted', async () => {
+    render(<LeaveRequestsList actionable />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Bearbeiten' })).not.toBeInTheDocument();
+  });
+
+  it('renders Bearbeiten only on pending rows when onEdit is provided', async () => {
+    const onEdit = vi.fn();
+    render(<LeaveRequestsList actionable onEdit={onEdit} />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    // Stefan is pending -> button rendered. Mario is approved ->
+    // button not rendered. So exactly one Bearbeiten button.
+    const buttons = screen.getAllByRole('button', { name: 'Bearbeiten' });
+    expect(buttons).toHaveLength(1);
+  });
+
+  it('clicking Bearbeiten invokes the onEdit callback with the full request', async () => {
+    const onEdit = vi.fn();
+    const u = userEvent.setup();
+    render(<LeaveRequestsList actionable onEdit={onEdit} />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: 'Bearbeiten' }));
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'lr-1',
+      employeeId: stefan.id,
+      status: 'pending',
+    }));
+  });
+
   it('renders the decisionNote on a decided row', async () => {
     listLeaveRequestsMock.mockResolvedValue([
       {
