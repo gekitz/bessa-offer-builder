@@ -5,11 +5,15 @@ import userEvent from '@testing-library/user-event';
 const listLeaveRequestsMock = vi.fn();
 const listEmployeesMock = vi.fn();
 const listLeaveTypesMock = vi.fn();
+const decideLeaveRequestMock = vi.fn();
+const cancelLeaveRequestMock = vi.fn();
 
 vi.mock('../../api/vacationApi', () => ({
   listLeaveRequests: (filter?: unknown) => listLeaveRequestsMock(filter),
   listEmployees: (opts?: unknown) => listEmployeesMock(opts),
   listLeaveTypes: () => listLeaveTypesMock(),
+  decideLeaveRequest: (...args: unknown[]) => decideLeaveRequestMock(...args),
+  cancelLeaveRequest: (...args: unknown[]) => cancelLeaveRequestMock(...args),
 }));
 
 import LeaveRequestsList from '../LeaveRequestsList';
@@ -53,6 +57,8 @@ beforeEach(() => {
   listLeaveRequestsMock.mockReset().mockResolvedValue([stefanUrlaub, marioKrank]);
   listEmployeesMock.mockReset().mockResolvedValue([stefan, mario]);
   listLeaveTypesMock.mockReset().mockResolvedValue(TYPES);
+  decideLeaveRequestMock.mockReset().mockResolvedValue({ id: 'lr-1', status: 'approved' });
+  cancelLeaveRequestMock.mockReset().mockResolvedValue(undefined);
 });
 
 describe('LeaveRequestsList', () => {
@@ -170,5 +176,101 @@ describe('LeaveRequestsList', () => {
     render(<LeaveRequestsList showHeader={false} />);
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
     expect(screen.queryByLabelText('Aktualisieren')).not.toBeInTheDocument();
+  });
+});
+
+describe('LeaveRequestsList — actionable mode', () => {
+  // window.confirm is opened before every API call. Default-allow it
+  // so happy-path tests aren't littered with confirm mocks. Tests
+  // that explicitly cancel set their own value.
+  beforeEach(() => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  });
+
+  it('shows no action buttons when actionable is false (default)', async () => {
+    render(<LeaveRequestsList />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /Genehmigen/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Ablehnen/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Stornieren/ })).not.toBeInTheDocument();
+  });
+
+  it('renders Genehmigen + Ablehnen + Stornieren only on pending rows', async () => {
+    render(<LeaveRequestsList actionable />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    // Stefan's request is pending -> all three actions
+    expect(screen.getByRole('button', { name: /Genehmigen/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ablehnen/ })).toBeInTheDocument();
+
+    // Mario's request is approved -> only Stornieren, no decide buttons
+    const decideButtons = screen.getAllByRole('button', { name: /Genehmigen/ });
+    const cancelButtons = screen.getAllByRole('button', { name: /Stornieren/ });
+    expect(decideButtons).toHaveLength(1); // only Stefan's pending row
+    expect(cancelButtons).toHaveLength(2); // Stefan (pending) + Mario (approved)
+  });
+
+  it('approves a request and refetches the list', async () => {
+    const u = userEvent.setup();
+    render(<LeaveRequestsList actionable />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    expect(listLeaveRequestsMock).toHaveBeenCalledTimes(1);
+
+    await u.click(screen.getByRole('button', { name: /Genehmigen/ }));
+
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/genehmigen/i));
+    await waitFor(() => expect(decideLeaveRequestMock).toHaveBeenCalledTimes(1));
+    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'approved');
+    // After success the list refetches.
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(2));
+  });
+
+  it('rejects a request', async () => {
+    const u = userEvent.setup();
+    render(<LeaveRequestsList actionable />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: /Ablehnen/ }));
+
+    await waitFor(() => expect(decideLeaveRequestMock).toHaveBeenCalledTimes(1));
+    expect(decideLeaveRequestMock).toHaveBeenCalledWith('lr-1', 'rejected');
+  });
+
+  it('skips the API call when the user dismisses the confirm dialog', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const u = userEvent.setup();
+    render(<LeaveRequestsList actionable />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: /Genehmigen/ }));
+
+    expect(decideLeaveRequestMock).not.toHaveBeenCalled();
+  });
+
+  it('cancels a leave', async () => {
+    const u = userEvent.setup();
+    render(<LeaveRequestsList actionable />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    // Click the Stornieren button on Stefan's row (first match in DOM order).
+    const cancelButtons = screen.getAllByRole('button', { name: /Stornieren/ });
+    await u.click(cancelButtons[0]!);
+
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/stornieren/i));
+    await waitFor(() => expect(cancelLeaveRequestMock).toHaveBeenCalledTimes(1));
+    expect(cancelLeaveRequestMock).toHaveBeenCalledWith('lr-1');
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows an inline error banner when an action fails', async () => {
+    decideLeaveRequestMock.mockRejectedValueOnce(new Error('rls denied'));
+    const u = userEvent.setup();
+    render(<LeaveRequestsList actionable />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: /Genehmigen/ }));
+
+    expect(await screen.findByText(/Aktion fehlgeschlagen/)).toBeInTheDocument();
+    expect(screen.getByText(/rls denied/)).toBeInTheDocument();
   });
 });

@@ -317,10 +317,15 @@ export async function createLeaveRequest(input: CreateLeaveRequestInput): Promis
   return rowToLeaveRequest(data);
 }
 
+// decidedBy is optional today because we don't have a Microsoft-SSO ->
+// employees.id mapping yet. The `decided_by` column is nullable in the
+// schema; once the mapping lands, callers should pass the approver's
+// employee.id and the column can be tightened to NOT NULL via a follow-up
+// migration.
 export async function decideLeaveRequest(
   id: string,
   decision: 'approved' | 'rejected',
-  decidedBy: string,
+  decidedBy?: string | null,
   note?: string,
 ): Promise<LeaveRequest & { id: string }> {
   const sb = requireSupabase();
@@ -329,7 +334,7 @@ export async function decideLeaveRequest(
     .update({
       status: decision,
       decided_at: new Date().toISOString(),
-      decided_by: decidedBy,
+      decided_by: decidedBy ?? null,
       decision_note: note ?? null,
     })
     .eq('id', id)

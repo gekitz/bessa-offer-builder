@@ -253,6 +253,16 @@ describe('leave requests', () => {
     expect(typeof updateArg.decided_at).toBe('string');
   });
 
+  it('decideLeaveRequest stores null for decided_by when omitted (no SSO mapping yet)', async () => {
+    const chain = makeChain({ data: { ...leaveRow, status: 'rejected' }, error: null });
+    fromMock.mockReturnValue(chain);
+    await decideLeaveRequest('lr1', 'rejected');
+    const updateArg = chain.update.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(updateArg.status).toBe('rejected');
+    expect(updateArg.decided_by).toBeNull();
+    expect(updateArg.decision_note).toBeNull();
+  });
+
   it('cancelLeaveRequest sets status=cancelled', async () => {
     const chain = makeChain({ data: null, error: null });
     fromMock.mockReturnValue(chain);

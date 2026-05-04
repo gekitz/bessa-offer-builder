@@ -94,7 +94,7 @@ export default function VacationPage() {
         {/* Leave requests — visible once employees load (so the list has names to render). */}
         {!loading && !error && employees.length > 0 && (
           <div className="mb-4">
-            <LeaveRequestsList reloadKey={reloadKey} />
+            <LeaveRequestsList reloadKey={reloadKey} actionable />
           </div>
         )}
 
