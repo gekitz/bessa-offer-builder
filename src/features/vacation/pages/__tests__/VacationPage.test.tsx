@@ -220,7 +220,8 @@ describe('VacationPage', () => {
 
     render(<VacationPage />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
-    expect(listEmployeesMock).toHaveBeenCalledTimes(2); // VacationPage + LeaveRequestsList both call it
+    // VacationPage + LeaveRequestsList + LeaveCalendar each call it.
+    expect(listEmployeesMock).toHaveBeenCalledTimes(3);
     listEmployeesMock.mockClear();
 
     // Open the form, set valid dates via test seam, submit.

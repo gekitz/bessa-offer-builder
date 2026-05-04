@@ -3,6 +3,7 @@ import { AlertCircle, Calendar, Loader2, MapPin, Plus, Users } from 'lucide-reac
 import { listEmployees, listStandorte } from '../api/vacationApi';
 import LeaveRequestForm from '../components/LeaveRequestForm';
 import LeaveRequestsList from '../components/LeaveRequestsList';
+import LeaveCalendar from '../components/LeaveCalendar';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { TEAM } from '../../offers/data/catalogs';
@@ -104,6 +105,13 @@ export default function VacationPage() {
                 <p className="text-amber-700 font-mono" style={{ fontSize: 11 }}>{error}</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Calendar — visible once employees load. */}
+        {!loading && !error && employees.length > 0 && (
+          <div className="mb-4">
+            <LeaveCalendar reloadKey={reloadKey} />
           </div>
         )}
 
