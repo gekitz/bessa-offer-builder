@@ -1,3 +1,15 @@
 node_modules
 dist
 .DS_Store
+.env
+.env.local
+.env.*.local
+.stripe
+.yarn/
+vite.config.js.timestamp-*.mjs
+
+# Cowork / Claude agent local state
+.claude/
+
+# Local working docs (kept on feature branches, not on main)
+Urlaubsplaner_Konzept*.docx
