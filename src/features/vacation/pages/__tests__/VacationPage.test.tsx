@@ -11,6 +11,7 @@ const loadRuleContextMock = vi.fn();
 const createLeaveRequestMock = vi.fn();
 const decideLeaveRequestMock = vi.fn();
 const cancelLeaveRequestMock = vi.fn();
+const listLeaveBalancesMock = vi.fn();
 
 vi.mock('../../api/vacationApi', () => ({
   listEmployees: (opts?: unknown) => listEmployeesMock(opts),
@@ -22,6 +23,7 @@ vi.mock('../../api/vacationApi', () => ({
   createLeaveRequest: (input: unknown) => createLeaveRequestMock(input),
   decideLeaveRequest: (...args: unknown[]) => decideLeaveRequestMock(...args),
   cancelLeaveRequest: (...args: unknown[]) => cancelLeaveRequestMock(...args),
+  listLeaveBalances: (id: string, year: number) => listLeaveBalancesMock(id, year),
 }));
 
 // Allow tests to set the SSO email returned from useAuth.
@@ -88,6 +90,7 @@ beforeEach(() => {
   createLeaveRequestMock.mockReset().mockResolvedValue({ id: 'lr-new' });
   decideLeaveRequestMock.mockReset().mockResolvedValue({ id: 'lr-1' });
   cancelLeaveRequestMock.mockReset();
+  listLeaveBalancesMock.mockReset().mockResolvedValue([]);
   useAuthMock.mockReturnValue({ profile: null, user: null });
 });
 
@@ -206,6 +209,33 @@ describe('VacationPage', () => {
     await screen.findByText('Neuer Urlaubsantrag');
 
     expect(screen.queryByRole('button', { name: 'Mitarbeiter' })).not.toBeInTheDocument();
+  });
+
+  it('renders the BalancePanel only when the SSO user maps to an employee', async () => {
+    listLeaveBalancesMock.mockResolvedValue([
+      {
+        id: 'lb-1',
+        employeeId: helmut.id,
+        year: 2026,
+        leaveTypeCode: 'urlaub',
+        entitled: 25,
+        carriedOver: 0,
+        used: 0,
+        planned: 0,
+      },
+    ]);
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bh@kitz.co.at' }, user: null });
+    render(<VacationPage />);
+    expect(await screen.findByText(/Urlaubsstand 2026/)).toBeInTheDocument();
+    expect(listLeaveBalancesMock).toHaveBeenCalledWith(helmut.id, expect.any(Number));
+  });
+
+  it('hides the BalancePanel when no SSO match', async () => {
+    // Default useAuthMock returns null/null — no SSO match.
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Neuer Antrag/ })).toBeInTheDocument());
+    expect(screen.queryByText(/Urlaubsstand/)).not.toBeInTheDocument();
+    expect(listLeaveBalancesMock).not.toHaveBeenCalled();
   });
 
   it('keeps the Mitarbeiter selector for approvers (create on behalf)', async () => {

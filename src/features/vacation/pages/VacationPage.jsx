@@ -5,6 +5,7 @@ import LeaveRequestForm from '../components/LeaveRequestForm';
 import LeaveRequestsList from '../components/LeaveRequestsList';
 import LeaveCalendar from '../components/LeaveCalendar';
 import CalendarSubscriptionModal from '../components/CalendarSubscriptionModal';
+import BalancePanel from '../components/BalancePanel';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { TEAM } from '../../offers/data/catalogs';
@@ -135,6 +136,14 @@ export default function VacationPage() {
                 <p className="text-amber-700 font-mono" style={{ fontSize: 11 }}>{error}</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Balance — only when we matched an SSO user to an employee
+            (otherwise we don't know whose balance to show). */}
+        {!loading && !error && currentEmployee && (
+          <div className="mb-4">
+            <BalancePanel employeeId={currentEmployee.id} reloadKey={reloadKey} />
           </div>
         )}
 
