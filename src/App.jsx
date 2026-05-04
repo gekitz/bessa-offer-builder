@@ -12,6 +12,8 @@ import { generateAcceptQr } from './lib/qr';
 import { useAuth } from './lib/auth';
 import { TIERS, TIER_MONTHS, TIER_LABEL, TIER_SHORT, TIER_LABEL_OFFER, TKEY, TKEY_REV } from './data/tiers';
 import { AUTO_TERM_RULES, computeAutoTerms } from './data/autoTermRules';
+import { availableTiers, bestTier, price, discountedPrice, hasDiscount, isMonthly, yearlyServicePerUnit } from './lib/pricing';
+import { computeTotals } from './lib/totals';
 import AppShell from './components/AppShell';
 import CustomerPicker from './components/CustomerPicker';
 
@@ -257,57 +259,6 @@ const isCustomItem = (id) => !CATALOG_IDS.has(id);
 // ═══════════════════════════════════════════════════════
 
 const fmt = n => n.toLocaleString('de-AT',{minimumFractionDigits:2,maximumFractionDigits:2});
-
-function availableTiers(item) {
-  if (item.t !== 'm') return [];
-  return TIERS.filter(t => item.p[TKEY_REV[t]] !== undefined);
-}
-
-function bestTier(item, global) {
-  const av = availableTiers(item);
-  if (av.includes(global)) return global;
-  return av[0] || null;
-}
-
-function price(item, tier, mode) {
-  if (!item) return null;
-  if (item.t === 'o') return item.p?.o ?? item.price ?? 0;
-  if (item.t === 'h') return item.p?.o ?? item.price ?? 0;
-  if (item.t === 'term') return mode === 'buy' ? item.buy : item.rent;
-  if (item.t === 'm') {
-    const k = TKEY_REV[tier];
-    if (k && item.p[k] !== undefined) return item.p[k];
-    const av = availableTiers(item);
-    if (av.length) return item.p[TKEY_REV[av[0]]];
-  }
-  return null;
-}
-
-function discountedPrice(item, tier, mode) {
-  const basePrice = price(item, tier, mode);
-  if (!item.discount || basePrice === null) return basePrice;
-  if (item.discount.type === 'fixed') return Math.max(0, basePrice - item.discount.value);
-  if (item.discount.type === 'percent') return basePrice * (1 - item.discount.value / 100);
-  return basePrice;
-}
-
-function hasDiscount(item) {
-  return !!item.discount;
-}
-
-function isMonthly(item, mode) {
-  if (!item) return false;
-  if (item.t === 'term') return mode === 'rent';
-  return item.t === 'm';
-}
-
-// Annual Wartung fee per unit for items with a servicePercent (Melzer).
-// Applied to the one-time price, returns 0 for items without servicePercent.
-function yearlyServicePerUnit(item) {
-  if (!item || !item.servicePercent) return 0;
-  const base = item.price ?? item.p?.o ?? 0;
-  return base * (item.servicePercent / 100);
-}
 
 // Returns [id, cartItem][] in user-defined order, with fallback for items not in cartOrder
 function orderedCartEntries(cart, cartOrder) {
@@ -2416,35 +2367,7 @@ export default function App() {
   }
 
   // Totals
-  const totals = useMemo(() => {
-    let monthly = 0, once = 0, yearly = 0, periodTotal = 0, periodMonthly = 0, maxMonths = 0;
-    Object.entries(cart).forEach(([id, c]) => {
-      const item = ALL[id];
-      if (!item) return;
-      const p = price(item, c.tier, c.mode);
-      const dp = discountedPrice(item, c.tier, c.mode);
-      if (p === null) return;
-      const fullQty = c.qty || 0;
-      const discQty = c.discountQty || 0;
-      const line = (p * fullQty) + (dp * discQty);
-      if (isMonthly(item, c.mode)) {
-        monthly += line;
-        const months = TIER_MONTHS[c.tier] || 12;
-        periodMonthly += line * months;
-        periodTotal += line * months;
-        if (months > maxMonths) maxMonths = months;
-      } else {
-        once += line;
-        periodTotal += line;
-        const svc = yearlyServicePerUnit(item) * (fullQty + discQty);
-        if (svc > 0) {
-          yearly += svc;
-          periodTotal += svc;
-        }
-      }
-    });
-    return { monthly, once, yearly, periodTotal, periodMonthly, maxMonths: maxMonths || 12 };
-  }, [cart]);
+  const totals = useMemo(() => computeTotals(cart, ALL), [cart]);
 
   const cartCount = Object.keys(cart).length;
 
