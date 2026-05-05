@@ -84,6 +84,13 @@ export default function LeaveRequestsList({
   hideOthersDecidedRequests = false,
   onEdit,
 }: LeaveRequestsListProps) {
+  // ISO "today" for compare-against-leave-end. Captured once per render
+  // — the list is short-lived enough that crossing midnight isn't an
+  // edge case worth tracking.
+  const todayIso = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
   const [requests, setRequests] = useState<Array<LeaveRequest & { id: string }>>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
@@ -398,9 +405,23 @@ export default function LeaveRequestsList({
             const sub = req.substituteId ? employeeById.get(req.substituteId) : undefined;
             const status = req.status ?? 'pending';
             const isBusy = actionInFlight === req.id;
+            const isOwnRequest = !!myEmployeeId && req.employeeId === myEmployeeId;
+            const canManageRequest = canDecide || !myEmployeeId || isOwnRequest;
             const showDecide = canDecide && status === 'pending';
-            const showCancel = actionable && (status === 'pending' || status === 'approved');
-            const showEdit = !!onEdit && status === 'pending';
+            // Cancel rules:
+            //   * pending → always cancellable by the requester / approver.
+            //   * approved → cancellable only while the leave hasn't
+            //     fully ended yet (endDate >= today). Once the leave is
+            //     in the past, employees can't retroactively un-do it
+            //     (would corrupt the balance + audit trail). Approvers
+            //     can still cancel as an override (HR exception path).
+            const isFullyPast = status === 'approved' && req.endDate < todayIso;
+            const showCancel =
+              actionable
+              && canManageRequest
+              && (status === 'pending' || status === 'approved')
+              && (!isFullyPast || canDecide);
+            const showEdit = !!onEdit && canManageRequest && status === 'pending';
             return (
               <li key={req.id} className="px-4 py-3">
                 <div className="flex items-start justify-between gap-2 mb-1">

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const listLeaveRequestsMock = vi.fn();
@@ -839,5 +839,111 @@ describe('LeaveRequestsList — hideOthersDecidedRequests', () => {
     const u = userEvent.setup();
     await u.click(screen.getByRole('button', { name: /Abgelehnt \(2\)/ }));
     expect(screen.getByText(/PRIVATE: Mario/)).toBeInTheDocument();
+  });
+
+  it('does not show edit or cancel controls for peer rows to non-approvers', async () => {
+    listLeaveRequestsMock.mockResolvedValue([ownPending, peerPending]);
+    const onEdit = vi.fn();
+
+    render(
+      <LeaveRequestsList
+        actionable
+        showStatusTabs
+        myEmployeeId={stefan.id}
+        defaultMyOnly={false}
+        onEdit={onEdit}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('Mario Graf')).toBeInTheDocument());
+
+    const ownRow = screen.getByText('Stefan Bauer').closest('li') as HTMLElement;
+    const peerRow = screen.getByText('Mario Graf').closest('li') as HTMLElement;
+
+    expect(within(ownRow).getByText('Bearbeiten')).toBeInTheDocument();
+    expect(within(ownRow).getByText('Stornieren')).toBeInTheDocument();
+    expect(within(peerRow).queryByText('Bearbeiten')).not.toBeInTheDocument();
+    expect(within(peerRow).queryByText('Stornieren')).not.toBeInTheDocument();
+  });
+});
+
+describe('LeaveRequestsList — past-leave cancel gating', () => {
+  // The component reads "today" from new Date() at render. Pin the
+  // system clock so assertions are deterministic. shouldAdvanceTime
+  // keeps setTimeout-based promise waits (waitFor) working.
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-05-05T10:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const ownPastApproved: LeaveRequest & { id: string } = {
+    id: 'lr-own-past',
+    employeeId: stefan.id,
+    leaveTypeCode: 'urlaub',
+    startDate: '2026-04-13',
+    endDate: '2026-04-17',
+    status: 'approved',
+  };
+  const ownFutureApproved: LeaveRequest & { id: string } = {
+    id: 'lr-own-future',
+    employeeId: stefan.id,
+    leaveTypeCode: 'urlaub',
+    startDate: '2026-08-10',
+    endDate: '2026-08-15',
+    status: 'approved',
+  };
+  const ownOngoingApproved: LeaveRequest & { id: string } = {
+    id: 'lr-own-ongoing',
+    employeeId: stefan.id,
+    leaveTypeCode: 'urlaub',
+    startDate: '2026-05-04',
+    endDate: '2026-05-07',
+    status: 'approved',
+  };
+  const ownPastPending: LeaveRequest & { id: string } = {
+    id: 'lr-own-past-pending',
+    employeeId: stefan.id,
+    leaveTypeCode: 'urlaub',
+    startDate: '2026-04-13',
+    endDate: '2026-04-17',
+    status: 'pending',
+  };
+
+  it('hides Stornieren on a fully-past approved leave for the requester', async () => {
+    listLeaveRequestsMock.mockResolvedValue([ownPastApproved]);
+    render(<LeaveRequestsList actionable myEmployeeId={stefan.id} />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /Stornieren/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps Stornieren on a future approved leave', async () => {
+    listLeaveRequestsMock.mockResolvedValue([ownFutureApproved]);
+    render(<LeaveRequestsList actionable myEmployeeId={stefan.id} />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /Stornieren/ })).toBeInTheDocument();
+  });
+
+  it('keeps Stornieren on an in-progress leave (endDate >= today)', async () => {
+    listLeaveRequestsMock.mockResolvedValue([ownOngoingApproved]);
+    render(<LeaveRequestsList actionable myEmployeeId={stefan.id} />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /Stornieren/ })).toBeInTheDocument();
+  });
+
+  it('keeps Stornieren on a fully-past pending leave (status guards apply only to approved)', async () => {
+    listLeaveRequestsMock.mockResolvedValue([ownPastPending]);
+    render(<LeaveRequestsList actionable myEmployeeId={stefan.id} />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /Stornieren/ })).toBeInTheDocument();
+  });
+
+  it('approvers can still cancel a fully-past approved leave (HR override)', async () => {
+    listLeaveRequestsMock.mockResolvedValue([ownPastApproved]);
+    render(<LeaveRequestsList actionable canDecide />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /Stornieren/ })).toBeInTheDocument();
   });
 });
