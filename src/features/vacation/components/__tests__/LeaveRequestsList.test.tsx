@@ -1005,3 +1005,74 @@ describe('LeaveRequestsList — Krankmeldung link', () => {
     expect(await screen.findByText(/expired/)).toBeInTheDocument();
   });
 });
+
+describe('LeaveRequestsList — per-employee filter for approvers', () => {
+  it('does not include per-employee options for non-approvers', async () => {
+    const u = userEvent.setup();
+    render(<LeaveRequestsList showStatusTabs myEmployeeId={stefan.id} />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    await u.click(screen.getByRole('button', { name: 'Mitarbeiter filtern' }));
+
+    expect(screen.getByRole('option', { name: /Alle Mitarbeiter/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Nur meine/ })).toBeInTheDocument();
+    // Stefan is in the team but should NOT show as a filter option.
+    expect(screen.queryByRole('option', { name: /Stefan Bauer/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Mario Graf/ })).not.toBeInTheDocument();
+  });
+
+  it('approvers see every active employee as a filter option', async () => {
+    const u = userEvent.setup();
+    render(<LeaveRequestsList showStatusTabs canDecide myEmployeeId={stefan.id} />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    await u.click(screen.getByRole('button', { name: 'Mitarbeiter filtern' }));
+
+    expect(screen.getByRole('option', { name: /Stefan Bauer/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Mario Graf/ })).toBeInTheDocument();
+  });
+
+  it('selecting a specific employee filters the API call to that id', async () => {
+    const u = userEvent.setup();
+    render(<LeaveRequestsList canDecide myEmployeeId={stefan.id} />);
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
+
+    await u.click(screen.getByRole('button', { name: 'Mitarbeiter filtern' }));
+    await u.click(screen.getByRole('option', { name: /Mario Graf/ }));
+
+    await waitFor(() => {
+      const last = listLeaveRequestsMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+      expect(last.employeeId).toBe(mario.id);
+    });
+  });
+});
+
+describe('LeaveRequestsList — approver retroactive edit', () => {
+  const ownApprovedPast: LeaveRequest & { id: string } = {
+    id: 'lr-past', employeeId: stefan.id, leaveTypeCode: 'urlaub',
+    startDate: '2026-04-13', endDate: '2026-04-17', status: 'approved',
+  };
+
+  it('non-approvers cannot edit an approved leave (existing behaviour)', async () => {
+    listLeaveRequestsMock.mockResolvedValue([ownApprovedPast]);
+    render(<LeaveRequestsList actionable myEmployeeId={stefan.id} onEdit={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Bearbeiten' })).not.toBeInTheDocument();
+  });
+
+  it('approvers see Bearbeiten on an approved (or past) leave', async () => {
+    listLeaveRequestsMock.mockResolvedValue([ownApprovedPast]);
+    render(<LeaveRequestsList actionable canDecide onEdit={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Bearbeiten' })).toBeInTheDocument();
+  });
+
+  it('clicking Bearbeiten on an approved leave still calls onEdit with the row', async () => {
+    listLeaveRequestsMock.mockResolvedValue([ownApprovedPast]);
+    const onEdit = vi.fn();
+    const u = userEvent.setup();
+    render(<LeaveRequestsList actionable canDecide onEdit={onEdit} />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: 'Bearbeiten' }));
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'lr-past', status: 'approved' }));
+  });
+});

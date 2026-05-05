@@ -117,8 +117,12 @@ export default function LeaveRequestsList({
   // Tab selection — defaults to "Offen" since approvers care about
   // pending requests first. Used only when showStatusTabs is on.
   const [selectedStatus, setSelectedStatus] = useState<StatusTab>('pending');
-  // Own-leaves toggle. Rendered + active only when myEmployeeId is set.
-  const [myOnly, setMyOnly] = useState(defaultMyOnly);
+  // Mitarbeiter scope. 'mine' = the SSO-matched user, 'all' = the
+  // whole team, otherwise an employee.id (approver-only) for filtering
+  // the list to one specific person — useful when you need to find a
+  // colleague's request fast (e.g. shorten Heimo's Antrag because he
+  // came back early).
+  const [employeeFilter, setEmployeeFilter] = useState<string>(defaultMyOnly ? 'mine' : 'all');
   // Leave-type filter. 'all' means no filter. The dropdown is only
   // useful when the full set is loaded — i.e. when showStatusTabs
   // is on; otherwise it's still rendered but has fewer rows to
@@ -132,7 +136,15 @@ export default function LeaveRequestsList({
   const statusKey = Array.isArray(apiStatusFilter) ? apiStatusFilter.join(',') : (apiStatusFilter ?? '');
   // Effective employee filter: the explicit prop takes precedence,
   // otherwise the toggle decides between myEmployeeId and "all".
-  const effectiveEmployeeId = employeeId ?? (myEmployeeId && myOnly ? myEmployeeId : undefined);
+  // Resolve to a concrete employees.id (or undefined for "all"):
+  //   explicit prop wins → 'mine' → myEmployeeId → 'all' → undefined
+  //   anything else is treated as an employee.id directly.
+  const effectiveEmployeeId = (() => {
+    if (employeeId) return employeeId;
+    if (employeeFilter === 'all') return undefined;
+    if (employeeFilter === 'mine') return myEmployeeId;
+    return employeeFilter;
+  })();
 
   useEffect(() => {
     let cancelled = false;
@@ -344,14 +356,22 @@ export default function LeaveRequestsList({
           <div className="flex items-center gap-1.5 ml-auto">
             {myEmployeeId && (
               <Select
-                value={myOnly ? 'mine' : 'all'}
-                onChange={(v) => setMyOnly(v === 'mine')}
+                value={employeeFilter}
+                onChange={(v) => setEmployeeFilter(v)}
                 size="sm"
-                className="w-40"
+                className="w-44"
                 ariaLabel="Mitarbeiter filtern"
                 options={[
                   { value: 'all',  label: 'Alle Mitarbeiter' },
                   { value: 'mine', label: 'Nur meine' },
+                  // Approvers can scope to one specific employee.
+                  ...(canDecide
+                    ? employees
+                        .filter((e) => e.active)
+                        .slice()
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map((e) => ({ value: e.id, label: e.name, hint: e.code }))
+                    : []),
                 ]}
               />
             )}
@@ -431,7 +451,12 @@ export default function LeaveRequestsList({
               && canManageRequest
               && (status === 'pending' || status === 'approved')
               && (!isFullyPast || canDecide);
-            const showEdit = !!onEdit && canManageRequest && status === 'pending';
+            // Approvers can edit any status (HR retroactive correction —
+            // shorten Heimo's leave because he came back early, etc.).
+            // Regular employees stay limited to their own pending rows.
+            const showEdit = !!onEdit
+              && canManageRequest
+              && (canDecide || status === 'pending');
             return (
               <li key={req.id} className="px-4 py-3">
                 <div className="flex items-start justify-between gap-2 mb-1">
