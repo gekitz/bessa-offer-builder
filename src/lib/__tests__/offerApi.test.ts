@@ -41,6 +41,9 @@ import {
   signOffer,
   getSignedPdfUrl,
   getEmailEvents,
+  listActivities,
+  logActivity,
+  deleteActivity,
 } from '../offerApi';
 
 beforeEach(() => {
@@ -270,5 +273,94 @@ describe('getEmailEvents', () => {
     expect(chain.eq).toHaveBeenCalledWith('offer_id', 'off-1');
     expect(chain.order).toHaveBeenCalledWith('occurred_at', { ascending: true });
     expect(result).toEqual(events);
+  });
+});
+
+describe('listActivities', () => {
+  it('queries offer_activities for the offer, newest first', async () => {
+    const acts = [{ id: 'a' }, { id: 'b' }];
+    const chain = makeChain({ data: acts, error: null });
+    fromMock.mockReturnValue(chain);
+
+    const result = await listActivities('off-1');
+
+    expect(fromMock).toHaveBeenCalledWith('offer_activities');
+    expect(chain.eq).toHaveBeenCalledWith('offer_id', 'off-1');
+    expect(chain.order).toHaveBeenCalledWith('created_at', { ascending: false });
+    expect(result).toEqual(acts);
+  });
+});
+
+describe('logActivity', () => {
+  it('inserts an activity row and returns the created record', async () => {
+    const created = { id: 'act-1', offer_id: 'off-1' };
+    const chain = makeChain({ data: created, error: null });
+    fromMock.mockReturnValue(chain);
+
+    const result = await logActivity('off-1', {
+      kind: 'call',
+      outcome: 'no_answer',
+      note: 'tried mobile',
+      nextFollowupAt: '2026-05-08T08:00:00.000Z',
+      createdById: 'gk',
+      createdByName: 'Georg',
+    });
+
+    expect(fromMock).toHaveBeenCalledWith('offer_activities');
+    expect(chain.insert).toHaveBeenCalledTimes(1);
+    const inserted = chain.insert.mock.calls[0][0];
+    expect(inserted).toEqual({
+      offer_id: 'off-1',
+      kind: 'call',
+      outcome: 'no_answer',
+      note: 'tried mobile',
+      next_followup_at: '2026-05-08T08:00:00.000Z',
+      created_by_id: 'gk',
+      created_by_name: 'Georg',
+    });
+    expect(result).toEqual(created);
+  });
+
+  it('coerces empty optional fields to null so the DB sees explicit NULLs', async () => {
+    const chain = makeChain({ data: { id: 'x' }, error: null });
+    fromMock.mockReturnValue(chain);
+
+    await logActivity('off-1', {
+      kind: 'note',
+      outcome: '',
+      note: '',
+      nextFollowupAt: '',
+      createdById: '',
+      createdByName: '',
+    });
+
+    const inserted = chain.insert.mock.calls[0][0];
+    expect(inserted.outcome).toBeNull();
+    expect(inserted.note).toBeNull();
+    expect(inserted.next_followup_at).toBeNull();
+    expect(inserted.created_by_id).toBeNull();
+    expect(inserted.created_by_name).toBeNull();
+    expect(inserted.kind).toBe('note');
+  });
+
+  it('throws when supabase returns an error', async () => {
+    fromMock.mockReturnValue(makeChain({ data: null, error: new Error('rls denied') }));
+    await expect(logActivity('off-1', {
+      kind: 'call', outcome: undefined, note: undefined,
+      nextFollowupAt: undefined, createdById: undefined, createdByName: undefined,
+    })).rejects.toThrow('rls denied');
+  });
+});
+
+describe('deleteActivity', () => {
+  it('deletes the activity by id', async () => {
+    const chain = makeChain({ data: null, error: null });
+    fromMock.mockReturnValue(chain);
+
+    await deleteActivity('act-1');
+
+    expect(fromMock).toHaveBeenCalledWith('offer_activities');
+    expect(chain.delete).toHaveBeenCalled();
+    expect(chain.eq).toHaveBeenCalledWith('id', 'act-1');
   });
 });

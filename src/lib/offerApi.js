@@ -52,7 +52,7 @@ export async function listOffers() {
 
   const { data, error } = await supabase
     .from('offers')
-    .select('id, status, stage, customer_name, customer_company, customer_email, mesonic_customer_id, creator_id, creator_name, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at')
+    .select('id, status, stage, customer_name, customer_company, customer_email, mesonic_customer_id, creator_id, creator_name, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at, last_activity_at, next_followup_at')
     .order('updated_at', { ascending: false });
 
   if (error) throw error;
@@ -186,6 +186,59 @@ export function getSignedPdfUrl(path) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
   const { data } = supabase.storage.from('offer-pdfs').getPublicUrl(path);
   return data?.publicUrl || null;
+}
+
+// List activities (call/email/meeting/note log) for an offer, newest first
+export async function listActivities(offerId) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+
+  const { data, error } = await supabase
+    .from('offer_activities')
+    .select('*')
+    .eq('offer_id', offerId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+// Log a new activity (call, email, meeting, note) on an offer.
+// nextFollowupAt is an ISO timestamp string or null. The DB trigger
+// mirrors the latest activity's next_followup_at onto the offer row.
+export async function logActivity(offerId, { kind, outcome, note, nextFollowupAt, createdById, createdByName }) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+
+  const row = {
+    offer_id: offerId,
+    kind,
+    outcome: outcome || null,
+    note: note || null,
+    next_followup_at: nextFollowupAt || null,
+    created_by_id: createdById || null,
+    created_by_name: createdByName || null,
+  };
+
+  const { data, error } = await supabase
+    .from('offer_activities')
+    .insert(row)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Delete an activity (e.g. logged by mistake). Trigger refreshes the
+// offer's denormalized fields automatically.
+export async function deleteActivity(activityId) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+
+  const { error } = await supabase
+    .from('offer_activities')
+    .delete()
+    .eq('id', activityId);
+
+  if (error) throw error;
 }
 
 // Get email events for an offer

@@ -58,6 +58,7 @@ import SignModal from '../components/modals/SignModal';
 import CustomItemModal from '../components/modals/CustomItemModal';
 import EmailPreviewModal from '../components/modals/EmailPreviewModal';
 import OfferListPage from './OfferListPage';
+import FollowUpsPage from './FollowUpsPage';
 import { orderedCartEntries } from '../../../lib/cartOrder';
 import { fmt } from '../../../lib/format';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
@@ -120,7 +121,7 @@ export default function OfferBuilderPage() {
   const navigate = useNavigate();
   const section = sectionFromPath(location.pathname);
   const pendingApprovalsCount = useApproverPendingCount();
-  const [offerView, setOfferView] = useState('list'); // 'list' | 'builder'
+  const [offerView, setOfferView] = useState('list'); // 'list' | 'builder' | 'followups'
   const [builderTab, setBuilderTab] = useState('bessa');
   const [globalTier, setGlobalTier] = useState('12mo');
   const [cart, setCart] = useState({});
@@ -901,8 +902,19 @@ export default function OfferBuilderPage() {
       {/* ═══ ANGEBOTE SECTION ═══ */}
       {section === 'angebote' && offerView === 'list' && (
         <div className="flex-1 overflow-auto px-4 py-4 md:px-8 md:py-6">
-          <OfferListPage onLoad={handleLoadOffer} onNew={handleNewOffer} />
+          <OfferListPage
+            onLoad={handleLoadOffer}
+            onNew={handleNewOffer}
+            onOpenFollowUps={() => setOfferView('followups')}
+          />
         </div>
+      )}
+
+      {section === 'angebote' && offerView === 'followups' && (
+        <FollowUpsPage
+          onBack={() => setOfferView('list')}
+          onLoad={(id) => handleLoadOffer(id, false)}
+        />
       )}
 
       {section === 'angebote' && offerView === 'builder' && (

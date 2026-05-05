@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  AlarmClock,
   Archive,
   Calendar,
   Check,
@@ -13,6 +14,7 @@ import {
   Loader2,
   Mail,
   MailOpen,
+  Phone,
   Plus,
   RefreshCw,
   Send,
@@ -22,13 +24,24 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../lib/auth';
 import {
   listOffers,
   deleteOffer,
   getEmailEvents,
   updateOfferStage,
+  listActivities,
+  logActivity,
 } from '../../../lib/offerApi';
-import { StatusBadge, StageBadge, STATUS_CONFIG } from '../components/Badges';
+import {
+  StatusBadge,
+  StageBadge,
+  STATUS_CONFIG,
+  ActivityKindBadge,
+  ActivityOutcomeBadge,
+} from '../components/Badges';
+import LogActivityModal from '../components/modals/LogActivityModal';
+import { bucketize } from '../followUpBuckets';
 import { fmt } from '../../../lib/format';
 
 function CreatorDropdown({ value, onChange, creators }) {
@@ -89,16 +102,21 @@ function CreatorDropdown({ value, onChange, creators }) {
   );
 }
 
-export default function OfferListPage({ onLoad, onNew }) {
+export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
+  const { user, profile } = useAuth();
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [detailId, setDetailId] = useState(null);
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [activities, setActivities] = useState([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [stageFilter, setStageFilter] = useState('new');
   const [creatorFilter, setCreatorFilter] = useState('all');
   const [stageLoading, setStageLoading] = useState(null);
+  const [logTargetId, setLogTargetId] = useState(null);
+  const [logSaving, setLogSaving] = useState(false);
 
   const fetchOffers = useCallback(async () => {
     setLoading(true);
@@ -134,13 +152,46 @@ export default function OfferListPage({ onLoad, onNew }) {
     }
     setDetailId(id);
     setEventsLoading(true);
+    setActivitiesLoading(true);
     try {
-      const evts = await getEmailEvents(id);
+      const [evts, acts] = await Promise.all([
+        getEmailEvents(id).catch(() => []),
+        listActivities(id).catch(() => []),
+      ]);
       setEvents(evts || []);
-    } catch {
-      setEvents([]);
+      setActivities(acts || []);
     } finally {
       setEventsLoading(false);
+      setActivitiesLoading(false);
+    }
+  }
+
+  async function handleLogActivity(draft) {
+    if (!logTargetId) return;
+    setLogSaving(true);
+    try {
+      const created = await logActivity(logTargetId, {
+        kind: draft.kind,
+        outcome: draft.outcome,
+        note: draft.note,
+        nextFollowupAt: draft.nextFollowupAt,
+        createdById: user?.id || null,
+        createdByName: profile?.mesonic_rep_name || user?.email || null,
+      });
+      // Mirror the trigger's effect locally so the UI updates without a refetch.
+      setOffers((os) => os.map((o) => (
+        o.id === logTargetId
+          ? { ...o, last_activity_at: created.created_at, next_followup_at: created.next_followup_at }
+          : o
+      )));
+      if (detailId === logTargetId) {
+        setActivities((prev) => [created, ...prev]);
+      }
+      setLogTargetId(null);
+    } catch (err) {
+      alert('Fehler beim Speichern: ' + err.message);
+    } finally {
+      setLogSaving(false);
     }
   }
 
@@ -166,6 +217,9 @@ export default function OfferListPage({ onLoad, onNew }) {
   }
   const uniqueCreators = [...new Set(offers.map((o) => o.creator_name).filter(Boolean))].sort();
   const closedMonthly = offers.filter((o) => o.stage === 'closed').reduce((sum, o) => sum + Number(o.total_monthly || 0), 0);
+  const buckets = useMemo(() => bucketize(creatorFiltered), [creatorFiltered]);
+  const followUpCount = buckets.overdue.length + buckets.dueToday.length + buckets.stale.length;
+  const logTarget = logTargetId ? offers.find((o) => o.id === logTargetId) : null;
 
   if (!supabase) {
     return (
@@ -205,6 +259,7 @@ export default function OfferListPage({ onLoad, onNew }) {
   };
 
   return (
+    <>
     <div>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 min-w-0">
@@ -216,6 +271,20 @@ export default function OfferListPage({ onLoad, onNew }) {
           </button>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {onOpenFollowUps && followUpCount > 0 && (
+            <button
+              onClick={onOpenFollowUps}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-medium border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex-shrink-0"
+              style={{ fontSize: 12 }}
+              title="Follow-ups öffnen"
+            >
+              <Phone size={12} />
+              <span className="hidden sm:inline">Follow-ups</span>
+              <span className="rounded-full bg-blue-600 text-white px-1.5 font-semibold" style={{ fontSize: 10, minWidth: 16, textAlign: 'center' }}>
+                {followUpCount}
+              </span>
+            </button>
+          )}
           {uniqueCreators.length > 1 && (
             <CreatorDropdown
               value={creatorFilter}
@@ -288,6 +357,7 @@ export default function OfferListPage({ onLoad, onNew }) {
                         {new Date(o.updated_at).toLocaleDateString('de-AT')}
                       </span>
                       <span>{o.creator_name}</span>
+                      <FollowUpHint offer={o} />
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -306,6 +376,11 @@ export default function OfferListPage({ onLoad, onNew }) {
                   <button onClick={() => onLoad(o.id, true)} className="flex items-center gap-1 rounded-lg bg-slate-50 text-slate-600 px-2.5 py-1 hover:bg-slate-100 transition-colors" style={{ fontSize: 11 }}>
                     <Copy size={12} /> Duplizieren
                   </button>
+                  {(o.stage === 'offer_sent' || o.stage === 'new') && (
+                    <button onClick={() => setLogTargetId(o.id)} className="flex items-center gap-1 rounded-lg bg-blue-50 text-blue-700 px-2.5 py-1 hover:bg-blue-100 transition-colors" style={{ fontSize: 11 }}>
+                      <Phone size={12} /> Kontakt
+                    </button>
+                  )}
                   <button onClick={() => showDetail(o.id)} className="flex items-center gap-1 rounded-lg bg-slate-50 text-slate-600 px-2.5 py-1 hover:bg-slate-100 transition-colors" style={{ fontSize: 11 }}>
                     <Clock size={12} /> Details
                   </button>
@@ -340,7 +415,9 @@ export default function OfferListPage({ onLoad, onNew }) {
 
               {/* Event timeline */}
               {detailId === o.id && (
-                <div className="border-t border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="border-t border-slate-200 bg-slate-50 px-3 py-2 space-y-3">
+                  <ActivityTimeline activities={activities} loading={activitiesLoading} />
+                  <div>
                   <div className="font-semibold text-slate-600 mb-1" style={{ fontSize: 11 }}>E-Mail Verlauf</div>
                   {eventsLoading ? (
                     <div className="text-slate-400 text-center py-2"><Loader2 size={14} className="animate-spin mx-auto" /></div>
@@ -375,12 +452,89 @@ export default function OfferListPage({ onLoad, onNew }) {
                       ))}
                     </div>
                   )}
+                  </div>
                 </div>
               )}
             </div>
           ))}
         </div>
       )}
+    </div>
+    {logTarget && (
+      <LogActivityModal
+        customerLabel={logTarget.customer_company || logTarget.customer_name || 'Ohne Name'}
+        onSubmit={handleLogActivity}
+        onClose={() => !logSaving && setLogTargetId(null)}
+        saving={logSaving}
+      />
+    )}
+    </>
+  );
+}
+
+function FollowUpHint({ offer }) {
+  if (offer.next_followup_at) {
+    const due = new Date(offer.next_followup_at);
+    const now = new Date();
+    const overdue = due.getTime() < now.getTime();
+    return (
+      <span className={`flex items-center gap-1 ${overdue ? 'text-red-600' : 'text-blue-600'}`}>
+        <AlarmClock size={11} />
+        {overdue ? 'überfällig: ' : 'fällig: '}
+        {due.toLocaleDateString('de-AT')}
+      </span>
+    );
+  }
+  if (offer.last_activity_at) {
+    return (
+      <span className="flex items-center gap-1 text-slate-500">
+        <Phone size={11} />
+        Kontakt {new Date(offer.last_activity_at).toLocaleDateString('de-AT')}
+      </span>
+    );
+  }
+  return null;
+}
+
+function ActivityTimeline({ activities, loading }) {
+  if (loading) {
+    return (
+      <div>
+        <div className="font-semibold text-slate-600 mb-1" style={{ fontSize: 11 }}>Kontaktverlauf</div>
+        <div className="text-slate-400 text-center py-2"><Loader2 size={14} className="animate-spin mx-auto" /></div>
+      </div>
+    );
+  }
+  if (!activities || activities.length === 0) {
+    return (
+      <div>
+        <div className="font-semibold text-slate-600 mb-1" style={{ fontSize: 11 }}>Kontaktverlauf</div>
+        <div className="text-slate-400" style={{ fontSize: 11 }}>Noch keine Kontakte protokolliert.</div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div className="font-semibold text-slate-600 mb-1" style={{ fontSize: 11 }}>Kontaktverlauf</div>
+      <div className="space-y-1.5">
+        {activities.map((a) => (
+          <div key={a.id} className="flex flex-wrap items-center gap-x-2 gap-y-1" style={{ fontSize: 11 }}>
+            <ActivityKindBadge kind={a.kind} />
+            {a.outcome && <ActivityOutcomeBadge outcome={a.outcome} />}
+            <span className="text-slate-400">
+              {new Date(a.created_at).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' })}
+            </span>
+            {a.created_by_name && <span className="text-slate-400">· {a.created_by_name}</span>}
+            {a.next_followup_at && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-700 px-2 py-0.5 font-medium">
+                <AlarmClock size={11} />
+                {new Date(a.next_followup_at).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' })}
+              </span>
+            )}
+            {a.note && <span className="text-slate-600">{a.note}</span>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
