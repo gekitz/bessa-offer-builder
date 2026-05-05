@@ -1,0 +1,1 @@
+const o={2026:["2026-01-02","2026-01-05","2026-05-15","2026-06-05","2026-11-02","2026-12-07"],2027:["2027-05-07","2027-05-28"]};function u(t){return o[t]??[]}function g(t,r){const n=[];for(let e=t;e<=r;e+=1)n.push(...u(e));return n}export{g as getFenstertageForRange,u as getFenstertageForYear};
