@@ -12,6 +12,8 @@ import DayDetailModal from './DayDetailModal';
 interface LeaveCalendarProps {
   initialYear?: number;
   initialMonth?: number; // 0..11
+  // Initial view mode. Defaults to month.
+  initialViewMode?: 'month' | 'year';
   // Bumping this counter externally forces a re-fetch.
   reloadKey?: number;
   // When set, both the right-click context menu ("Antrag erstellen")
@@ -19,6 +21,8 @@ interface LeaveCalendarProps {
   // creates start === end; for ranges, start <= end.
   onAddRequest?: (start: IsoDate, end: IsoDate) => void;
 }
+
+type ViewMode = 'month' | 'year';
 
 const MONTHS_DE = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
@@ -81,10 +85,12 @@ function firstName(name: string): string {
 export default function LeaveCalendar({
   initialYear,
   initialMonth,
+  initialViewMode = 'month',
   reloadKey = 0,
   onAddRequest,
 }: LeaveCalendarProps) {
   const today = new Date();
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
   const [viewYear, setViewYear] = useState(initialYear ?? today.getFullYear());
   const [viewMonth, setViewMonth] = useState(initialMonth ?? today.getMonth());
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -111,8 +117,12 @@ export default function LeaveCalendar({
   const dragMovedRef = useRef(false);
 
   const grid = useMemo(() => buildMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
-  const rangeStart = grid[0]!.iso;
-  const rangeEnd = grid[grid.length - 1]!.iso;
+  const rangeStart = viewMode === 'year'
+    ? toIso(viewYear, 0, 1)
+    : grid[0]!.iso;
+  const rangeEnd = viewMode === 'year'
+    ? toIso(viewYear, 11, 31)
+    : grid[grid.length - 1]!.iso;
 
   useEffect(() => {
     let cancelled = false;
@@ -155,10 +165,18 @@ export default function LeaveCalendar({
   }, [openDay, leaves]);
 
   function handlePrev() {
+    if (viewMode === 'year') {
+      setViewYear((y) => y - 1);
+      return;
+    }
     if (viewMonth === 0) { setViewYear((y) => y - 1); setViewMonth(11); }
     else setViewMonth((m) => m - 1);
   }
   function handleNext() {
+    if (viewMode === 'year') {
+      setViewYear((y) => y + 1);
+      return;
+    }
     if (viewMonth === 11) { setViewYear((y) => y + 1); setViewMonth(0); }
     else setViewMonth((m) => m + 1);
   }
@@ -166,6 +184,12 @@ export default function LeaveCalendar({
     const t = new Date();
     setViewYear(t.getFullYear());
     setViewMonth(t.getMonth());
+  }
+  // Click a mini-month header in year view → switch to month view for it.
+  function handleOpenMonth(year: number, month: number) {
+    setViewYear(year);
+    setViewMonth(month);
+    setViewMode('month');
   }
 
   // Right-click any cell opens the context menu, anchored at the
@@ -248,7 +272,7 @@ export default function LeaveCalendar({
           <button
             type="button"
             onClick={handlePrev}
-            aria-label="Vorheriger Monat"
+            aria-label={viewMode === 'year' ? 'Vorheriges Jahr' : 'Vorheriger Monat'}
             className="rounded-lg p-1 text-slate-500 hover:bg-slate-200"
           >
             <ChevronLeft size={14} />
@@ -264,16 +288,39 @@ export default function LeaveCalendar({
           <button
             type="button"
             onClick={handleNext}
-            aria-label="Nächster Monat"
+            aria-label={viewMode === 'year' ? 'Nächstes Jahr' : 'Nächster Monat'}
             className="rounded-lg p-1 text-slate-500 hover:bg-slate-200"
           >
             <ChevronRight size={14} />
           </button>
         </div>
         <div className="font-bold text-slate-700" style={{ fontSize: 13 }}>
-          {MONTHS_DE[viewMonth]} {viewYear}
+          {viewMode === 'year' ? viewYear : `${MONTHS_DE[viewMonth]} ${viewYear}`}
         </div>
-        <div style={{ width: 76 }} />{/* spacer to balance the nav block */}
+        <div className="inline-flex bg-slate-200 rounded-lg p-0.5" role="group" aria-label="Ansicht">
+          <button
+            type="button"
+            onClick={() => setViewMode('month')}
+            aria-pressed={viewMode === 'month'}
+            className={`rounded-md px-2 py-0.5 transition-colors ${
+              viewMode === 'month' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+            style={{ fontSize: 11 }}
+          >
+            Monat
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('year')}
+            aria-pressed={viewMode === 'year'}
+            className={`rounded-md px-2 py-0.5 transition-colors ${
+              viewMode === 'year' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+            style={{ fontSize: 11 }}
+          >
+            Jahr
+          </button>
+        </div>
       </div>
 
       {/* Only show the full loading panel before we have any data
@@ -300,7 +347,60 @@ export default function LeaveCalendar({
         </div>
       )}
 
-      {(!loading || hasLoadedOnce) && !error && (
+      {(!loading || hasLoadedOnce) && !error && viewMode === 'year' && (
+        <div className="p-3 relative" data-testid="calendar-year-grid">
+          {loading && hasLoadedOnce && (
+            <div
+              className="absolute top-2 right-3 flex items-center gap-1.5 text-slate-400"
+              style={{ fontSize: 10 }}
+              aria-live="polite"
+            >
+              <Loader2 size={11} className="animate-spin" />
+              <span>Aktualisieren…</span>
+            </div>
+          )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {MONTHS_DE.map((monthName, m) => (
+              <MiniMonthGrid
+                key={m}
+                year={viewYear}
+                month={m}
+                monthName={monthName}
+                leaves={leaves}
+                todayIso={todayIso}
+                onClickDay={(iso) => setOpenDay(iso)}
+                onClickMonth={handleOpenMonth}
+              />
+            ))}
+          </div>
+
+          {openDay && (
+            <DayDetailModal
+              day={openDay}
+              leaves={leavesOnOpenDay}
+              employees={employeeById}
+              leaveTypes={typeByCode}
+              onClose={() => setOpenDay(null)}
+            />
+          )}
+
+          {leaveTypes.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+              {leaveTypes.map((t) => (
+                <span
+                  key={t.code}
+                  className={`inline-flex items-center rounded px-1.5 ${TYPE_COLORS[t.code] ?? 'bg-slate-100 text-slate-700'}`}
+                  style={{ fontSize: 10 }}
+                >
+                  {t.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {(!loading || hasLoadedOnce) && !error && viewMode === 'month' && (
         <div className="p-3 relative" data-testid="calendar-grid">
           {/* Subtle in-flight indicator on month navigation. */}
           {loading && hasLoadedOnce && (
@@ -442,6 +542,98 @@ export default function LeaveCalendar({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+interface MiniMonthGridProps {
+  year: number;
+  month: number;
+  monthName: string;
+  leaves: Array<LeaveRequest & { id: string }>;
+  todayIso: IsoDate;
+  onClickDay: (iso: IsoDate) => void;
+  onClickMonth: (year: number, month: number) => void;
+}
+
+// Compact 7×6 month grid used by the year overview. Each day is a
+// small square; if any leave covers it, the cell is tinted with the
+// primary leave's type color. Click on the month name jumps to month
+// view; click on a day opens the day-detail modal.
+function MiniMonthGrid({
+  year,
+  month,
+  monthName,
+  leaves,
+  todayIso,
+  onClickDay,
+  onClickMonth,
+}: MiniMonthGridProps) {
+  const grid = useMemo(() => buildMonthGrid(year, month), [year, month]);
+
+  return (
+    <div className="bg-white rounded-md border border-slate-200">
+      <button
+        type="button"
+        onClick={() => onClickMonth(year, month)}
+        className="w-full text-center px-2 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 rounded-t-md border-b border-slate-100"
+        style={{ fontSize: 11 }}
+        aria-label={`${monthName} ${year} öffnen`}
+      >
+        {monthName}
+      </button>
+      <div className="p-1.5">
+        <div className="grid grid-cols-7 gap-0.5 mb-0.5">
+          {WEEKDAYS_DE.map((w) => (
+            <div
+              key={w}
+              className="text-center text-slate-400 font-medium"
+              style={{ fontSize: 8 }}
+            >
+              {w[0]}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-0.5">
+          {grid.map((cell) => {
+            if (!cell.current) {
+              return <div key={cell.iso} className="aspect-square" />;
+            }
+            const dayLeaves = leaves.filter((l) => leaveCoversDay(l, cell.iso));
+            const primary = dayLeaves[0];
+            const colorClass = primary
+              ? (TYPE_COLORS[primary.leaveTypeCode] ?? 'bg-slate-100 text-slate-700')
+              : 'text-slate-500';
+            const isToday = cell.iso === todayIso;
+            const overflow = dayLeaves.length > 1;
+            return (
+              <button
+                type="button"
+                key={cell.iso}
+                onClick={() => onClickDay(cell.iso)}
+                data-testid={`cal-mini-cell-${cell.iso}`}
+                className={`aspect-square rounded-sm flex items-center justify-center relative ${colorClass} ${
+                  isToday ? 'ring-1 ring-red-500' : ''
+                } ${primary ? 'font-semibold' : 'hover:bg-slate-100'}`}
+                style={{ fontSize: 9 }}
+                title={dayLeaves.length > 0
+                  ? `${cell.iso} · ${dayLeaves.length} ${dayLeaves.length === 1 ? 'Antrag' : 'Anträge'}`
+                  : cell.iso}
+              >
+                {cell.day}
+                {overflow && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 bg-slate-700 text-white rounded-full"
+                    style={{ fontSize: 7, padding: '0 3px', lineHeight: '1.1' }}
+                  >
+                    {dayLeaves.length}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

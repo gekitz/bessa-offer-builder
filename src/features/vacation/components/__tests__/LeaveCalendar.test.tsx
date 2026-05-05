@@ -447,3 +447,127 @@ describe('LeaveCalendar', () => {
     expect(within(screen.getByTestId('cal-cell-2026-05-11')).getByText('½ Stefan')).toBeInTheDocument();
   });
 });
+
+describe('LeaveCalendar — year view', () => {
+  it('switching to year view renders 12 mini month grids', async () => {
+    listLeaveRequestsMock.mockResolvedValue([]);
+    const u = userEvent.setup();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: 'Jahr' }));
+    await waitFor(() => expect(screen.getByTestId('calendar-year-grid')).toBeInTheDocument());
+
+    // All 12 month names appear as mini-grid headers.
+    for (const m of ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+      'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']) {
+      expect(screen.getByRole('button', { name: `${m} 2026 öffnen` })).toBeInTheDocument();
+    }
+    // Title now shows just the year.
+    expect(screen.getByText('2026', { selector: 'div.font-bold' })).toBeInTheDocument();
+  });
+
+  it('year view fetches the full calendar year (Jan 1 to Dec 31)', async () => {
+    listLeaveRequestsMock.mockResolvedValue([]);
+    const u = userEvent.setup();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    listLeaveRequestsMock.mockClear();
+    await u.click(screen.getByRole('button', { name: 'Jahr' }));
+
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
+    const call = listLeaveRequestsMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(call.rangeStart).toBe('2026-01-01');
+    expect(call.rangeEnd).toBe('2026-12-31');
+  });
+
+  it('Vorheriger / Nächster move by a year in year mode', async () => {
+    listLeaveRequestsMock.mockResolvedValue([]);
+    const u = userEvent.setup();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} initialViewMode="year" />);
+    await waitFor(() => expect(screen.getByTestId('calendar-year-grid')).toBeInTheDocument());
+
+    expect(screen.getByText('2026', { selector: 'div.font-bold' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Vorheriges Jahr' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nächstes Jahr' })).toBeInTheDocument();
+
+    await u.click(screen.getByRole('button', { name: 'Nächstes Jahr' }));
+    await waitFor(() => expect(screen.getByText('2027', { selector: 'div.font-bold' })).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: 'Vorheriges Jahr' }));
+    await u.click(screen.getByRole('button', { name: 'Vorheriges Jahr' }));
+    await waitFor(() => expect(screen.getByText('2025', { selector: 'div.font-bold' })).toBeInTheDocument());
+  });
+
+  it('clicking a month name jumps to month view for that month', async () => {
+    listLeaveRequestsMock.mockResolvedValue([]);
+    const u = userEvent.setup();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} initialViewMode="year" />);
+    await waitFor(() => expect(screen.getByTestId('calendar-year-grid')).toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: 'August 2026 öffnen' }));
+
+    await waitFor(() => expect(screen.getByTestId('calendar-grid')).toBeInTheDocument());
+    expect(screen.queryByTestId('calendar-year-grid')).not.toBeInTheDocument();
+    expect(screen.getByText('August 2026', { selector: 'div.font-bold' })).toBeInTheDocument();
+  });
+
+  it('clicking a day cell in year view opens the day-detail modal', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-1',
+        employeeId: stefan.id,
+        leaveTypeCode: 'urlaub' as const,
+        startDate: '2026-08-10',
+        endDate: '2026-08-14',
+        halfDayStart: false,
+        halfDayEnd: false,
+        status: 'approved',
+      },
+    ]);
+    const u = userEvent.setup();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} initialViewMode="year" />);
+    await waitFor(() => expect(screen.getByTestId('calendar-year-grid')).toBeInTheDocument());
+
+    await u.click(screen.getByTestId('cal-mini-cell-2026-08-10'));
+
+    // DayDetailModal mounts and renders the requester's name.
+    expect(await screen.findByText('Stefan Bauer')).toBeInTheDocument();
+  });
+
+  it('mini cells show a count badge when more than one leave covers a day', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-1',
+        employeeId: stefan.id,
+        leaveTypeCode: 'urlaub' as const,
+        startDate: '2026-08-10',
+        endDate: '2026-08-14',
+        halfDayStart: false,
+        halfDayEnd: false,
+        status: 'approved',
+      },
+      {
+        id: 'lr-2',
+        employeeId: mario.id,
+        leaveTypeCode: 'krankenstand' as const,
+        startDate: '2026-08-12',
+        endDate: '2026-08-12',
+        halfDayStart: false,
+        halfDayEnd: false,
+        status: 'approved',
+      },
+    ]);
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} initialViewMode="year" />);
+    await waitFor(() => expect(screen.getByTestId('calendar-year-grid')).toBeInTheDocument());
+
+    // Aug 12: two leaves, badge should show "2".
+    const cell = screen.getByTestId('cal-mini-cell-2026-08-12');
+    expect(within(cell).getByText('2')).toBeInTheDocument();
+    // Aug 10: one leave, no badge — the cell contains only the day
+    // number "10", no separate count node.
+    const single = screen.getByTestId('cal-mini-cell-2026-08-10');
+    expect(single.textContent).toBe('10');
+  });
+});
