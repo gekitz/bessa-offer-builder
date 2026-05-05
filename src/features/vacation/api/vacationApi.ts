@@ -571,7 +571,7 @@ export interface LoadRuleContextOpts {
 
 export async function loadRuleContext(opts: LoadRuleContextOpts = {}): Promise<RuleContext> {
   const today = opts.today ?? new Date().toISOString().slice(0, 10);
-  const [employees, roles, existingLeaves, coverageRules, blackouts] = await Promise.all([
+  const [employees, roles, existingLeaves, coverageRules, blackouts, substitutes] = await Promise.all([
     listEmployees({ activeOnly: true }),
     listEmployeeRoles(),
     listLeaveRequests({
@@ -581,6 +581,7 @@ export async function loadRuleContext(opts: LoadRuleContextOpts = {}): Promise<R
     }),
     listCoverageRules({ activeOnly: true }),
     listBlackoutPeriods({ activeOnly: true }),
+    listSubstitutes(),
   ]);
   // Static Fenstertage list — covers the year of `today` plus the next
   // year so requests crossing year-end still get evaluated.
@@ -612,5 +613,10 @@ export async function loadRuleContext(opts: LoadRuleContextOpts = {}): Promise<R
     blackouts,
     fenstertage,
     leaveBalances,
+    substitutes: substitutes.map((s) => ({
+      employeeId: s.employeeId,
+      substituteEmployeeId: s.substituteEmployeeId,
+      priority: s.priority,
+    })),
   };
 }

@@ -103,6 +103,10 @@ export interface RuleContext {
   // to know each employee's entitlement. Optional — rule passes when
   // missing.
   leaveBalances?: { employeeId: string; year: number; leaveTypeCode: LeaveTypeCode; entitled: number; carriedOver: number }[];
+  // Configured substitute mappings. Used by the substituteRequired
+  // rule to know which employees should pick a substitute on Urlaub /
+  // Zeitausgleich.
+  substitutes?: { employeeId: string; substituteEmployeeId: string; priority: number }[];
 }
 
 export interface RuleViolation {
