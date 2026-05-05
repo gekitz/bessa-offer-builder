@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface DatePickerProps {
@@ -89,6 +89,12 @@ export default function DatePicker({
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Computed popover position. We use position:fixed so the popover
+  // escapes any `overflow:hidden` ancestor (e.g. a modal). null while
+  // the picker is closed or before the first measurement.
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
+  const POPOVER_WIDTH = 280;
 
   // The calendar's currently-rendered month/year. Reset to the value's
   // month each time the picker opens. Defaults to the current month.
@@ -117,6 +123,38 @@ export default function DatePicker({
     return () => {
       document.removeEventListener('mousedown', handlePointerDown);
       document.removeEventListener('keydown', handleKey);
+    };
+  }, [open]);
+
+  // Position the (fixed) popover. Re-measure on resize and on any
+  // scroll (capture phase, since the trigger may sit inside a
+  // scrolling modal body).
+  useLayoutEffect(() => {
+    if (!open) {
+      setPopoverPos(null);
+      return;
+    }
+    function update() {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const margin = 8;
+      // Default: align popover's left edge with the trigger.
+      let left = rect.left;
+      // If that would clip the right viewport edge, right-align with
+      // the trigger so the popover opens to the left.
+      if (left + POPOVER_WIDTH + margin > window.innerWidth) {
+        left = rect.right - POPOVER_WIDTH;
+      }
+      if (left < margin) left = margin;
+      setPopoverPos({ top: rect.bottom + 4, left });
+    }
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
     };
   }, [open]);
 
@@ -158,6 +196,7 @@ export default function DatePicker({
   return (
     <div ref={wrapperRef} className={`relative ${className || 'w-full'}`}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => !disabled && setOpen((o) => !o)}
         disabled={disabled}
@@ -181,8 +220,16 @@ export default function DatePicker({
       {open && (
         <div
           role="dialog"
-          className="absolute left-0 top-full mt-1 bg-white rounded-xl border border-slate-200 shadow-lg p-3 z-50"
-          style={{ width: 280 }}
+          className="bg-white rounded-xl border border-slate-200 shadow-lg p-3 z-50"
+          style={{
+            position: 'fixed',
+            top: popoverPos?.top ?? -9999,
+            left: popoverPos?.left ?? -9999,
+            width: POPOVER_WIDTH,
+            // Keep the popover invisible until the first measurement
+            // lands so users don't see a flash in the corner.
+            visibility: popoverPos ? 'visible' : 'hidden',
+          }}
         >
           {/* Month navigation */}
           <div className="flex items-center justify-between mb-3">
