@@ -122,7 +122,7 @@ export default function OfferView({
   return (
     <div>
       {/* Customer info */}
-      <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 overflow-hidden" style={{ padding: '16px' }}>
+      <div className="bg-white rounded-xl border-2 border-slate-200 mb-4" style={{ padding: '16px' }}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <User size={16} className="text-red-600" />
