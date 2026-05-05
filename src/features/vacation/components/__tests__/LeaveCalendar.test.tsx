@@ -536,6 +536,79 @@ describe('LeaveCalendar — year view', () => {
     expect(await screen.findByText('Stefan Bauer')).toBeInTheDocument();
   });
 
+  it('mini cell renders a right-half tint on a halfDayStart leave (morning free)', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-1',
+        employeeId: stefan.id,
+        leaveTypeCode: 'urlaub' as const,
+        startDate: '2026-08-10',
+        endDate: '2026-08-14',
+        halfDayStart: true,
+        halfDayEnd: false,
+        status: 'approved',
+      },
+    ]);
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} initialViewMode="year" />);
+    await waitFor(() => expect(screen.getByTestId('calendar-year-grid')).toBeInTheDocument());
+
+    // Aug 10 is the start day with halfDayStart → right-half tinted only.
+    expect(screen.getByTestId('cal-mini-half-start-2026-08-10')).toBeInTheDocument();
+    expect(screen.queryByTestId('cal-mini-fill-2026-08-10')).not.toBeInTheDocument();
+
+    // Aug 11 is mid-range → full tint.
+    expect(screen.getByTestId('cal-mini-fill-2026-08-11')).toBeInTheDocument();
+
+    // Tooltip on the half cell mentions ½ Tag.
+    const cell = screen.getByTestId('cal-mini-cell-2026-08-10');
+    expect(cell.getAttribute('title')).toContain('½ Tag');
+  });
+
+  it('mini cell renders a left-half tint on a halfDayEnd leave (afternoon free)', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-1',
+        employeeId: stefan.id,
+        leaveTypeCode: 'urlaub' as const,
+        startDate: '2026-08-10',
+        endDate: '2026-08-14',
+        halfDayStart: false,
+        halfDayEnd: true,
+        status: 'approved',
+      },
+    ]);
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} initialViewMode="year" />);
+    await waitFor(() => expect(screen.getByTestId('calendar-year-grid')).toBeInTheDocument());
+
+    // Aug 14 (Fri) is the end day with halfDayEnd → left-half tinted only.
+    expect(screen.getByTestId('cal-mini-half-end-2026-08-14')).toBeInTheDocument();
+    expect(screen.queryByTestId('cal-mini-fill-2026-08-14')).not.toBeInTheDocument();
+
+    // Aug 10 (start) has no half flag → full tint.
+    expect(screen.getByTestId('cal-mini-fill-2026-08-10')).toBeInTheDocument();
+  });
+
+  it('mini cell renders full tint for a single-day leave with both half flags (edge case)', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-1',
+        employeeId: stefan.id,
+        leaveTypeCode: 'urlaub' as const,
+        startDate: '2026-08-10',
+        endDate: '2026-08-10',
+        halfDayStart: true,
+        halfDayEnd: true,
+        status: 'approved',
+      },
+    ]);
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} initialViewMode="year" />);
+    await waitFor(() => expect(screen.getByTestId('calendar-year-grid')).toBeInTheDocument());
+
+    expect(screen.getByTestId('cal-mini-fill-2026-08-10')).toBeInTheDocument();
+    expect(screen.queryByTestId('cal-mini-half-start-2026-08-10')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('cal-mini-half-end-2026-08-10')).not.toBeInTheDocument();
+  });
+
   it('mini cells show a count badge when more than one leave covers a day', async () => {
     listLeaveRequestsMock.mockResolvedValue([
       {

@@ -41,6 +41,17 @@ const TYPE_COLORS: Record<LeaveTypeCode, string> = {
   sonderurlaub:  'bg-slate-100 text-slate-700',
 };
 
+// Pull just the bg-* / text-* tokens out of a TYPE_COLORS entry. Used
+// by the year-view mini cell where we layer a half-fill overlay on
+// top of the cell rather than tint the whole background.
+function splitColorClass(combined: string): { bg: string; text: string } {
+  const parts = combined.split(/\s+/);
+  return {
+    bg: parts.find((p) => p.startsWith('bg-')) ?? '',
+    text: parts.find((p) => p.startsWith('text-')) ?? '',
+  };
+}
+
 function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
@@ -601,26 +612,60 @@ function MiniMonthGrid({
             }
             const dayLeaves = leaves.filter((l) => leaveCoversDay(l, cell.iso));
             const primary = dayLeaves[0];
-            const colorClass = primary
-              ? (TYPE_COLORS[primary.leaveTypeCode] ?? 'bg-slate-100 text-slate-700')
-              : 'text-slate-500';
+            const { bg: primaryBg, text: primaryText } = primary
+              ? splitColorClass(TYPE_COLORS[primary.leaveTypeCode] ?? 'bg-slate-100 text-slate-700')
+              : { bg: '', text: 'text-slate-500' };
             const isToday = cell.iso === todayIso;
             const overflow = dayLeaves.length > 1;
+            // Half-day visualization. halfDayStart on the start cell
+            // means the morning is FREE (afternoon is the leave); we
+            // tint only the right half. halfDayEnd on the end cell
+            // means the afternoon is free; we tint the left half.
+            // Convention chosen so the tinted side reads as "you are
+            // out during this half of the day".
+            const halfStart = !!primary && primary.startDate === cell.iso && primary.halfDayStart;
+            const halfEnd = !!primary && primary.endDate === cell.iso && primary.halfDayEnd;
+            // Both flags on the same cell (rare edge case: a one-day
+            // request flagged both ways) → tint the full cell rather
+            // than visualize an empty leave.
+            const fullTint = !!primary && !(halfStart !== halfEnd);
+            const titleSuffix = halfStart || halfEnd ? ' · ½ Tag' : '';
             return (
               <button
                 type="button"
                 key={cell.iso}
                 onClick={() => onClickDay(cell.iso)}
                 data-testid={`cal-mini-cell-${cell.iso}`}
-                className={`aspect-square rounded-sm flex items-center justify-center relative ${colorClass} ${
+                className={`aspect-square rounded-sm flex items-center justify-center relative ${primaryText} ${
                   isToday ? 'ring-1 ring-red-500' : ''
                 } ${primary ? 'font-semibold' : 'hover:bg-slate-100'}`}
                 style={{ fontSize: 9 }}
                 title={dayLeaves.length > 0
-                  ? `${cell.iso} · ${dayLeaves.length} ${dayLeaves.length === 1 ? 'Antrag' : 'Anträge'}`
+                  ? `${cell.iso} · ${dayLeaves.length} ${dayLeaves.length === 1 ? 'Antrag' : 'Anträge'}${titleSuffix}`
                   : cell.iso}
               >
-                {cell.day}
+                {primary && fullTint && (
+                  <span
+                    aria-hidden="true"
+                    data-testid={`cal-mini-fill-${cell.iso}`}
+                    className={`absolute inset-0 rounded-sm ${primaryBg}`}
+                  />
+                )}
+                {primary && halfStart && !halfEnd && (
+                  <span
+                    aria-hidden="true"
+                    data-testid={`cal-mini-half-start-${cell.iso}`}
+                    className={`absolute right-0 top-0 bottom-0 w-1/2 rounded-r-sm ${primaryBg}`}
+                  />
+                )}
+                {primary && halfEnd && !halfStart && (
+                  <span
+                    aria-hidden="true"
+                    data-testid={`cal-mini-half-end-${cell.iso}`}
+                    className={`absolute left-0 top-0 bottom-0 w-1/2 rounded-l-sm ${primaryBg}`}
+                  />
+                )}
+                <span className="relative">{cell.day}</span>
                 {overflow && (
                   <span
                     className="absolute -top-0.5 -right-0.5 bg-slate-700 text-white rounded-full"
