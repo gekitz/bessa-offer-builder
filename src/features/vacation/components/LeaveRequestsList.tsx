@@ -3,6 +3,7 @@ import { AlertCircle, Calendar as CalendarIcon, Check, Download, FileText, Loade
 import {
   cancelLeaveRequest,
   decideLeaveRequest,
+  getLeaveAttachmentSignedUrl,
   listEmployees,
   listLeaveRequests,
   listLeaveTypes,
@@ -253,6 +254,15 @@ export default function LeaveRequestsList({
     }
   }
 
+  async function handleOpenAttachment(path: string) {
+    try {
+      const url = await getLeaveAttachmentSignedUrl(path);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   function handleExport() {
     const ics = buildICalendar({
       leaves: visibleRequests,
@@ -453,6 +463,21 @@ export default function LeaveRequestsList({
                   <div className="mt-1.5 rounded-md bg-slate-50 px-2 py-1.5 text-slate-600" style={{ fontSize: 11 }}>
                     <span className="font-semibold text-slate-700">Entscheidung:</span>{' '}
                     <span className="italic">„{req.decisionNote}"</span>
+                  </div>
+                )}
+
+                {req.attachmentPath && (
+                  <div className="mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAttachment(req.attachmentPath!)}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 px-2 py-1 transition-colors"
+                      style={{ fontSize: 11 }}
+                      data-testid={`attachment-link-${req.id}`}
+                    >
+                      <FileText size={12} />
+                      Krankmeldung öffnen
+                    </button>
                   </div>
                 )}
 

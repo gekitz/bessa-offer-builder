@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, AlertTriangle, CheckCircle2, FileText, Loader2, Paperclip, X } from 'lucide-react';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
 import Checkbox from '../../../components/Checkbox';
@@ -10,6 +10,7 @@ import {
   listSubstitutes,
   loadRuleContext,
   updateLeaveRequest,
+  uploadLeaveAttachment,
   type LeaveType,
   type Substitute,
 } from '../api/vacationApi';
@@ -90,6 +91,14 @@ export default function LeaveRequestForm({
   // Only meaningful in create mode (existingRequest unset) since
   // approving an edit is a separate decideLeaveRequest action.
   const [directlyApprove, setDirectlyApprove] = useState(allowOverride && !isEdit);
+  // Krankmeldung file upload — only surfaced when the leave type is
+  // krankenstand. Optional (some sick leaves are < 3 days and don't
+  // legally require a doctor's note). Stored locally as the selected
+  // File; the actual upload happens after createLeaveRequest /
+  // updateLeaveRequest succeeds (we need the row id for the storage
+  // path).
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Load static reference data + rule context once whenever the
   // selected employee changes. The employee id flows into
@@ -184,8 +193,10 @@ export default function LeaveRequestForm({
         reason: reason || undefined,
         substituteId: substituteId || undefined,
       };
+      let leaveId: string;
       if (existingRequest) {
         await updateLeaveRequest(existingRequest.id, payload, { actorId });
+        leaveId = existingRequest.id;
       } else {
         const createOpts: Parameters<typeof createLeaveRequest>[1] = { actorId };
         if (allowOverride && directlyApprove && actorId) {
@@ -195,8 +206,18 @@ export default function LeaveRequestForm({
             overrodeViolations: violationsPresent,
           };
         }
-        await createLeaveRequest(payload, createOpts);
+        const created = await createLeaveRequest(payload, createOpts);
+        leaveId = created.id;
       }
+
+      // Upload Krankmeldung after the row exists so we have the id
+      // for the storage path. Failure here surfaces as a submit error
+      // but the leave row itself is already saved — caller can retry
+      // from the edit screen if needed.
+      if (attachment && leaveTypeCode === 'krankenstand') {
+        await uploadLeaveAttachment(leaveId, attachment);
+      }
+
       onSuccess();
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : String(err));
@@ -324,6 +345,58 @@ export default function LeaveRequestForm({
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
               />
             </div>
+
+            {/* Krankmeldung — only for Krankenstand */}
+            {leaveTypeCode === 'krankenstand' && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Krankmeldung (optional)
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf,image/*"
+                  className="hidden"
+                  data-testid="krankmeldung-file-input"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    setAttachment(f);
+                  }}
+                />
+                {attachment ? (
+                  <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2 bg-slate-50">
+                    <FileText size={14} className="text-slate-500 flex-shrink-0" />
+                    <span className="text-slate-700 truncate flex-1" style={{ fontSize: 12 }}>
+                      {attachment.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttachment(null);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      className="text-slate-400 hover:text-red-600"
+                      aria-label="Anhang entfernen"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center gap-2 border border-dashed border-slate-300 rounded-lg px-3 py-2 text-slate-500 hover:border-red-400 hover:text-red-600 transition-colors"
+                    style={{ fontSize: 12 }}
+                  >
+                    <Paperclip size={14} />
+                    PDF / Foto auswählen
+                  </button>
+                )}
+                <p className="text-slate-400 mt-1" style={{ fontSize: 11 }}>
+                  Ab dem 3. Krankenstandstag verlangt.
+                </p>
+              </div>
+            )}
 
             {/* Loading state */}
             {loadingCtx && (

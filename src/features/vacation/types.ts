@@ -82,6 +82,11 @@ export interface LeaveRequest {
   decidedBy?: string;
   // Optional note attached to the approve/reject decision.
   decisionNote?: string;
+  // Storage object key for an uploaded Krankmeldung (doctor's note).
+  // Format: `${leaveRequestId}/${filename}` inside the
+  // 'leave-attachments' private bucket. null/undefined when no file
+  // is attached (the common case for non-Krankenstand entries).
+  attachmentPath?: string | null;
 }
 
 export interface RuleContext {

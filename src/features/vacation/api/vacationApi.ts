@@ -157,28 +157,24 @@ export async function getEmployeeByCode(code: string): Promise<Employee | null> 
 // in the schema so every employee row has one.
 export async function getCalendarToken(employeeId: string): Promise<string> {
   const sb = requireSupabase();
-  const { data, error } = await sb
-    .from('employees')
-    .select('calendar_token')
-    .eq('id', employeeId)
-    .single();
+  const { data, error } = await sb.rpc('get_employee_calendar_token', {
+    p_employee_id: employeeId,
+  });
   if (error) throw error;
-  return (data as { calendar_token: string }).calendar_token;
+  if (!data) throw new Error('Kalendertoken nicht verfügbar');
+  return String(data);
 }
 
 // Rotate the employee's calendar token. Any existing calendar
 // subscriptions set up against the old URL stop receiving updates.
 export async function regenerateCalendarToken(employeeId: string): Promise<string> {
   const sb = requireSupabase();
-  const fresh = crypto.randomUUID();
-  const { data, error } = await sb
-    .from('employees')
-    .update({ calendar_token: fresh })
-    .eq('id', employeeId)
-    .select('calendar_token')
-    .single();
+  const { data, error } = await sb.rpc('rotate_employee_calendar_token', {
+    p_employee_id: employeeId,
+  });
   if (error) throw error;
-  return (data as { calendar_token: string }).calendar_token;
+  if (!data) throw new Error('Kalendertoken nicht verfügbar');
+  return String(data);
 }
 
 export async function updateEmployee(id: string, patch: Partial<Employee>): Promise<Employee> {
@@ -329,11 +325,14 @@ function rowToLeaveRequest(row: any): LeaveRequest & { id: string } {
     decidedAt: row.decided_at ?? undefined,
     decidedBy: row.decided_by ?? undefined,
     decisionNote: row.decision_note ?? undefined,
+    attachmentPath: row.attachment_path ?? null,
   };
 }
 
 const LEAVE_REQUEST_COLUMNS =
-  'id, employee_id, leave_type_id, start_date, end_date, half_day_start, half_day_end, status, reason, substitute_id, created_at, decided_at, decided_by, decision_note';
+  'id, employee_id, leave_type_id, start_date, end_date, half_day_start, half_day_end, status, reason, substitute_id, created_at, decided_at, decided_by, decision_note, attachment_path';
+
+const LEAVE_ATTACHMENTS_BUCKET = 'leave-attachments';
 
 export interface ListLeavesFilter {
   status?: LeaveStatus | LeaveStatus[];
@@ -535,6 +534,59 @@ export async function cancelLeaveRequest(
     entityType: 'leave_request',
     entityId: id,
   });
+}
+
+// ---------------------------------------------------------
+// Leave attachments (Krankmeldung)
+// ---------------------------------------------------------
+
+// Upload a Krankmeldung (or any attachment) for a leave request.
+// File is stored at `${leaveRequestId}/${filename}` in the private
+// `leave-attachments` bucket. The returned path is also persisted on
+// the leave_requests row so subsequent fetches can render the link.
+//
+// Replaces any existing attachment on the same row (the new path
+// overwrites the column; the old object stays in storage but
+// becomes unreferenced — fine for the audit trail, can be GC'd
+// later via a cron if storage cost matters).
+export async function uploadLeaveAttachment(
+  leaveRequestId: string,
+  file: File,
+): Promise<string> {
+  const sb = requireSupabase();
+  const cleanName = file.name.replace(/[^\w.\-]+/g, '_');
+  const path = `${leaveRequestId}/${Date.now()}-${cleanName}`;
+  const { error: uploadError } = await sb.storage
+    .from(LEAVE_ATTACHMENTS_BUCKET)
+    .upload(path, file, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false,
+    });
+  if (uploadError) throw uploadError;
+
+  const { error: updateError } = await sb
+    .from('leave_requests')
+    .update({ attachment_path: path })
+    .eq('id', leaveRequestId);
+  if (updateError) throw updateError;
+
+  return path;
+}
+
+// Mint a short-lived signed URL for an attachment path. Callers
+// pass the value of leave_requests.attachment_path; we hand back a
+// URL the browser can open directly. ttlSeconds defaults to 300 so
+// the link goes stale quickly if it leaks.
+export async function getLeaveAttachmentSignedUrl(
+  attachmentPath: string,
+  ttlSeconds = 300,
+): Promise<string> {
+  const sb = requireSupabase();
+  const { data, error } = await sb.storage
+    .from(LEAVE_ATTACHMENTS_BUCKET)
+    .createSignedUrl(attachmentPath, ttlSeconds);
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 // ---------------------------------------------------------

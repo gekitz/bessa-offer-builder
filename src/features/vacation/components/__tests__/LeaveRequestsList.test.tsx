@@ -8,6 +8,7 @@ const listLeaveTypesMock = vi.fn();
 const decideLeaveRequestMock = vi.fn();
 const cancelLeaveRequestMock = vi.fn();
 const listLeaveBalancesMock = vi.fn();
+const getLeaveAttachmentSignedUrlMock = vi.fn();
 
 vi.mock('../../api/vacationApi', () => ({
   listLeaveRequests: (filter?: unknown) => listLeaveRequestsMock(filter),
@@ -16,6 +17,7 @@ vi.mock('../../api/vacationApi', () => ({
   decideLeaveRequest: (...args: unknown[]) => decideLeaveRequestMock(...args),
   cancelLeaveRequest: (...args: unknown[]) => cancelLeaveRequestMock(...args),
   listLeaveBalances: (id: string, year: number) => listLeaveBalancesMock(id, year),
+  getLeaveAttachmentSignedUrl: (path: string) => getLeaveAttachmentSignedUrlMock(path),
 }));
 
 const buildICalendarMock = vi.fn<(opts: unknown) => string>(() => 'BEGIN:VCALENDAR\r\nEND:VCALENDAR');
@@ -67,6 +69,7 @@ beforeEach(() => {
   decideLeaveRequestMock.mockReset().mockResolvedValue({ id: 'lr-1', status: 'approved' });
   cancelLeaveRequestMock.mockReset().mockResolvedValue(undefined);
   listLeaveBalancesMock.mockReset().mockResolvedValue([]);
+  getLeaveAttachmentSignedUrlMock.mockReset().mockResolvedValue('https://signed/example');
 });
 
 describe('LeaveRequestsList', () => {
@@ -945,5 +948,60 @@ describe('LeaveRequestsList — past-leave cancel gating', () => {
     render(<LeaveRequestsList actionable canDecide />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /Stornieren/ })).toBeInTheDocument();
+  });
+});
+
+describe('LeaveRequestsList — Krankmeldung link', () => {
+  const krankWithAttachment: LeaveRequest & { id: string } = {
+    id: 'lr-krank',
+    employeeId: stefan.id,
+    leaveTypeCode: 'krankenstand',
+    startDate: '2026-04-13',
+    endDate: '2026-04-15',
+    status: 'approved',
+    attachmentPath: 'lr-krank/123-krankmeldung.pdf',
+  };
+
+  const krankWithoutAttachment: LeaveRequest & { id: string } = {
+    id: 'lr-krank-2',
+    employeeId: mario.id,
+    leaveTypeCode: 'krankenstand',
+    startDate: '2026-04-20',
+    endDate: '2026-04-21',
+    status: 'approved',
+  };
+
+  it('renders the "Krankmeldung öffnen" button when attachmentPath is set', async () => {
+    listLeaveRequestsMock.mockResolvedValue([krankWithAttachment, krankWithoutAttachment]);
+    render(<LeaveRequestsList />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    expect(screen.getByTestId('attachment-link-lr-krank')).toBeInTheDocument();
+    expect(screen.queryByTestId('attachment-link-lr-krank-2')).not.toBeInTheDocument();
+  });
+
+  it('clicking the link opens a signed URL in a new tab', async () => {
+    listLeaveRequestsMock.mockResolvedValue([krankWithAttachment]);
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const u = userEvent.setup();
+    render(<LeaveRequestsList />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    await u.click(screen.getByTestId('attachment-link-lr-krank'));
+
+    await waitFor(() => expect(getLeaveAttachmentSignedUrlMock).toHaveBeenCalledWith('lr-krank/123-krankmeldung.pdf'));
+    await waitFor(() => expect(openSpy).toHaveBeenCalledWith('https://signed/example', '_blank', 'noopener,noreferrer'));
+    openSpy.mockRestore();
+  });
+
+  it('shows an inline error when the signed-url request fails', async () => {
+    listLeaveRequestsMock.mockResolvedValue([krankWithAttachment]);
+    getLeaveAttachmentSignedUrlMock.mockRejectedValue(new Error('expired'));
+    const u = userEvent.setup();
+    render(<LeaveRequestsList actionable />);
+    await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
+
+    await u.click(screen.getByTestId('attachment-link-lr-krank'));
+    expect(await screen.findByText(/expired/)).toBeInTheDocument();
   });
 });

@@ -16,13 +16,23 @@ function makeChain(response: { data: unknown; error: unknown }) {
 }
 
 const fromMock = vi.fn<AnyFn>();
+const rpcMock = vi.fn<AnyFn>();
 const invokeMock = vi.fn<AnyFn>();
+const storageUploadMock = vi.fn<AnyFn>();
+const storageSignedUrlMock = vi.fn<AnyFn>();
 
 vi.mock('../../../../lib/supabase', () => ({
   supabase: {
     from: (...args: unknown[]) => fromMock(...args),
+    rpc: (...args: unknown[]) => rpcMock(...args),
     functions: {
       invoke: (...args: unknown[]) => invokeMock(...args),
+    },
+    storage: {
+      from: (_bucket: string) => ({
+        upload: (...args: unknown[]) => storageUploadMock(...args),
+        createSignedUrl: (...args: unknown[]) => storageSignedUrlMock(...args),
+      }),
     },
   },
 }));
@@ -47,12 +57,17 @@ import {
   regenerateCalendarToken,
   listLeaveBalances,
   loadRuleContext,
+  uploadLeaveAttachment,
+  getLeaveAttachmentSignedUrl,
   LEAVE_TYPE_ID_BY_CODE,
 } from '../vacationApi';
 
 beforeEach(() => {
   fromMock.mockReset();
+  rpcMock.mockReset();
   invokeMock.mockReset().mockResolvedValue({ data: { success: true }, error: null });
+  storageUploadMock.mockReset().mockResolvedValue({ data: { path: 'ok' }, error: null });
+  storageSignedUrlMock.mockReset().mockResolvedValue({ data: { signedUrl: 'https://signed/example' }, error: null });
 });
 
 describe('lookup tables', () => {
@@ -533,40 +548,33 @@ describe('audit log', () => {
 });
 
 describe('calendar token', () => {
-  it('getCalendarToken returns the existing token for the employee', async () => {
-    const chain = makeChain({ data: { calendar_token: 'abc-123' }, error: null });
-    fromMock.mockReturnValue(chain);
+  it('getCalendarToken loads the token through the security-definer RPC', async () => {
+    rpcMock.mockResolvedValue({ data: 'abc-123', error: null });
 
     const token = await getCalendarToken('emp-1');
 
-    expect(fromMock).toHaveBeenCalledWith('employees');
-    expect(chain.eq).toHaveBeenCalledWith('id', 'emp-1');
-    expect(chain.single).toHaveBeenCalled();
+    expect(rpcMock).toHaveBeenCalledWith('get_employee_calendar_token', { p_employee_id: 'emp-1' });
+    expect(fromMock).not.toHaveBeenCalledWith('employees');
     expect(token).toBe('abc-123');
   });
 
-  it('getCalendarToken throws on supabase error', async () => {
-    fromMock.mockReturnValue(makeChain({ data: null, error: new Error('rls denied') }));
+  it('getCalendarToken throws on rpc error', async () => {
+    rpcMock.mockResolvedValue({ data: null, error: new Error('rls denied') });
     await expect(getCalendarToken('emp-1')).rejects.toThrow('rls denied');
   });
 
-  it('regenerateCalendarToken patches employees.calendar_token with a new UUID', async () => {
-    const chain = makeChain({ data: { calendar_token: 'fresh-uuid' }, error: null });
-    fromMock.mockReturnValue(chain);
-    // jsdom polyfills crypto.randomUUID — make it deterministic so we
-    // can assert the exact patch payload.
-    const uuidSpy = vi.spyOn(crypto, 'randomUUID').mockReturnValue('fresh-uuid' as `${string}-${string}-${string}-${string}-${string}`);
+  it('regenerateCalendarToken rotates the token through the security-definer RPC', async () => {
+    rpcMock.mockResolvedValue({ data: 'fresh-uuid', error: null });
 
     const token = await regenerateCalendarToken('emp-1');
 
-    expect(chain.update).toHaveBeenCalledWith({ calendar_token: 'fresh-uuid' });
-    expect(chain.eq).toHaveBeenCalledWith('id', 'emp-1');
+    expect(rpcMock).toHaveBeenCalledWith('rotate_employee_calendar_token', { p_employee_id: 'emp-1' });
+    expect(fromMock).not.toHaveBeenCalledWith('employees');
     expect(token).toBe('fresh-uuid');
-    uuidSpy.mockRestore();
   });
 
-  it('regenerateCalendarToken throws on supabase error', async () => {
-    fromMock.mockReturnValue(makeChain({ data: null, error: new Error('rls denied') }));
+  it('regenerateCalendarToken throws on rpc error', async () => {
+    rpcMock.mockResolvedValue({ data: null, error: new Error('rls denied') });
     await expect(regenerateCalendarToken('emp-1')).rejects.toThrow('rls denied');
   });
 });
@@ -626,5 +634,63 @@ describe('loadRuleContext', () => {
     fromMock.mockImplementation(() => makeChain({ data: [], error: null }));
     const ctx = await loadRuleContext();
     expect(ctx.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe('leave attachments', () => {
+  it('uploadLeaveAttachment uploads to the bucket and stores the path on the row', async () => {
+    const chain = makeChain({ data: null, error: null });
+    fromMock.mockReturnValue(chain);
+
+    const file = new File(['fake pdf'], 'krankmeldung.pdf', { type: 'application/pdf' });
+    const path = await uploadLeaveAttachment('lr-1', file);
+
+    expect(storageUploadMock).toHaveBeenCalledTimes(1);
+    const [uploadPath, uploadFile, uploadOpts] = storageUploadMock.mock.calls[0]!;
+    expect(uploadPath).toMatch(/^lr-1\/\d+-krankmeldung\.pdf$/);
+    expect(uploadFile).toBe(file);
+    expect((uploadOpts as { contentType: string }).contentType).toBe('application/pdf');
+    expect(path).toMatch(/^lr-1\/\d+-krankmeldung\.pdf$/);
+
+    // Row update gets the same path.
+    expect(chain.update).toHaveBeenCalledWith({ attachment_path: path });
+    expect(chain.eq).toHaveBeenCalledWith('id', 'lr-1');
+  });
+
+  it('uploadLeaveAttachment sanitises odd characters in the filename', async () => {
+    const chain = makeChain({ data: null, error: null });
+    fromMock.mockReturnValue(chain);
+    const file = new File(['x'], 'Doctor Note (Stefan).pdf', { type: 'application/pdf' });
+    await uploadLeaveAttachment('lr-1', file);
+    const [uploadPath] = storageUploadMock.mock.calls[0]!;
+    expect(uploadPath).not.toMatch(/[ ()]/);
+  });
+
+  it('uploadLeaveAttachment surfaces a storage upload error', async () => {
+    storageUploadMock.mockResolvedValue({ data: null, error: new Error('quota exceeded') });
+    const file = new File(['x'], 'k.pdf', { type: 'application/pdf' });
+    await expect(uploadLeaveAttachment('lr-1', file)).rejects.toThrow('quota exceeded');
+  });
+
+  it('uploadLeaveAttachment surfaces a row-update error after a successful upload', async () => {
+    fromMock.mockReturnValue(makeChain({ data: null, error: new Error('rls') }));
+    const file = new File(['x'], 'k.pdf', { type: 'application/pdf' });
+    await expect(uploadLeaveAttachment('lr-1', file)).rejects.toThrow('rls');
+  });
+
+  it('getLeaveAttachmentSignedUrl returns the signed URL', async () => {
+    const url = await getLeaveAttachmentSignedUrl('lr-1/123-krankmeldung.pdf');
+    expect(url).toBe('https://signed/example');
+    expect(storageSignedUrlMock).toHaveBeenCalledWith('lr-1/123-krankmeldung.pdf', 300);
+  });
+
+  it('getLeaveAttachmentSignedUrl forwards a custom ttl', async () => {
+    await getLeaveAttachmentSignedUrl('lr-1/k.pdf', 600);
+    expect(storageSignedUrlMock).toHaveBeenCalledWith('lr-1/k.pdf', 600);
+  });
+
+  it('getLeaveAttachmentSignedUrl throws on a storage error', async () => {
+    storageSignedUrlMock.mockResolvedValue({ data: null, error: new Error('not found') });
+    await expect(getLeaveAttachmentSignedUrl('lr-1/missing.pdf')).rejects.toThrow('not found');
   });
 });

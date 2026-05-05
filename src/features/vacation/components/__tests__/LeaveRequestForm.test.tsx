@@ -12,6 +12,7 @@ const listSubstitutesMock = vi.fn();
 const loadRuleContextMock = vi.fn();
 const createLeaveRequestMock = vi.fn();
 const updateLeaveRequestMock = vi.fn();
+const uploadLeaveAttachmentMock = vi.fn();
 
 vi.mock('../../api/vacationApi', () => ({
   listLeaveTypes: () => listLeaveTypesMock(),
@@ -19,6 +20,7 @@ vi.mock('../../api/vacationApi', () => ({
   loadRuleContext: (opts?: unknown) => loadRuleContextMock(opts),
   createLeaveRequest: (input: unknown, opts?: unknown) => createLeaveRequestMock(input, opts),
   updateLeaveRequest: (id: string, patch: unknown, opts?: unknown) => updateLeaveRequestMock(id, patch, opts),
+  uploadLeaveAttachment: (id: string, file: File) => uploadLeaveAttachmentMock(id, file),
 }));
 
 import LeaveRequestForm from '../LeaveRequestForm';
@@ -129,6 +131,7 @@ beforeEach(() => {
     startDate: '2026-08-12',
     endDate: '2026-08-18',
   });
+  uploadLeaveAttachmentMock.mockReset().mockResolvedValue('lr-new/123-krankmeldung.pdf');
 });
 
 describe('LeaveRequestForm — validation rendering', () => {
@@ -519,5 +522,87 @@ describe('LeaveRequestForm — allowOverride', () => {
     );
     await waitFor(() => expect(loadRuleContextMock).toHaveBeenCalled());
     expect(screen.queryByRole('checkbox', { name: /Direkt genehmigen/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('LeaveRequestForm — Krankmeldung attachment', () => {
+  it('does not render the file input for Urlaub', async () => {
+    await renderForm({ startDate: '2026-08-10', endDate: '2026-08-15' });
+    expect(screen.queryByText(/Krankmeldung \(optional\)/)).not.toBeInTheDocument();
+  });
+
+  it('renders the file input when the type is Krankenstand', async () => {
+    await renderForm({ startDate: '2026-05-10', endDate: '2026-05-11' });
+    await pickLeaveType('Krankenstand');
+    expect(await screen.findByText(/Krankmeldung \(optional\)/)).toBeInTheDocument();
+    expect(screen.getByText(/PDF \/ Foto auswählen/)).toBeInTheDocument();
+  });
+
+  it('uploads the selected file after createLeaveRequest succeeds', async () => {
+    await renderForm({ startDate: '2026-05-10', endDate: '2026-05-11' });
+    await pickLeaveType('Krankenstand');
+
+    const file = new File(['fake'], 'krankmeldung.pdf', { type: 'application/pdf' });
+    const input = await screen.findByTestId('krankmeldung-file-input') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    // Selected file appears in the row.
+    expect(await screen.findByText('krankmeldung.pdf')).toBeInTheDocument();
+
+    const submit = await screen.findByRole('button', { name: /Antrag einreichen/ });
+    await waitFor(() => expect(submit).not.toBeDisabled());
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(createLeaveRequestMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(uploadLeaveAttachmentMock).toHaveBeenCalledTimes(1));
+    expect(uploadLeaveAttachmentMock).toHaveBeenCalledWith('lr-new', file);
+  });
+
+  it('does not call uploadLeaveAttachment when no file is selected', async () => {
+    await renderForm({ startDate: '2026-05-10', endDate: '2026-05-11' });
+    await pickLeaveType('Krankenstand');
+
+    const submit = await screen.findByRole('button', { name: /Antrag einreichen/ });
+    await waitFor(() => expect(submit).not.toBeDisabled());
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(createLeaveRequestMock).toHaveBeenCalledTimes(1));
+    expect(uploadLeaveAttachmentMock).not.toHaveBeenCalled();
+  });
+
+  it('does not upload when the type isn\'t Krankenstand even if a file slipped in', async () => {
+    // Picks Krankenstand, attaches a file, then switches BACK to Urlaub
+    // before submitting. The state guard should drop the upload.
+    await renderForm({ startDate: '2026-08-10', endDate: '2026-08-15' });
+    await pickLeaveType('Krankenstand');
+
+    const file = new File(['x'], 'k.pdf', { type: 'application/pdf' });
+    const input = await screen.findByTestId('krankmeldung-file-input') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await pickLeaveType('Urlaub');
+    // Krankmeldung input goes away.
+    expect(screen.queryByText(/Krankmeldung \(optional\)/)).not.toBeInTheDocument();
+
+    const submit = await screen.findByRole('button', { name: /Antrag einreichen/ });
+    await waitFor(() => expect(submit).not.toBeDisabled());
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(createLeaveRequestMock).toHaveBeenCalledTimes(1));
+    expect(uploadLeaveAttachmentMock).not.toHaveBeenCalled();
+  });
+
+  it('clearing the selected file via the X button removes it', async () => {
+    await renderForm({ startDate: '2026-05-10', endDate: '2026-05-11' });
+    await pickLeaveType('Krankenstand');
+
+    const file = new File(['x'], 'k.pdf', { type: 'application/pdf' });
+    const input = await screen.findByTestId('krankmeldung-file-input') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByText('k.pdf')).toBeInTheDocument();
+    const u = userEvent.setup();
+    await u.click(screen.getByRole('button', { name: 'Anhang entfernen' }));
+    expect(screen.queryByText('k.pdf')).not.toBeInTheDocument();
   });
 });
