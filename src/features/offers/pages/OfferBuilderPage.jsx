@@ -63,6 +63,7 @@ import { fmt } from '../../../lib/format';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import AppShell from '../../../components/AppShell';
 import VacationPage from '../../vacation/pages/VacationPage';
+import { useApproverPendingCount } from '../../vacation/hooks/useApproverPendingCount';
 
 const CrmPage = React.lazy(() => import('../../../components/CrmPage.jsx'));
 
@@ -111,6 +112,7 @@ export default function OfferBuilderPage() {
   }, [billingToggle]);
   const billingEnabled = isBillingAdmin && billingToggle;
   const [section, setSection] = useState('angebote'); // 'angebote' | 'crm' | 'urlaub'
+  const pendingApprovalsCount = useApproverPendingCount();
   const [offerView, setOfferView] = useState('list'); // 'list' | 'builder'
   const [builderTab, setBuilderTab] = useState('bessa');
   const [globalTier, setGlobalTier] = useState('12mo');
@@ -879,6 +881,7 @@ export default function OfferBuilderPage() {
       showBillingToggle={isBillingAdmin}
       billingToggle={billingToggle}
       onToggleBilling={setBillingToggle}
+      badges={{ urlaub: pendingApprovalsCount }}
     >
       {/* ═══ ANGEBOTE SECTION ═══ */}
       {section === 'angebote' && offerView === 'list' && (
