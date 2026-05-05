@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Calendar, CalendarPlus, ChevronDown, Info, Loader2, MapPin, Plus, QrCode, Users } from 'lucide-react';
+import { AlertCircle, Calendar, CalendarPlus, ChevronDown, Info, Loader2, MapPin, Plus, Users } from 'lucide-react';
 import { listEmployees, listStandorte } from '../api/vacationApi';
 import LeaveRequestForm from '../components/LeaveRequestForm';
 import LeaveRequestsList from '../components/LeaveRequestsList';
@@ -7,19 +7,10 @@ import LeaveCalendar from '../components/LeaveCalendar';
 import CalendarSubscriptionModal from '../components/CalendarSubscriptionModal';
 import BalancePanel from '../components/BalancePanel';
 import EmployeeBalanceTable from '../components/EmployeeBalanceTable';
-import OfficeQrModal from '../components/OfficeQrModal';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { TEAM } from '../../offers/data/catalogs';
 import { isApprover } from '../lib/permissions';
-
-// Resolve the deep-link URL the office QR should encode. Prefers
-// VITE_PUBLIC_APP_URL (the canonical custom domain) so the printed
-// QR doesn't bake in `localhost` or a github.io URL by accident.
-function officeQrUrl() {
-  const base = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
-  return `${base.replace(/\/$/, '')}/#/leaves`;
-}
 
 // Urlaubsplaner landing page. Shows the team grouped by Standort and
 // gives every row a "Antrag stellen" button that opens the request
@@ -46,7 +37,6 @@ export default function VacationPage() {
   // Krankenstand etc.). Tracks the expanded employee.id, or null
   // when nothing is open.
   const [expandedEmployeeId, setExpandedEmployeeId] = useState(null);
-  const [showOfficeQr, setShowOfficeQr] = useState(false);
 
   // Match the logged-in SSO user to one of our employees. The TEAM
   // array's `id` field happens to equal employees.code (both 'gkitz',
@@ -105,16 +95,6 @@ export default function VacationPage() {
           </div>
           {!loading && !error && employees.length > 0 && (
             <div className="flex items-center gap-2">
-              {userIsApprover && (
-                <button
-                  onClick={() => setShowOfficeQr(true)}
-                  className="flex items-center gap-1.5 rounded-lg bg-slate-100 text-slate-700 px-3 py-1.5 hover:bg-slate-200 transition-colors"
-                  style={{ fontSize: 12 }}
-                  title="QR-Code fürs Büro drucken"
-                >
-                  <QrCode size={13} /> Office-QR
-                </button>
-              )}
               {currentEmployee && (
                 <button
                   onClick={() => setShowSubscribeModal(true)}
@@ -313,13 +293,6 @@ export default function VacationPage() {
           employeeId={currentEmployee.id}
           employeeName={currentEmployee.name}
           onClose={() => setShowSubscribeModal(false)}
-        />
-      )}
-
-      {showOfficeQr && (
-        <OfficeQrModal
-          url={officeQrUrl()}
-          onClose={() => setShowOfficeQr(false)}
         />
       )}
     </div>
