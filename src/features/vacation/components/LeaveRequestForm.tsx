@@ -32,6 +32,10 @@ interface LeaveRequestFormProps {
   // only request for themselves. Approvers keep the picker so they
   // can create on behalf of any employee.
   lockEmployee?: boolean;
+  // SSO-matched current user's employees.id, recorded as actor on
+  // the audit row. When omitted the audit defaults to the request's
+  // own employeeId for create, and null for update.
+  actorId?: string | null;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -43,6 +47,7 @@ export default function LeaveRequestForm({
   defaultEndDate,
   existingRequest,
   lockEmployee = false,
+  actorId = null,
   onClose,
   onSuccess,
 }: LeaveRequestFormProps) {
@@ -166,9 +171,9 @@ export default function LeaveRequestForm({
         substituteId: substituteId || undefined,
       };
       if (existingRequest) {
-        await updateLeaveRequest(existingRequest.id, payload);
+        await updateLeaveRequest(existingRequest.id, payload, { actorId });
       } else {
-        await createLeaveRequest(payload);
+        await createLeaveRequest(payload, { actorId });
       }
       onSuccess();
     } catch (err) {

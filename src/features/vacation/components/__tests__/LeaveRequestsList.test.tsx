@@ -691,7 +691,7 @@ describe('LeaveRequestsList — actionable mode', () => {
 
     expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/stornieren/i));
     await waitFor(() => expect(cancelLeaveRequestMock).toHaveBeenCalledTimes(1));
-    expect(cancelLeaveRequestMock).toHaveBeenCalledWith('lr-1');
+    expect(cancelLeaveRequestMock).toHaveBeenCalledWith('lr-1', { actorId: null });
     await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalledTimes(2));
   });
 

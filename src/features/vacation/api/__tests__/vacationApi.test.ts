@@ -371,6 +371,120 @@ describe('leave requests', () => {
   });
 });
 
+describe('audit log', () => {
+  const leaveRow = {
+    id: 'lr1', employee_id: 'e1', leave_type_id: 1,
+    start_date: '2026-07-01', end_date: '2026-07-10',
+    half_day_start: false, half_day_end: false,
+    status: 'pending', reason: null, substitute_id: null,
+  };
+
+  it('createLeaveRequest writes an audit row with action=leave.created', async () => {
+    const chain = makeChain({ data: leaveRow, error: null });
+    fromMock.mockReturnValue(chain);
+    await createLeaveRequest({
+      employeeId: 'e1',
+      leaveTypeCode: 'urlaub',
+      startDate: '2026-08-10',
+      endDate: '2026-08-15',
+    }, { actorId: 'gkitz-id' });
+
+    // The audit insert happens after the leave_requests insert, so the
+    // last `from` call should target workforce_audit_log.
+    const tables = fromMock.mock.calls.map((c) => c[0]);
+    expect(tables).toContain('workforce_audit_log');
+
+    // The chain.insert mock receives both inserts; the last one is the audit row.
+    const inserts = chain.insert.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    const audit = inserts[inserts.length - 1];
+    expect(audit.action).toBe('leave.created');
+    expect(audit.entity_type).toBe('leave_request');
+    expect(audit.entity_id).toBe(leaveRow.id);
+    expect(audit.actor_id).toBe('gkitz-id');
+    const details = audit.details as Record<string, unknown>;
+    expect(details.employeeId).toBe(leaveRow.employee_id);
+    expect(details.startDate).toBe(leaveRow.start_date);
+  });
+
+  it('createLeaveRequest defaults actor_id to the requester when no actorId is passed', async () => {
+    const chain = makeChain({ data: leaveRow, error: null });
+    fromMock.mockReturnValue(chain);
+    await createLeaveRequest({
+      employeeId: 'e1',
+      leaveTypeCode: 'urlaub',
+      startDate: '2026-08-10',
+      endDate: '2026-08-15',
+    });
+    const inserts = chain.insert.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    const audit = inserts[inserts.length - 1];
+    expect(audit.actor_id).toBe('e1');
+  });
+
+  it('updateLeaveRequest writes an audit row with the patch', async () => {
+    const chain = makeChain({ data: leaveRow, error: null });
+    fromMock.mockReturnValue(chain);
+    await updateLeaveRequest('lr1', { startDate: '2026-08-12' }, { actorId: 'gkitz-id' });
+
+    const inserts = chain.insert.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    const audit = inserts[inserts.length - 1];
+    expect(audit.action).toBe('leave.updated');
+    expect(audit.entity_id).toBe('lr1');
+    expect(audit.actor_id).toBe('gkitz-id');
+    const details = audit.details as Record<string, unknown>;
+    expect((details.patch as Record<string, unknown>).startDate).toBe('2026-08-12');
+  });
+
+  it('decideLeaveRequest writes an audit row with the decision and note', async () => {
+    const chain = makeChain({ data: { ...leaveRow, status: 'approved' }, error: null });
+    fromMock.mockReturnValue(chain);
+    await decideLeaveRequest('lr1', 'approved', 'gkitz-id', 'OK');
+
+    const inserts = chain.insert.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    const audit = inserts[inserts.length - 1];
+    expect(audit.action).toBe('leave.decided');
+    expect(audit.actor_id).toBe('gkitz-id');
+    const details = audit.details as Record<string, unknown>;
+    expect(details.decision).toBe('approved');
+    expect(details.note).toBe('OK');
+  });
+
+  it('cancelLeaveRequest writes an audit row with action=leave.cancelled', async () => {
+    const chain = makeChain({ data: null, error: null });
+    fromMock.mockReturnValue(chain);
+    await cancelLeaveRequest('lr1', { actorId: 'sbauer-id' });
+
+    const tables = fromMock.mock.calls.map((c) => c[0]);
+    expect(tables).toContain('workforce_audit_log');
+
+    const inserts = chain.insert.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    const audit = inserts[inserts.length - 1];
+    expect(audit.action).toBe('leave.cancelled');
+    expect(audit.entity_id).toBe('lr1');
+    expect(audit.actor_id).toBe('sbauer-id');
+  });
+
+  it('audit failure does not break the user-facing operation', async () => {
+    // First call (leave_requests) succeeds; subsequent (workforce_audit_log) fails.
+    const goodChain = makeChain({ data: leaveRow, error: null });
+    const badChain = makeChain({ data: null, error: new Error('audit rls') });
+    fromMock
+      .mockReturnValueOnce(goodChain)
+      .mockReturnValueOnce(badChain);
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await createLeaveRequest({
+      employeeId: 'e1',
+      leaveTypeCode: 'urlaub',
+      startDate: '2026-08-10',
+      endDate: '2026-08-15',
+    });
+    expect(result.id).toBe(leaveRow.id);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+});
+
 describe('calendar token', () => {
   it('getCalendarToken returns the existing token for the employee', async () => {
     const chain = makeChain({ data: { calendar_token: 'abc-123' }, error: null });

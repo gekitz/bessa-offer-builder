@@ -218,7 +218,7 @@ export default function LeaveRequestsList({
     setActionInFlight(id);
     setActionError(null);
     try {
-      await cancelLeaveRequest(id);
+      await cancelLeaveRequest(id, { actorId: decidedBy ?? myEmployeeId ?? null });
       setInternalReload((k) => k + 1);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : String(e));

@@ -243,6 +243,7 @@ export default function VacationPage() {
           defaultEndDate={requestForRange?.end ?? undefined}
           existingRequest={editingRequest ?? undefined}
           lockEmployee={!userIsApprover}
+          actorId={currentEmployee?.id ?? null}
           onClose={handleCloseForm}
           onSuccess={handleRequestSuccess}
         />

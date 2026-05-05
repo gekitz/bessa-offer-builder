@@ -35,6 +35,48 @@ function requireSupabase(): NonNullable<typeof supabase> {
 }
 
 // ---------------------------------------------------------
+// Audit log
+// ---------------------------------------------------------
+//
+// Append-only trail of who changed what on a leave request. Required
+// for AK / Betriebsrat traceability (Konzept v4 §audit). We write
+// best-effort: the mutation that triggered the audit has already
+// succeeded by the time we get here, so an audit failure logs a
+// warning rather than rolling back the user-facing action. The
+// append-only invariant is enforced at the SQL layer (no UPDATE /
+// DELETE policies).
+
+export type AuditAction =
+  | 'leave.created'
+  | 'leave.updated'
+  | 'leave.decided'
+  | 'leave.cancelled';
+
+interface WriteAuditOpts {
+  actorId?: string | null;
+  action: AuditAction;
+  entityType: 'leave_request';
+  entityId: string;
+  details?: Record<string, unknown>;
+}
+
+async function writeAuditLog(opts: WriteAuditOpts): Promise<void> {
+  const sb = requireSupabase();
+  try {
+    const { error } = await sb.from('workforce_audit_log').insert({
+      actor_id: opts.actorId ?? null,
+      action: opts.action,
+      entity_type: opts.entityType,
+      entity_id: opts.entityId,
+      details: opts.details ?? null,
+    });
+    if (error) console.warn('audit log write failed:', error.message);
+  } catch (err) {
+    console.warn('audit log write failed:', err);
+  }
+}
+
+// ---------------------------------------------------------
 // Lookup tables
 // ---------------------------------------------------------
 
@@ -327,7 +369,10 @@ export interface CreateLeaveRequestInput {
   substituteId?: string;
 }
 
-export async function createLeaveRequest(input: CreateLeaveRequestInput): Promise<LeaveRequest & { id: string }> {
+export async function createLeaveRequest(
+  input: CreateLeaveRequestInput,
+  opts: { actorId?: string | null } = {},
+): Promise<LeaveRequest & { id: string }> {
   const sb = requireSupabase();
   const row = {
     employee_id: input.employeeId,
@@ -346,7 +391,24 @@ export async function createLeaveRequest(input: CreateLeaveRequestInput): Promis
     .select(LEAVE_REQUEST_COLUMNS)
     .single();
   if (error) throw error;
-  return rowToLeaveRequest(data);
+  const created = rowToLeaveRequest(data);
+  await writeAuditLog({
+    actorId: opts.actorId ?? input.employeeId,
+    action: 'leave.created',
+    entityType: 'leave_request',
+    entityId: created.id,
+    details: {
+      employeeId: created.employeeId,
+      leaveTypeCode: created.leaveTypeCode,
+      startDate: created.startDate,
+      endDate: created.endDate,
+      halfDayStart: created.halfDayStart,
+      halfDayEnd: created.halfDayEnd,
+      reason: created.reason ?? null,
+      substituteId: created.substituteId ?? null,
+    },
+  });
+  return created;
 }
 
 export type UpdateLeaveRequestPatch = Partial<CreateLeaveRequestInput>;
@@ -358,6 +420,7 @@ export type UpdateLeaveRequestPatch = Partial<CreateLeaveRequestInput>;
 export async function updateLeaveRequest(
   id: string,
   patch: UpdateLeaveRequestPatch,
+  opts: { actorId?: string | null } = {},
 ): Promise<LeaveRequest & { id: string }> {
   const sb = requireSupabase();
   const dbPatch: Record<string, unknown> = {};
@@ -377,7 +440,15 @@ export async function updateLeaveRequest(
     .select(LEAVE_REQUEST_COLUMNS)
     .single();
   if (error) throw error;
-  return rowToLeaveRequest(data);
+  const updated = rowToLeaveRequest(data);
+  await writeAuditLog({
+    actorId: opts.actorId ?? null,
+    action: 'leave.updated',
+    entityType: 'leave_request',
+    entityId: id,
+    details: { patch },
+  });
+  return updated;
 }
 
 // decidedBy is optional today because we don't have a Microsoft-SSO ->
@@ -405,6 +476,14 @@ export async function decideLeaveRequest(
     .single();
   if (error) throw error;
 
+  await writeAuditLog({
+    actorId: decidedBy ?? null,
+    action: 'leave.decided',
+    entityType: 'leave_request',
+    entityId: id,
+    details: { decision, note: note ?? null },
+  });
+
   // Fire-and-forget notification. We deliberately do not await so an
   // email/Resend outage cannot rollback or fail the decision; the
   // approver already saw the row update succeed in their UI.
@@ -416,13 +495,22 @@ export async function decideLeaveRequest(
   return rowToLeaveRequest(data);
 }
 
-export async function cancelLeaveRequest(id: string): Promise<void> {
+export async function cancelLeaveRequest(
+  id: string,
+  opts: { actorId?: string | null } = {},
+): Promise<void> {
   const sb = requireSupabase();
   const { error } = await sb
     .from('leave_requests')
     .update({ status: 'cancelled' })
     .eq('id', id);
   if (error) throw error;
+  await writeAuditLog({
+    actorId: opts.actorId ?? null,
+    action: 'leave.cancelled',
+    entityType: 'leave_request',
+    entityId: id,
+  });
 }
 
 // ---------------------------------------------------------
