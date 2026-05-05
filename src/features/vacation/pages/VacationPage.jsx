@@ -282,6 +282,7 @@ export default function VacationPage() {
           existingRequest={editingRequest ?? undefined}
           lockEmployee={!userIsApprover}
           actorId={currentEmployee?.id ?? null}
+          allowOverride={userIsApprover}
           onClose={handleCloseForm}
           onSuccess={handleRequestSuccess}
         />

@@ -36,6 +36,12 @@ interface LeaveRequestFormProps {
   // the audit row. When omitted the audit defaults to the request's
   // own employeeId for create, and null for update.
   actorId?: string | null;
+  // When true, the user can submit even if rule violations are
+  // present (the violations stay visible as warnings) and gets a
+  // "Direkt genehmigen" toggle that creates the row as approved
+  // inline. Used for the approver-on-behalf flow including
+  // historical entries that don't satisfy current guidelines.
+  allowOverride?: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -48,6 +54,7 @@ export default function LeaveRequestForm({
   existingRequest,
   lockEmployee = false,
   actorId = null,
+  allowOverride = false,
   onClose,
   onSuccess,
 }: LeaveRequestFormProps) {
@@ -77,6 +84,12 @@ export default function LeaveRequestForm({
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Approver-only "Direkt genehmigen" toggle. When true and the
+  // submit goes through, the row is inserted as status='approved'
+  // with decided_by=actor (no email, no second decision step).
+  // Only meaningful in create mode (existingRequest unset) since
+  // approving an edit is a separate decideLeaveRequest action.
+  const [directlyApprove, setDirectlyApprove] = useState(allowOverride && !isEdit);
 
   // Load static reference data + rule context once whenever the
   // selected employee changes. The employee id flows into
@@ -146,13 +159,14 @@ export default function LeaveRequestForm({
     );
   }, [ruleCtx, employeeId, leaveTypeCode, startDate, endDate, halfDayStart, halfDayEnd, reason, substituteId, existingRequest?.id]);
 
+  const violationsPresent = !!validation && validation.violations.length > 0;
   const canSubmit =
     !submitting
     && !!ruleCtx
     && !!employeeId
     && !!startDate
     && !!endDate
-    && (validation?.ok ?? false);
+    && (allowOverride || (validation?.ok ?? false));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -173,7 +187,15 @@ export default function LeaveRequestForm({
       if (existingRequest) {
         await updateLeaveRequest(existingRequest.id, payload, { actorId });
       } else {
-        await createLeaveRequest(payload, { actorId });
+        const createOpts: Parameters<typeof createLeaveRequest>[1] = { actorId };
+        if (allowOverride && directlyApprove && actorId) {
+          createOpts.directlyApprove = {
+            decidedBy: actorId,
+            note: violationsPresent ? 'Direkt erfasst (Regelausnahme)' : 'Direkt erfasst',
+            overrodeViolations: violationsPresent,
+          };
+        }
+        await createLeaveRequest(payload, createOpts);
       }
       onSuccess();
     } catch (err) {
@@ -330,7 +352,9 @@ export default function LeaveRequestForm({
                 <div className="flex items-center gap-1.5 text-red-700 mb-1">
                   <AlertCircle size={14} />
                   <span className="font-semibold" style={{ fontSize: 12 }}>
-                    Antrag wird so nicht akzeptiert
+                    {allowOverride
+                      ? 'Regelverletzung — als Approver kannst du speichern'
+                      : 'Antrag wird so nicht akzeptiert'}
                   </span>
                 </div>
                 <ul className="text-red-700 list-disc pl-5 space-y-1" style={{ fontSize: 12 }}>
@@ -355,6 +379,27 @@ export default function LeaveRequestForm({
               <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-emerald-700 text-sm flex items-center gap-2">
                 <CheckCircle2 size={14} />
                 Alle Regeln erfüllt.
+              </div>
+            )}
+
+            {/* Approver-only direct-approval toggle. Hidden in edit
+                mode (existing requests use decideLeaveRequest). */}
+            {allowOverride && !isEdit && (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <Checkbox
+                  checked={directlyApprove}
+                  onChange={setDirectlyApprove}
+                >
+                  <div>
+                    <div className="font-medium text-slate-700" style={{ fontSize: 13 }}>
+                      Direkt genehmigen
+                    </div>
+                    <div className="text-slate-500" style={{ fontSize: 11 }}>
+                      Eintrag wird sofort als „Genehmigt" gespeichert (kein Workflow, keine E-Mail).
+                      Nützlich für rückwirkende Erfassung aus dem Papierkalender.
+                    </div>
+                  </div>
+                </Checkbox>
               </div>
             )}
 
@@ -388,7 +433,11 @@ export default function LeaveRequestForm({
               {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
               {submitting
                 ? 'Wird gespeichert…'
-                : isEdit ? 'Änderungen speichern' : 'Antrag einreichen'}
+                : isEdit
+                  ? 'Änderungen speichern'
+                  : allowOverride && directlyApprove
+                    ? (violationsPresent ? 'Trotzdem speichern (genehmigt)' : 'Speichern (genehmigt)')
+                    : (allowOverride && violationsPresent ? 'Trotzdem einreichen' : 'Antrag einreichen')}
             </button>
           </div>
         </form>

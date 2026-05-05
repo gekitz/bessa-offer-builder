@@ -371,10 +371,27 @@ export interface CreateLeaveRequestInput {
 
 export async function createLeaveRequest(
   input: CreateLeaveRequestInput,
-  opts: { actorId?: string | null } = {},
+  opts: {
+    actorId?: string | null;
+    // When set, the row is inserted as status='approved' with the
+    // decided_* fields populated inline. Used by the approver
+    // override path on the form (admin entering on behalf of an
+    // employee + skipping the pending → decide round-trip). No
+    // notify-leave-decision email fires for inline approvals — the
+    // employee already knows about the entry.
+    directlyApprove?: {
+      decidedBy: string;
+      note?: string;
+      // When true, the audit details flag `overrideViolations: true`
+      // so the trail records that the approver saved despite rule
+      // violations.
+      overrodeViolations?: boolean;
+    };
+  } = {},
 ): Promise<LeaveRequest & { id: string }> {
   const sb = requireSupabase();
-  const row = {
+  const directly = opts.directlyApprove;
+  const row: Record<string, unknown> = {
     employee_id: input.employeeId,
     leave_type_id: LEAVE_TYPE_ID_BY_CODE[input.leaveTypeCode],
     start_date: input.startDate,
@@ -383,8 +400,13 @@ export async function createLeaveRequest(
     half_day_end: input.halfDayEnd ?? false,
     reason: input.reason ?? null,
     substitute_id: input.substituteId ?? null,
-    status: 'pending',
+    status: directly ? 'approved' : 'pending',
   };
+  if (directly) {
+    row.decided_at = new Date().toISOString();
+    row.decided_by = directly.decidedBy;
+    row.decision_note = directly.note ?? null;
+  }
   const { data, error } = await sb
     .from('leave_requests')
     .insert(row)
@@ -393,7 +415,7 @@ export async function createLeaveRequest(
   if (error) throw error;
   const created = rowToLeaveRequest(data);
   await writeAuditLog({
-    actorId: opts.actorId ?? input.employeeId,
+    actorId: opts.actorId ?? directly?.decidedBy ?? input.employeeId,
     action: 'leave.created',
     entityType: 'leave_request',
     entityId: created.id,
@@ -406,6 +428,8 @@ export async function createLeaveRequest(
       halfDayEnd: created.halfDayEnd,
       reason: created.reason ?? null,
       substituteId: created.substituteId ?? null,
+      directlyApproved: !!directly,
+      overrodeViolations: directly?.overrodeViolations ?? false,
     },
   });
   return created;

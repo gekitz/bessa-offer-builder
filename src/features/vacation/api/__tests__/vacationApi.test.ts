@@ -463,6 +463,53 @@ describe('audit log', () => {
     expect(audit.actor_id).toBe('sbauer-id');
   });
 
+  it('createLeaveRequest with directlyApprove inserts as approved + sets decided_*', async () => {
+    const chain = makeChain({ data: { ...leaveRow, status: 'approved' }, error: null });
+    fromMock.mockReturnValue(chain);
+    await createLeaveRequest({
+      employeeId: 'e1',
+      leaveTypeCode: 'urlaub',
+      startDate: '2026-08-10',
+      endDate: '2026-08-15',
+    }, {
+      directlyApprove: {
+        decidedBy: 'gkitz-id',
+        note: 'Historischer Eintrag',
+        overrodeViolations: true,
+      },
+    });
+
+    const inserts = chain.insert.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    const leaveInsert = inserts[0]!;
+    expect(leaveInsert.status).toBe('approved');
+    expect(leaveInsert.decided_by).toBe('gkitz-id');
+    expect(leaveInsert.decision_note).toBe('Historischer Eintrag');
+    expect(typeof leaveInsert.decided_at).toBe('string');
+
+    // Audit captures the override flags.
+    const audit = inserts[inserts.length - 1] as Record<string, unknown>;
+    expect(audit.action).toBe('leave.created');
+    const details = audit.details as Record<string, unknown>;
+    expect(details.directlyApproved).toBe(true);
+    expect(details.overrodeViolations).toBe(true);
+  });
+
+  it('createLeaveRequest without directlyApprove still inserts as pending', async () => {
+    const chain = makeChain({ data: leaveRow, error: null });
+    fromMock.mockReturnValue(chain);
+    await createLeaveRequest({
+      employeeId: 'e1',
+      leaveTypeCode: 'urlaub',
+      startDate: '2026-08-10',
+      endDate: '2026-08-15',
+    }, { actorId: 'gkitz-id' });
+
+    const insertArg = chain.insert.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(insertArg.status).toBe('pending');
+    expect(insertArg.decided_by).toBeUndefined();
+    expect(insertArg.decided_at).toBeUndefined();
+  });
+
   it('audit failure does not break the user-facing operation', async () => {
     // First call (leave_requests) succeeds; subsequent (workforce_audit_log) fails.
     const goodChain = makeChain({ data: leaveRow, error: null });

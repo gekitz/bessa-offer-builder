@@ -17,8 +17,8 @@ vi.mock('../../api/vacationApi', () => ({
   listLeaveTypes: () => listLeaveTypesMock(),
   listSubstitutes: (id?: string) => listSubstitutesMock(id),
   loadRuleContext: (opts?: unknown) => loadRuleContextMock(opts),
-  createLeaveRequest: (input: unknown) => createLeaveRequestMock(input),
-  updateLeaveRequest: (id: string, patch: unknown) => updateLeaveRequestMock(id, patch),
+  createLeaveRequest: (input: unknown, opts?: unknown) => createLeaveRequestMock(input, opts),
+  updateLeaveRequest: (id: string, patch: unknown, opts?: unknown) => updateLeaveRequestMock(id, patch, opts),
 }));
 
 import LeaveRequestForm from '../LeaveRequestForm';
@@ -217,7 +217,7 @@ describe('LeaveRequestForm — submit', () => {
     await u.click(submit);
 
     await waitFor(() => expect(createLeaveRequestMock).toHaveBeenCalledTimes(1));
-    expect(createLeaveRequestMock).toHaveBeenCalledWith({
+    expect(createLeaveRequestMock.mock.calls[0]?.[0]).toEqual({
       employeeId: stefan.id,
       leaveTypeCode: 'urlaub',
       startDate: '2026-08-10',
@@ -301,7 +301,8 @@ describe('LeaveRequestForm — submit', () => {
     await u.click(submit);
 
     await waitFor(() => expect(updateLeaveRequestMock).toHaveBeenCalledTimes(1));
-    expect(updateLeaveRequestMock).toHaveBeenCalledWith('lr-existing', {
+    expect(updateLeaveRequestMock.mock.calls[0]?.[0]).toBe('lr-existing');
+    expect(updateLeaveRequestMock.mock.calls[0]?.[1]).toEqual({
       employeeId: stefan.id,
       leaveTypeCode: 'urlaub',
       startDate: '2026-08-10',
@@ -383,5 +384,140 @@ describe('LeaveRequestForm — lockEmployee', () => {
 
     await waitFor(() => expect(createLeaveRequestMock).toHaveBeenCalledTimes(1));
     expect(createLeaveRequestMock.mock.calls[0][0]).toMatchObject({ employeeId: stefan.id });
+  });
+});
+
+describe('LeaveRequestForm — allowOverride', () => {
+  it('lets the approver submit despite a leadTime violation, recording the override', async () => {
+    // May 10 with today=May 4 fails the 28-day Urlaub leadTime.
+    render(
+      <LeaveRequestForm
+        employees={[stefan, mario, georg]}
+        defaultEmployeeId={stefan.id}
+        defaultStartDate="2026-05-10"
+        defaultEndDate="2026-05-15"
+        actorId="gkitz-id"
+        allowOverride
+        onClose={() => {}}
+        onSuccess={() => {}}
+      />,
+    );
+    await waitFor(() => expect(loadRuleContextMock).toHaveBeenCalled());
+
+    expect(await screen.findByText(/Regelverletzung — als Approver kannst du speichern/)).toBeInTheDocument();
+    const submit = screen.getByRole('button', { name: /Trotzdem speichern \(genehmigt\)/ });
+    await waitFor(() => expect(submit).not.toBeDisabled());
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(createLeaveRequestMock).toHaveBeenCalledTimes(1));
+    const [, opts] = createLeaveRequestMock.mock.calls[0]!;
+    expect(opts).toMatchObject({
+      actorId: 'gkitz-id',
+      directlyApprove: {
+        decidedBy: 'gkitz-id',
+        overrodeViolations: true,
+      },
+    });
+    expect((opts as { directlyApprove: { note: string } }).directlyApprove.note).toMatch(/Regelausnahme/);
+  });
+
+  it('approver can untick "Direkt genehmigen" to submit a normal pending request', async () => {
+    render(
+      <LeaveRequestForm
+        employees={[stefan, mario, georg]}
+        defaultEmployeeId={stefan.id}
+        defaultStartDate="2026-08-10"
+        defaultEndDate="2026-08-15"
+        actorId="gkitz-id"
+        allowOverride
+        onClose={() => {}}
+        onSuccess={() => {}}
+      />,
+    );
+    await waitFor(() => expect(loadRuleContextMock).toHaveBeenCalled());
+
+    const u = userEvent.setup();
+    // Toggle off the direct-approval box.
+    const toggle = screen.getByRole('checkbox', { name: /Direkt genehmigen/ });
+    await u.click(toggle);
+
+    const submit = await screen.findByRole('button', { name: /Antrag einreichen/ });
+    await waitFor(() => expect(submit).not.toBeDisabled());
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(createLeaveRequestMock).toHaveBeenCalledTimes(1));
+    const [, opts] = createLeaveRequestMock.mock.calls[0]!;
+    expect(opts).toMatchObject({ actorId: 'gkitz-id' });
+    expect((opts as { directlyApprove?: unknown }).directlyApprove).toBeUndefined();
+  });
+
+  it('non-approvers (no allowOverride) still get the gating behaviour', async () => {
+    render(
+      <LeaveRequestForm
+        employees={[stefan, mario, georg]}
+        defaultEmployeeId={stefan.id}
+        defaultStartDate="2026-05-10"
+        defaultEndDate="2026-05-15"
+        onClose={() => {}}
+        onSuccess={() => {}}
+      />,
+    );
+    await waitFor(() => expect(loadRuleContextMock).toHaveBeenCalled());
+
+    expect(await screen.findByText(/Antrag wird so nicht akzeptiert/)).toBeInTheDocument();
+    const submit = screen.getByRole('button', { name: /Antrag einreichen/ });
+    expect(submit).toBeDisabled();
+    // No "Direkt genehmigen" toggle for non-approvers.
+    expect(screen.queryByRole('checkbox', { name: /Direkt genehmigen/ })).not.toBeInTheDocument();
+  });
+
+  it('approver submitting a clean (no-violation) entry with directlyApprove gets a friendly note', async () => {
+    render(
+      <LeaveRequestForm
+        employees={[stefan, mario, georg]}
+        defaultEmployeeId={stefan.id}
+        defaultStartDate="2026-08-10"
+        defaultEndDate="2026-08-15"
+        actorId="gkitz-id"
+        allowOverride
+        onClose={() => {}}
+        onSuccess={() => {}}
+      />,
+    );
+    await waitFor(() => expect(loadRuleContextMock).toHaveBeenCalled());
+
+    const submit = await screen.findByRole('button', { name: /Speichern \(genehmigt\)/ });
+    await waitFor(() => expect(submit).not.toBeDisabled());
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(createLeaveRequestMock).toHaveBeenCalledTimes(1));
+    const [, opts] = createLeaveRequestMock.mock.calls[0]!;
+    expect((opts as { directlyApprove: { note: string; overrodeViolations: boolean } }).directlyApprove.note).toBe('Direkt erfasst');
+    expect((opts as { directlyApprove: { overrodeViolations: boolean } }).directlyApprove.overrodeViolations).toBe(false);
+  });
+
+  it('hides the "Direkt genehmigen" toggle in edit mode', async () => {
+    render(
+      <LeaveRequestForm
+        employees={[stefan, mario, georg]}
+        defaultEmployeeId={stefan.id}
+        actorId="gkitz-id"
+        allowOverride
+        existingRequest={{
+          id: 'lr-existing',
+          employeeId: stefan.id,
+          leaveTypeCode: 'urlaub',
+          startDate: '2026-08-10',
+          endDate: '2026-08-15',
+          halfDayStart: false,
+          halfDayEnd: false,
+          status: 'pending',
+        }}
+        onClose={() => {}}
+        onSuccess={() => {}}
+      />,
+    );
+    await waitFor(() => expect(loadRuleContextMock).toHaveBeenCalled());
+    expect(screen.queryByRole('checkbox', { name: /Direkt genehmigen/ })).not.toBeInTheDocument();
   });
 });
