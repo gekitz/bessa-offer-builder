@@ -1590,6 +1590,7 @@ __metadata:
     qrcode: ^1.5.4
     react: ^18.2.0
     react-dom: ^18.2.0
+    react-router-dom: ^7.14.2
     tailwindcss: ^3.4.0
     typescript: ^5.7.2
     vite: ^5.0.0
@@ -1835,6 +1836,13 @@ __metadata:
   version: 2.0.0
   resolution: "convert-source-map@npm:2.0.0"
   checksum: 63ae9933be5a2b8d4509daca5124e20c14d023c820258e484e32dc324d34c2754e71297c94a05784064ad27615037ef677e3f0c00469fb55f409d2bb21261035
+  languageName: node
+  linkType: hard
+
+"cookie@npm:^1.0.1":
+  version: 1.1.1
+  resolution: "cookie@npm:1.1.1"
+  checksum: e40c4ff817a73ec0a41413654ca9a71e6207bd6e511151bb1d307aef2903eb59771127a85474afe0e12a8982804f7b03cce0bda798b55c306aca9608b4b9acab
   languageName: node
   linkType: hard
 
@@ -3557,6 +3565,34 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-router-dom@npm:^7.14.2":
+  version: 7.14.2
+  resolution: "react-router-dom@npm:7.14.2"
+  dependencies:
+    react-router: 7.14.2
+  peerDependencies:
+    react: ">=18"
+    react-dom: ">=18"
+  checksum: eb846eda4c7e8aef8e60ecd93b0fa14cccc1ddb3c73e1e8c6e99009d930bc822b25a4bc1d791f535d52689b2713b1931dae198dd27d63b28580e0083687011ad
+  languageName: node
+  linkType: hard
+
+"react-router@npm:7.14.2":
+  version: 7.14.2
+  resolution: "react-router@npm:7.14.2"
+  dependencies:
+    cookie: ^1.0.1
+    set-cookie-parser: ^2.6.0
+  peerDependencies:
+    react: ">=18"
+    react-dom: ">=18"
+  peerDependenciesMeta:
+    react-dom:
+      optional: true
+  checksum: d89819c07f862f1c7e653b76ec9bdad02ff1455915ee0d7ef5c3aeb2d70356d2e2c359a14e24bf2ea96bf897a74dbe5de61cc3dd54421ccb1b0ef3dc62f9df32
+  languageName: node
+  linkType: hard
+
 "react@npm:^18.2.0":
   version: 18.3.1
   resolution: "react@npm:18.3.1"
@@ -3829,6 +3865,13 @@ __metadata:
   version: 2.0.0
   resolution: "set-blocking@npm:2.0.0"
   checksum: 6e65a05f7cf7ebdf8b7c75b101e18c0b7e3dff4940d480efed8aad3a36a4005140b660fa1d804cb8bce911cac290441dc728084a30504d3516ac2ff7ad607b02
+  languageName: node
+  linkType: hard
+
+"set-cookie-parser@npm:^2.6.0":
+  version: 2.7.2
+  resolution: "set-cookie-parser@npm:2.7.2"
+  checksum: 9e1b09e7184079c81f9ba4d2db3222854adf4e6e4fe73982388367649386a93e7f9b979333ddeba22610706def93c2478f34c3324fe223528cb2c4c879a2c2d3
   languageName: node
   linkType: hard
 

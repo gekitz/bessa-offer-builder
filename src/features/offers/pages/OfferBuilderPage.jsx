@@ -64,6 +64,8 @@ import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import AppShell from '../../../components/AppShell';
 import VacationPage from '../../vacation/pages/VacationPage';
 import { useApproverPendingCount } from '../../vacation/hooks/useApproverPendingCount';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { pathForSection, sectionFromPath } from '../../../lib/sectionRoute';
 
 const CrmPage = React.lazy(() => import('../../../components/CrmPage.jsx'));
 
@@ -111,7 +113,12 @@ export default function OfferBuilderPage() {
     try { window.localStorage.setItem('billingEnabled', String(billingToggle)); } catch {}
   }, [billingToggle]);
   const billingEnabled = isBillingAdmin && billingToggle;
-  const [section, setSection] = useState('angebote'); // 'angebote' | 'crm' | 'urlaub'
+  // Active section is derived from the URL path (HashRouter, see
+  // App.jsx). Sidebar nav writes to history via useNavigate; the
+  // browser back/forward buttons + deep links work for free.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const section = sectionFromPath(location.pathname);
   const pendingApprovalsCount = useApproverPendingCount();
   const [offerView, setOfferView] = useState('list'); // 'list' | 'builder'
   const [builderTab, setBuilderTab] = useState('bessa');
@@ -877,7 +884,10 @@ export default function OfferBuilderPage() {
   return (
     <AppShell
       activeSection={section}
-      onNavigate={(s) => { setSection(s); if (s === 'angebote') setOfferView('list'); }}
+      onNavigate={(s) => {
+        navigate(pathForSection(s));
+        if (s === 'angebote') setOfferView('list');
+      }}
       showBillingToggle={isBillingAdmin}
       billingToggle={billingToggle}
       onToggleBilling={setBillingToggle}
