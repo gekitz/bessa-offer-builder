@@ -644,3 +644,58 @@ describe('LeaveCalendar — year view', () => {
     expect(single.textContent).toBe('10');
   });
 });
+
+describe('LeaveCalendar — fullscreen toggle', () => {
+  it('clicking the Vollbild button switches to the fixed-overlay layout', async () => {
+    listLeaveRequestsMock.mockResolvedValue([]);
+    const u = userEvent.setup();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    const wrapper = screen.getByTestId('leave-calendar');
+    expect(wrapper.className).not.toMatch(/fixed inset-0 z-50/);
+
+    await u.click(screen.getByRole('button', { name: 'Vollbild' }));
+    const expanded = screen.getByTestId('leave-calendar');
+    expect(expanded.className).toMatch(/fixed inset-0 z-50/);
+    expect(screen.getByRole('button', { name: 'Vollbild verlassen' })).toBeInTheDocument();
+  });
+
+  it('Escape collapses the fullscreen overlay', async () => {
+    listLeaveRequestsMock.mockResolvedValue([]);
+    const u = userEvent.setup();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: 'Vollbild' }));
+    expect(screen.getByTestId('leave-calendar').className).toMatch(/fixed inset-0/);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.getByTestId('leave-calendar').className).not.toMatch(/fixed inset-0/);
+  });
+
+  it('Escape does not exit fullscreen while the day-detail modal is open', async () => {
+    listLeaveRequestsMock.mockResolvedValue([
+      {
+        id: 'lr-1',
+        employeeId: stefan.id,
+        leaveTypeCode: 'urlaub' as const,
+        startDate: '2026-05-13',
+        endDate: '2026-05-15',
+        halfDayStart: false,
+        halfDayEnd: false,
+        status: 'approved',
+      },
+    ]);
+    const u = userEvent.setup();
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    await u.click(screen.getByRole('button', { name: 'Vollbild' }));
+    // Open the day-detail modal — its own Escape handler should win.
+    await u.click(screen.getByTestId('cal-cell-2026-05-14'));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    // Calendar still in fullscreen.
+    expect(screen.getByTestId('leave-calendar').className).toMatch(/fixed inset-0/);
+  });
+});

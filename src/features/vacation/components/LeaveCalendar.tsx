@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Loader2, Maximize2, Minimize2 } from 'lucide-react';
 import {
   listEmployees,
   listLeaveRequests,
@@ -102,6 +102,10 @@ export default function LeaveCalendar({
 }: LeaveCalendarProps) {
   const today = new Date();
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
+  // Fullscreen overlay — fixed inset-0 z-50 when on. Escape collapses.
+  // The fixed overlay also fixes the year-view mini grids being cramped
+  // in a 720px max-w-3xl page container.
+  const [expanded, setExpanded] = useState(false);
   const [viewYear, setViewYear] = useState(initialYear ?? today.getFullYear());
   const [viewMonth, setViewMonth] = useState(initialMonth ?? today.getMonth());
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -256,6 +260,20 @@ export default function LeaveCalendar({
     return lo <= iso && iso <= hi;
   }
 
+  // Escape exits fullscreen. Skip while a context menu or day-detail
+  // modal is open — those have their own Escape handlers we don't
+  // want to steal from.
+  useEffect(() => {
+    if (!expanded) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      if (contextMenu || openDay) return;
+      setExpanded(false);
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [expanded, contextMenu, openDay]);
+
   // Close the context menu on any click outside the menu, or Escape.
   // Use a target-aware bubble-phase listener so a click on the
   // menuitem itself can fire its own onClick before we tear the
@@ -276,9 +294,14 @@ export default function LeaveCalendar({
     };
   }, [contextMenu]);
 
+  const wrapperClass = expanded
+    // Fullscreen overlay: cover the whole viewport, scroll if needed.
+    ? 'fixed inset-0 z-50 bg-white border-0 overflow-auto flex flex-col'
+    : 'bg-white rounded-xl border-2 border-slate-200 overflow-hidden';
+
   return (
-    <div className="bg-white rounded-xl border-2 border-slate-200 overflow-hidden">
-      <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
+    <div className={wrapperClass} data-testid="leave-calendar">
+      <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2 flex-shrink-0">
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -308,28 +331,40 @@ export default function LeaveCalendar({
         <div className="font-bold text-slate-700" style={{ fontSize: 13 }}>
           {viewMode === 'year' ? viewYear : `${MONTHS_DE[viewMonth]} ${viewYear}`}
         </div>
-        <div className="inline-flex bg-slate-200 rounded-lg p-0.5" role="group" aria-label="Ansicht">
+        <div className="flex items-center gap-1.5">
+          <div className="inline-flex bg-slate-200 rounded-lg p-0.5" role="group" aria-label="Ansicht">
+            <button
+              type="button"
+              onClick={() => setViewMode('month')}
+              aria-pressed={viewMode === 'month'}
+              className={`rounded-md px-2 py-0.5 transition-colors ${
+                viewMode === 'month' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+              style={{ fontSize: 11 }}
+            >
+              Monat
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('year')}
+              aria-pressed={viewMode === 'year'}
+              className={`rounded-md px-2 py-0.5 transition-colors ${
+                viewMode === 'year' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+              style={{ fontSize: 11 }}
+            >
+              Jahr
+            </button>
+          </div>
           <button
             type="button"
-            onClick={() => setViewMode('month')}
-            aria-pressed={viewMode === 'month'}
-            className={`rounded-md px-2 py-0.5 transition-colors ${
-              viewMode === 'month' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
-            style={{ fontSize: 11 }}
+            onClick={() => setExpanded((v) => !v)}
+            aria-label={expanded ? 'Vollbild verlassen' : 'Vollbild'}
+            aria-pressed={expanded}
+            className="rounded-lg p-1 text-slate-500 hover:bg-slate-200"
+            title={expanded ? 'Vollbild verlassen (Esc)' : 'Vollbild'}
           >
-            Monat
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('year')}
-            aria-pressed={viewMode === 'year'}
-            className={`rounded-md px-2 py-0.5 transition-colors ${
-              viewMode === 'year' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
-            style={{ fontSize: 11 }}
-          >
-            Jahr
+            {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
         </div>
       </div>
