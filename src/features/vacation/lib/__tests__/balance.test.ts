@@ -44,6 +44,10 @@ describe('countWorkingDays', () => {
     expect(countWorkingDays('2026-08-10', '2026-08-14', true, true)).toBe(4);
   });
 
+  it('treats both half-day flags on the same weekday as one full day', () => {
+    expect(countWorkingDays('2026-08-10', '2026-08-10', true, true)).toBe(1);
+  });
+
   it('ignores halfDayStart when the start date is a weekend', () => {
     // 2026-08-15 (Sat) – 2026-08-17 (Mon): 1 working day, half flag on Sat ignored
     expect(countWorkingDays('2026-08-15', '2026-08-17', true, false)).toBe(1);

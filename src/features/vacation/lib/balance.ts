@@ -34,6 +34,10 @@ export function countWorkingDays(
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
+  if (startDate === endDate && halfDayStart && halfDayEnd && isWeekday(start)) {
+    return days;
+  }
+
   // Half-day flags only count when the start / end day itself is
   // a working day. A half-day on a Saturday is meaningless.
   if (halfDayStart && days > 0 && isWeekday(start)) days -= 0.5;

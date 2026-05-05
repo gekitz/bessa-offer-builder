@@ -219,11 +219,39 @@ CREATE INDEX idx_workforce_audit_created ON workforce_audit_log(created_at DESC)
 --  Row Level Security
 -- ============================================================
 -- The app authenticates the team through Supabase auth + the
--- user_profiles table. Vacation policies will eventually filter so
--- employees can only see their own balance and the team calendar
--- (without sensitive fields). For now, mirror the offers convention:
--- permissive policies so the engine + admin tooling can read freely.
--- Tighten later when RLS-aware UI lands.
+-- user_profiles table. Workforce data is employee-sensitive, so
+-- anon gets no policies here. Regular employees can read shared
+-- planning data and their own private rows; Georg + Herbert can
+-- manage workforce records as approvers.
+
+CREATE OR REPLACE FUNCTION current_employee_id()
+RETURNS UUID
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT e.id
+  FROM employees e
+  LEFT JOIN user_profiles up ON up.id = auth.uid()
+  WHERE lower(e.email) = lower(COALESCE(up.microsoft_email, auth.jwt() ->> 'email'))
+  LIMIT 1
+$$;
+
+CREATE OR REPLACE FUNCTION is_workforce_approver()
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM employees e
+    WHERE e.id = current_employee_id()
+      AND e.code IN ('gkitz', 'hkitz')
+  )
+$$;
 
 ALTER TABLE standorte              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE abteilungen            ENABLE ROW LEVEL SECURITY;
@@ -237,17 +265,71 @@ ALTER TABLE leave_balances         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE leave_requests         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workforce_audit_log    ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY workforce_all ON standorte           FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY workforce_all ON abteilungen         FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY workforce_all ON leave_types         FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY workforce_all ON employees           FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY workforce_all ON employee_roles      FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY workforce_all ON substitutes         FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY workforce_all ON coverage_rules      FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY workforce_all ON blackout_periods    FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY workforce_all ON leave_balances      FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY workforce_all ON leave_requests      FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY workforce_all ON workforce_audit_log FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY workforce_lookup_read ON standorte
+  FOR SELECT TO authenticated USING (current_employee_id() IS NOT NULL);
+CREATE POLICY workforce_lookup_read ON abteilungen
+  FOR SELECT TO authenticated USING (current_employee_id() IS NOT NULL);
+CREATE POLICY workforce_lookup_read ON leave_types
+  FOR SELECT TO authenticated USING (current_employee_id() IS NOT NULL);
+
+CREATE POLICY employees_read_team ON employees
+  FOR SELECT TO authenticated USING (current_employee_id() IS NOT NULL);
+CREATE POLICY employees_manage_approver ON employees
+  FOR UPDATE TO authenticated USING (is_workforce_approver()) WITH CHECK (is_workforce_approver());
+
+CREATE POLICY employee_roles_read_team ON employee_roles
+  FOR SELECT TO authenticated USING (current_employee_id() IS NOT NULL);
+CREATE POLICY employee_roles_manage_approver ON employee_roles
+  FOR ALL TO authenticated USING (is_workforce_approver()) WITH CHECK (is_workforce_approver());
+
+CREATE POLICY substitutes_read_team ON substitutes
+  FOR SELECT TO authenticated USING (current_employee_id() IS NOT NULL);
+CREATE POLICY substitutes_manage_approver ON substitutes
+  FOR ALL TO authenticated USING (is_workforce_approver()) WITH CHECK (is_workforce_approver());
+
+CREATE POLICY coverage_rules_read_team ON coverage_rules
+  FOR SELECT TO authenticated USING (current_employee_id() IS NOT NULL);
+CREATE POLICY coverage_rules_manage_approver ON coverage_rules
+  FOR ALL TO authenticated USING (is_workforce_approver()) WITH CHECK (is_workforce_approver());
+
+CREATE POLICY blackout_periods_read_team ON blackout_periods
+  FOR SELECT TO authenticated USING (current_employee_id() IS NOT NULL);
+CREATE POLICY blackout_periods_manage_approver ON blackout_periods
+  FOR ALL TO authenticated USING (is_workforce_approver()) WITH CHECK (is_workforce_approver());
+
+CREATE POLICY leave_balances_read_own_or_approver ON leave_balances
+  FOR SELECT TO authenticated
+  USING (employee_id = current_employee_id() OR is_workforce_approver());
+CREATE POLICY leave_balances_manage_approver ON leave_balances
+  FOR ALL TO authenticated USING (is_workforce_approver()) WITH CHECK (is_workforce_approver());
+
+CREATE POLICY leave_requests_read_team_limited ON leave_requests
+  FOR SELECT TO authenticated
+  USING (
+    status IN ('pending', 'approved')
+    OR employee_id = current_employee_id()
+    OR is_workforce_approver()
+  );
+CREATE POLICY leave_requests_insert_own_pending ON leave_requests
+  FOR INSERT TO authenticated
+  WITH CHECK (employee_id = current_employee_id() AND status = 'pending');
+CREATE POLICY leave_requests_insert_approver ON leave_requests
+  FOR INSERT TO authenticated
+  WITH CHECK (is_workforce_approver());
+CREATE POLICY leave_requests_update_own_pending_or_cancel ON leave_requests
+  FOR UPDATE TO authenticated
+  USING (employee_id = current_employee_id() AND status IN ('pending', 'approved'))
+  WITH CHECK (employee_id = current_employee_id() AND status IN ('pending', 'cancelled'));
+CREATE POLICY leave_requests_update_approver ON leave_requests
+  FOR UPDATE TO authenticated
+  USING (is_workforce_approver())
+  WITH CHECK (is_workforce_approver());
+
+CREATE POLICY workforce_audit_log_insert_current ON workforce_audit_log
+  FOR INSERT TO authenticated
+  WITH CHECK (actor_id IS NULL OR actor_id = current_employee_id() OR is_workforce_approver());
+CREATE POLICY workforce_audit_log_read_approver ON workforce_audit_log
+  FOR SELECT TO authenticated USING (is_workforce_approver());
 
 -- ============================================================
 --  Seed data — lookup tables
