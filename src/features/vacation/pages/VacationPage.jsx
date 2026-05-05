@@ -168,6 +168,7 @@ export default function VacationPage() {
               decidedBy={currentEmployee?.id}
               myEmployeeId={currentEmployee?.id}
               defaultMyOnly={!!currentEmployee && !userIsApprover}
+              hideOthersDecidedRequests={!userIsApprover}
               onEdit={(req) => setEditingRequest(req)}
             />
           </div>

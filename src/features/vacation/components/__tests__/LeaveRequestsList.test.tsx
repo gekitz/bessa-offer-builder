@@ -762,3 +762,82 @@ describe('LeaveRequestsList — actionable mode', () => {
     expect(screen.getByText(/Konflikt mit MFP-Lehrling/)).toBeInTheDocument();
   });
 });
+
+describe('LeaveRequestsList — hideOthersDecidedRequests', () => {
+  // Build a varied set: own pending, own rejected (with note), peer
+  // pending, peer approved, peer rejected (with note), peer cancelled.
+  // The viewer is "stefan" (myEmployeeId).
+  const ownPending: LeaveRequest & { id: string } = {
+    id: 'lr-own-pending', employeeId: stefan.id, leaveTypeCode: 'urlaub',
+    startDate: '2026-08-10', endDate: '2026-08-15', status: 'pending',
+  };
+  const ownRejected: LeaveRequest & { id: string } = {
+    id: 'lr-own-rejected', employeeId: stefan.id, leaveTypeCode: 'urlaub',
+    startDate: '2026-09-10', endDate: '2026-09-15', status: 'rejected',
+    decisionNote: 'Mein eigener Antrag wurde abgelehnt',
+  };
+  const peerPending: LeaveRequest & { id: string } = {
+    id: 'lr-peer-pending', employeeId: mario.id, leaveTypeCode: 'urlaub',
+    startDate: '2026-08-20', endDate: '2026-08-25', status: 'pending',
+  };
+  const peerApproved: LeaveRequest & { id: string } = {
+    id: 'lr-peer-approved', employeeId: mario.id, leaveTypeCode: 'urlaub',
+    startDate: '2026-09-20', endDate: '2026-09-25', status: 'approved',
+  };
+  const peerRejected: LeaveRequest & { id: string } = {
+    id: 'lr-peer-rejected', employeeId: mario.id, leaveTypeCode: 'urlaub',
+    startDate: '2026-10-10', endDate: '2026-10-15', status: 'rejected',
+    decisionNote: 'PRIVATE: Mario wurde abgelehnt',
+  };
+  const peerCancelled: LeaveRequest & { id: string } = {
+    id: 'lr-peer-cancelled', employeeId: mario.id, leaveTypeCode: 'urlaub',
+    startDate: '2026-11-10', endDate: '2026-11-15', status: 'cancelled',
+  };
+
+  beforeEach(() => {
+    listLeaveRequestsMock.mockResolvedValue([
+      ownPending, ownRejected, peerPending, peerApproved, peerRejected, peerCancelled,
+    ]);
+  });
+
+  it('hides peers\' rejected and cancelled rows when the prop is on', async () => {
+    render(<LeaveRequestsList showStatusTabs myEmployeeId={stefan.id} hideOthersDecidedRequests />);
+    await waitFor(() => expect(screen.getAllByText('Stefan Bauer').length).toBeGreaterThan(0));
+
+    // Peer pending + approved still visible
+    expect(screen.getAllByText('Mario Graf').length).toBeGreaterThan(0);
+    // The peer-rejected note must NOT leak.
+    expect(screen.queryByText(/PRIVATE: Mario/)).not.toBeInTheDocument();
+  });
+
+  it('still shows the viewer\'s own rejected/cancelled rows', async () => {
+    render(<LeaveRequestsList showStatusTabs myEmployeeId={stefan.id} hideOthersDecidedRequests />);
+    await waitFor(() => expect(screen.getAllByText('Stefan Bauer').length).toBeGreaterThan(0));
+
+    // Switch to "Abgelehnt" tab.
+    const u = userEvent.setup();
+    await u.click(screen.getByRole('button', { name: /Abgelehnt/ }));
+    expect(screen.getByText(/Mein eigener Antrag wurde abgelehnt/)).toBeInTheDocument();
+  });
+
+  it('tab counts reflect the scoped (post-hide) set', async () => {
+    render(<LeaveRequestsList showStatusTabs myEmployeeId={stefan.id} hideOthersDecidedRequests />);
+    await waitFor(() => expect(screen.getAllByText('Stefan Bauer').length).toBeGreaterThan(0));
+
+    // 6 rows fetched, but peer rejected + cancelled hidden →
+    // Alle = 4, Offen = 2, Genehmigt = 1, Abgelehnt = 1, Storniert = 0.
+    expect(screen.getByRole('button', { name: /Alle \(4\)/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Offen \(2\)/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Genehmigt \(1\)/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Abgelehnt \(1\)/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Storniert \(0\)/ })).toBeInTheDocument();
+  });
+
+  it('approver mode (prop off) sees everything including peers\' decision notes', async () => {
+    render(<LeaveRequestsList showStatusTabs myEmployeeId={stefan.id} canDecide />);
+    await waitFor(() => expect(screen.getAllByText('Stefan Bauer').length).toBeGreaterThan(0));
+    const u = userEvent.setup();
+    await u.click(screen.getByRole('button', { name: /Abgelehnt \(2\)/ }));
+    expect(screen.getByText(/PRIVATE: Mario/)).toBeInTheDocument();
+  });
+});

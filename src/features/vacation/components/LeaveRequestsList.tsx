@@ -51,6 +51,12 @@ interface LeaveRequestsListProps {
   // Initial state of the toggle; only matters when myEmployeeId is
   // set. Default is false (= "Alle Mitarbeiter").
   defaultMyOnly?: boolean;
+  // When true, leaves with status='rejected' / 'cancelled' that
+  // belong to OTHER employees are filtered out before the tab counts
+  // are computed. The viewer's own rejected / cancelled rows stay
+  // visible. Used to keep decision notes from leaking when a non-
+  // approver flips the Mitarbeiter dropdown to "Alle Mitarbeiter".
+  hideOthersDecidedRequests?: boolean;
 }
 
 type StatusTab = 'all' | LeaveStatus;
@@ -75,6 +81,7 @@ export default function LeaveRequestsList({
   showStatusTabs = false,
   myEmployeeId,
   defaultMyOnly = false,
+  hideOthersDecidedRequests = false,
   onEdit,
 }: LeaveRequestsListProps) {
   const [requests, setRequests] = useState<Array<LeaveRequest & { id: string }>>([]);
@@ -141,11 +148,23 @@ export default function LeaveRequestsList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusKey, effectiveEmployeeId, reloadKey, internalReload]);
 
+  // First, drop rejected/cancelled rows from other employees when the
+  // viewer is a non-approver (privacy). Counts and tab labels derive
+  // from this scoped set so they don't expose hidden rows by number.
+  const scopeFiltered = useMemo(() => {
+    if (!hideOthersDecidedRequests) return requests;
+    return requests.filter((r) => {
+      const s = (r.status ?? 'pending') as LeaveStatus;
+      if (s !== 'rejected' && s !== 'cancelled') return true;
+      return r.employeeId === myEmployeeId;
+    });
+  }, [requests, hideOthersDecidedRequests, myEmployeeId]);
+
   // Apply the type filter once — counts AND the visible slice both
   // respect it so the tab numbers reflect the user's current scope.
   const typeFiltered = useMemo(
-    () => (typeFilter === 'all' ? requests : requests.filter((r) => r.leaveTypeCode === typeFilter)),
-    [requests, typeFilter],
+    () => (typeFilter === 'all' ? scopeFiltered : scopeFiltered.filter((r) => r.leaveTypeCode === typeFilter)),
+    [scopeFiltered, typeFilter],
   );
 
   const statusCounts = useMemo(() => {
