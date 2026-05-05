@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, Loader2, Sun } from 'lucide-react';
-import { listLeaveBalances, listLeaveRequests, listLeaveTypes, type LeaveBalance, type LeaveType } from '../api/vacationApi';
-import { summarizeBalance } from '../lib/balance';
-import type { IsoDate, LeaveRequest, LeaveTypeCode } from '../types';
+import { listLeaveBalances, listLeaveRequests, type LeaveBalance } from '../api/vacationApi';
+import { summarizeBalance, type BalanceSummary } from '../lib/balance';
+import type { IsoDate, LeaveRequest } from '../types';
 
 interface BalancePanelProps {
   employeeId: string;
@@ -12,17 +12,6 @@ interface BalancePanelProps {
   today?: IsoDate;
   // Bump to force a re-fetch (e.g. after a new leave is approved).
   reloadKey?: number;
-}
-
-interface TypeSummary {
-  code: LeaveTypeCode;
-  label: string;
-  deductsFromBalance: boolean;
-  entitled: number;
-  carriedOver: number;
-  used: number;
-  planned: number;
-  remaining: number;
 }
 
 function todayIso(): IsoDate {
@@ -48,9 +37,8 @@ export default function BalancePanel({
   const resolvedYear = year ?? new Date().getFullYear();
   const resolvedToday = today ?? todayIso();
 
-  const [balances, setBalances] = useState<LeaveBalance[]>([]);
+  const [balanceRow, setBalanceRow] = useState<LeaveBalance | null>(null);
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,13 +53,12 @@ export default function BalancePanel({
         rangeStart: `${resolvedYear}-01-01`,
         rangeEnd: `${resolvedYear}-12-31`,
       }),
-      listLeaveTypes(),
     ])
-      .then(([bals, leaveRows, types]) => {
+      .then(([balances, leaveRows]) => {
         if (cancelled) return;
-        setBalances(bals);
+        const urlaub = balances.find((b) => b.leaveTypeCode === 'urlaub') ?? null;
+        setBalanceRow(urlaub);
         setLeaves(leaveRows);
-        setLeaveTypes(types);
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -82,34 +69,15 @@ export default function BalancePanel({
     return () => { cancelled = true; };
   }, [employeeId, resolvedYear, reloadKey]);
 
-  // Build a summary row per type. Types without a balance row default
-  // entitled / carriedOver to 0 — used / planned still come from leaves.
-  const summaries: TypeSummary[] = leaveTypes.map((type) => {
-    const bal = balances.find((b) => b.leaveTypeCode === type.code);
-    const s = summarizeBalance({
-      leaveTypeCode: type.code,
-      entitled: bal?.entitled ?? 0,
-      carriedOver: bal?.carriedOver ?? 0,
+  const summary: BalanceSummary | null = balanceRow
+    ? summarizeBalance({
+      leaveTypeCode: 'urlaub',
+      entitled: balanceRow.entitled,
+      carriedOver: balanceRow.carriedOver,
       leaves,
       today: resolvedToday,
-    });
-    return {
-      code: type.code,
-      label: type.label,
-      deductsFromBalance: type.deductsFromBalance,
-      entitled: s.entitled,
-      carriedOver: s.carriedOver,
-      used: s.used,
-      planned: s.planned,
-      remaining: s.remaining,
-    };
-  });
-
-  // Hero number: Urlaub remaining (the "how many days do I have left"
-  // question). Falls back to "no entitlement" when the balance row
-  // doesn't exist for this employee.
-  const urlaub = summaries.find((s) => s.code === 'urlaub');
-  const urlaubBalance = balances.find((b) => b.leaveTypeCode === 'urlaub');
+    })
+    : null;
 
   return (
     <div className="bg-white rounded-xl border-2 border-slate-200 overflow-hidden">
@@ -134,64 +102,44 @@ export default function BalancePanel({
         </div>
       )}
 
-      {!loading && !error && (
-        <div className="p-4 space-y-3">
-          {/* Urlaub hero — entitlement number on top, key number bigger. */}
-          {urlaubBalance && urlaub ? (
-            <div className="flex items-baseline gap-2">
-              <span className="font-bold text-slate-800" style={{ fontSize: 28 }}>
-                {formatDays(urlaub.remaining)}
-              </span>
-              <span className="text-slate-500" style={{ fontSize: 13 }}>
-                von {formatDays(urlaub.entitled + urlaub.carriedOver)} Tagen Urlaub verbleibend
-              </span>
-            </div>
-          ) : (
-            <div className="text-slate-400" style={{ fontSize: 12 }}>
-              Kein Urlaubsanspruch hinterlegt.
-            </div>
-          )}
+      {!loading && !error && !summary && (
+        <div className="px-4 py-5 text-slate-400" style={{ fontSize: 12 }}>
+          Kein Urlaubsanspruch hinterlegt. Bitte HR kontaktieren.
+        </div>
+      )}
 
-          {/* Per-type breakdown — every leave type, used / planned. */}
-          <div className="border border-slate-100 rounded-lg overflow-hidden" data-testid="balance-type-table">
-            <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-slate-50 text-slate-400 uppercase tracking-wider" style={{ fontSize: 10 }}>
-              <div className="col-span-5">Art</div>
-              <div className="col-span-2 text-right">Anspruch</div>
-              <div className="col-span-2 text-right">Genommen</div>
-              <div className="col-span-2 text-right">Geplant</div>
-              <div className="col-span-1 text-right">Rest</div>
-            </div>
-            {summaries.map((s) => {
-              const total = s.entitled + s.carriedOver;
-              const dim = !s.deductsFromBalance && s.used === 0 && s.planned === 0;
-              return (
-                <div
-                  key={s.code}
-                  data-testid={`balance-type-${s.code}`}
-                  className={`grid grid-cols-12 gap-2 px-3 py-1.5 border-t border-slate-100 ${
-                    dim ? 'text-slate-400' : 'text-slate-700'
-                  }`}
-                  style={{ fontSize: 12 }}
-                >
-                  <div className="col-span-5 truncate">{s.label}</div>
-                  <div className="col-span-2 text-right">
-                    {s.deductsFromBalance ? formatDays(total) : '–'}
-                  </div>
-                  <div className="col-span-2 text-right font-medium">
-                    {formatDays(s.used)}
-                  </div>
-                  <div className="col-span-2 text-right">
-                    {formatDays(s.planned)}
-                  </div>
-                  <div className="col-span-1 text-right font-bold">
-                    {s.deductsFromBalance ? formatDays(s.remaining) : '–'}
-                  </div>
-                </div>
-              );
-            })}
+      {!loading && !error && summary && (
+        <div className="p-4">
+          <div className="flex items-baseline gap-2 mb-3">
+            <span className="font-bold text-slate-800" style={{ fontSize: 28 }}>
+              {formatDays(summary.remaining)}
+            </span>
+            <span className="text-slate-500" style={{ fontSize: 13 }}>
+              von {formatDays(summary.entitled + summary.carriedOver)} Tagen verbleibend
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <Stat label="Anspruch" value={summary.entitled} />
+            <Stat label="Übertrag" value={summary.carriedOver} />
+            <Stat label="Genommen" value={summary.used} />
+            <Stat label="Geplant" value={summary.planned} />
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="bg-slate-50 rounded-lg px-3 py-2">
+      <div className="text-slate-400 uppercase tracking-wider" style={{ fontSize: 10 }}>
+        {label}
+      </div>
+      <div className="font-bold text-slate-700" style={{ fontSize: 16 }}>
+        {formatDays(value)}
+      </div>
     </div>
   );
 }

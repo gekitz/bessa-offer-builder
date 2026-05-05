@@ -169,10 +169,10 @@ describe('VacationPage', () => {
     await waitFor(() => expect(screen.getByText('Mario Graf')).toBeInTheDocument());
 
     // Walk up from Mario's name to the row container, then click the
-    // single button inside it (the per-row "Antrag" trigger).
+    // per-row "Antrag" button (the row also has a "Stand" button now).
     const marioName = screen.getByText('Mario Graf');
     const row = marioName.closest('div.flex') as HTMLElement;
-    const marioAntrag = within(row).getByRole('button');
+    const marioAntrag = within(row).getByRole('button', { name: /Antrag/ });
     await u.click(marioAntrag);
 
     expect(await screen.findByText('Neuer Urlaubsantrag')).toBeInTheDocument();
@@ -238,35 +238,42 @@ describe('VacationPage', () => {
     expect(listLeaveBalancesMock).not.toHaveBeenCalled();
   });
 
-  it('shows a "Stand für …" employee picker for approvers only', async () => {
-    listLeaveBalancesMock.mockResolvedValue([]);
-    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
-    render(<VacationPage />);
-    expect(await screen.findByRole('button', { name: 'Mitarbeiter für Urlaubsstand' })).toBeInTheDocument();
-  });
-
-  it('does not show the picker for non-approvers', async () => {
-    listLeaveBalancesMock.mockResolvedValue([]);
-    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bh@kitz.co.at' }, user: null });
-    render(<VacationPage />);
-    await waitFor(() => expect(screen.getByText(/Urlaubsstand 2026/)).toBeInTheDocument());
-    expect(screen.queryByRole('button', { name: 'Mitarbeiter für Urlaubsstand' })).not.toBeInTheDocument();
-  });
-
-  it('switches the BalancePanel context when the approver picks another employee', async () => {
+  it('clicking "Stand" on a roster row expands an inline per-type breakdown', async () => {
     listLeaveBalancesMock.mockResolvedValue([]);
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
     const u = userEvent.setup();
     render(<VacationPage />);
-    await waitFor(() => expect(listLeaveBalancesMock).toHaveBeenCalledWith(georg.id, expect.any(Number)));
-    listLeaveBalancesMock.mockClear();
+    await waitFor(() => expect(screen.getAllByText('Stefan Bauer').length).toBeGreaterThan(0));
 
-    // Open the Stand-für picker, pick Stefan Bauer.
-    await u.click(screen.getByRole('button', { name: 'Mitarbeiter für Urlaubsstand' }));
-    const stefanOption = await screen.findByRole('option', { name: /Stefan Bauer/ });
-    await u.click(stefanOption);
+    // Initially no expanded panel.
+    expect(screen.queryByTestId(`employee-stand-${stefan.code}`)).not.toBeInTheDocument();
 
-    await waitFor(() => expect(listLeaveBalancesMock).toHaveBeenCalledWith(stefan.id, expect.any(Number)));
+    await u.click(screen.getByRole('button', { name: `Stand für ${stefan.name}` }));
+    expect(await screen.findByTestId(`employee-stand-${stefan.code}`)).toBeInTheDocument();
+  });
+
+  it('expanding a different roster row collapses the previous one', async () => {
+    listLeaveBalancesMock.mockResolvedValue([]);
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
+    const u = userEvent.setup();
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getAllByText('Stefan Bauer').length).toBeGreaterThan(0));
+
+    await u.click(screen.getByRole('button', { name: `Stand für ${stefan.name}` }));
+    await screen.findByTestId(`employee-stand-${stefan.code}`);
+
+    await u.click(screen.getByRole('button', { name: `Stand für ${mario.name}` }));
+    await screen.findByTestId(`employee-stand-${mario.code}`);
+    expect(screen.queryByTestId(`employee-stand-${stefan.code}`)).not.toBeInTheDocument();
+  });
+
+  it('does not show the Stand button for non-approvers (roster is hidden)', async () => {
+    listLeaveBalancesMock.mockResolvedValue([]);
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bh@kitz.co.at' }, user: null });
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getByText(/Urlaubsstand 2026/)).toBeInTheDocument());
+    // Non-approvers don't see the roster at all, so no Stand buttons.
+    expect(screen.queryByRole('button', { name: /^Stand für/ })).not.toBeInTheDocument();
   });
 
   it('keeps the Mitarbeiter selector for approvers (create on behalf)', async () => {

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Calendar, CalendarPlus, Loader2, MapPin, Plus, Users } from 'lucide-react';
+import { AlertCircle, Calendar, CalendarPlus, ChevronDown, Info, Loader2, MapPin, Plus, Users } from 'lucide-react';
 import { listEmployees, listStandorte } from '../api/vacationApi';
 import LeaveRequestForm from '../components/LeaveRequestForm';
 import LeaveRequestsList from '../components/LeaveRequestsList';
 import LeaveCalendar from '../components/LeaveCalendar';
 import CalendarSubscriptionModal from '../components/CalendarSubscriptionModal';
 import BalancePanel from '../components/BalancePanel';
-import Select from '../../../components/Select';
+import EmployeeBalanceTable from '../components/EmployeeBalanceTable';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { TEAM } from '../../offers/data/catalogs';
@@ -32,10 +32,11 @@ export default function VacationPage() {
   // start <= end). Mutually exclusive with the other create flows.
   const [requestForRange, setRequestForRange] = useState(null);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
-  // Approvers can swap the BalancePanel context to any employee. For
-  // everyone else this stays null and the panel binds to the current
-  // SSO user.
-  const [balanceEmployeeId, setBalanceEmployeeId] = useState(null);
+  // Approvers can expand any roster row to inspect that employee's
+  // per-type breakdown (used / planned / remaining for Urlaub +
+  // Krankenstand etc.). Tracks the expanded employee.id, or null
+  // when nothing is open.
+  const [expandedEmployeeId, setExpandedEmployeeId] = useState(null);
 
   // Match the logged-in SSO user to one of our employees. The TEAM
   // array's `id` field happens to equal employees.code (both 'gkitz',
@@ -146,28 +147,11 @@ export default function VacationPage() {
 
         {/* Balance — only when we matched an SSO user to an employee
             (otherwise we don't know whose balance to show). Approvers
-            get a picker so they can spot-check anyone's stand. */}
+            inspect other employees via the per-row Info button on the
+            team roster below. */}
         {!loading && !error && currentEmployee && (
-          <div className="mb-4 space-y-2">
-            {userIsApprover && employees.length > 1 && (
-              <div className="flex items-center gap-2">
-                <span className="text-slate-500" style={{ fontSize: 11 }}>
-                  Stand für
-                </span>
-                <Select
-                  value={balanceEmployeeId ?? currentEmployee.id}
-                  onChange={(v) => setBalanceEmployeeId(v === currentEmployee.id ? null : v)}
-                  size="sm"
-                  className="w-56"
-                  ariaLabel="Mitarbeiter für Urlaubsstand"
-                  options={employees.map((e) => ({ value: e.id, label: e.name, hint: e.code }))}
-                />
-              </div>
-            )}
-            <BalancePanel
-              employeeId={balanceEmployeeId ?? currentEmployee.id}
-              reloadKey={reloadKey}
-            />
+          <div className="mb-4">
+            <BalancePanel employeeId={currentEmployee.id} reloadKey={reloadKey} />
           </div>
         )}
 
@@ -221,24 +205,53 @@ export default function VacationPage() {
                     <span className="text-slate-400">({ours.length})</span>
                   </div>
                   <div className="divide-y divide-slate-100">
-                    {ours.map((e) => (
-                      <div key={e.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="font-medium text-slate-700 truncate" style={{ fontSize: 13 }}>{e.name}</div>
-                          <div className="text-slate-400" style={{ fontSize: 11 }}>
-                            {e.code} · {e.weeklyHours}h/Woche
-                            {e.employmentType !== 'fulltime' && <span className="ml-1.5 bg-slate-100 text-slate-500 rounded-full px-2 py-0.5">{e.employmentType}</span>}
+                    {ours.map((e) => {
+                      const expanded = expandedEmployeeId === e.id;
+                      return (
+                        <div key={e.id}>
+                          <div className="px-4 py-2.5 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="font-medium text-slate-700 truncate" style={{ fontSize: 13 }}>{e.name}</div>
+                              <div className="text-slate-400" style={{ fontSize: 11 }}>
+                                {e.code} · {e.weeklyHours}h/Woche
+                                {e.employmentType !== 'fulltime' && <span className="ml-1.5 bg-slate-100 text-slate-500 rounded-full px-2 py-0.5">{e.employmentType}</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <button
+                                onClick={() => setExpandedEmployeeId(expanded ? null : e.id)}
+                                aria-label={`Stand für ${e.name}`}
+                                aria-expanded={expanded}
+                                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 transition-colors ${
+                                  expanded
+                                    ? 'bg-slate-200 text-slate-700'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                }`}
+                                style={{ fontSize: 11 }}
+                              >
+                                {expanded ? <ChevronDown size={11} /> : <Info size={11} />}
+                                Stand
+                              </button>
+                              <button
+                                onClick={() => setRequestForEmployeeId(e.id)}
+                                className="flex items-center gap-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors px-2.5 py-1"
+                                style={{ fontSize: 11 }}
+                              >
+                                <Plus size={11} /> Antrag
+                              </button>
+                            </div>
                           </div>
+                          {expanded && (
+                            <div
+                              className="px-4 pb-3 pt-0 bg-slate-50/40 border-t border-slate-100"
+                              data-testid={`employee-stand-${e.code}`}
+                            >
+                              <EmployeeBalanceTable employeeId={e.id} />
+                            </div>
+                          )}
                         </div>
-                        <button
-                          onClick={() => setRequestForEmployeeId(e.id)}
-                          className="flex items-center gap-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors px-2.5 py-1 flex-shrink-0"
-                          style={{ fontSize: 11 }}
-                        >
-                          <Plus size={11} /> Antrag
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );
