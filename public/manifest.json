@@ -1,7 +1,7 @@
 {
-  "name": "KITZ Angebotsersteller",
-  "short_name": "KITZ Angebot",
-  "description": "Angebote für bessa Kassa & Module erstellen",
+  "name": "KITZ Workspace",
+  "short_name": "KITZ",
+  "description": "Angebote · CRM · Urlaub für KITZ Computer + Office",
   "start_url": "/bessa-offer-builder/",
   "display": "standalone",
   "background_color": "#f1f5f9",
