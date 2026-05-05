@@ -152,6 +152,9 @@ export const RCH: Item[] = [
   { id:'rch-ape3', name:'RCH APE3', cat:'Kassensysteme', price:1390, t:'o', info:'Snapdragon OctaCore · 4 GB RAM · 64 GB ROM · 10" Display · Bondrucker integriert · Android 13 · Software: RCH Atos · 12 Monate Bring-In · zzgl. Installation und Einschulung' },
   { id:'rch-at15-iron-slim', name:'RCH AT15 IRON SLIM', cat:'Kassensysteme', price:1790, t:'o', info:'4 GB RAM · 32 GB Flash · 10" Display · inkl. Bondrucker · Android 10 · Software: RCH Atos · 12 Monate Bring-In · zzgl. Installation und Einschulung' },
   { id:'rch-walle-8t', name:'RCH WALLE 8T', cat:'Kassensysteme', price:990, t:'o', info:'1 GB RAM · 8 GB MMC · 8" Display · Bondrucker integriert · Android 5.0.2 oder höher · Software: RCH Atos · 12 Monate Bring-In · zzgl. Installation und Einschulung' },
+  { id:'rch-dva-1210-i3', name:'RCH DVA 1210 i3', cat:'Kassensysteme', price:1453, t:'o', info:'Intel Core i3-1215U Prozessor der 12. Generation mit Windows 11 IoT' },
+  { id:'rch-dva-1210-celeron', name:'RCH DVA 1210 Celeron', cat:'Kassensysteme', price:1193, t:'o', info:'Intel Celeron J6412 mit Windows 11 IoT' },
+  { id:'rch-dva-1210-kundenbildschirm', name:'RCH Kundenbildschirm Display 10.1" DVA1210', cat:'Kassensysteme', price:279, t:'o' },
 ];
 
 export const HARDWARE: Item[] = [
