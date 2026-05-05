@@ -188,7 +188,7 @@ describe('VacationPage', () => {
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
     const u = userEvent.setup();
     render(<VacationPage />);
-    await waitFor(() => expect(screen.getByText('Georg Kitz')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText('Georg Kitz').length).toBeGreaterThan(0));
 
     await u.click(screen.getByRole('button', { name: /Neuer Antrag/ }));
     await screen.findByText('Neuer Urlaubsantrag');
@@ -236,6 +236,37 @@ describe('VacationPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Neuer Antrag/ })).toBeInTheDocument());
     expect(screen.queryByText(/Urlaubsstand/)).not.toBeInTheDocument();
     expect(listLeaveBalancesMock).not.toHaveBeenCalled();
+  });
+
+  it('shows a "Stand für …" employee picker for approvers only', async () => {
+    listLeaveBalancesMock.mockResolvedValue([]);
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
+    render(<VacationPage />);
+    expect(await screen.findByRole('button', { name: 'Mitarbeiter für Urlaubsstand' })).toBeInTheDocument();
+  });
+
+  it('does not show the picker for non-approvers', async () => {
+    listLeaveBalancesMock.mockResolvedValue([]);
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bh@kitz.co.at' }, user: null });
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getByText(/Urlaubsstand 2026/)).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Mitarbeiter für Urlaubsstand' })).not.toBeInTheDocument();
+  });
+
+  it('switches the BalancePanel context when the approver picks another employee', async () => {
+    listLeaveBalancesMock.mockResolvedValue([]);
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
+    const u = userEvent.setup();
+    render(<VacationPage />);
+    await waitFor(() => expect(listLeaveBalancesMock).toHaveBeenCalledWith(georg.id, expect.any(Number)));
+    listLeaveBalancesMock.mockClear();
+
+    // Open the Stand-für picker, pick Stefan Bauer.
+    await u.click(screen.getByRole('button', { name: 'Mitarbeiter für Urlaubsstand' }));
+    const stefanOption = await screen.findByRole('option', { name: /Stefan Bauer/ });
+    await u.click(stefanOption);
+
+    await waitFor(() => expect(listLeaveBalancesMock).toHaveBeenCalledWith(stefan.id, expect.any(Number)));
   });
 
   it('keeps the Mitarbeiter selector for approvers (create on behalf)', async () => {

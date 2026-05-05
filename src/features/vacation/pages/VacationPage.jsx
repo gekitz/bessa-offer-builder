@@ -6,6 +6,7 @@ import LeaveRequestsList from '../components/LeaveRequestsList';
 import LeaveCalendar from '../components/LeaveCalendar';
 import CalendarSubscriptionModal from '../components/CalendarSubscriptionModal';
 import BalancePanel from '../components/BalancePanel';
+import Select from '../../../components/Select';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { TEAM } from '../../offers/data/catalogs';
@@ -31,6 +32,10 @@ export default function VacationPage() {
   // start <= end). Mutually exclusive with the other create flows.
   const [requestForRange, setRequestForRange] = useState(null);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
+  // Approvers can swap the BalancePanel context to any employee. For
+  // everyone else this stays null and the panel binds to the current
+  // SSO user.
+  const [balanceEmployeeId, setBalanceEmployeeId] = useState(null);
 
   // Match the logged-in SSO user to one of our employees. The TEAM
   // array's `id` field happens to equal employees.code (both 'gkitz',
@@ -140,10 +145,29 @@ export default function VacationPage() {
         )}
 
         {/* Balance — only when we matched an SSO user to an employee
-            (otherwise we don't know whose balance to show). */}
+            (otherwise we don't know whose balance to show). Approvers
+            get a picker so they can spot-check anyone's stand. */}
         {!loading && !error && currentEmployee && (
-          <div className="mb-4">
-            <BalancePanel employeeId={currentEmployee.id} reloadKey={reloadKey} />
+          <div className="mb-4 space-y-2">
+            {userIsApprover && employees.length > 1 && (
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500" style={{ fontSize: 11 }}>
+                  Stand für
+                </span>
+                <Select
+                  value={balanceEmployeeId ?? currentEmployee.id}
+                  onChange={(v) => setBalanceEmployeeId(v === currentEmployee.id ? null : v)}
+                  size="sm"
+                  className="w-56"
+                  ariaLabel="Mitarbeiter für Urlaubsstand"
+                  options={employees.map((e) => ({ value: e.id, label: e.name, hint: e.code }))}
+                />
+              </div>
+            )}
+            <BalancePanel
+              employeeId={balanceEmployeeId ?? currentEmployee.id}
+              reloadKey={reloadKey}
+            />
           </div>
         )}
 
