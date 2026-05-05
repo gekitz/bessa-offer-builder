@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, X } from 'lucide-react';
+import { Calendar, FileText, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
 // ═══════════════════════════════════════════════════════
@@ -8,7 +8,8 @@ import { useAuth } from '../lib/auth';
 
 const NAV_ITEMS = [
   { id: 'angebote', label: 'Angebote', icon: FileText },
-  { id: 'crm', label: 'CRM', icon: Users },
+  { id: 'crm',      label: 'CRM',      icon: Users },
+  { id: 'urlaub',   label: 'Urlaub',   icon: Calendar },
 ];
 
 export default function AppShell({
@@ -17,6 +18,10 @@ export default function AppShell({
   showBillingToggle = false,
   billingToggle = false,
   onToggleBilling,
+  // Per-section badge counts. Currently only `urlaub` is consumed,
+  // but the shape lets us add more later (`crm`, `angebote`, …).
+  // A 0 / undefined count renders no badge.
+  badges = {},
   children,
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -47,8 +52,8 @@ export default function AppShell({
             </div>
             {!collapsed && (
               <div className="min-w-0">
-                <div className="font-bold text-slate-800 truncate" style={{ fontSize: 14, letterSpacing: '-0.3px' }}>KITZ CRM</div>
-                <div className="text-slate-400 truncate" style={{ fontSize: 10 }}>bessa Kassa & Module</div>
+                <div className="font-bold text-slate-800 truncate" style={{ fontSize: 14, letterSpacing: '-0.3px' }}>KITZ Workspace</div>
+                <div className="text-slate-400 truncate" style={{ fontSize: 10 }}>Angebote · CRM · Urlaub</div>
               </div>
             )}
           </div>
@@ -59,11 +64,12 @@ export default function AppShell({
               {NAV_ITEMS.map(item => {
                 const Icon = item.icon;
                 const isActive = activeSection === item.id;
+                const badgeCount = badges[item.id];
                 return (
                   <button
                     key={item.id}
                     onClick={() => onNavigate(item.id)}
-                    className={`w-full flex items-center gap-2.5 rounded-lg transition-all ${
+                    className={`relative w-full flex items-center gap-2.5 rounded-lg transition-all ${
                       isActive
                         ? 'bg-red-50 text-red-600'
                         : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
@@ -73,11 +79,31 @@ export default function AppShell({
                       justifyContent: collapsed ? 'center' : 'flex-start',
                       fontSize: 13,
                     }}
-                    title={collapsed ? item.label : undefined}
+                    title={collapsed && badgeCount ? `${item.label} (${badgeCount})` : (collapsed ? item.label : undefined)}
                   >
-                    <Icon size={18} className={isActive ? 'text-red-500' : 'text-slate-400'} />
+                    <span className="relative inline-flex">
+                      <Icon size={18} className={isActive ? 'text-red-500' : 'text-slate-400'} />
+                      {collapsed && badgeCount > 0 && (
+                        <span
+                          data-testid={`nav-badge-${item.id}`}
+                          className="absolute -top-1 -right-1.5 bg-red-500 text-white rounded-full font-semibold flex items-center justify-center"
+                          style={{ minWidth: 14, height: 14, fontSize: 9, padding: '0 3px' }}
+                        >
+                          {badgeCount > 9 ? '9+' : badgeCount}
+                        </span>
+                      )}
+                    </span>
                     {!collapsed && (
                       <span className={`font-medium ${isActive ? 'text-red-600' : ''}`}>{item.label}</span>
+                    )}
+                    {!collapsed && badgeCount > 0 && (
+                      <span
+                        data-testid={`nav-badge-${item.id}`}
+                        className="ml-auto bg-red-500 text-white rounded-full font-semibold flex items-center justify-center"
+                        style={{ minWidth: 18, height: 18, fontSize: 10, padding: '0 6px' }}
+                      >
+                        {badgeCount > 99 ? '99+' : badgeCount}
+                      </span>
                     )}
                   </button>
                 );
@@ -181,6 +207,7 @@ export default function AppShell({
           {NAV_ITEMS.map(item => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
+            const badgeCount = badges[item.id];
             return (
               <button
                 key={item.id}
@@ -189,7 +216,18 @@ export default function AppShell({
                   isActive ? 'text-red-600' : 'text-slate-400'
                 }`}
               >
-                <Icon size={20} className={isActive ? 'text-red-500' : 'text-slate-400'} />
+                <span className="relative inline-flex">
+                  <Icon size={20} className={isActive ? 'text-red-500' : 'text-slate-400'} />
+                  {badgeCount > 0 && (
+                    <span
+                      data-testid={`nav-badge-mobile-${item.id}`}
+                      className="absolute -top-1 -right-2 bg-red-500 text-white rounded-full font-semibold flex items-center justify-center"
+                      style={{ minWidth: 14, height: 14, fontSize: 9, padding: '0 3px' }}
+                    >
+                      {badgeCount > 9 ? '9+' : badgeCount}
+                    </span>
+                  )}
+                </span>
                 <span style={{ fontSize: 10, fontWeight: isActive ? 600 : 400 }}>{item.label}</span>
               </button>
             );

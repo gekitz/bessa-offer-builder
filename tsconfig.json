@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    /* Build target / module system */
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "useDefineForClassFields": true,
+    "jsx": "react-jsx",
+
+    /* Strictness — strict for new TS code, lenient for migrating JS */
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+
+    /* Allow legacy JS during migration */
+    "allowJs": true,
+    "checkJs": false,
+
+    /* Bundler interop */
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+
+    /* No emit — Vite handles bundling, tsc is only for type-checking */
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+
+    /* Test globals & matchers */
+    "types": ["vitest/globals", "@testing-library/jest-dom"]
+  },
+  "include": [
+    "src",
+    "vitest.setup.ts"
+  ],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

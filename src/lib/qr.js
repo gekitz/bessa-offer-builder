@@ -10,3 +10,4 @@ export async function generateAcceptQr(shareCode) {
     return null;
   }
 }
+
