@@ -703,11 +703,11 @@ function MiniMonthGrid({
                 <span className="relative">{cell.day}</span>
                 {overflow && (
                   <span
-                    className="absolute -top-0.5 -right-0.5 bg-slate-700 text-white rounded-full"
-                    style={{ fontSize: 7, padding: '0 3px', lineHeight: '1.1' }}
-                  >
-                    {dayLeaves.length}
-                  </span>
+                    aria-hidden="true"
+                    data-testid={`cal-mini-multi-${cell.iso}`}
+                    className="absolute top-0.5 right-0.5 rounded-full bg-slate-700"
+                    style={{ width: 4, height: 4 }}
+                  />
                 )}
               </button>
             );

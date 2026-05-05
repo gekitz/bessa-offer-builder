@@ -609,7 +609,7 @@ describe('LeaveCalendar — year view', () => {
     expect(screen.queryByTestId('cal-mini-half-end-2026-08-10')).not.toBeInTheDocument();
   });
 
-  it('mini cells show a count badge when more than one leave covers a day', async () => {
+  it('mini cells show a multi-leave dot when more than one leave covers a day', async () => {
     listLeaveRequestsMock.mockResolvedValue([
       {
         id: 'lr-1',
@@ -635,11 +635,14 @@ describe('LeaveCalendar — year view', () => {
     render(<LeaveCalendar initialYear={2026} initialMonth={4} initialViewMode="year" />);
     await waitFor(() => expect(screen.getByTestId('calendar-year-grid')).toBeInTheDocument());
 
-    // Aug 12: two leaves, badge should show "2".
-    const cell = screen.getByTestId('cal-mini-cell-2026-08-12');
-    expect(within(cell).getByText('2')).toBeInTheDocument();
-    // Aug 10: one leave, no badge — the cell contains only the day
-    // number "10", no separate count node.
+    // Aug 12: two leaves → multi-leave dot indicator present.
+    expect(screen.getByTestId('cal-mini-multi-2026-08-12')).toBeInTheDocument();
+    // Tooltip still surfaces the exact count.
+    const aug12 = screen.getByTestId('cal-mini-cell-2026-08-12');
+    expect(aug12.getAttribute('title')).toMatch(/2 Anträge/);
+
+    // Aug 10: one leave → no dot.
+    expect(screen.queryByTestId('cal-mini-multi-2026-08-10')).not.toBeInTheDocument();
     const single = screen.getByTestId('cal-mini-cell-2026-08-10');
     expect(single.textContent).toBe('10');
   });
