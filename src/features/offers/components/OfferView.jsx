@@ -161,22 +161,17 @@ export default function OfferView({
           />
         )}
         <div className="mt-3">
-          {creator && TEAM.find(t => t.id === creator) ? (
-            <div className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-700">
-              Ersteller: <span className="font-medium">{TEAM.find(t => t.id === creator)?.name}</span>
-            </div>
-          ) : (
-            <Select
-              value={creator}
-              onChange={setCreator}
-              placeholder="Angebot erstellt von…"
-              options={TEAM.map((t) => ({
-                value: t.id,
-                label: t.name,
-                hint: `${t.role} · ${t.location}`,
-              }))}
-            />
-          )}
+          <Select
+            value={creator}
+            onChange={setCreator}
+            placeholder="Angebot erstellt von…"
+            ariaLabel="Ersteller"
+            options={TEAM.map((t) => ({
+              value: t.id,
+              label: t.name,
+              hint: `${t.role} · ${t.location}`,
+            }))}
+          />
         </div>
         {billingEnabled && (
           <div className="mt-3">

@@ -146,13 +146,18 @@ export default function OfferBuilderPage() {
   const [cartOrder, setCartOrder] = useState([]);
 
   // Auto-select creator from the logged-in user. Email matching
-  // logic lives in lib/ssoMatch (tested in isolation).
+  // logic lives in lib/ssoMatch (tested in isolation). Falls back to
+  // user.email when the profile row's microsoft_email is missing.
+  function ssoCreatorId() {
+    const email = profile?.microsoft_email || user?.email;
+    return email ? findIdBySsoEmail(email, TEAM) : null;
+  }
   useEffect(() => {
-    if (profile?.microsoft_email && !creator) {
-      const id = findIdBySsoEmail(profile.microsoft_email, TEAM);
+    if (!creator) {
+      const id = ssoCreatorId();
       if (id) setCreator(id);
     }
-  }, [profile]);
+  }, [profile, user, creator]);
 
   // Filter out cart items whose IDs no longer exist in ALL (e.g. old offers with removed products)
   function sanitizeCart(rawCart, rawOrder) {
@@ -219,7 +224,7 @@ export default function OfferBuilderPage() {
           phone: offer.customer_phone || '',
           address: data.address || '',
         });
-        setCreator(offer.creator_id || '');
+        setCreator(offer.creator_id || ssoCreatorId() || '');
         setNotes(data.notes || '');
         setRaten(data.raten || 12);
         setFinanzOpen(data.finanzOpen || false);
@@ -244,7 +249,7 @@ export default function OfferBuilderPage() {
       setCart(validCart);
       setCartOrder(validOrder);
       setCustomer(savedOffer.customer || { name: '', company: '', email: '', phone: '', address: '' });
-      setCreator(savedOffer.creator || '');
+      setCreator(savedOffer.creator || ssoCreatorId() || '');
       setNotes(savedOffer.notes || '');
       setRaten(savedOffer.raten || 12);
       setFinanzOpen(savedOffer.finanzOpen || false);
@@ -835,7 +840,7 @@ export default function OfferBuilderPage() {
         phone: offer.customer_phone || '',
         address: data.address || '',
       });
-      setCreator(offer.creator_id || '');
+      setCreator(offer.creator_id || ssoCreatorId() || '');
       setNotes(data.notes || '');
       setRaten(data.raten || 12);
       setFinanzOpen(data.finanzOpen || false);
@@ -859,7 +864,7 @@ export default function OfferBuilderPage() {
     setRaten(12);
     setCurrentOfferId(null);
     setShareCodeState(null);
-    setCreator('');
+    setCreator(ssoCreatorId() || '');
     setFinanzOpen(false);
     setGlobalTier('12mo');
     setMandatsRef(Date.now().toString().slice(-12));
