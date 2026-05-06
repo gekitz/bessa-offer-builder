@@ -1,0 +1,7 @@
+project_id = "uouryrnyzicdociqberq"
+
+# The daily digest is invoked by pg_cron with our own shared secret
+# (see supabase/functions/daily-followup-digest/index.ts). Skipping
+# Supabase's gateway-level JWT check lets that custom auth scheme run.
+[functions.daily-followup-digest]
+verify_jwt = false
