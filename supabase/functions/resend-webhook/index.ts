@@ -130,7 +130,21 @@ serve(async (req: Request) => {
       metadata: data,
     });
 
-    // Update offer status for key events
+    // Update offer status for key events.
+    //
+    // Status semantics: the offer-level status reflects the *latest
+    // meaningful deliverability signal*. A bounced offer that's
+    // later re-sent successfully should drop the bounce — otherwise
+    // the loud "E-Mail unzustellbar" banner sticks around forever
+    // even after the rep has corrected the address.
+    //
+    // Override rules (most-informative-state wins):
+    //   - delivered: overrides 'sent' AND 'bounced' (a later
+    //                successful delivery clears a previous bounce)
+    //   - opened:    overrides 'sent', 'delivered', AND 'bounced'
+    //                (read trumps everything below it)
+    //   - bounced:   overrides 'sent' only (we don't re-mark an
+    //                offer that was previously delivered or opened)
     if (eventType === 'delivered') {
       const { data: offer } = await supabase
         .from('offers')
@@ -138,7 +152,7 @@ serve(async (req: Request) => {
         .eq('id', offerId)
         .single();
 
-      if (offer && offer.status === 'sent') {
+      if (offer && ['sent', 'bounced'].includes(offer.status)) {
         await supabase
           .from('offers')
           .update({ status: 'delivered' })
@@ -153,7 +167,7 @@ serve(async (req: Request) => {
         .eq('id', offerId)
         .single();
 
-      if (offer && ['sent', 'delivered'].includes(offer.status)) {
+      if (offer && ['sent', 'delivered', 'bounced'].includes(offer.status)) {
         await supabase
           .from('offers')
           .update({ status: 'opened', opened_at: new Date().toISOString() })
@@ -162,10 +176,22 @@ serve(async (req: Request) => {
     }
 
     if (eventType === 'bounced') {
-      await supabase
+      const { data: offer } = await supabase
         .from('offers')
-        .update({ status: 'bounced' })
-        .eq('id', offerId);
+        .select('status')
+        .eq('id', offerId)
+        .single();
+
+      // Only mark bounced when we haven't already seen a successful
+      // delivery for this offer — Resend can deliver bounce events
+      // for old failed sends after a later send succeeded, and we
+      // don't want them to invalidate that success retroactively.
+      if (offer && ['sent', 'draft'].includes(offer.status)) {
+        await supabase
+          .from('offers')
+          .update({ status: 'bounced' })
+          .eq('id', offerId);
+      }
     }
 
     return new Response(JSON.stringify({ success: true }), {
