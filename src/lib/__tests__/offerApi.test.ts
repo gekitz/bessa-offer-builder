@@ -35,6 +35,7 @@ import {
   getOffer,
   deleteOffer,
   updateOfferStage,
+  markOfferLost,
   sendOffer,
   sendFollowup,
   getRecentOpenCounts,
@@ -218,6 +219,49 @@ describe('sendOffer', () => {
     expect(opts.body.emailBody).toBe('Body');
     expect(opts.body.emailClosing).toBe('LG');
     expect(opts.body.includeAcceptLink).toBe(true);
+  });
+});
+
+describe('markOfferLost', () => {
+  it('writes stage=lost together with reason, trimmed note, and lost_at in one update', async () => {
+    const chain = makeChain({
+      data: { id: 'a', stage: 'lost', lost_reason: 'price', lost_reason_note: 'zu teuer', lost_at: '2026-05-06T10:00:00Z' },
+      error: null,
+    });
+    fromMock.mockReturnValue(chain);
+
+    const result = await markOfferLost('a', { reason: 'price', note: '  zu teuer  ' });
+
+    expect(fromMock).toHaveBeenCalledWith('offers');
+    const updateArg = chain.update.mock.calls[0][0];
+    expect(updateArg.stage).toBe('lost');
+    expect(updateArg.lost_reason).toBe('price');
+    expect(updateArg.lost_reason_note).toBe('zu teuer');
+    expect(typeof updateArg.lost_at).toBe('string');
+    expect(chain.eq).toHaveBeenCalledWith('id', 'a');
+    expect(result.lost_reason).toBe('price');
+  });
+
+  it('writes null when the note is empty or whitespace-only', async () => {
+    const chain = makeChain({ data: { id: 'a' }, error: null });
+    fromMock.mockReturnValue(chain);
+
+    await markOfferLost('a', { reason: 'other', note: '   ' });
+    expect(chain.update.mock.calls[0][0].lost_reason_note).toBeNull();
+  });
+
+  it('writes null when the note is undefined', async () => {
+    const chain = makeChain({ data: { id: 'a' }, error: null });
+    fromMock.mockReturnValue(chain);
+
+    await markOfferLost('a', { reason: 'no_response' });
+    expect(chain.update.mock.calls[0][0].lost_reason_note).toBeNull();
+    expect(chain.update.mock.calls[0][0].lost_reason).toBe('no_response');
+  });
+
+  it('throws when supabase returns an error (no partial state on the offer)', async () => {
+    fromMock.mockReturnValue(makeChain({ data: null, error: new Error('check constraint') }));
+    await expect(markOfferLost('a', { reason: 'price' })).rejects.toThrow('check constraint');
   });
 });
 

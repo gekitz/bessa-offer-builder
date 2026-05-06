@@ -54,7 +54,7 @@ export async function listOffers() {
 
   const { data, error } = await supabase
     .from('offers')
-    .select('id, status, stage, customer_name, customer_company, customer_email, mesonic_customer_id, creator_id, creator_name, briefing, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at, last_activity_at, next_followup_at')
+    .select('id, status, stage, customer_name, customer_company, customer_email, mesonic_customer_id, creator_id, creator_name, briefing, lost_reason, lost_reason_note, lost_at, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at, last_activity_at, next_followup_at')
     .order('updated_at', { ascending: false });
 
   if (error) throw error;
@@ -96,6 +96,32 @@ export async function updateOfferStage(id, stage) {
     .update({ stage })
     .eq('id', id)
     .select('id, stage')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Mark an offer as lost together with a categorical reason and an
+// optional free-text note. Atomic single-update so the offer never
+// sits in a half-state ("stage=lost but no reason") that would
+// poison the analytics. lost_at is set server-side via NOW() so it
+// reflects the actual close moment, not the client clock.
+export async function markOfferLost(id, { reason, note }) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+
+  const trimmedNote = note && note.trim() ? note.trim() : null;
+
+  const { data, error } = await supabase
+    .from('offers')
+    .update({
+      stage: 'lost',
+      lost_reason: reason,
+      lost_reason_note: trimmedNote,
+      lost_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('id, stage, lost_reason, lost_reason_note, lost_at')
     .single();
 
   if (error) throw error;

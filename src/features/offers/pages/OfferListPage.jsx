@@ -30,6 +30,7 @@ import {
   deleteOffer,
   getEmailEvents,
   updateOfferStage,
+  markOfferLost,
   listActivities,
   logActivity,
 } from '../../../lib/offerApi';
@@ -41,6 +42,8 @@ import {
   ActivityOutcomeBadge,
 } from '../components/Badges';
 import LogActivityModal from '../components/modals/LogActivityModal';
+import LostReasonModal from '../components/modals/LostReasonModal';
+import { lostReasonLabel } from '../data/lostReasons';
 import { bucketize } from '../followUpBuckets';
 import { fmt } from '../../../lib/format';
 
@@ -115,6 +118,11 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   const [stageFilter, setStageFilter] = useState('new');
   const [creatorFilter, setCreatorFilter] = useState('all');
   const [stageLoading, setStageLoading] = useState(null);
+  // Verloren routes through a reason modal first. lostTargetId is
+  // the offer id pending capture; lostSaving disables the modal
+  // while the markOfferLost API call is in flight.
+  const [lostTargetId, setLostTargetId] = useState(null);
+  const [lostSaving, setLostSaving] = useState(false);
   const [logTargetId, setLogTargetId] = useState(null);
   const [logSaving, setLogSaving] = useState(false);
 
@@ -196,6 +204,13 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   }
 
   async function handleStageChange(id, newStage) {
+    // Verloren goes through LostReasonModal so we capture WHY the
+    // deal was lost. Routing it through this generic handler would
+    // skip the categorical reason and break the analytics, so guard it.
+    if (newStage === 'lost') {
+      setLostTargetId(id);
+      return;
+    }
     setStageLoading(id);
     const prev = offers.find((o) => o.id === id)?.stage;
     setOffers((os) => os.map((o) => (o.id === id ? { ...o, stage: newStage } : o)));
@@ -206,6 +221,27 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
       alert('Fehler: ' + err.message);
     } finally {
       setStageLoading(null);
+    }
+  }
+
+  async function handleMarkLost(draft) {
+    if (!lostTargetId) return;
+    setLostSaving(true);
+    const targetId = lostTargetId;
+    const prev = offers.find((o) => o.id === targetId)?.stage;
+    setOffers((os) => os.map((o) => (
+      o.id === targetId
+        ? { ...o, stage: 'lost', lost_reason: draft.reason, lost_reason_note: draft.note || null }
+        : o
+    )));
+    try {
+      await markOfferLost(targetId, { reason: draft.reason, note: draft.note });
+      setLostTargetId(null);
+    } catch (err) {
+      setOffers((os) => os.map((o) => (o.id === targetId ? { ...o, stage: prev } : o)));
+      alert('Fehler: ' + err.message);
+    } finally {
+      setLostSaving(false);
     }
   }
 
@@ -360,6 +396,16 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
                         {o.briefing}
                       </div>
                     )}
+                    {o.stage === 'lost' && lostReasonLabel(o.lost_reason) && (
+                      <div
+                        className="inline-flex items-center gap-1 text-red-700 bg-red-50 border border-red-100 rounded px-2 py-0.5 mt-1"
+                        style={{ fontSize: 10 }}
+                        title={o.lost_reason_note || lostReasonLabel(o.lost_reason)}
+                      >
+                        <XCircle size={10} />
+                        Verloren · {lostReasonLabel(o.lost_reason)}
+                      </div>
+                    )}
                     <div className="flex items-center gap-3 mt-1 text-slate-400" style={{ fontSize: 11 }}>
                       <span className="flex items-center gap-1">
                         <Calendar size={11} />
@@ -477,6 +523,18 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
         saving={logSaving}
       />
     )}
+    {lostTargetId && (() => {
+      const t = offers.find((o) => o.id === lostTargetId);
+      if (!t) return null;
+      return (
+        <LostReasonModal
+          customerLabel={t.customer_company || t.customer_name || 'Ohne Name'}
+          onSubmit={handleMarkLost}
+          onClose={() => !lostSaving && setLostTargetId(null)}
+          saving={lostSaving}
+        />
+      );
+    })()}
     </>
   );
 }

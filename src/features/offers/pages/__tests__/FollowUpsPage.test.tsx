@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 const listOffersMock = vi.fn();
 const logActivityMock = vi.fn();
 const updateOfferStageMock = vi.fn();
+const markOfferLostMock = vi.fn();
 const getRecentOpenCountsMock = vi.fn();
 const sendFollowupMock = vi.fn();
 
@@ -13,6 +14,7 @@ vi.mock('../../../../lib/offerApi', () => ({
   listOffers: () => listOffersMock(),
   logActivity: (offerId: string, draft: unknown) => logActivityMock(offerId, draft),
   updateOfferStage: (offerId: string, stage: string) => updateOfferStageMock(offerId, stage),
+  markOfferLost: (offerId: string, payload: unknown) => markOfferLostMock(offerId, payload),
   getRecentOpenCounts: (days: number) => getRecentOpenCountsMock(days),
   sendFollowup: (offerId: string, payload: unknown) => sendFollowupMock(offerId, payload),
 }));
@@ -50,6 +52,7 @@ beforeEach(() => {
   listOffersMock.mockReset();
   logActivityMock.mockReset();
   updateOfferStageMock.mockReset();
+  markOfferLostMock.mockReset();
   getRecentOpenCountsMock.mockReset();
   sendFollowupMock.mockReset();
   // Default: no recent opens. Individual tests override as needed.
@@ -192,20 +195,66 @@ describe('FollowUpsPage', () => {
     await waitFor(() => expect(screen.queryByText('Acme GmbH')).not.toBeInTheDocument());
   });
 
-  it('clicking Verloren calls updateOfferStage("lost") and removes the offer', async () => {
+  it('clicking Verloren opens LostReasonModal first (no immediate stage change)', async () => {
     const user = userEvent.setup();
     listOffersMock.mockResolvedValueOnce([
       offer({ id: 'b', customer_company: 'Other GmbH', next_followup_at: new Date(NOW - MS).toISOString() }),
     ]);
-    updateOfferStageMock.mockResolvedValueOnce({ id: 'b', stage: 'lost' });
 
     render(<FollowUpsPage onBack={() => {}} onLoad={() => {}} />);
     await screen.findByText('Other GmbH');
 
-    await user.click(screen.getByRole('button', { name: /Verloren/ }));
+    await user.click(screen.getByRole('button', { name: /^Verloren$/ }));
 
-    await waitFor(() => expect(updateOfferStageMock).toHaveBeenCalledWith('b', 'lost'));
+    // Modal opens — modal title row contains "Als verloren markieren"
+    expect(await screen.findByText('Als verloren markieren')).toBeInTheDocument();
+    // Stage flip API not called yet — only when the modal submits.
+    expect(updateOfferStageMock).not.toHaveBeenCalled();
+    expect(markOfferLostMock).not.toHaveBeenCalled();
+  });
+
+  it('submitting LostReasonModal calls markOfferLost with reason + note and removes the offer', async () => {
+    const user = userEvent.setup();
+    listOffersMock.mockResolvedValueOnce([
+      offer({ id: 'b', customer_company: 'Other GmbH', next_followup_at: new Date(NOW - MS).toISOString() }),
+    ]);
+    markOfferLostMock.mockResolvedValueOnce({ id: 'b', stage: 'lost', lost_reason: 'price' });
+
+    render(<FollowUpsPage onBack={() => {}} onLoad={() => {}} />);
+    await screen.findByText('Other GmbH');
+    await user.click(screen.getByRole('button', { name: /^Verloren$/ }));
+
+    await user.click(await screen.findByRole('button', { name: 'Preis / Budget' }));
+    await user.type(screen.getByLabelText(/Notiz/), 'zu teuer');
+    await user.click(screen.getByRole('button', { name: /Verloren markieren/ }));
+
+    await waitFor(() => expect(markOfferLostMock).toHaveBeenCalledTimes(1));
+    expect(markOfferLostMock).toHaveBeenCalledWith('b', { reason: 'price', note: 'zu teuer' });
+    // Offer leaves the bucket (stage flipped to 'lost' — no longer 'offer_sent').
     await waitFor(() => expect(screen.queryByText('Other GmbH')).not.toBeInTheDocument());
+  });
+
+  it('rolls back the optimistic stage flip when markOfferLost fails', async () => {
+    const user = userEvent.setup();
+    listOffersMock.mockResolvedValueOnce([
+      offer({ id: 'b', customer_company: 'Boom GmbH', next_followup_at: new Date(NOW - MS).toISOString() }),
+    ]);
+    markOfferLostMock.mockRejectedValueOnce(new Error('rls denied'));
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+
+    render(<FollowUpsPage onBack={() => {}} onLoad={() => {}} />);
+    await screen.findByText('Boom GmbH');
+    await user.click(screen.getByRole('button', { name: /^Verloren$/ }));
+    await user.click(await screen.findByRole('button', { name: 'Sonstiges' }));
+    await user.click(screen.getByRole('button', { name: /Verloren markieren/ }));
+
+    await waitFor(() => expect(alertSpy).toHaveBeenCalled());
+    // The offer comes back into the bucket because the stage rolled
+    // back. Boom GmbH now appears in both the row and the modal
+    // header (the modal stays open so the rep can retry), so we
+    // assert at least one match exists.
+    expect(screen.getAllByText('Boom GmbH').length).toBeGreaterThan(0);
+    alertSpy.mockRestore();
   });
 
   it('rolls the offer back into the bucket if updateOfferStage fails', async () => {
@@ -371,5 +420,32 @@ describe('FollowUpsPage', () => {
 
     await waitFor(() => expect(logActivityMock).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(updateOfferStageMock).toHaveBeenCalledWith('d', 'closed'));
+  });
+
+  it('logging an activity with stageChange=lost chains into LostReasonModal (no immediate stage flip)', async () => {
+    const user = userEvent.setup();
+    listOffersMock.mockResolvedValueOnce([
+      offer({ id: 'e', customer_company: 'Lost-Path GmbH', next_followup_at: new Date(NOW - MS).toISOString() }),
+    ]);
+    logActivityMock.mockResolvedValueOnce({
+      id: 'act-x',
+      created_at: new Date().toISOString(),
+      next_followup_at: null,
+    });
+
+    render(<FollowUpsPage onBack={() => {}} onLoad={() => {}} />);
+    await screen.findByText('Lost-Path GmbH');
+
+    await user.click(screen.getAllByRole('button', { name: /Kontakt/ })[0]!);
+    await user.click(screen.getByRole('button', { name: 'Kein Interesse' }));
+    await user.click(screen.getByLabelText(/als verloren markieren/i));
+    await user.click(screen.getByRole('button', { name: 'Speichern' }));
+
+    // logActivity ran, but the lost stage flip was deferred to the
+    // reason modal — updateOfferStage was NOT called for 'lost'.
+    await waitFor(() => expect(logActivityMock).toHaveBeenCalledTimes(1));
+    expect(updateOfferStageMock).not.toHaveBeenCalledWith('e', 'lost');
+    // The reason modal is now visible.
+    expect(await screen.findByText('Als verloren markieren')).toBeInTheDocument();
   });
 });

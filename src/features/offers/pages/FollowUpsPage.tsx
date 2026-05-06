@@ -24,12 +24,14 @@ import {
   getRecentOpenCounts,
   listOffers,
   logActivity,
+  markOfferLost,
   sendFollowup,
   updateOfferStage,
 } from '../../../lib/offerApi';
 import { fmt } from '../../../lib/format';
 import { bucketize, STALE_AFTER_DAYS, type OfferLike } from '../followUpBuckets';
 import LogActivityModal, { type ActivityDraft } from '../components/modals/LogActivityModal';
+import LostReasonModal, { type LostReasonDraft } from '../components/modals/LostReasonModal';
 import SendFollowupModal, { type SendFollowupDraft } from '../components/modals/SendFollowupModal';
 
 // Dedicated workspace for following up on sent offers. Buckets are
@@ -311,6 +313,11 @@ export default function FollowUpsPage({ onBack, onLoad, autoOpenFollowupOfferId,
   const [followupTargetId, setFollowupTargetId] = useState<string | null>(null);
   const [followupSaving, setFollowupSaving] = useState(false);
   const [stageBusyId, setStageBusyId] = useState<string | null>(null);
+  // Verloren now goes through a reason modal first. The id is the
+  // offer pending a "why" capture; lostSaving is true while the
+  // markOfferLost call is in flight so the modal can disable inputs.
+  const [lostTargetId, setLostTargetId] = useState<string | null>(null);
+  const [lostSaving, setLostSaving] = useState(false);
 
   const fetchOffers = useCallback(async () => {
     setLoading(true);
@@ -390,8 +397,17 @@ export default function FollowUpsPage({ onBack, onLoad, autoOpenFollowupOfferId,
   const totalCount = hotTrail.length + buckets.overdue.length + buckets.dueToday.length + buckets.stale.length;
   const logTarget = logTargetId ? offers.find((o) => o.id === logTargetId) : null;
   const followupTarget = followupTargetId ? offers.find((o) => o.id === followupTargetId) : null;
+  const lostTarget = lostTargetId ? offers.find((o) => o.id === lostTargetId) : null;
 
   async function handleChangeStage(offerId: string, newStage: 'closed' | 'lost') {
+    // Verloren never lands here directly — the row buttons open
+    // LostReasonModal first via setLostTargetId so we can capture
+    // the categorical reason. Routing 'lost' through this handler
+    // would skip that and silently drop the analytics, so guard it.
+    if (newStage === 'lost') {
+      setLostTargetId(offerId);
+      return;
+    }
     setStageBusyId(offerId);
     const prev = offers.find((o) => o.id === offerId)?.stage;
     setOffers((os) => os.map((o) => (o.id === offerId ? { ...o, stage: newStage } : o)));
@@ -403,6 +419,29 @@ export default function FollowUpsPage({ onBack, onLoad, autoOpenFollowupOfferId,
       alert('Fehler: ' + (err as Error).message);
     } finally {
       setStageBusyId(null);
+    }
+  }
+
+  async function handleMarkLost(draft: LostReasonDraft) {
+    if (!lostTargetId) return;
+    setLostSaving(true);
+    const targetId = lostTargetId;
+    const prev = offers.find((o) => o.id === targetId)?.stage;
+    // Optimistically flip the stage so the offer leaves its bucket
+    // immediately. We revert if the API call fails.
+    setOffers((os) => os.map((o) => (
+      o.id === targetId
+        ? { ...o, stage: 'lost', lost_reason: draft.reason, lost_reason_note: draft.note || null }
+        : o
+    )));
+    try {
+      await markOfferLost(targetId, { reason: draft.reason, note: draft.note });
+      setLostTargetId(null);
+    } catch (err) {
+      setOffers((os) => os.map((o) => (o.id === targetId ? { ...o, stage: prev } : o)));
+      alert('Fehler: ' + (err as Error).message);
+    } finally {
+      setLostSaving(false);
     }
   }
 
@@ -590,6 +629,15 @@ export default function FollowUpsPage({ onBack, onLoad, autoOpenFollowupOfferId,
           onSubmit={handleSendFollowup}
           onClose={() => !followupSaving && setFollowupTargetId(null)}
           saving={followupSaving}
+        />
+      )}
+
+      {lostTarget && (
+        <LostReasonModal
+          customerLabel={lostTarget.customer_company || lostTarget.customer_name || 'Ohne Name'}
+          onSubmit={handleMarkLost}
+          onClose={() => !lostSaving && setLostTargetId(null)}
+          saving={lostSaving}
         />
       )}
     </>
