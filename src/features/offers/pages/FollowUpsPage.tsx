@@ -239,51 +239,58 @@ function FollowUpRow({ offer, opens, onLog, onFollowup, onLoad, onChangeStage, s
         </div>
       </div>
 
-      {/* Bottom: action buttons. flex-wrap so they break to a 2nd
-          row on narrow screens instead of overflowing. Öffnen
-          ml-auto pushes it to the right edge of its row, separating
-          "open the offer" from the CRM-state actions. */}
-      <div className="flex flex-wrap items-center gap-1.5">
+      {/* Bottom: action buttons. Icon-only on mobile to fit all 5
+          on one row; labels expand on sm+ where there's room. Each
+          button has an aria-label/title so the icon-only state stays
+          accessible. Öffnen ml-auto separates "open the offer" from
+          the CRM-state actions. */}
+      <div className="flex items-center gap-1 sm:gap-1.5">
         <button
           onClick={() => onLog(offer.id)}
-          className="flex items-center gap-1 rounded-lg bg-blue-600 text-white px-2.5 py-1 hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-1 rounded-lg bg-blue-600 text-white p-2 sm:px-2.5 sm:py-1 hover:bg-blue-700 transition-colors"
           style={{ fontSize: 11 }}
+          aria-label="Kontakt"
           title="Anruf / Notiz protokollieren"
         >
-          <Phone size={12} /> Kontakt
+          <Phone size={14} /> <span className="hidden sm:inline">Kontakt</span>
         </button>
         <button
           onClick={() => onFollowup(offer.id)}
-          className="flex items-center gap-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 hover:bg-blue-100 transition-colors"
+          className="flex items-center gap-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 p-2 sm:px-2.5 sm:py-1 hover:bg-blue-100 transition-colors"
           style={{ fontSize: 11 }}
+          aria-label="Folgemail"
           title="Folgemail senden"
         >
-          <Mail size={12} /> Folgemail
+          <Mail size={14} /> <span className="hidden sm:inline">Folgemail</span>
         </button>
         <button
           onClick={() => onChangeStage(offer.id, 'closed')}
           disabled={stageBusy}
-          className="flex items-center gap-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+          className="flex items-center gap-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 p-2 sm:px-2.5 sm:py-1 hover:bg-emerald-100 transition-colors disabled:opacity-50"
           style={{ fontSize: 11 }}
+          aria-label="Gewonnen"
           title="Als gewonnen markieren"
         >
-          <CheckCircle2 size={12} /> Gewonnen
+          <CheckCircle2 size={14} /> <span className="hidden sm:inline">Gewonnen</span>
         </button>
         <button
           onClick={() => onChangeStage(offer.id, 'lost')}
           disabled={stageBusy}
-          className="flex items-center gap-1 rounded-lg bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 hover:bg-red-100 transition-colors disabled:opacity-50"
+          className="flex items-center gap-1 rounded-lg bg-red-50 text-red-600 border border-red-200 p-2 sm:px-2.5 sm:py-1 hover:bg-red-100 transition-colors disabled:opacity-50"
           style={{ fontSize: 11 }}
+          aria-label="Verloren"
           title="Als verloren markieren"
         >
-          <XCircle size={12} /> Verloren
+          <XCircle size={14} /> <span className="hidden sm:inline">Verloren</span>
         </button>
         <button
           onClick={() => onLoad(offer.id)}
-          className="ml-auto flex items-center gap-1 rounded-lg bg-white text-slate-600 border border-slate-200 px-2.5 py-1 hover:bg-slate-50 transition-colors"
+          className="ml-auto flex items-center gap-1 rounded-lg bg-white text-slate-600 border border-slate-200 p-2 sm:px-2.5 sm:py-1 hover:bg-slate-50 transition-colors"
           style={{ fontSize: 11 }}
+          aria-label="Öffnen"
+          title="Angebot öffnen"
         >
-          <FileText size={12} /> Öffnen
+          <FileText size={14} /> <span className="hidden sm:inline">Öffnen</span>
         </button>
       </div>
     </div>
