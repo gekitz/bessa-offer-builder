@@ -229,15 +229,6 @@ function FollowUpRow({ offer, opens, onLog, onFollowup, onLoad, onChangeStage, s
           )}
           {offer.creator_name && <span className="text-slate-400">{offer.creator_name}</span>}
         </div>
-        {offer.briefing && (
-          <div
-            className="mt-1 text-slate-600 bg-amber-50 border border-amber-100 rounded px-2 py-1 italic line-clamp-1"
-            style={{ fontSize: 11 }}
-            title={offer.briefing}
-          >
-            {offer.briefing}
-          </div>
-        )}
       </div>
       <button
         onClick={() => onLog(offer.id)}

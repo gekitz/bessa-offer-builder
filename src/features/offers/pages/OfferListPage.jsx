@@ -525,70 +525,60 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
                 aria-expanded={detailId === o.id}
                 className="w-full text-left p-3 hover:bg-slate-50/60 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-100 focus:ring-inset"
               >
-                <div className="flex items-start justify-between gap-2">
+                {/* Compact row layout — only the bare minimum a rep
+                    needs to recognize the offer (customer · status ·
+                    value · meta) plus the primary Laden action.
+                    Everything else (briefing, lost reason note, full
+                    activity history) lives in the expanded panel +
+                    Info modal. */}
+                <div className="flex items-start gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-slate-800" style={{ fontSize: 13 }}>
-                        {o.customer_company || o.customer_name || 'Ohne Name'}
-                      </span>
+                    <div className="font-semibold text-slate-800 truncate" style={{ fontSize: 13 }}>
+                      {o.customer_company || o.customer_name || 'Ohne Name'}
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5" style={{ fontSize: 10 }}>
                       <StatusBadge status={o.status} />
                       <StageBadge stage={o.stage} />
+                      {o.stage === 'lost' && lostReasonLabel(o.lost_reason) && (
+                        <span
+                          className="inline-flex items-center gap-0.5 text-red-700 bg-red-50 border border-red-100 rounded-full px-1.5 py-0.5"
+                          title={o.lost_reason_note || lostReasonLabel(o.lost_reason)}
+                        >
+                          <XCircle size={9} />
+                          {lostReasonLabel(o.lost_reason)}
+                        </span>
+                      )}
                     </div>
-                    {o.customer_company && o.customer_name && (
-                      <div className="text-slate-500" style={{ fontSize: 12 }}>{o.customer_name}</div>
-                    )}
-                    {o.briefing && (
-                      <div
-                        className="text-slate-600 bg-amber-50 border border-amber-100 rounded px-2 py-1 mt-1 italic line-clamp-1"
-                        style={{ fontSize: 11 }}
-                        title={o.briefing}
-                      >
-                        {o.briefing}
-                      </div>
-                    )}
-                    {o.stage === 'lost' && lostReasonLabel(o.lost_reason) && (
-                      <div
-                        className="inline-flex items-center gap-1 text-red-700 bg-red-50 border border-red-100 rounded px-2 py-0.5 mt-1"
-                        style={{ fontSize: 10 }}
-                        title={o.lost_reason_note || lostReasonLabel(o.lost_reason)}
-                      >
-                        <XCircle size={10} />
-                        Verloren · {lostReasonLabel(o.lost_reason)}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-3 mt-1 text-slate-400" style={{ fontSize: 11 }}>
-                      <span className="flex items-center gap-1">
+                    <div className="flex items-center gap-2 mt-1 text-slate-400 truncate" style={{ fontSize: 11 }}>
+                      <span className="flex items-center gap-1 flex-shrink-0">
                         <Calendar size={11} />
                         {new Date(o.updated_at).toLocaleDateString('de-AT')}
                       </span>
-                      <span>{o.creator_name}</span>
+                      {o.creator_name && <span className="truncate">{o.creator_name}</span>}
                       <FollowUpHint offer={o} />
                     </div>
                   </div>
-                  <div className="flex items-start gap-3 flex-shrink-0">
-                    <div className="text-right">
-                      {o.total_monthly > 0 && (
-                        <div className="font-semibold text-slate-800" style={{ fontSize: 13 }}>€ {fmt(Number(o.total_monthly))}/Mo</div>
-                      )}
-                      {o.total_once > 0 && (
-                        <div className="text-slate-500" style={{ fontSize: 12 }}>€ {fmt(Number(o.total_once))} einm.</div>
-                      )}
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    {o.total_monthly > 0 && (
+                      <div className="font-semibold text-slate-800 whitespace-nowrap" style={{ fontSize: 13 }}>€ {fmt(Number(o.total_monthly))}/Mo</div>
+                    )}
+                    {o.total_once > 0 && (
+                      <div className="text-slate-500 whitespace-nowrap" style={{ fontSize: 11 }}>€ {fmt(Number(o.total_once))} einm.</div>
+                    )}
+                    <div className="flex items-center gap-1 mt-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onLoad(o.id); }}
+                        className="flex items-center gap-1 rounded-lg bg-red-50 text-red-700 px-2 py-1 hover:bg-red-100 transition-colors font-medium"
+                        style={{ fontSize: 11 }}
+                        title="Angebot laden"
+                      >
+                        <FileText size={12} /> Laden
+                      </button>
+                      <ChevronDown
+                        size={14}
+                        className={`text-slate-400 transition-transform ${detailId === o.id ? 'rotate-180' : ''}`}
+                      />
                     </div>
-                    {/* Single "Laden" shortcut on the row keeps the
-                        most-frequent action at one click while every
-                        other action lives in the expanded panel. */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onLoad(o.id); }}
-                      className="flex items-center gap-1 rounded-lg bg-red-50 text-red-700 px-2.5 py-1.5 hover:bg-red-100 transition-colors font-medium"
-                      style={{ fontSize: 11 }}
-                      title="Angebot laden"
-                    >
-                      <FileText size={12} /> Laden
-                    </button>
-                    <ChevronDown
-                      size={16}
-                      className={`text-slate-400 mt-1 transition-transform ${detailId === o.id ? 'rotate-180' : ''}`}
-                    />
                   </div>
                 </div>
               </div>
