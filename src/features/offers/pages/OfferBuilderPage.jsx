@@ -1015,11 +1015,11 @@ export default function OfferBuilderPage() {
                 {currentOfferId && (
                   <button
                     onClick={openDetailsModal}
-                    className="flex items-center gap-1 rounded-lg bg-slate-100 text-slate-600 px-2 py-1.5 md:px-3 hover:bg-slate-200 transition-colors"
+                    className="flex items-center gap-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1.5 md:px-3 hover:bg-blue-100 transition-colors font-medium"
                     style={{ fontSize: 12 }}
                     title="Volle Angebots-Info: Briefing, Kontaktverlauf, E-Mail-Events"
                   >
-                    <Info size={13} /> <span className="hidden sm:inline">Info</span>
+                    <Info size={13} /> Info
                   </button>
                 )}
                 {cartCount > 0 && (
