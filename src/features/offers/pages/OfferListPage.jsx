@@ -11,7 +11,6 @@ import {
   Copy,
   Eye,
   FileText,
-  Info,
   Loader2,
   Mail,
   MailOpen,
