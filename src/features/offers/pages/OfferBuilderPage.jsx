@@ -8,9 +8,9 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { pdf } from '@react-pdf/renderer';
-
-import OfferPdfDocument from '../../../pdf/OfferPdfDocument';
+// PDF generation is dynamically imported inside generateOfferPdfBlob
+// to keep @react-pdf/renderer (~600 KB) out of the main bundle.
+import { generateOfferPdfBlob } from '../../../pdf/generateOfferPdf';
 import { getOfferFromURL } from '../../../lib/urlState';
 import {
   saveOffer,
@@ -63,7 +63,10 @@ import { orderedCartEntries } from '../../../lib/cartOrder';
 import { fmt } from '../../../lib/format';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import AppShell from '../../../components/AppShell';
-import VacationPage from '../../vacation/pages/VacationPage';
+// VacationPage is heavy (calendar grids, full leave-request UI) and
+// only rendered when the user is on the urlaub section. Lazy import
+// keeps it out of the main bundle — same pattern as CrmPage below.
+const VacationPage = React.lazy(() => import('../../vacation/pages/VacationPage'));
 import { useApproverPendingCount } from '../../vacation/hooks/useApproverPendingCount';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { pathForSection, sectionFromPath } from '../../../lib/sectionRoute';
@@ -528,23 +531,21 @@ export default function OfferBuilderPage() {
       }
 
       const acceptQrDataUrl = billingEnabled ? await generateAcceptQr(effectiveShareCode) : null;
-      const pdfBlob = await pdf(
-        <OfferPdfDocument
-          customer={customer}
-          monthlyItems={monthlyItems}
-          onceItems={onceItems}
-          wartungItems={wartungItems}
-          autoTerms={autoTerms}
-          totals={totals}
-          notes={notes}
-          raten={raten}
-          showFinancing={finanzOpen}
-          creator={creatorInfo}
-          mandatsRef={mandatsRef}
-          acceptQrDataUrl={acceptQrDataUrl}
-          serviceStartDate={serviceStartDate}
-        />,
-      ).toBlob();
+      const pdfBlob = await generateOfferPdfBlob({
+        customer,
+        monthlyItems,
+        onceItems,
+        wartungItems,
+        autoTerms,
+        totals,
+        notes,
+        raten,
+        showFinancing: finanzOpen,
+        creator: creatorInfo,
+        mandatsRef,
+        acceptQrDataUrl,
+        serviceStartDate,
+      });
       const blob = new Blob([pdfBlob], { type: 'application/pdf' });
 
       const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
@@ -750,17 +751,12 @@ export default function OfferBuilderPage() {
         setShareCodeState(effectiveShareCode);
       }
       const acceptQrDataUrl = billingEnabled ? await generateAcceptQr(effectiveShareCode) : null;
-      const pdfBlob = await pdf(
-        <OfferPdfDocument
-          customer={customer} monthlyItems={monthlyItems} onceItems={onceItems}
-          wartungItems={wartungItems} autoTerms={autoTerms}
-          totals={totals} notes={notes} raten={raten}
-          showFinancing={finanzOpen} creator={creatorInfo}
-          mandatsRef={mandatsRef}
-          acceptQrDataUrl={acceptQrDataUrl}
-          serviceStartDate={serviceStartDate}
-        />,
-      ).toBlob();
+      const pdfBlob = await generateOfferPdfBlob({
+        customer, monthlyItems, onceItems, wartungItems, autoTerms,
+        totals, notes, raten,
+        showFinancing: finanzOpen, creator: creatorInfo,
+        mandatsRef, acceptQrDataUrl, serviceStartDate,
+      });
 
       const buffer = await pdfBlob.arrayBuffer();
       const bytes = new Uint8Array(buffer);
@@ -823,17 +819,12 @@ export default function OfferBuilderPage() {
     const autoTerms = computeAutoTerms(cart);
 
     const acceptQrDataUrl = billingEnabled ? await generateAcceptQr(shareCode) : null;
-    const pdfBlob = await pdf(
-      <OfferPdfDocument
-        customer={customer} monthlyItems={monthlyItems} onceItems={onceItems}
-        wartungItems={wartungItems} autoTerms={autoTerms}
-        totals={totals} notes={notes} raten={raten}
-        showFinancing={finanzOpen} creator={creatorInfo}
-        mandatsRef={mandatsRef} signatures={signatures}
-        acceptQrDataUrl={acceptQrDataUrl}
-        serviceStartDate={serviceStartDate}
-      />,
-    ).toBlob();
+    const pdfBlob = await generateOfferPdfBlob({
+      customer, monthlyItems, onceItems, wartungItems, autoTerms,
+      totals, notes, raten,
+      showFinancing: finanzOpen, creator: creatorInfo,
+      mandatsRef, signatures, acceptQrDataUrl, serviceStartDate,
+    });
     const blob = new Blob([pdfBlob], { type: 'application/pdf' });
 
     const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
@@ -1164,7 +1155,11 @@ export default function OfferBuilderPage() {
       )}
 
       {/* ═══ URLAUB SECTION ═══ */}
-      {section === 'urlaub' && <VacationPage />}
+      {section === 'urlaub' && (
+        <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
+          <VacationPage />
+        </React.Suspense>
+      )}
     </AppShell>
   );
 }

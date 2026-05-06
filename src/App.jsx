@@ -1,8 +1,12 @@
 import React from 'react';
 import { HashRouter } from 'react-router-dom';
-import AcceptPage from './features/offers/pages/AcceptPage';
 import OfferBuilderPage from './features/offers/pages/OfferBuilderPage';
 
+// Lazy-loaded: AcceptPage is only used on the customer-facing
+// ?a=<share_code> flow, which is a small fraction of total loads.
+// Keeping it out of the main chunk shaves the bundle for everyone
+// who's just opening the app to build / send offers.
+const AcceptPage = React.lazy(() => import('./features/offers/pages/AcceptPage'));
 const MesonicTest = React.lazy(() => import('./components/MesonicTest.jsx'));
 
 export default function App() {
@@ -20,7 +24,13 @@ export default function App() {
   // Customer-facing accept flow: ?a=<share_code>. Stays outside the
   // router — it's a different page entirely.
   const acceptCode = new URLSearchParams(window.location.search).get('a');
-  if (acceptCode) return <AcceptPage shareCode={acceptCode} />;
+  if (acceptCode) {
+    return (
+      <React.Suspense fallback={<div className="p-8 text-center">Wird geladen...</div>}>
+        <AcceptPage shareCode={acceptCode} />
+      </React.Suspense>
+    );
+  }
 
   return (
     <HashRouter>
