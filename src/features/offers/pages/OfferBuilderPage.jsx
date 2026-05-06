@@ -133,6 +133,11 @@ export default function OfferBuilderPage() {
   const [customer, setCustomer] = useState({ name: '', company: '', email: '', phone: '', address: '' });
   const [creator, setCreator] = useState('');
   const [notes, setNotes] = useState('');
+  // Internal briefing — what the customer actually asked for. Never
+  // rendered in the PDF, never sent to the customer. Surfaced to
+  // reps in OfferView, the offer list row, and the follow-up modal
+  // so the original ask stays anchored to the offer.
+  const [briefing, setBriefing] = useState('');
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [raten, setRaten] = useState(12);
@@ -232,6 +237,7 @@ export default function OfferBuilderPage() {
         });
         setCreator(offer.creator_id || ssoCreatorId() || '');
         setNotes(data.notes || '');
+        setBriefing(offer.briefing || '');
         setRaten(data.raten || 12);
         setFinanzOpen(data.finanzOpen || false);
         setGlobalTier(data.globalTier || '12mo');
@@ -500,6 +506,7 @@ export default function OfferBuilderPage() {
             creator,
             creatorName: creatorInfo?.name || creator,
             creatorEmail: creatorInfo?.email || null,
+            briefing,
             cart, globalTier, notes, raten, finanzOpen,
             totalMonthly: totals.monthly,
             totalOnce: totals.once,
@@ -590,6 +597,7 @@ export default function OfferBuilderPage() {
         creator,
         creatorName: creatorInfo?.name || creator,
         creatorEmail: creatorInfo?.email || null,
+        briefing,
         cart,
         globalTier,
         notes,
@@ -633,6 +641,7 @@ export default function OfferBuilderPage() {
         creator,
         creatorName: creatorInfo?.name || creator,
         creatorEmail: creatorInfo?.email || null,
+        briefing,
         cart,
         globalTier,
         notes,
@@ -675,6 +684,7 @@ export default function OfferBuilderPage() {
         creator,
         creatorName: creatorInfoForSave?.name || creator,
         creatorEmail: creatorInfoForSave?.email || null,
+        briefing,
         cart, globalTier, notes, raten, finanzOpen,
         totalMonthly: totals.monthly,
         totalOnce: totals.once,
@@ -869,6 +879,7 @@ export default function OfferBuilderPage() {
       });
       setCreator(offer.creator_id || ssoCreatorId() || '');
       setNotes(data.notes || '');
+      setBriefing(offer.briefing || '');
       setRaten(data.raten || 12);
       setFinanzOpen(data.finanzOpen || false);
       setGlobalTier(data.globalTier || '12mo');
@@ -888,6 +899,7 @@ export default function OfferBuilderPage() {
     setCartOrder([]);
     setCustomer({ name: '', company: '', email: '', phone: '', address: '' });
     setNotes('');
+    setBriefing('');
     setRaten(12);
     setCurrentOfferId(null);
     setShareCodeState(null);
@@ -907,6 +919,7 @@ export default function OfferBuilderPage() {
       setCartOrder([]);
       setCustomer({ name: '', company: '', email: '', phone: '', address: '' });
       setNotes('');
+      setBriefing('');
       setRaten(12);
       setCurrentOfferId(null);
       setMandatsRef(Date.now().toString().slice(-12));
@@ -1082,7 +1095,7 @@ export default function OfferBuilderPage() {
                 {builderTab === 'angebot' && (
                   <>
                     <OfferView
-                      cart={cart} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes}
+                      cart={cart} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes} briefing={briefing} setBriefing={setBriefing}
                       totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
                       serviceStartDate={serviceStartDate} setServiceStartDate={setServiceStartDate}
                       billingEnabled={billingEnabled}

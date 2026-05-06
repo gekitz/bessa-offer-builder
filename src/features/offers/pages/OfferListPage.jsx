@@ -351,6 +351,15 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
                     {o.customer_company && o.customer_name && (
                       <div className="text-slate-500" style={{ fontSize: 12 }}>{o.customer_name}</div>
                     )}
+                    {o.briefing && (
+                      <div
+                        className="text-slate-600 bg-amber-50 border border-amber-100 rounded px-2 py-1 mt-1 italic line-clamp-1"
+                        style={{ fontSize: 11 }}
+                        title={o.briefing}
+                      >
+                        {o.briefing}
+                      </div>
+                    )}
                     <div className="flex items-center gap-3 mt-1 text-slate-400" style={{ fontSize: 11 }}>
                       <span className="flex items-center gap-1">
                         <Calendar size={11} />

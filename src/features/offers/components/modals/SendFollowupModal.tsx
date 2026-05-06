@@ -129,6 +129,19 @@ export default function SendFollowupModal({
           </button>
         </div>
 
+        {/* Briefing — internal context the rep wrote when the offer
+            was created. Read-only here; the rep paraphrases into the
+            body if relevant. Hidden when no briefing was set. */}
+        {offer.briefing && (
+          <div className="px-5 py-3 border-b border-slate-200 bg-amber-50/60">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-semibold text-amber-900" style={{ fontSize: 11 }}>Briefing</span>
+              <span className="text-amber-700 bg-amber-200/60 rounded-full px-1.5 py-0.5 font-medium" style={{ fontSize: 9 }}>intern</span>
+            </div>
+            <p className="text-amber-900 whitespace-pre-wrap" style={{ fontSize: 12, lineHeight: 1.5 }}>{offer.briefing}</p>
+          </div>
+        )}
+
         {/* Template chips */}
         <div className="px-5 py-3 border-b border-slate-200 bg-slate-50/50">
           <div className="text-slate-500 mb-1.5" style={{ fontSize: 11 }}>Vorlage</div>

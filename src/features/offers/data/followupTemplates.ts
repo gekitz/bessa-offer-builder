@@ -15,6 +15,10 @@ export interface TemplateOfferShape {
   total_once?: number | string | null;
   sent_at?: string | null;
   email_subject?: string | null;
+  // Internal briefing — shown to the rep in the modal so the
+  // original ask is anchored next to the compose area. Never
+  // rendered into outgoing email bodies.
+  briefing?: string | null;
 }
 
 export interface RenderedTemplate {

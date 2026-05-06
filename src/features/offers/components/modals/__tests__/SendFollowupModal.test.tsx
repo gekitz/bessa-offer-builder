@@ -159,4 +159,15 @@ describe('SendFollowupModal', () => {
       expect(subject.value).toBe('Re: Bereits prefixed');
     });
   });
+
+  it('shows the briefing as a read-only context block when present', () => {
+    renderModal({ offer: makeOffer({ briefing: 'Kunde will 3 Kassen für Eröffnung Juli' }) });
+    expect(screen.getByText(/Briefing/)).toBeInTheDocument();
+    expect(screen.getByText(/Kunde will 3 Kassen/)).toBeInTheDocument();
+  });
+
+  it('omits the briefing block entirely when no briefing is set', () => {
+    renderModal({ offer: makeOffer({ briefing: null }) });
+    expect(screen.queryByText(/^Briefing$/)).not.toBeInTheDocument();
+  });
 });

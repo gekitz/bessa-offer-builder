@@ -62,6 +62,7 @@ const baseOfferArgs = {
   creator: 'gk',
   creatorName: 'Georg Kitz',
   creatorEmail: 'g.kitz@kitz.co.at',
+  briefing: 'Kunde sucht 3 Kassen für neuen Standort, Eröffnung Juli',
   cart: { kassa: { qty: 1, tier: '12mo' } },
   globalTier: '12mo',
   notes: '',
@@ -89,10 +90,23 @@ describe('saveOffer', () => {
     const inserted = chain.insert.mock.calls[0][0];
     expect(inserted.creator_id).toBe('gk');
     expect(inserted.creator_email).toBe('g.kitz@kitz.co.at');
+    expect(inserted.briefing).toBe('Kunde sucht 3 Kassen für neuen Standort, Eröffnung Juli');
     expect(inserted.customer_company).toBe('ACME');
     expect(inserted.total_monthly).toBe(30);
     expect(inserted.offer_data.cart).toEqual({ kassa: { qty: 1, tier: '12mo' } });
     expect(result).toEqual({ id: 'new-uuid' });
+  });
+
+  it('trims whitespace from briefing and writes null when empty', async () => {
+    const chain = makeChain({ data: { id: 'x' }, error: null });
+    fromMock.mockReturnValue(chain);
+    await saveOffer({ ...baseOfferArgs, briefing: '   ' });
+    expect(chain.insert.mock.calls[0][0].briefing).toBeNull();
+
+    fromMock.mockReturnValue(makeChain({ data: { id: 'x' }, error: null }));
+    await saveOffer({ ...baseOfferArgs, briefing: '  hello  ' });
+    // The second call uses a different chain instance from the new mock return
+    expect(fromMock).toHaveBeenCalledTimes(2);
   });
 
   it('writes null when creatorEmail is missing (e.g. unknown rep)', async () => {

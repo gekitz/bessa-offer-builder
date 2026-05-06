@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate }) {
+export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   const offerData = { cart, globalTier, notes, raten, finanzOpen, address: customer.address || '', mandatsRef: mandatsRef || '' };
@@ -17,6 +17,7 @@ export async function saveOffer({ id, customer, creator, creatorName, creatorEma
     creator_id: creator,
     creator_name: creatorName,
     creator_email: creatorEmail || null,
+    briefing: briefing && briefing.trim() ? briefing.trim() : null,
     offer_data: offerData,
     total_monthly: totalMonthly,
     total_once: totalOnce,
@@ -53,7 +54,7 @@ export async function listOffers() {
 
   const { data, error } = await supabase
     .from('offers')
-    .select('id, status, stage, customer_name, customer_company, customer_email, mesonic_customer_id, creator_id, creator_name, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at, last_activity_at, next_followup_at')
+    .select('id, status, stage, customer_name, customer_company, customer_email, mesonic_customer_id, creator_id, creator_name, briefing, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at, last_activity_at, next_followup_at')
     .order('updated_at', { ascending: false });
 
   if (error) throw error;

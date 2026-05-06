@@ -56,6 +56,8 @@ export default function OfferView({
   setCreator,
   notes,
   setNotes,
+  briefing,
+  setBriefing,
   totals,
   onPrint,
   onCopy,
@@ -183,6 +185,24 @@ export default function OfferView({
             />
           </div>
         )}
+      </div>
+
+      {/* Briefing — internal context for the rep, never on the PDF.
+          Lives ABOVE Anmerkungen so reps see "what did the customer
+          actually want" first when reopening an offer weeks later. */}
+      <div className="bg-amber-50 rounded-xl border-2 border-amber-200 mb-4" style={{ padding: '16px' }}>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="font-bold text-amber-900" style={{ fontSize: 13 }}>Briefing</span>
+          <span className="text-amber-700 bg-amber-200/60 rounded-full px-2 py-0.5 font-medium" style={{ fontSize: 10 }}>intern</span>
+          <span className="text-amber-700 ml-auto" style={{ fontSize: 11 }}>nicht im PDF · nicht an Kunden</span>
+        </div>
+        <textarea
+          value={briefing || ''}
+          onChange={(e) => setBriefing && setBriefing(e.target.value)}
+          rows={3}
+          placeholder="Was hat der Kunde angefragt? Worauf legt er Wert? Wer hat angefragt, in welchem Kontext?"
+          className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+        />
       </div>
 
       {/* Add custom item */}
