@@ -169,4 +169,57 @@ describe('OfferDetailsModal', () => {
     render(<OfferDetailsModal offer={makeOffer({ status: 'sent' })} onClose={() => {}} />);
     expect(screen.queryByText(/E-Mail unzustellbar/)).not.toBeInTheDocument();
   });
+
+  it('renders the Kontaktverlauf section when activities are passed', () => {
+    const acts = [
+      {
+        id: 'a1', kind: 'call', outcome: 'no_answer',
+        note: 'mailbox war voll', next_followup_at: null,
+        created_at: '2026-05-05T10:00:00Z', created_by_name: 'Georg',
+      },
+      {
+        id: 'a2', kind: 'email', outcome: 'sent',
+        note: 'soft nudge gesendet', next_followup_at: null,
+        created_at: '2026-05-04T08:00:00Z', created_by_name: 'Georg',
+      },
+    ];
+    render(<OfferDetailsModal offer={makeOffer()} activities={acts} events={[]} onClose={() => {}} />);
+    expect(screen.getByText('Kontaktverlauf')).toBeInTheDocument();
+    expect(screen.getByText('mailbox war voll')).toBeInTheDocument();
+    expect(screen.getByText('soft nudge gesendet')).toBeInTheDocument();
+  });
+
+  it('renders an empty-state for Kontaktverlauf when no activities are logged', () => {
+    render(<OfferDetailsModal offer={makeOffer()} activities={[]} events={[]} onClose={() => {}} />);
+    expect(screen.getByText('Noch keine Kontakte protokolliert.')).toBeInTheDocument();
+  });
+
+  it('renders the E-Mail Verlauf with each Resend event when events are passed', () => {
+    const evts = [
+      { id: 'e1', event_type: 'sent',      occurred_at: '2026-05-01T08:00:00Z' },
+      { id: 'e2', event_type: 'delivered', occurred_at: '2026-05-01T08:00:30Z' },
+      { id: 'e3', event_type: 'opened',    occurred_at: '2026-05-01T10:30:00Z' },
+    ];
+    render(<OfferDetailsModal offer={makeOffer()} activities={[]} events={evts} onClose={() => {}} />);
+    // "Gesendet" / "Gelesen" labels appear in BOTH the StatusBadge
+    // config and the email-events list — getAllByText avoids the
+    // multiple-match error while still asserting presence.
+    expect(screen.getAllByText('Gesendet').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Zugestellt').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Gelesen').length).toBeGreaterThan(0);
+  });
+
+  it('falls back to sent_at/opened_at when events array is empty', () => {
+    render(<OfferDetailsModal offer={makeOffer()} activities={[]} events={[]} onClose={() => {}} />);
+    // Synthesized rows from offer.sent_at / offer.opened_at —
+    // multi-match because "Gesendet" also appears in the status row.
+    expect(screen.getAllByText('Gesendet').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Gelesen').length).toBeGreaterThan(0);
+  });
+
+  it('omits the activity / event sections entirely when neither prop is provided', () => {
+    render(<OfferDetailsModal offer={makeOffer()} onClose={() => {}} />);
+    expect(screen.queryByText('Kontaktverlauf')).not.toBeInTheDocument();
+    expect(screen.queryByText('E-Mail Verlauf')).not.toBeInTheDocument();
+  });
 });

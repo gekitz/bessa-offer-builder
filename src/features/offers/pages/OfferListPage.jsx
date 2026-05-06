@@ -176,8 +176,19 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
     setDetailsOffer(listRow);
     setDetailsLoading(true);
     try {
-      const full = await getOffer(id);
+      // Load the full offer + activities + email events in parallel
+      // so the modal can show all of them at once. The expanded-row
+      // panel may already have these in its own state but the modal
+      // is a separate consumer, so we load fresh to keep coupling
+      // minimal.
+      const [full, acts, evts] = await Promise.all([
+        getOffer(id),
+        listActivities(id).catch(() => []),
+        getEmailEvents(id).catch(() => []),
+      ]);
       setDetailsOffer(full);
+      setActivities(acts || []);
+      setEvents(evts || []);
     } catch (err) {
       alert('Fehler beim Laden der Details: ' + err.message);
       setDetailsOffer(null);
@@ -741,6 +752,10 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
     {detailsOffer && (
       <OfferDetailsModal
         offer={detailsOffer}
+        activities={activities}
+        events={events}
+        activitiesLoading={detailsLoading && activities.length === 0}
+        eventsLoading={detailsLoading && events.length === 0}
         loading={detailsLoading}
         onClose={() => { setDetailsOffer(null); setDetailsLoading(false); }}
       />

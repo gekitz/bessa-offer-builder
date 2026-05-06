@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   FileText,
+  Info,
   Loader2,
   Search,
   ShoppingCart,
@@ -20,6 +21,8 @@ import {
   getOfferByShareCode,
   updateOfferStage,
   signOffer,
+  listActivities,
+  getEmailEvents,
 } from '../../../lib/offerApi';
 import { supabase } from '../../../lib/supabase';
 import { generateAcceptQr } from '../../../lib/qr';
@@ -57,6 +60,7 @@ import TabContent from '../components/TabContent';
 import SignModal from '../components/modals/SignModal';
 import CustomItemModal from '../components/modals/CustomItemModal';
 import EmailPreviewModal from '../components/modals/EmailPreviewModal';
+import OfferDetailsModal from '../components/modals/OfferDetailsModal';
 import OfferListPage from './OfferListPage';
 import FollowUpsPage from './FollowUpsPage';
 import { orderedCartEntries } from '../../../lib/cartOrder';
@@ -130,6 +134,15 @@ export default function OfferBuilderPage() {
   // (?action=send-followup&offer=ID); cleared after first render so
   // a user-driven nav back to the page doesn't reopen the modal.
   const [pendingFollowupOfferId, setPendingFollowupOfferId] = useState(null);
+  // Info / Details modal (shown via the builder header button). The
+  // modal is read-only — to *edit* the offer the rep just stays in
+  // the builder; the modal is purely the deep-context view (full
+  // briefing, status, contact log, email events, lost reason).
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsOffer, setDetailsOffer] = useState(null);
+  const [detailsActivities, setDetailsActivities] = useState([]);
+  const [detailsEvents, setDetailsEvents] = useState([]);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [builderTab, setBuilderTab] = useState('bessa');
   const [globalTier, setGlobalTier] = useState('12mo');
   const [cart, setCart] = useState({});
@@ -903,6 +916,33 @@ export default function OfferBuilderPage() {
     setOfferView('builder');
   }
 
+  async function openDetailsModal() {
+    if (!currentOfferId) return;
+    setDetailsOpen(true);
+    setDetailsLoading(true);
+    setDetailsOffer(null);
+    setDetailsActivities([]);
+    setDetailsEvents([]);
+    try {
+      // Pull the canonical row + the contact log + email-event
+      // history in parallel. Listing failures degrade to an empty
+      // section rather than failing the whole modal.
+      const [full, acts, evts] = await Promise.all([
+        getOffer(currentOfferId),
+        listActivities(currentOfferId).catch(() => []),
+        getEmailEvents(currentOfferId).catch(() => []),
+      ]);
+      setDetailsOffer(full);
+      setDetailsActivities(acts || []);
+      setDetailsEvents(evts || []);
+    } catch (err) {
+      alert('Fehler beim Laden der Details: ' + err.message);
+      setDetailsOpen(false);
+    } finally {
+      setDetailsLoading(false);
+    }
+  }
+
   function handleReset() {
     if (confirm('Angebot zurücksetzen?')) {
       clearCustomItems();
@@ -972,6 +1012,16 @@ export default function OfferBuilderPage() {
                 )}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
+                {currentOfferId && (
+                  <button
+                    onClick={openDetailsModal}
+                    className="flex items-center gap-1 rounded-lg bg-slate-100 text-slate-600 px-2 py-1.5 md:px-3 hover:bg-slate-200 transition-colors"
+                    style={{ fontSize: 12 }}
+                    title="Volle Angebots-Info: Briefing, Kontaktverlauf, E-Mail-Events"
+                  >
+                    <Info size={13} /> <span className="hidden sm:inline">Info</span>
+                  </button>
+                )}
                 {cartCount > 0 && (
                   <button onClick={handleReset} className="flex items-center gap-1 rounded-lg bg-slate-100 text-slate-600 px-2 py-1.5 md:px-3 hover:bg-slate-200 transition-colors" style={{ fontSize: 12 }}>
                     <Trash2 size={13} /> <span className="hidden sm:inline">Zurücksetzen</span>
@@ -1159,6 +1209,18 @@ export default function OfferBuilderPage() {
         <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
           <VacationPage />
         </React.Suspense>
+      )}
+
+      {detailsOpen && (
+        <OfferDetailsModal
+          offer={detailsOffer}
+          activities={detailsActivities}
+          events={detailsEvents}
+          activitiesLoading={detailsLoading && detailsActivities.length === 0}
+          eventsLoading={detailsLoading && detailsEvents.length === 0}
+          loading={detailsLoading}
+          onClose={() => { setDetailsOpen(false); setDetailsLoading(false); }}
+        />
       )}
     </AppShell>
   );

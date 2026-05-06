@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { AlertCircle, Building2, FileText, Loader2, Mail, MapPin, Phone, User, X, XCircle } from 'lucide-react';
+import { AlarmClock, AlertCircle, Building2, FileText, Loader2, Mail, MailOpen, MapPin, Phone, Send, User, X, XCircle } from 'lucide-react';
 
 import { ALL } from '../../data/catalogs';
 import { TIER_SHORT } from '../../../../data/tiers';
@@ -7,7 +7,7 @@ import { isMonthly, price, discountedPrice, hasDiscount, type Item, type ItemMod
 import { computeTotals } from '../../../../lib/totals';
 import { fmt } from '../../../../lib/format';
 import { lostReasonLabel } from '../../data/lostReasons';
-import { StatusBadge, StageBadge } from '../Badges';
+import { StatusBadge, StageBadge, STATUS_CONFIG, ActivityKindBadge, ActivityOutcomeBadge } from '../Badges';
 
 // Read-only deep view of an offer. Opens from the action-bar "Info"
 // button on the offer-list expanded panel; everything destructive
@@ -61,11 +61,35 @@ export interface OfferDetailsOffer {
   offer_data?: OfferDataShape | null;
 }
 
+export interface OfferActivity {
+  id: string;
+  kind: string;
+  outcome?: string | null;
+  note?: string | null;
+  next_followup_at?: string | null;
+  created_at: string;
+  created_by_name?: string | null;
+}
+
+export interface OfferEmailEvent {
+  id?: string;
+  event_type: string;
+  occurred_at: string;
+  metadata?: Record<string, unknown> | null;
+}
+
 export interface OfferDetailsModalProps {
   // null while parent is fetching — modal renders a small loading
   // state. Parent calls getOffer() to load the full row (the list
   // query doesn't include offer_data).
   offer: OfferDetailsOffer | null;
+  // Activities (Anrufe / E-Mails / Notizen / Meetings) and the raw
+  // Resend webhook events. Both default to undefined which renders
+  // a "wird geladen" line; pass [] to render the empty state.
+  activities?: OfferActivity[];
+  events?: OfferEmailEvent[];
+  activitiesLoading?: boolean;
+  eventsLoading?: boolean;
   loading?: boolean;
   onClose: () => void;
 }
@@ -152,7 +176,23 @@ function fmtDate(iso: string | null | undefined): string {
   return d.toLocaleDateString('de-AT');
 }
 
-export default function OfferDetailsModal({ offer, loading = false, onClose }: OfferDetailsModalProps) {
+const EVENT_ICON: Record<string, React.ReactNode> = {
+  sent:      <Send size={12} className="text-blue-500" />,
+  delivered: <Mail size={12} className="text-green-500" />,
+  opened:    <MailOpen size={12} className="text-yellow-500" />,
+  clicked:   <Mail size={12} className="text-purple-500" />,
+  bounced:   <Mail size={12} className="text-red-500" />,
+};
+
+export default function OfferDetailsModal({
+  offer,
+  activities,
+  events,
+  activitiesLoading = false,
+  eventsLoading = false,
+  loading = false,
+  onClose,
+}: OfferDetailsModalProps) {
   // Esc closes — parent can call this freely; no in-flight save state to guard.
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
@@ -344,6 +384,86 @@ export default function OfferDetailsModal({ offer, loading = false, onClose }: O
                     style={{ fontSize: 12, lineHeight: 1.5 }}
                   >
                     {offer.offer_data.notes}
+                  </div>
+                </section>
+              )}
+
+              {/* Kontaktverlauf — every logged activity (call / email
+                  / meeting / note) on this offer, newest first. */}
+              {(activities !== undefined || activitiesLoading) && (
+                <section>
+                  <SectionTitle label="Kontaktverlauf" />
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    {activitiesLoading ? (
+                      <div className="text-slate-400 text-center py-2"><Loader2 size={14} className="animate-spin mx-auto" /></div>
+                    ) : !activities || activities.length === 0 ? (
+                      <div className="text-slate-400" style={{ fontSize: 11 }}>Noch keine Kontakte protokolliert.</div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {activities.map((a) => (
+                          <div key={a.id} className="flex flex-wrap items-start gap-x-2 gap-y-1" style={{ fontSize: 11 }}>
+                            <ActivityKindBadge kind={a.kind} />
+                            {a.outcome && <ActivityOutcomeBadge outcome={a.outcome} />}
+                            <span className="text-slate-400">
+                              {new Date(a.created_at).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' })}
+                            </span>
+                            {a.created_by_name && <span className="text-slate-400">· {a.created_by_name}</span>}
+                            {a.next_followup_at && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-700 px-2 py-0.5 font-medium">
+                                <AlarmClock size={11} />
+                                {new Date(a.next_followup_at).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' })}
+                              </span>
+                            )}
+                            {a.note && <span className="text-slate-700 break-words flex-1 min-w-0">{a.note}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {/* E-Mail Verlauf — sent / delivered / opened / bounced
+                  events from Resend, in chronological order. Falls
+                  back to sent_at + opened_at synthesized rows when
+                  the parent didn't load events. */}
+              {(events !== undefined || eventsLoading) && (
+                <section>
+                  <SectionTitle label="E-Mail Verlauf" />
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    {eventsLoading ? (
+                      <div className="text-slate-400 text-center py-2"><Loader2 size={14} className="animate-spin mx-auto" /></div>
+                    ) : !events || events.length === 0 ? (
+                      <div className="space-y-1">
+                        {offer.sent_at && (
+                          <div className="flex items-center gap-2" style={{ fontSize: 11 }}>
+                            <Send size={12} className="text-blue-500" />
+                            <span className="text-slate-700 font-medium">Gesendet</span>
+                            <span className="text-slate-400">{new Date(offer.sent_at).toLocaleString('de-AT')}</span>
+                          </div>
+                        )}
+                        {offer.opened_at && (
+                          <div className="flex items-center gap-2" style={{ fontSize: 11 }}>
+                            <MailOpen size={12} className="text-yellow-500" />
+                            <span className="text-slate-700 font-medium">Gelesen</span>
+                            <span className="text-slate-400">{new Date(offer.opened_at).toLocaleString('de-AT')}</span>
+                          </div>
+                        )}
+                        {!offer.sent_at && !offer.opened_at && (
+                          <div className="text-slate-400" style={{ fontSize: 11 }}>Noch keine E-Mail-Events</div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {events.map((evt, i) => (
+                          <div key={evt.id || i} className="flex items-center gap-2" style={{ fontSize: 11 }}>
+                            {EVENT_ICON[evt.event_type] || <Mail size={12} className="text-slate-400" />}
+                            <span className="text-slate-700 font-medium">{STATUS_CONFIG[evt.event_type]?.label || evt.event_type}</span>
+                            <span className="text-slate-400">{new Date(evt.occurred_at).toLocaleString('de-AT')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </section>
               )}
