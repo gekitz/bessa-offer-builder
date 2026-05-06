@@ -11,6 +11,7 @@ import {
   Copy,
   Eye,
   FileText,
+  Info,
   Loader2,
   Mail,
   MailOpen,
@@ -30,6 +31,7 @@ import { useAuth } from '../../../lib/auth';
 import {
   listOffers,
   deleteOffer,
+  getOffer,
   getEmailEvents,
   updateOfferStage,
   markOfferLost,
@@ -45,6 +47,7 @@ import {
 } from '../components/Badges';
 import LogActivityModal from '../components/modals/LogActivityModal';
 import LostReasonModal from '../components/modals/LostReasonModal';
+import OfferDetailsModal from '../components/modals/OfferDetailsModal';
 import { lostReasonLabel } from '../data/lostReasons';
 import { filterOffersBySearch } from '../lib/offerSearch';
 import { bucketize } from '../followUpBuckets';
@@ -130,6 +133,11 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   // while the markOfferLost API call is in flight.
   const [lostTargetId, setLostTargetId] = useState(null);
   const [lostSaving, setLostSaving] = useState(false);
+  // OfferDetailsModal state. The list query doesn't include the
+  // offer_data JSONB blob (cart, items, notes), so we lazy-load the
+  // full row when the rep opens the details modal.
+  const [detailsOffer, setDetailsOffer] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [logTargetId, setLogTargetId] = useState(null);
   const [logSaving, setLogSaving] = useState(false);
 
@@ -157,6 +165,24 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
       setOffers((prev) => prev.filter((o) => o.id !== id));
     } catch (err) {
       alert('Fehler beim Löschen: ' + err.message);
+    }
+  }
+
+  async function openDetailsModal(id) {
+    // Snapshot the list-row data as a placeholder so the modal can
+    // render the customer card / status while offer_data is in
+    // flight, then fill in the rest when getOffer resolves.
+    const listRow = offers.find((o) => o.id === id) || null;
+    setDetailsOffer(listRow);
+    setDetailsLoading(true);
+    try {
+      const full = await getOffer(id);
+      setDetailsOffer(full);
+    } catch (err) {
+      alert('Fehler beim Laden der Details: ' + err.message);
+      setDetailsOffer(null);
+    } finally {
+      setDetailsLoading(false);
     }
   }
 
@@ -524,6 +550,14 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
                       utility · CRM · stage transitions · danger. */}
                   <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 border-b border-slate-200 bg-white">
                     <button
+                      onClick={() => openDetailsModal(o.id)}
+                      className="flex items-center gap-1 rounded-lg bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-1.5 hover:bg-slate-100 transition-colors"
+                      style={{ fontSize: 11 }}
+                      title="Volle Angebotsdetails anzeigen"
+                    >
+                      <Info size={12} /> Info
+                    </button>
+                    <button
                       onClick={() => onLoad(o.id, true)}
                       className="flex items-center gap-1 rounded-lg bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-1.5 hover:bg-slate-100 transition-colors"
                       style={{ fontSize: 11 }}
@@ -664,6 +698,13 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
         />
       );
     })()}
+    {detailsOffer && (
+      <OfferDetailsModal
+        offer={detailsOffer}
+        loading={detailsLoading}
+        onClose={() => { setDetailsOffer(null); setDetailsLoading(false); }}
+      />
+    )}
     </>
   );
 }
