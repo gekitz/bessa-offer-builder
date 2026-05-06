@@ -509,36 +509,42 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
                 </div>
               )}
 
-              {/* Collapsed row — whole surface is clickable; expands the
-                  panel below. The Laden shortcut on the right uses
-                  stopPropagation so it bypasses the expand. */}
+              {/* Collapsed row — three discrete intents:
+                    • Tap row body  → open Info modal (read-only deep view)
+                    • Tap chevron   → expand inline action panel
+                    • Tap Laden     → load offer to edit
+                  Each action uses stopPropagation so they don't
+                  cascade into the row's primary tap handler. */}
               <div
                 role="button"
                 tabIndex={0}
-                onClick={() => showDetail(o.id)}
+                onClick={() => openDetailsModal(o.id)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    showDetail(o.id);
+                    openDetailsModal(o.id);
                   }
                 }}
-                aria-expanded={detailId === o.id}
+                aria-label={`Details zu ${o.customer_company || o.customer_name || 'Angebot'} öffnen`}
                 className="w-full text-left p-3 hover:bg-slate-50/60 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-100 focus:ring-inset"
               >
-                {/* Compact row layout — only the bare minimum a rep
-                    needs to recognize the offer (customer · status ·
-                    value · meta) plus the primary Laden action.
-                    Everything else (briefing, lost reason note, full
-                    activity history) lives in the expanded panel +
-                    Info modal. */}
                 <div className="flex items-start gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-slate-800 truncate" style={{ fontSize: 13 }}>
                       {o.customer_company || o.customer_name || 'Ohne Name'}
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap mt-0.5" style={{ fontSize: 10 }}>
-                      <StatusBadge status={o.status} />
-                      <StageBadge stage={o.stage} />
+                      {/* One context-aware chip per row.
+                          For 'offer_sent' offers the email status
+                          (Gelesen / Zugestellt / Unzustellbar) is
+                          more informative than the literal stage
+                          label, which would just say "Angebot
+                          gesendet" — redundant with the rep already
+                          looking at the Gesendet tab. For every
+                          other stage we show the stage label. */}
+                      {o.stage === 'offer_sent'
+                        ? <StatusBadge status={o.status} />
+                        : <StageBadge stage={o.stage} />}
                       {o.stage === 'lost' && lostReasonLabel(o.lost_reason) && (
                         <span
                           className="inline-flex items-center gap-0.5 text-red-700 bg-red-50 border border-red-100 rounded-full px-1.5 py-0.5"
@@ -574,10 +580,18 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
                       >
                         <FileText size={12} /> Laden
                       </button>
-                      <ChevronDown
-                        size={14}
-                        className={`text-slate-400 transition-transform ${detailId === o.id ? 'rotate-180' : ''}`}
-                      />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); showDetail(o.id); }}
+                        className="rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1 transition-colors"
+                        title={detailId === o.id ? 'Aktionen ausblenden' : 'Aktionen anzeigen'}
+                        aria-expanded={detailId === o.id}
+                        aria-label="Aktionen anzeigen"
+                      >
+                        <ChevronDown
+                          size={16}
+                          className={`transition-transform ${detailId === o.id ? 'rotate-180' : ''}`}
+                        />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -590,14 +604,10 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
                       the collapsed row stays clean. Grouped left→right:
                       utility · CRM · stage transitions · danger. */}
                   <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 border-b border-slate-200 bg-white">
-                    <button
-                      onClick={() => openDetailsModal(o.id)}
-                      className="flex items-center gap-1 rounded-lg bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-1.5 hover:bg-slate-100 transition-colors"
-                      style={{ fontSize: 11 }}
-                      title="Volle Angebotsdetails anzeigen"
-                    >
-                      <Info size={12} /> Info
-                    </button>
+                    {/* Info is intentionally NOT here — row-tap on
+                        the collapsed cell opens the Info modal
+                        directly, which is the same intent. The
+                        action panel is dedicated to mutations. */}
                     <button
                       onClick={() => onLoad(o.id, true)}
                       className="flex items-center gap-1 rounded-lg bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-1.5 hover:bg-slate-100 transition-colors"
