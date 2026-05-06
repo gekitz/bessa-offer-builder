@@ -756,6 +756,16 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
         activitiesLoading={detailsLoading && activities.length === 0}
         eventsLoading={detailsLoading && events.length === 0}
         loading={detailsLoading}
+        onEdit={() => {
+          // Load the offer into the builder + close the modal in
+          // one tap. The list-row's primary tap intent is "show me
+          // what this is" (Info), so providing an explicit Edit
+          // affordance inside the modal completes the flow.
+          const id = detailsOffer.id;
+          setDetailsOffer(null);
+          setDetailsLoading(false);
+          onLoad(id);
+        }}
         onClose={() => { setDetailsOffer(null); setDetailsLoading(false); }}
       />
     )}

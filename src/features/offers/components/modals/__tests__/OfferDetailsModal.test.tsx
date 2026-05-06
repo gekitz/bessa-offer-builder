@@ -222,4 +222,23 @@ describe('OfferDetailsModal', () => {
     expect(screen.queryByText('Kontaktverlauf')).not.toBeInTheDocument();
     expect(screen.queryByText('E-Mail Verlauf')).not.toBeInTheDocument();
   });
+
+  it('shows an Editieren button in the header when onEdit is provided', () => {
+    const onEdit = vi.fn();
+    render(<OfferDetailsModal offer={makeOffer()} onEdit={onEdit} onClose={() => {}} />);
+    expect(screen.getByRole('button', { name: /Editieren/ })).toBeInTheDocument();
+  });
+
+  it('hides the Editieren button when onEdit is not provided (e.g. opened from inside the builder)', () => {
+    render(<OfferDetailsModal offer={makeOffer()} onClose={() => {}} />);
+    expect(screen.queryByRole('button', { name: /Editieren/ })).not.toBeInTheDocument();
+  });
+
+  it('clicking Editieren invokes onEdit', async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    render(<OfferDetailsModal offer={makeOffer()} onEdit={onEdit} onClose={() => {}} />);
+    await user.click(screen.getByRole('button', { name: /Editieren/ }));
+    expect(onEdit).toHaveBeenCalledTimes(1);
+  });
 });

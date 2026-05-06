@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { AlarmClock, AlertCircle, Building2, FileText, Loader2, Mail, MailOpen, MapPin, Phone, Send, User, X, XCircle } from 'lucide-react';
+import { AlarmClock, AlertCircle, Building2, FileText, Loader2, Mail, MailOpen, MapPin, Pencil, Phone, Send, User, X, XCircle } from 'lucide-react';
 
 import { ALL } from '../../data/catalogs';
 import { TIER_SHORT } from '../../../../data/tiers';
@@ -91,6 +91,13 @@ export interface OfferDetailsModalProps {
   activitiesLoading?: boolean;
   eventsLoading?: boolean;
   loading?: boolean;
+  // Optional "Editieren" handler — when provided, the modal shows a
+  // button in the header that calls this and lets the parent decide
+  // what "edit" means (typically: load the offer into the builder +
+  // close the modal). Omit it (e.g. when the modal is already
+  // opened from inside the builder for the same offer) and the
+  // button hides — no action needed.
+  onEdit?: () => void;
   onClose: () => void;
 }
 
@@ -191,6 +198,7 @@ export default function OfferDetailsModal({
   activitiesLoading = false,
   eventsLoading = false,
   loading = false,
+  onEdit,
   onClose,
 }: OfferDetailsModalProps) {
   // Esc closes — parent can call this freely; no in-flight save state to guard.
@@ -239,6 +247,16 @@ export default function OfferDetailsModal({
               Angebotsdetails {offer?.id ? `· ${offer.id.slice(0, 8)}` : ''}
             </div>
           </div>
+          {onEdit && offer && (
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 hover:bg-red-100 transition-colors font-medium"
+              style={{ fontSize: 12 }}
+              title="Angebot zum Bearbeiten laden"
+            >
+              <Pencil size={13} /> Editieren
+            </button>
+          )}
           <button
             onClick={onClose}
             className="rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 transition-colors"
