@@ -5,3 +5,11 @@ project_id = "uouryrnyzicdociqberq"
 # Supabase's gateway-level JWT check lets that custom auth scheme run.
 [functions.daily-followup-digest]
 verify_jwt = false
+
+# Resend posts webhook events with a Svix signature, not a Supabase
+# JWT. The function itself verifies the signature against
+# RESEND_WEBHOOK_SECRET; gateway-level JWT enforcement would reject
+# every event before our code sees it (and historically did — every
+# email.bounced was being dropped at the gateway with 401).
+[functions.resend-webhook]
+verify_jwt = false

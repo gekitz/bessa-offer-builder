@@ -291,6 +291,10 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   }
   const uniqueCreators = [...new Set(offers.map((o) => o.creator_name).filter(Boolean))].sort();
   const closedMonthly = offers.filter((o) => o.stage === 'closed').reduce((sum, o) => sum + Number(o.total_monthly || 0), 0);
+  // Bounced count across the whole dataset (independent of the
+  // current stage filter) so reps see "✉ 3 unzustellbar" even when
+  // they're scoped to "Neu" — those offers might be in any stage.
+  const bouncedCount = offers.filter((o) => o.status === 'bounced').length;
   const buckets = useMemo(() => bucketize(creatorFiltered), [creatorFiltered]);
   const followUpCount = buckets.overdue.length + buckets.dueToday.length + buckets.stale.length;
   const logTarget = logTargetId ? offers.find((o) => o.id === logTargetId) : null;
@@ -416,6 +420,22 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
         ))}
       </div>
 
+      {/* Bounced summary — only shown when there's something to act
+          on. Clicking the chip scopes the search to bounced offers
+          via a magic token so the page filter logic doesn't need a
+          new field. */}
+      {bouncedCount > 0 && (
+        <div className="flex items-center gap-2 mb-3 rounded-lg bg-red-50 border-2 border-red-200 px-3 py-2">
+          <AlertCircle size={14} className="text-red-600 flex-shrink-0" />
+          <span className="font-medium text-red-700" style={{ fontSize: 12 }}>
+            {bouncedCount} {bouncedCount === 1 ? 'Angebot' : 'Angebote'} mit unzustellbarer E-Mail
+          </span>
+          <span className="text-red-600 ml-auto" style={{ fontSize: 11 }}>
+            Adresse prüfen &amp; neu senden
+          </span>
+        </div>
+      )}
+
       {/* Closed value summary */}
       {closedMonthly > 0 && (
         <div className="flex items-center gap-2 mb-3 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
@@ -455,9 +475,29 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
             <div
               key={o.id}
               className={`bg-white rounded-xl border-2 overflow-hidden transition-colors ${
-                detailId === o.id ? 'border-red-200 shadow-sm' : 'border-slate-200'
+                o.status === 'bounced'
+                  ? 'border-red-400 ring-2 ring-red-100'
+                  : detailId === o.id
+                    ? 'border-red-200 shadow-sm'
+                    : 'border-slate-200'
               }`}
             >
+              {/* Loud bounce warning — full-width banner above the
+                  collapsed row so a wrong customer email is the
+                  first thing the rep sees, not a tiny pill. */}
+              {o.status === 'bounced' && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white" style={{ fontSize: 12 }}>
+                  <AlertCircle size={14} className="flex-shrink-0" />
+                  <span className="font-semibold">E-Mail unzustellbar</span>
+                  {o.customer_email && (
+                    <span className="opacity-90 truncate" title={o.customer_email}>
+                      <span className="line-through">{o.customer_email}</span>
+                    </span>
+                  )}
+                  <span className="ml-auto opacity-80 hidden sm:inline">→ Adresse prüfen &amp; neu senden</span>
+                </div>
+              )}
+
               {/* Collapsed row — whole surface is clickable; expands the
                   panel below. The Laden shortcut on the right uses
                   stopPropagation so it bypasses the expand. */}

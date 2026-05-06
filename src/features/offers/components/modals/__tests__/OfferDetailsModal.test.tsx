@@ -150,4 +150,23 @@ describe('OfferDetailsModal', () => {
     render(<OfferDetailsModal offer={makeOffer({ briefing: null })} onClose={() => {}} />);
     expect(screen.queryByText(/Briefing \(intern\)/)).not.toBeInTheDocument();
   });
+
+  it('shows the loud bounce banner when status=bounced (with the bad email struck through)', () => {
+    render(
+      <OfferDetailsModal
+        offer={makeOffer({ status: 'bounced', customer_email: 'typo@acme.invalid' })}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByText(/E-Mail unzustellbar/)).toBeInTheDocument();
+    // Email appears in both the banner (struck-through) and the
+    // customer card — both are intentional, just assert presence.
+    expect(screen.getAllByText('typo@acme.invalid').length).toBeGreaterThan(0);
+    expect(screen.getByText(/E-Mail-Adresse prüfen/)).toBeInTheDocument();
+  });
+
+  it('hides the bounce banner for non-bounced offers', () => {
+    render(<OfferDetailsModal offer={makeOffer({ status: 'sent' })} onClose={() => {}} />);
+    expect(screen.queryByText(/E-Mail unzustellbar/)).not.toBeInTheDocument();
+  });
 });

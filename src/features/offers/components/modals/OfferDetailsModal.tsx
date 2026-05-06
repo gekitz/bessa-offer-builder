@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Building2, FileText, Loader2, Mail, MapPin, Phone, User, X, XCircle } from 'lucide-react';
+import { AlertCircle, Building2, FileText, Loader2, Mail, MapPin, Phone, User, X, XCircle } from 'lucide-react';
 
 import { ALL } from '../../data/catalogs';
 import { TIER_SHORT } from '../../../../data/tiers';
@@ -217,6 +217,25 @@ export default function OfferDetailsModal({ offer, loading = false, onClose }: O
             </div>
           ) : (
             <>
+              {/* Bounce warning at the top of the modal — same loud
+                  treatment as the list row so the rep sees this
+                  before anything else when opening Info on a
+                  bounced offer. */}
+              {offer.status === 'bounced' && (
+                <div className="flex items-start gap-2 rounded-xl bg-red-600 text-white px-3 py-3" style={{ fontSize: 12 }}>
+                  <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold mb-0.5">E-Mail unzustellbar</div>
+                    {offer.customer_email && (
+                      <div className="opacity-90 line-through break-all">{offer.customer_email}</div>
+                    )}
+                    <div className="opacity-90 mt-1">
+                      Bitte E-Mail-Adresse prüfen, im Builder anpassen und Angebot neu senden.
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Status row */}
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={offer.status as string} />
