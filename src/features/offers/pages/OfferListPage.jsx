@@ -17,9 +17,11 @@ import {
   Phone,
   Plus,
   RefreshCw,
+  Search,
   Send,
   Trash2,
   User,
+  X,
   XCircle,
 } from 'lucide-react';
 
@@ -44,6 +46,7 @@ import {
 import LogActivityModal from '../components/modals/LogActivityModal';
 import LostReasonModal from '../components/modals/LostReasonModal';
 import { lostReasonLabel } from '../data/lostReasons';
+import { filterOffersBySearch } from '../lib/offerSearch';
 import { bucketize } from '../followUpBuckets';
 import { fmt } from '../../../lib/format';
 
@@ -117,6 +120,10 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [stageFilter, setStageFilter] = useState('new');
   const [creatorFilter, setCreatorFilter] = useState('all');
+  // Free-text search across customer/briefing/creator/Mesonic id.
+  // Multi-word ANDs across fields so "müller klagenfurt" narrows
+  // both lines of memory.
+  const [searchTerm, setSearchTerm] = useState('');
   const [stageLoading, setStageLoading] = useState(null);
   // Verloren routes through a reason modal first. lostTargetId is
   // the offer id pending capture; lostSaving disables the modal
@@ -245,7 +252,12 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
     }
   }
 
-  const creatorFiltered = creatorFilter === 'all' ? offers : offers.filter((o) => o.creator_name === creatorFilter);
+  // Apply search before the creator/stage filters so the stage tab
+  // counts reflect what the rep is actually narrowing toward — if
+  // they typed "müller" and 3 of those 4 matches are "Gesendet", the
+  // tabs should show that immediately.
+  const searched = useMemo(() => filterOffersBySearch(offers, searchTerm), [offers, searchTerm]);
+  const creatorFiltered = creatorFilter === 'all' ? searched : searched.filter((o) => o.creator_name === creatorFilter);
   const filteredOffers = stageFilter === 'all' ? creatorFiltered : creatorFiltered.filter((o) => o.stage === stageFilter);
   const stageCounts = { all: creatorFiltered.length };
   for (const s of ['new', 'offer_sent', 'closed', 'lost']) {
@@ -334,6 +346,30 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
         </div>
       </div>
 
+      {/* Search bar — searches customer / briefing / creator / Mesonic-ID */}
+      <div className="relative mb-3">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Suchen — Kunde, Briefing, Ersteller, Adresse, Mesonic-Nr…"
+          className="w-full rounded-lg border border-slate-200 bg-white pl-9 pr-9 py-2 text-slate-800 focus:outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+          style={{ fontSize: 13 }}
+          aria-label="Angebote durchsuchen"
+        />
+        {searchTerm && (
+          <button
+            onClick={() => setSearchTerm('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1 transition-colors"
+            aria-label="Suche leeren"
+            title="Suche leeren"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
       {/* Stage filter tabs */}
       <div className="flex flex-wrap gap-1.5 mb-3">
         {[
@@ -365,11 +401,28 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
       )}
 
       {filteredOffers.length === 0 ? (
-        <div className="text-center py-12 text-slate-400">
-          <FileText size={48} className="mx-auto mb-3 opacity-50" />
-          <p className="font-medium">Noch keine Angebote</p>
-          <p style={{ fontSize: 13 }}>Erstelle ein Angebot und speichere es hier.</p>
-        </div>
+        searchTerm.trim() ? (
+          <div className="text-center py-12 text-slate-400">
+            <Search size={40} className="mx-auto mb-3 opacity-50" />
+            <p className="font-medium text-slate-600">Keine Treffer</p>
+            <p style={{ fontSize: 13 }}>
+              Keine Angebote für „{searchTerm}".
+            </p>
+            <button
+              onClick={() => setSearchTerm('')}
+              className="mt-3 text-red-600 underline hover:text-red-700"
+              style={{ fontSize: 12 }}
+            >
+              Suche zurücksetzen
+            </button>
+          </div>
+        ) : (
+          <div className="text-center py-12 text-slate-400">
+            <FileText size={48} className="mx-auto mb-3 opacity-50" />
+            <p className="font-medium">Noch keine Angebote</p>
+            <p style={{ fontSize: 13 }}>Erstelle ein Angebot und speichere es hier.</p>
+          </div>
+        )
       ) : (
         <div className="space-y-2">
           {filteredOffers.map((o) => (
