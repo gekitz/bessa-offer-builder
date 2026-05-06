@@ -188,13 +188,18 @@ serve(async (req: Request) => {
 </body>
 </html>`;
 
-    // Build Resend API payload
+    // Build Resend API payload. Reply-To routes customer replies to
+    // the rep's real mailbox — angebote@kitz.co.at is sender-only on
+    // Resend and bounces incoming mail.
     const emailPayload: Record<string, unknown> = {
       from: 'Kitz Computer & Office GmbH <angebote@kitz.co.at>',
       to: [offer.customer_email],
       subject: emailSubject || `Ihr Angebot von Kitz Computer & Office GmbH – ${offer.customer_company || offer.customer_name || 'Angebot'}`,
       html: emailHtml,
     };
+    if (offer.creator_email) {
+      emailPayload.reply_to = offer.creator_email;
+    }
 
     // Attach PDF if available
     if (pdfBase64 && pdfFilename) {

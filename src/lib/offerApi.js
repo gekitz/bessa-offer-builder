@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, cart, globalTier, notes, raten, finanzOpen, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate }) {
+export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   const offerData = { cart, globalTier, notes, raten, finanzOpen, address: customer.address || '', mandatsRef: mandatsRef || '' };
@@ -16,6 +16,7 @@ export async function saveOffer({ id, customer, creator, creatorName, cart, glob
     mesonic_customer_id: customer.mesonicId || null,
     creator_id: creator,
     creator_name: creatorName,
+    creator_email: creatorEmail || null,
     offer_data: offerData,
     total_monthly: totalMonthly,
     total_once: totalOnce,

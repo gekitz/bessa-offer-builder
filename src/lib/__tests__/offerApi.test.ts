@@ -59,6 +59,7 @@ const baseOfferArgs = {
   customer: { name: 'Max', company: 'ACME', email: 'm@a.at', phone: '+43 1', address: '' },
   creator: 'gk',
   creatorName: 'Georg Kitz',
+  creatorEmail: 'g.kitz@kitz.co.at',
   cart: { kassa: { qty: 1, tier: '12mo' } },
   globalTier: '12mo',
   notes: '',
@@ -85,10 +86,21 @@ describe('saveOffer', () => {
     expect(chain.update).not.toHaveBeenCalled();
     const inserted = chain.insert.mock.calls[0][0];
     expect(inserted.creator_id).toBe('gk');
+    expect(inserted.creator_email).toBe('g.kitz@kitz.co.at');
     expect(inserted.customer_company).toBe('ACME');
     expect(inserted.total_monthly).toBe(30);
     expect(inserted.offer_data.cart).toEqual({ kassa: { qty: 1, tier: '12mo' } });
     expect(result).toEqual({ id: 'new-uuid' });
+  });
+
+  it('writes null when creatorEmail is missing (e.g. unknown rep)', async () => {
+    const chain = makeChain({ data: { id: 'new-uuid' }, error: null });
+    fromMock.mockReturnValue(chain);
+
+    await saveOffer({ ...baseOfferArgs, creatorEmail: undefined });
+
+    const inserted = chain.insert.mock.calls[0][0];
+    expect(inserted.creator_email).toBeNull();
   });
 
   it('updates an existing row when id is given', async () => {
