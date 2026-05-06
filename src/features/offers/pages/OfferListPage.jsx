@@ -426,8 +426,28 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
       ) : (
         <div className="space-y-2">
           {filteredOffers.map((o) => (
-            <div key={o.id} className="bg-white rounded-xl border-2 border-slate-200 overflow-hidden">
-              <div className="p-3">
+            <div
+              key={o.id}
+              className={`bg-white rounded-xl border-2 overflow-hidden transition-colors ${
+                detailId === o.id ? 'border-red-200 shadow-sm' : 'border-slate-200'
+              }`}
+            >
+              {/* Collapsed row — whole surface is clickable; expands the
+                  panel below. The Laden shortcut on the right uses
+                  stopPropagation so it bypasses the expand. */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => showDetail(o.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    showDetail(o.id);
+                  }
+                }}
+                aria-expanded={detailId === o.id}
+                className="w-full text-left p-3 hover:bg-slate-50/60 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-100 focus:ring-inset"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -468,98 +488,154 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
                       <FollowUpHint offer={o} />
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    {o.total_monthly > 0 && (
-                      <div className="font-semibold text-slate-800" style={{ fontSize: 13 }}>€ {fmt(Number(o.total_monthly))}/Mo</div>
-                    )}
-                    {o.total_once > 0 && (
-                      <div className="text-slate-500" style={{ fontSize: 12 }}>€ {fmt(Number(o.total_once))} einm.</div>
-                    )}
+                  <div className="flex items-start gap-3 flex-shrink-0">
+                    <div className="text-right">
+                      {o.total_monthly > 0 && (
+                        <div className="font-semibold text-slate-800" style={{ fontSize: 13 }}>€ {fmt(Number(o.total_monthly))}/Mo</div>
+                      )}
+                      {o.total_once > 0 && (
+                        <div className="text-slate-500" style={{ fontSize: 12 }}>€ {fmt(Number(o.total_once))} einm.</div>
+                      )}
+                    </div>
+                    {/* Single "Laden" shortcut on the row keeps the
+                        most-frequent action at one click while every
+                        other action lives in the expanded panel. */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onLoad(o.id); }}
+                      className="flex items-center gap-1 rounded-lg bg-red-50 text-red-700 px-2.5 py-1.5 hover:bg-red-100 transition-colors font-medium"
+                      style={{ fontSize: 11 }}
+                      title="Angebot laden"
+                    >
+                      <FileText size={12} /> Laden
+                    </button>
+                    <ChevronDown
+                      size={16}
+                      className={`text-slate-400 mt-1 transition-transform ${detailId === o.id ? 'rotate-180' : ''}`}
+                    />
                   </div>
-                </div>
-                <div className="flex gap-1.5 mt-2 pt-2 border-t border-slate-100">
-                  <button onClick={() => onLoad(o.id)} className="flex items-center gap-1 rounded-lg bg-red-50 text-red-600 px-2.5 py-1 hover:bg-red-100 transition-colors" style={{ fontSize: 11 }}>
-                    <FileText size={12} /> Laden
-                  </button>
-                  <button onClick={() => onLoad(o.id, true)} className="flex items-center gap-1 rounded-lg bg-slate-50 text-slate-600 px-2.5 py-1 hover:bg-slate-100 transition-colors" style={{ fontSize: 11 }}>
-                    <Copy size={12} /> Duplizieren
-                  </button>
-                  {(o.stage === 'offer_sent' || o.stage === 'new') && (
-                    <button onClick={() => setLogTargetId(o.id)} className="flex items-center gap-1 rounded-lg bg-blue-50 text-blue-700 px-2.5 py-1 hover:bg-blue-100 transition-colors" style={{ fontSize: 11 }}>
-                      <Phone size={12} /> Kontakt
-                    </button>
-                  )}
-                  <button onClick={() => showDetail(o.id)} className="flex items-center gap-1 rounded-lg bg-slate-50 text-slate-600 px-2.5 py-1 hover:bg-slate-100 transition-colors" style={{ fontSize: 11 }}>
-                    <Clock size={12} /> Details
-                  </button>
-                  <button onClick={() => handleDelete(o.id)} className="flex items-center gap-1 rounded-lg bg-slate-50 text-red-400 px-2.5 py-1 hover:bg-red-50 transition-colors ml-auto" style={{ fontSize: 11 }}>
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-                {/* Stage action buttons */}
-                <div className="flex gap-1.5 mt-2">
-                  {o.stage === 'new' && (
-                    <button disabled={stageLoading === o.id} onClick={() => handleStageChange(o.id, 'offer_sent')} className="flex items-center gap-1 rounded-lg bg-blue-50 text-blue-700 px-2.5 py-1 hover:bg-blue-100 transition-colors disabled:opacity-50" style={{ fontSize: 11 }}>
-                      <Send size={12} /> Gesendet
-                    </button>
-                  )}
-                  {o.stage !== 'closed' && (
-                    <button disabled={stageLoading === o.id} onClick={() => handleStageChange(o.id, 'closed')} className="flex items-center gap-1 rounded-lg bg-emerald-50 text-emerald-700 px-2.5 py-1 hover:bg-emerald-100 transition-colors disabled:opacity-50" style={{ fontSize: 11 }}>
-                      <CheckCircle2 size={12} /> Abschließen
-                    </button>
-                  )}
-                  {(o.stage === 'new' || o.stage === 'offer_sent') && (
-                    <button disabled={stageLoading === o.id} onClick={() => handleStageChange(o.id, 'lost')} className="flex items-center gap-1 rounded-lg bg-red-50 text-red-600 px-2.5 py-1 hover:bg-red-100 transition-colors disabled:opacity-50" style={{ fontSize: 11 }}>
-                      <XCircle size={12} /> Verloren
-                    </button>
-                  )}
-                  {(o.stage === 'closed' || o.stage === 'lost') && (
-                    <button disabled={stageLoading === o.id} onClick={() => handleStageChange(o.id, 'new')} className="flex items-center gap-1 rounded-lg bg-slate-100 text-slate-600 px-2.5 py-1 hover:bg-slate-200 transition-colors disabled:opacity-50" style={{ fontSize: 11 }}>
-                      <RefreshCw size={12} /> Reaktivieren
-                    </button>
-                  )}
                 </div>
               </div>
 
-              {/* Event timeline */}
+              {/* Expanded panel: action bar + activity timeline + email events */}
               {detailId === o.id && (
-                <div className="border-t border-slate-200 bg-slate-50 px-3 py-2 space-y-3">
-                  <ActivityTimeline activities={activities} loading={activitiesLoading} />
-                  <div>
-                  <div className="font-semibold text-slate-600 mb-1" style={{ fontSize: 11 }}>E-Mail Verlauf</div>
-                  {eventsLoading ? (
-                    <div className="text-slate-400 text-center py-2"><Loader2 size={14} className="animate-spin mx-auto" /></div>
-                  ) : events.length === 0 ? (
-                    <div className="space-y-1">
-                      {o.sent_at && (
-                        <div className="flex items-center gap-2" style={{ fontSize: 11 }}>
-                          <Send size={12} className="text-blue-500" />
-                          <span className="text-slate-600 font-medium">Gesendet</span>
-                          <span className="text-slate-400">{new Date(o.sent_at).toLocaleString('de-AT')}</span>
+                <div className="border-t border-slate-200 bg-slate-50/70">
+                  {/* Action bar — all secondary actions live here so
+                      the collapsed row stays clean. Grouped left→right:
+                      utility · CRM · stage transitions · danger. */}
+                  <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 border-b border-slate-200 bg-white">
+                    <button
+                      onClick={() => onLoad(o.id, true)}
+                      className="flex items-center gap-1 rounded-lg bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-1.5 hover:bg-slate-100 transition-colors"
+                      style={{ fontSize: 11 }}
+                    >
+                      <Copy size={12} /> Duplizieren
+                    </button>
+                    {(o.stage === 'offer_sent' || o.stage === 'new') && (
+                      <button
+                        onClick={() => setLogTargetId(o.id)}
+                        className="flex items-center gap-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1.5 hover:bg-blue-100 transition-colors"
+                        style={{ fontSize: 11 }}
+                      >
+                        <Phone size={12} /> Kontakt
+                      </button>
+                    )}
+
+                    {/* Visual divider before stage transitions */}
+                    <span className="w-px h-5 bg-slate-200 mx-1" aria-hidden="true" />
+
+                    {o.stage === 'new' && (
+                      <button
+                        disabled={stageLoading === o.id}
+                        onClick={() => handleStageChange(o.id, 'offer_sent')}
+                        className="flex items-center gap-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1.5 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                        style={{ fontSize: 11 }}
+                      >
+                        <Send size={12} /> Gesendet
+                      </button>
+                    )}
+                    {o.stage !== 'closed' && (
+                      <button
+                        disabled={stageLoading === o.id}
+                        onClick={() => handleStageChange(o.id, 'closed')}
+                        className="flex items-center gap-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1.5 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                        style={{ fontSize: 11 }}
+                      >
+                        <CheckCircle2 size={12} /> Abschließen
+                      </button>
+                    )}
+                    {(o.stage === 'new' || o.stage === 'offer_sent') && (
+                      <button
+                        disabled={stageLoading === o.id}
+                        onClick={() => handleStageChange(o.id, 'lost')}
+                        className="flex items-center gap-1 rounded-lg bg-red-50 text-red-600 border border-red-200 px-2.5 py-1.5 hover:bg-red-100 transition-colors disabled:opacity-50"
+                        style={{ fontSize: 11 }}
+                      >
+                        <XCircle size={12} /> Verloren
+                      </button>
+                    )}
+                    {(o.stage === 'closed' || o.stage === 'lost') && (
+                      <button
+                        disabled={stageLoading === o.id}
+                        onClick={() => handleStageChange(o.id, 'new')}
+                        className="flex items-center gap-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-1.5 hover:bg-slate-200 transition-colors disabled:opacity-50"
+                        style={{ fontSize: 11 }}
+                      >
+                        <RefreshCw size={12} /> Reaktivieren
+                      </button>
+                    )}
+
+                    {/* Danger action — pushed to the right so it
+                        doesn't sit next to constructive buttons. */}
+                    <button
+                      onClick={() => handleDelete(o.id)}
+                      className="ml-auto flex items-center gap-1 rounded-lg bg-white text-red-500 border border-red-100 px-2.5 py-1.5 hover:bg-red-50 transition-colors"
+                      style={{ fontSize: 11 }}
+                      title="Angebot löschen"
+                    >
+                      <Trash2 size={12} /> Löschen
+                    </button>
+                  </div>
+
+                  {/* Activity timeline + email events live below the
+                      action bar, inside the same expanded panel. */}
+                  <div className="px-3 py-3 space-y-3">
+                    <ActivityTimeline activities={activities} loading={activitiesLoading} />
+                    <div>
+                      <div className="font-semibold text-slate-600 mb-1" style={{ fontSize: 11 }}>E-Mail Verlauf</div>
+                      {eventsLoading ? (
+                        <div className="text-slate-400 text-center py-2"><Loader2 size={14} className="animate-spin mx-auto" /></div>
+                      ) : events.length === 0 ? (
+                        <div className="space-y-1">
+                          {o.sent_at && (
+                            <div className="flex items-center gap-2" style={{ fontSize: 11 }}>
+                              <Send size={12} className="text-blue-500" />
+                              <span className="text-slate-600 font-medium">Gesendet</span>
+                              <span className="text-slate-400">{new Date(o.sent_at).toLocaleString('de-AT')}</span>
+                            </div>
+                          )}
+                          {o.opened_at && (
+                            <div className="flex items-center gap-2" style={{ fontSize: 11 }}>
+                              <MailOpen size={12} className="text-yellow-500" />
+                              <span className="text-slate-600 font-medium">Gelesen</span>
+                              <span className="text-slate-400">{new Date(o.opened_at).toLocaleString('de-AT')}</span>
+                            </div>
+                          )}
+                          {!o.sent_at && !o.opened_at && (
+                            <div className="text-slate-400" style={{ fontSize: 11 }}>Noch keine E-Mail-Events</div>
+                          )}
                         </div>
-                      )}
-                      {o.opened_at && (
-                        <div className="flex items-center gap-2" style={{ fontSize: 11 }}>
-                          <MailOpen size={12} className="text-yellow-500" />
-                          <span className="text-slate-600 font-medium">Gelesen</span>
-                          <span className="text-slate-400">{new Date(o.opened_at).toLocaleString('de-AT')}</span>
+                      ) : (
+                        <div className="space-y-1">
+                          {events.map((evt, i) => (
+                            <div key={evt.id || i} className="flex items-center gap-2" style={{ fontSize: 11 }}>
+                              {EVENT_ICON[evt.event_type] || <Mail size={12} className="text-slate-400" />}
+                              <span className="text-slate-600 font-medium">{STATUS_CONFIG[evt.event_type]?.label || evt.event_type}</span>
+                              <span className="text-slate-400">{new Date(evt.occurred_at).toLocaleString('de-AT')}</span>
+                            </div>
+                          ))}
                         </div>
-                      )}
-                      {!o.sent_at && !o.opened_at && (
-                        <div className="text-slate-400" style={{ fontSize: 11 }}>Noch keine E-Mail-Events</div>
                       )}
                     </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {events.map((evt, i) => (
-                        <div key={evt.id || i} className="flex items-center gap-2" style={{ fontSize: 11 }}>
-                          {EVENT_ICON[evt.event_type] || <Mail size={12} className="text-slate-400" />}
-                          <span className="text-slate-600 font-medium">{STATUS_CONFIG[evt.event_type]?.label || evt.event_type}</span>
-                          <span className="text-slate-400">{new Date(evt.occurred_at).toLocaleString('de-AT')}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                   </div>
                 </div>
               )}
