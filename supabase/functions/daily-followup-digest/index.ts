@@ -1,7 +1,13 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-import { buildDigest, digestSubject, renderDigestHtml, type DigestOffer } from './digest.ts';
+import {
+  buildDigest,
+  digestSubject,
+  HOT_TRAIL_LOOKBACK_DAYS,
+  renderDigestHtml,
+  type DigestOffer,
+} from './digest.ts';
 
 // Daily morning digest of follow-up activity for the sales rep.
 // Triggered by pg_cron (see migration); the request body is empty —
@@ -66,7 +72,30 @@ serve(async (req: Request) => {
 
     const offers = (data || []) as DigestOffer[];
     const now = new Date();
-    const digest = buildDigest(offers, now);
+
+    // Recent open counts power the Heiße Spur bucket. We query the
+    // last HOT_TRAIL_LOOKBACK_DAYS days of 'opened' events and group
+    // by offer_id in code (cheaper than a SQL group-by for this size).
+    const since = new Date(
+      now.getTime() - HOT_TRAIL_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const { data: openRows, error: openErr } = await supabase
+      .from('email_events')
+      .select('offer_id')
+      .eq('event_type', 'opened')
+      .gte('occurred_at', since);
+
+    if (openErr) {
+      // Hot trail is a nice-to-have; if the query fails we still
+      // render the time-based buckets rather than skipping the email.
+      console.warn('digest: opens query failed, falling back to no hot bucket', openErr);
+    }
+    const opensByOfferId = new Map<string, number>();
+    for (const row of openRows || []) {
+      opensByOfferId.set(row.offer_id, (opensByOfferId.get(row.offer_id) || 0) + 1);
+    }
+
+    const digest = buildDigest(offers, now, opensByOfferId);
 
     if (digest.total === 0) {
       // Nothing to nag about — don't spam an empty email.
@@ -102,6 +131,7 @@ serve(async (req: Request) => {
       sent: true,
       resendId: resendData.id,
       total: digest.total,
+      hot: digest.totalHot,
       overdue: digest.totalOverdue,
       dueToday: digest.totalDueToday,
       groups: digest.groups.length,

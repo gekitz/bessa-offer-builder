@@ -6,11 +6,15 @@ import userEvent from '@testing-library/user-event';
 const listOffersMock = vi.fn();
 const logActivityMock = vi.fn();
 const updateOfferStageMock = vi.fn();
+const getRecentOpenCountsMock = vi.fn();
+const sendFollowupMock = vi.fn();
 
 vi.mock('../../../../lib/offerApi', () => ({
   listOffers: () => listOffersMock(),
   logActivity: (offerId: string, draft: unknown) => logActivityMock(offerId, draft),
   updateOfferStage: (offerId: string, stage: string) => updateOfferStageMock(offerId, stage),
+  getRecentOpenCounts: (days: number) => getRecentOpenCountsMock(days),
+  sendFollowup: (offerId: string, payload: unknown) => sendFollowupMock(offerId, payload),
 }));
 
 const useAuthMock = vi.fn(() => ({
@@ -46,6 +50,10 @@ beforeEach(() => {
   listOffersMock.mockReset();
   logActivityMock.mockReset();
   updateOfferStageMock.mockReset();
+  getRecentOpenCountsMock.mockReset();
+  sendFollowupMock.mockReset();
+  // Default: no recent opens. Individual tests override as needed.
+  getRecentOpenCountsMock.mockResolvedValue(new Map());
 });
 
 describe('FollowUpsPage', () => {
@@ -217,6 +225,77 @@ describe('FollowUpsPage', () => {
     await waitFor(() => expect(alertSpy).toHaveBeenCalled());
     expect(screen.getByText('Boom GmbH')).toBeInTheDocument();
     alertSpy.mockRestore();
+  });
+
+  it('shows a Heiße Spur bucket when an offer has ≥3 opens in the last 7 days', async () => {
+    listOffersMock.mockResolvedValueOnce([
+      offer({ id: 'hot', customer_company: 'Heißes Lead GmbH', sent_at: new Date(NOW - 4 * MS).toISOString() }),
+      offer({ id: 'cold', customer_company: 'Cold GmbH', sent_at: new Date(NOW - 4 * MS).toISOString() }),
+    ]);
+    getRecentOpenCountsMock.mockResolvedValueOnce(new Map([['hot', 4], ['cold', 1]]));
+
+    render(<FollowUpsPage onBack={() => {}} onLoad={() => {}} />);
+    await screen.findByText('Heißes Lead GmbH');
+
+    expect(screen.getByRole('button', { name: /Heiße Spur/ })).toBeInTheDocument();
+    // Cold offer (1 open) does not appear in any bucket since it has
+    // no follow-up date and isn't stale yet (sent only 4 days ago).
+    expect(screen.queryByText('Cold GmbH')).not.toBeInTheDocument();
+  });
+
+  it('moves a hot-trail offer out of the time-based buckets so it isn\'t double-counted', async () => {
+    listOffersMock.mockResolvedValueOnce([
+      // Both overdue AND hot — should appear only in Heiße Spur.
+      offer({ id: 'hot', customer_company: 'Heiß GmbH', next_followup_at: new Date(NOW - MS).toISOString() }),
+    ]);
+    getRecentOpenCountsMock.mockResolvedValueOnce(new Map([['hot', 5]]));
+
+    render(<FollowUpsPage onBack={() => {}} onLoad={() => {}} />);
+    await screen.findByText('Heiß GmbH');
+
+    // The Überfällig section header should report "keine" because
+    // the offer was promoted to the hot bucket.
+    const ueberfaellig = screen.getByText('Überfällig').closest('div')!;
+    expect(ueberfaellig.textContent).toMatch(/— keine/);
+  });
+
+  it('clicking Folgemail opens SendFollowupModal and sending invokes sendFollowup', async () => {
+    const user = userEvent.setup();
+    listOffersMock.mockResolvedValueOnce([
+      offer({
+        id: 'a',
+        customer_company: 'Acme GmbH',
+        next_followup_at: new Date(NOW - MS).toISOString(),
+        sent_at: new Date(NOW - 5 * MS).toISOString(),
+        // include the fields the modal/templates read
+        creator_email: 'g.kitz@kitz.co.at',
+        email_subject: 'Ihr Angebot von Kitz – Acme',
+        pdf_path: 'offers/a/x.pdf',
+      }),
+    ]);
+    sendFollowupMock.mockResolvedValueOnce({ success: true, activityId: 'act-1' });
+    // After a successful send the page calls fetchOffers() again.
+    listOffersMock.mockResolvedValueOnce([]);
+
+    render(<FollowUpsPage onBack={() => {}} onLoad={() => {}} />);
+    await screen.findByText('Acme GmbH');
+
+    await user.click(screen.getAllByRole('button', { name: /Folgemail/ })[0]!);
+
+    // Modal opened
+    expect(await screen.findByText(/Folgemail an Acme GmbH/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Senden$/ }));
+
+    await waitFor(() => expect(sendFollowupMock).toHaveBeenCalledTimes(1));
+    const [offerId, payload] = sendFollowupMock.mock.calls[0]!;
+    expect(offerId).toBe('a');
+    expect(payload).toMatchObject({
+      attachPdf: true,
+      createdById: 'user-1',
+      createdByName: 'Georg Kitz',
+    });
+    expect(typeof (payload as { subject: string }).subject).toBe('string');
+    expect((payload as { subject: string }).subject.startsWith('Re: ')).toBe(true);
   });
 
   it('logging an activity with stageChange triggers BOTH logActivity and updateOfferStage', async () => {

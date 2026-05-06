@@ -101,10 +101,13 @@ serve(async (req: Request) => {
       });
     }
 
-    // Look up the offer via the sent event's metadata
+    // Look up the originating 'sent' row so we can attribute the
+    // event to the right offer AND, for follow-ups, the right
+    // activity. Opens of a templated nudge should count toward the
+    // nudge in the timeline, not against the original offer send.
     const { data: events } = await supabase
       .from('email_events')
-      .select('offer_id')
+      .select('offer_id, activity_id')
       .eq('event_type', 'sent')
       .contains('metadata', { resend_id: resendEmailId })
       .limit(1);
@@ -117,11 +120,13 @@ serve(async (req: Request) => {
     }
 
     const offerId = events[0].offer_id;
+    const activityId = events[0].activity_id || null;
 
     // Log the event
     await supabase.from('email_events').insert({
       offer_id: offerId,
       event_type: eventType,
+      activity_id: activityId,
       metadata: data,
     });
 

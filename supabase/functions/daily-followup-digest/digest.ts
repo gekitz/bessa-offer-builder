@@ -19,7 +19,7 @@ export interface DigestOffer {
   creator_name: string | null;
 }
 
-export type BucketKey = 'overdue' | 'dueToday';
+export type BucketKey = 'hot' | 'overdue' | 'dueToday';
 
 export interface BucketedOffer {
   offer: DigestOffer;
@@ -29,6 +29,7 @@ export interface BucketedOffer {
 export interface CreatorGroup {
   creatorId: string;
   creatorName: string;
+  hot: DigestOffer[];
   overdue: DigestOffer[];
   dueToday: DigestOffer[];
 }
@@ -36,10 +37,18 @@ export interface CreatorGroup {
 export interface DigestData {
   generatedAt: Date;
   total: number;
+  totalHot: number;
   totalOverdue: number;
   totalDueToday: number;
   groups: CreatorGroup[];
+  // Per-offer recent open count (last 7 days). Used by the renderer
+  // to show "👁 ×N" next to hot offers.
+  opensByOfferId: Map<string, number>;
 }
+
+// "More than 2 opens in 7 days" → ≥3.
+export const HOT_TRAIL_OPEN_THRESHOLD = 3;
+export const HOT_TRAIL_LOOKBACK_DAYS = 7;
 
 function isSameLocalDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear()
@@ -53,12 +62,22 @@ function dealValue(o: DigestOffer): number {
   return Number(o.total_monthly || 0);
 }
 
-// Returns 'overdue' / 'dueToday' / null. Unlike the in-app FollowUpsPage
-// we deliberately skip the 'stale' bucket: the digest is a daily nudge
-// for time-sensitive items, and stale offers without any scheduled
-// follow-up date would otherwise dominate the inbox forever.
-export function classifyOffer(o: DigestOffer, now: Date): BucketKey | null {
+// Returns 'hot' / 'overdue' / 'dueToday' / null.
+//
+// 'hot' takes precedence: an offer the customer keeps reopening is
+// the strongest signal we have, and we want it at the top of the
+// digest regardless of any scheduled follow-up date. We deliberately
+// skip the in-app 'stale' bucket here — stale offers without any
+// scheduled follow-up date would otherwise dominate the inbox.
+export function classifyOffer(
+  o: DigestOffer,
+  now: Date,
+  recentOpens: number,
+): BucketKey | null {
   if (o.stage !== 'offer_sent') return null;
+
+  if (recentOpens >= HOT_TRAIL_OPEN_THRESHOLD) return 'hot';
+
   if (!o.next_followup_at) return null;
   const due = new Date(o.next_followup_at);
   if (Number.isNaN(due.getTime())) return null;
@@ -69,13 +88,19 @@ export function classifyOffer(o: DigestOffer, now: Date): BucketKey | null {
   return null;
 }
 
-export function buildDigest(offers: DigestOffer[], now: Date): DigestData {
+export function buildDigest(
+  offers: DigestOffer[],
+  now: Date,
+  opensByOfferId: Map<string, number> = new Map(),
+): DigestData {
   const byCreator = new Map<string, CreatorGroup>();
+  let totalHot = 0;
   let totalOverdue = 0;
   let totalDueToday = 0;
 
   for (const o of offers) {
-    const bucket = classifyOffer(o, now);
+    const opens = opensByOfferId.get(o.id) || 0;
+    const bucket = classifyOffer(o, now, opens);
     if (!bucket) continue;
 
     // Group key is creator_id when present so two reps with the same
@@ -86,12 +111,16 @@ export function buildDigest(offers: DigestOffer[], now: Date): DigestData {
       group = {
         creatorId: o.creator_id || '',
         creatorName: o.creator_name || 'Ohne Ersteller',
+        hot: [],
         overdue: [],
         dueToday: [],
       };
       byCreator.set(key, group);
     }
-    if (bucket === 'overdue') {
+    if (bucket === 'hot') {
+      group.hot.push(o);
+      totalHot++;
+    } else if (bucket === 'overdue') {
       group.overdue.push(o);
       totalOverdue++;
     } else {
@@ -101,26 +130,37 @@ export function buildDigest(offers: DigestOffer[], now: Date): DigestData {
   }
 
   // Sort offers within each creator by deal value desc — biggest first.
+  // Hot bucket also gets a secondary sort by open count desc so the
+  // most engaged prospect bubbles up.
   const byValue = (a: DigestOffer, b: DigestOffer) => dealValue(b) - dealValue(a);
+  const byOpensThenValue = (a: DigestOffer, b: DigestOffer) => {
+    const oa = opensByOfferId.get(a.id) || 0;
+    const ob = opensByOfferId.get(b.id) || 0;
+    if (ob !== oa) return ob - oa;
+    return byValue(a, b);
+  };
   const groups = [...byCreator.values()];
   for (const g of groups) {
+    g.hot.sort(byOpensThenValue);
     g.overdue.sort(byValue);
     g.dueToday.sort(byValue);
   }
   // Sort creators by total open count desc, then name asc for stability.
   groups.sort((a, b) => {
-    const ac = a.overdue.length + a.dueToday.length;
-    const bc = b.overdue.length + b.dueToday.length;
+    const ac = a.hot.length + a.overdue.length + a.dueToday.length;
+    const bc = b.hot.length + b.overdue.length + b.dueToday.length;
     if (bc !== ac) return bc - ac;
     return a.creatorName.localeCompare(b.creatorName);
   });
 
   return {
     generatedAt: now,
-    total: totalOverdue + totalDueToday,
+    total: totalHot + totalOverdue + totalDueToday,
+    totalHot,
     totalOverdue,
     totalDueToday,
     groups,
+    opensByOfferId,
   };
 }
 
@@ -161,12 +201,17 @@ function offerValueLabel(o: DigestOffer): string {
   return '';
 }
 
-function renderRow(o: DigestOffer, kind: BucketKey): string {
+function renderRow(o: DigestOffer, kind: BucketKey, opens: number): string {
   const label = escapeHtml(offerLabel(o));
   const value = escapeHtml(offerValueLabel(o));
-  const meta = kind === 'overdue'
-    ? `Fällig ${escapeHtml(fmtDateTime(o.next_followup_at || ''))}`
-    : `Heute ${escapeHtml(fmtDateTime(o.next_followup_at || ''))}`;
+  let meta = '';
+  if (kind === 'hot') {
+    meta = `${opens}× geöffnet in den letzten ${HOT_TRAIL_LOOKBACK_DAYS} Tagen`;
+  } else if (kind === 'overdue') {
+    meta = `Fällig ${escapeHtml(fmtDateTime(o.next_followup_at || ''))}`;
+  } else if (kind === 'dueToday') {
+    meta = `Heute ${escapeHtml(fmtDateTime(o.next_followup_at || ''))}`;
+  }
   const sentBit = o.sent_at ? ` · gesendet ${escapeHtml(fmtDate(o.sent_at))}` : '';
   return `
     <tr>
@@ -180,16 +225,24 @@ function renderRow(o: DigestOffer, kind: BucketKey): string {
     </tr>`;
 }
 
-function renderGroup(g: CreatorGroup): string {
-  const total = g.overdue.length + g.dueToday.length;
+function renderGroup(g: CreatorGroup, opensByOfferId: Map<string, number>): string {
+  const total = g.hot.length + g.overdue.length + g.dueToday.length;
   const sections: string[] = [];
 
+  if (g.hot.length > 0) {
+    sections.push(`
+      <tr><td colspan="2" style="padding:10px 12px 6px;background:#fdf2f8;color:#be185d;font-weight:700;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;">
+        Heiße Spur (${g.hot.length}) — Kaufsignal
+      </td></tr>
+      ${g.hot.map((o) => renderRow(o, 'hot', opensByOfferId.get(o.id) || 0)).join('')}
+    `);
+  }
   if (g.overdue.length > 0) {
     sections.push(`
       <tr><td colspan="2" style="padding:10px 12px 6px;background:#fef2f2;color:#b91c1c;font-weight:700;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;">
         Überfällig (${g.overdue.length})
       </td></tr>
-      ${g.overdue.map((o) => renderRow(o, 'overdue')).join('')}
+      ${g.overdue.map((o) => renderRow(o, 'overdue', opensByOfferId.get(o.id) || 0)).join('')}
     `);
   }
   if (g.dueToday.length > 0) {
@@ -197,7 +250,7 @@ function renderGroup(g: CreatorGroup): string {
       <tr><td colspan="2" style="padding:10px 12px 6px;background:#fffbeb;color:#b45309;font-weight:700;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;">
         Heute fällig (${g.dueToday.length})
       </td></tr>
-      ${g.dueToday.map((o) => renderRow(o, 'dueToday')).join('')}
+      ${g.dueToday.map((o) => renderRow(o, 'dueToday', opensByOfferId.get(o.id) || 0)).join('')}
     `);
   }
 
@@ -220,7 +273,13 @@ export function renderDigestHtml(data: DigestData): string {
 
   const groupsHtml = data.groups.length === 0
     ? `<p style="color:#64748b;font-size:14px;">Keine offenen oder überfälligen Follow-ups.</p>`
-    : data.groups.map(renderGroup).join('');
+    : data.groups.map((g) => renderGroup(g, data.opensByOfferId)).join('');
+
+  const summary = [
+    data.totalHot > 0 ? `${data.totalHot} heiße Spur` : null,
+    `${data.totalOverdue} überfällig`,
+    `${data.totalDueToday} heute fällig`,
+  ].filter(Boolean).join(' · ');
 
   return `<!DOCTYPE html>
 <html lang="de"><head><meta charset="utf-8"></head>
@@ -232,9 +291,7 @@ export function renderDigestHtml(data: DigestData): string {
     </div>
     <div style="padding:24px 28px;">
       <h1 style="color:#1e293b;font-size:18px;margin:0 0 6px;">${escapeHtml(dateStr)}</h1>
-      <p style="color:#64748b;font-size:13px;margin:0 0 20px;">
-        ${data.totalOverdue} überfällig · ${data.totalDueToday} heute fällig
-      </p>
+      <p style="color:#64748b;font-size:13px;margin:0 0 20px;">${summary}</p>
       ${groupsHtml}
       <p style="color:#94a3b8;font-size:11px;margin:24px 0 0;">
         Automatisch generiert · ${data.groups.length} Ersteller mit offenen Follow-ups
@@ -246,5 +303,6 @@ export function renderDigestHtml(data: DigestData): string {
 
 export function digestSubject(data: DigestData): string {
   const dateStr = data.generatedAt.toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit' });
-  return `Follow-ups ${dateStr} — ${data.totalOverdue} überfällig, ${data.totalDueToday} heute`;
+  const hotPrefix = data.totalHot > 0 ? `🔥 ${data.totalHot} heiße Spur · ` : '';
+  return `Follow-ups ${dateStr} — ${hotPrefix}${data.totalOverdue} überfällig, ${data.totalDueToday} heute`;
 }

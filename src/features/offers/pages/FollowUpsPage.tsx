@@ -6,30 +6,56 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  Eye,
   FileText,
   Flame,
   Loader2,
+  Mail,
   MessageSquare,
   Phone,
   RefreshCw,
+  Sparkles,
   User,
   XCircle,
 } from 'lucide-react';
 
 import { useAuth } from '../../../lib/auth';
-import { listOffers, logActivity, updateOfferStage } from '../../../lib/offerApi';
+import {
+  getRecentOpenCounts,
+  listOffers,
+  logActivity,
+  sendFollowup,
+  updateOfferStage,
+} from '../../../lib/offerApi';
 import { fmt } from '../../../lib/format';
 import { bucketize, STALE_AFTER_DAYS, type OfferLike } from '../followUpBuckets';
 import LogActivityModal, { type ActivityDraft } from '../components/modals/LogActivityModal';
+import SendFollowupModal, { type SendFollowupDraft } from '../components/modals/SendFollowupModal';
 
 // Dedicated workspace for following up on sent offers. Buckets are
 // the same as the in-list Hub (overdue / due today / stale) but get
 // the whole viewport plus filters (creator, deal-value floor, search).
+//
+// On top of bucketize() we add a "Heiße Spur" bucket sourced from
+// recent open counts: offers with > 2 opens in the last 7 days are
+// the strongest buy signal we have, and they jump above Überfällig.
+
+// Threshold for the Heiße Spur bucket. The original spec was "more
+// than 2 opens in 7 days", i.e. >= 3.
+const HOT_TRAIL_OPEN_THRESHOLD = 3;
+const HOT_TRAIL_LOOKBACK_DAYS = 7;
 
 interface OfferRow extends OfferLike {
   customer_name?: string | null;
   customer_company?: string | null;
+  customer_email?: string | null;
+  creator_id?: string | null;
   creator_name?: string | null;
+  creator_email?: string | null;
+  email_subject?: string | null;
+  total_once?: number | string | null;
+  pdf_path?: string | null;
+  share_code?: string | null;
 }
 
 type ValueFilterKey = 'all' | '1k' | '5k' | '10k';
@@ -92,7 +118,7 @@ function CreatorFilterDropdown({ value, onChange, creators }: CreatorFilterDropd
   );
 }
 
-type BucketTone = 'red' | 'amber' | 'blue';
+type BucketTone = 'red' | 'amber' | 'blue' | 'pink';
 
 interface BucketSectionProps {
   tone: BucketTone;
@@ -100,19 +126,22 @@ interface BucketSectionProps {
   title: string;
   subtitle: string;
   offers: OfferRow[];
+  opensByOfferId: Map<string, number>;
   onLog: (offerId: string) => void;
+  onFollowup: (offerId: string) => void;
   onLoad: (offerId: string) => void;
   onChangeStage: (offerId: string, stage: 'closed' | 'lost') => void;
   stageBusyId?: string | null;
   defaultOpen?: boolean;
 }
 
-function BucketSection({ tone, icon, title, subtitle, offers, onLog, onLoad, onChangeStage, stageBusyId, defaultOpen = true }: BucketSectionProps) {
+function BucketSection({ tone, icon, title, subtitle, offers, opensByOfferId, onLog, onFollowup, onLoad, onChangeStage, stageBusyId, defaultOpen = true }: BucketSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
   const toneCls: Record<BucketTone, string> = {
     red:   'border-red-200 bg-red-50',
     amber: 'border-amber-200 bg-amber-50',
     blue:  'border-blue-200 bg-blue-50',
+    pink:  'border-pink-300 bg-pink-50',
   };
   const cls = toneCls[tone] || 'border-slate-200 bg-slate-50';
 
@@ -143,7 +172,9 @@ function BucketSection({ tone, icon, title, subtitle, offers, onLog, onLoad, onC
             <FollowUpRow
               key={o.id}
               offer={o}
+              opens={opensByOfferId.get(o.id) || 0}
               onLog={onLog}
+              onFollowup={onFollowup}
               onLoad={onLoad}
               onChangeStage={onChangeStage}
               stageBusy={stageBusyId === o.id}
@@ -157,20 +188,27 @@ function BucketSection({ tone, icon, title, subtitle, offers, onLog, onLoad, onC
 
 interface FollowUpRowProps {
   offer: OfferRow;
+  opens: number;
   onLog: (offerId: string) => void;
+  onFollowup: (offerId: string) => void;
   onLoad: (offerId: string) => void;
   onChangeStage: (offerId: string, stage: 'closed' | 'lost') => void;
   stageBusy?: boolean;
 }
 
-function FollowUpRow({ offer, onLog, onLoad, onChangeStage, stageBusy }: FollowUpRowProps) {
+function FollowUpRow({ offer, opens, onLog, onFollowup, onLoad, onChangeStage, stageBusy }: FollowUpRowProps) {
   const due = offer.next_followup_at ? new Date(offer.next_followup_at) : null;
   const sent = offer.sent_at ? new Date(offer.sent_at) : null;
   return (
     <div className="flex items-center gap-2 px-3 py-2.5">
       <div className="flex-1 min-w-0">
-        <div className="font-semibold text-slate-800 truncate" style={{ fontSize: 13 }}>
-          {offer.customer_company || offer.customer_name || 'Ohne Name'}
+        <div className="font-semibold text-slate-800 truncate flex items-center gap-2" style={{ fontSize: 13 }}>
+          <span className="truncate">{offer.customer_company || offer.customer_name || 'Ohne Name'}</span>
+          {opens > 0 && (
+            <span className="flex items-center gap-0.5 rounded-full bg-pink-100 text-pink-700 px-1.5 py-0.5 font-medium" style={{ fontSize: 10 }} title={`${opens}× geöffnet in den letzten ${HOT_TRAIL_LOOKBACK_DAYS} Tagen`}>
+              <Eye size={10} /> {opens}
+            </span>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-500" style={{ fontSize: 11 }}>
           {due && (
@@ -193,8 +231,17 @@ function FollowUpRow({ offer, onLog, onLoad, onChangeStage, stageBusy }: FollowU
         onClick={() => onLog(offer.id)}
         className="flex items-center gap-1 rounded-lg bg-blue-600 text-white px-2.5 py-1 hover:bg-blue-700 transition-colors flex-shrink-0"
         style={{ fontSize: 11 }}
+        title="Anruf / Notiz protokollieren"
       >
         <Phone size={12} /> Kontakt
+      </button>
+      <button
+        onClick={() => onFollowup(offer.id)}
+        className="flex items-center gap-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 hover:bg-blue-100 transition-colors flex-shrink-0"
+        style={{ fontSize: 11 }}
+        title="Folgemail senden"
+      >
+        <Mail size={12} /> Folgemail
       </button>
       <button
         onClick={() => onChangeStage(offer.id, 'closed')}
@@ -238,20 +285,34 @@ interface AuthShape {
 export default function FollowUpsPage({ onBack, onLoad }: FollowUpsPageProps) {
   const { user, profile } = useAuth() as AuthShape;
   const [offers, setOffers] = useState<OfferRow[]>([]);
+  const [opensByOfferId, setOpensByOfferId] = useState<Map<string, number>>(() => new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creatorFilter, setCreatorFilter] = useState<string>('all');
   const [valueFilter, setValueFilter] = useState<ValueFilterKey>('all');
   const [logTargetId, setLogTargetId] = useState<string | null>(null);
   const [logSaving, setLogSaving] = useState(false);
+  const [followupTargetId, setFollowupTargetId] = useState<string | null>(null);
+  const [followupSaving, setFollowupSaving] = useState(false);
   const [stageBusyId, setStageBusyId] = useState<string | null>(null);
 
   const fetchOffers = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await listOffers();
-      setOffers((data as OfferRow[]) || []);
+      // Fetch offers and recent open counts in parallel — they're
+      // independent and the opens query is cheap (one indexed scan).
+      // If opens fails we still want to render the page, so we
+      // swallow that error and degrade to empty counts.
+      const [offerRows, opens] = await Promise.all([
+        listOffers(),
+        getRecentOpenCounts(HOT_TRAIL_LOOKBACK_DAYS).catch((err) => {
+          console.warn('FollowUpsPage: getRecentOpenCounts failed, falling back to empty', err);
+          return new Map<string, number>();
+        }),
+      ]);
+      setOffers((offerRows as OfferRow[]) || []);
+      setOpensByOfferId(opens);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -277,9 +338,28 @@ export default function FollowUpsPage({ onBack, onLoad }: FollowUpsPageProps) {
     return list;
   }, [offers, creatorFilter, valueFilter]);
 
-  const buckets = useMemo(() => bucketize(filtered), [filtered]);
-  const totalCount = buckets.overdue.length + buckets.dueToday.length + buckets.stale.length;
+  // Heiße Spur is computed BEFORE bucketize(): an offer that's been
+  // opened ≥3× in the last 7 days is a buy signal, regardless of
+  // whether it's also overdue or stale. We pull it out so it gets
+  // its own (visually loud) section above everything else and
+  // doesn't get double-counted in the time-based buckets below.
+  const hotTrail = useMemo<OfferRow[]>(() => {
+    return filtered
+      .filter((o) => o.stage === 'offer_sent')
+      .filter((o) => (opensByOfferId.get(o.id) || 0) >= HOT_TRAIL_OPEN_THRESHOLD)
+      .sort((a, b) => (opensByOfferId.get(b.id) || 0) - (opensByOfferId.get(a.id) || 0));
+  }, [filtered, opensByOfferId]);
+
+  const hotTrailIds = useMemo(() => new Set(hotTrail.map((o) => o.id)), [hotTrail]);
+  const filteredForBuckets = useMemo(
+    () => filtered.filter((o) => !hotTrailIds.has(o.id)),
+    [filtered, hotTrailIds],
+  );
+
+  const buckets = useMemo(() => bucketize(filteredForBuckets), [filteredForBuckets]);
+  const totalCount = hotTrail.length + buckets.overdue.length + buckets.dueToday.length + buckets.stale.length;
   const logTarget = logTargetId ? offers.find((o) => o.id === logTargetId) : null;
+  const followupTarget = followupTargetId ? offers.find((o) => o.id === followupTargetId) : null;
 
   async function handleChangeStage(offerId: string, newStage: 'closed' | 'lost') {
     setStageBusyId(offerId);
@@ -293,6 +373,30 @@ export default function FollowUpsPage({ onBack, onLoad }: FollowUpsPageProps) {
       alert('Fehler: ' + (err as Error).message);
     } finally {
       setStageBusyId(null);
+    }
+  }
+
+  async function handleSendFollowup(draft: SendFollowupDraft) {
+    if (!followupTargetId) return;
+    setFollowupSaving(true);
+    try {
+      await sendFollowup(followupTargetId, {
+        templateId: draft.templateId,
+        subject: draft.subject,
+        body: draft.body,
+        attachPdf: draft.attachPdf,
+        includeAcceptLink: draft.includeAcceptLink,
+        createdById: user?.id || null,
+        createdByName: profile?.mesonic_rep_name || user?.email || null,
+      });
+      // Refresh — the sent activity bumps last_activity_at and adds
+      // an email_events row that the next render will see.
+      await fetchOffers();
+      setFollowupTargetId(null);
+    } catch (err) {
+      alert('Fehler beim Senden: ' + (err as Error).message);
+    } finally {
+      setFollowupSaving(false);
     }
   }
 
@@ -382,12 +486,27 @@ export default function FollowUpsPage({ onBack, onLoad }: FollowUpsPageProps) {
         ) : (
           <div className="space-y-3">
             <BucketSection
+              tone="pink"
+              icon={<Sparkles size={14} className="text-pink-600" />}
+              title="Heiße Spur"
+              subtitle={`> 2 Öffnungen in den letzten ${HOT_TRAIL_LOOKBACK_DAYS} Tagen — Kaufsignal`}
+              offers={hotTrail}
+              opensByOfferId={opensByOfferId}
+              onLog={setLogTargetId}
+              onFollowup={setFollowupTargetId}
+              onLoad={onLoad}
+              onChangeStage={handleChangeStage}
+              stageBusyId={stageBusyId}
+            />
+            <BucketSection
               tone="red"
               icon={<Flame size={14} className="text-red-600" />}
               title="Überfällig"
               subtitle="Follow-up-Termin verstrichen"
               offers={buckets.overdue}
+              opensByOfferId={opensByOfferId}
               onLog={setLogTargetId}
+              onFollowup={setFollowupTargetId}
               onLoad={onLoad}
               onChangeStage={handleChangeStage}
               stageBusyId={stageBusyId}
@@ -398,7 +517,9 @@ export default function FollowUpsPage({ onBack, onLoad }: FollowUpsPageProps) {
               title="Heute fällig"
               subtitle="Diese Kunden heute kontaktieren"
               offers={buckets.dueToday}
+              opensByOfferId={opensByOfferId}
               onLog={setLogTargetId}
+              onFollowup={setFollowupTargetId}
               onLoad={onLoad}
               onChangeStage={handleChangeStage}
               stageBusyId={stageBusyId}
@@ -409,7 +530,9 @@ export default function FollowUpsPage({ onBack, onLoad }: FollowUpsPageProps) {
               title="Ohne Reaktion"
               subtitle={`Gesendet vor ${STALE_AFTER_DAYS}+ Tagen, kein Kontakt`}
               offers={buckets.stale}
+              opensByOfferId={opensByOfferId}
               onLog={setLogTargetId}
+              onFollowup={setFollowupTargetId}
               onLoad={onLoad}
               onChangeStage={handleChangeStage}
               stageBusyId={stageBusyId}
@@ -425,6 +548,18 @@ export default function FollowUpsPage({ onBack, onLoad }: FollowUpsPageProps) {
           onSubmit={handleLogActivity}
           onClose={() => !logSaving && setLogTargetId(null)}
           saving={logSaving}
+        />
+      )}
+
+      {followupTarget && (
+        <SendFollowupModal
+          offer={followupTarget}
+          recentOpens={opensByOfferId.get(followupTarget.id) || 0}
+          pdfAvailable={Boolean(followupTarget.pdf_path)}
+          acceptLinkAvailable={Boolean(followupTarget.share_code)}
+          onSubmit={handleSendFollowup}
+          onClose={() => !followupSaving && setFollowupTargetId(null)}
+          saving={followupSaving}
         />
       )}
     </>

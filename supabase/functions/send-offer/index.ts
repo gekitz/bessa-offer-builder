@@ -191,11 +191,22 @@ serve(async (req: Request) => {
     // Build Resend API payload. Reply-To routes customer replies to
     // the rep's real mailbox — angebote@kitz.co.at is sender-only on
     // Resend and bounces incoming mail.
+    //
+    // Message-ID is deterministic so follow-ups can reference it
+    // (In-Reply-To/References) without us querying Resend afterwards.
+    // The domain in the ID does not need to match the sender domain.
+    const finalSubject = emailSubject
+      || `Ihr Angebot von Kitz Computer & Office GmbH – ${offer.customer_company || offer.customer_name || 'Angebot'}`;
+    const messageId = `<offer-${offerId}@offer.kitz.co.at>`;
+
     const emailPayload: Record<string, unknown> = {
       from: 'Kitz Computer & Office GmbH <angebote@kitz.co.at>',
       to: [offer.customer_email],
-      subject: emailSubject || `Ihr Angebot von Kitz Computer & Office GmbH – ${offer.customer_company || offer.customer_name || 'Angebot'}`,
+      subject: finalSubject,
       html: emailHtml,
+      headers: {
+        'Message-ID': messageId,
+      },
     };
     if (offer.creator_email) {
       emailPayload.reply_to = offer.creator_email;
@@ -231,10 +242,15 @@ serve(async (req: Request) => {
       });
     }
 
-    // Update offer status
+    // Update offer status. Persist the actual subject so follow-ups
+    // can prefix "Re:" without guessing whether the rep customized it.
     await supabase
       .from('offers')
-      .update({ status: 'sent', sent_at: new Date().toISOString() })
+      .update({
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+        email_subject: finalSubject,
+      })
       .eq('id', offerId);
 
     // Log email event

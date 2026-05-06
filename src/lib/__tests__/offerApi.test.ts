@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // queries behave (the builder is itself a thenable).
 function makeChain(response: { data: unknown; error: unknown }) {
   const builder: Record<string, unknown> = {};
-  const passthrough = ['select', 'insert', 'update', 'delete', 'eq', 'order'];
+  const passthrough = ['select', 'insert', 'update', 'delete', 'eq', 'order', 'gte', 'lte'];
   for (const m of passthrough) builder[m] = vi.fn(() => builder);
   builder.single = vi.fn(() => Promise.resolve(response));
   builder.then = (resolve: (v: unknown) => void) => Promise.resolve(response).then(resolve);
@@ -36,6 +36,8 @@ import {
   deleteOffer,
   updateOfferStage,
   sendOffer,
+  sendFollowup,
+  getRecentOpenCounts,
   setShareCode,
   getOfferByShareCode,
   signOffer,
@@ -202,6 +204,76 @@ describe('sendOffer', () => {
     expect(opts.body.emailBody).toBe('Body');
     expect(opts.body.emailClosing).toBe('LG');
     expect(opts.body.includeAcceptLink).toBe(true);
+  });
+});
+
+describe('sendFollowup', () => {
+  it('invokes send-followup with the merged payload', async () => {
+    invokeMock.mockResolvedValue({ data: { success: true, activityId: 'act-99' }, error: null });
+
+    const result = await sendFollowup('off-1', {
+      templateId: 'breakup',
+      subject: 'Re: Ihr Angebot',
+      body: 'Body text',
+      attachPdf: true,
+      includeAcceptLink: false,
+      createdById: 'gk',
+      createdByName: 'Georg',
+    });
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [name, opts] = invokeMock.mock.calls[0] as [string, { body: Record<string, unknown> }];
+    expect(name).toBe('send-followup');
+    expect(opts.body).toEqual({
+      offerId: 'off-1',
+      templateId: 'breakup',
+      subject: 'Re: Ihr Angebot',
+      body: 'Body text',
+      attachPdf: true,
+      includeAcceptLink: false,
+      createdById: 'gk',
+      createdByName: 'Georg',
+    });
+    expect(result).toEqual({ success: true, activityId: 'act-99' });
+  });
+
+  it('throws when the edge function returns an error', async () => {
+    invokeMock.mockResolvedValue({ data: null, error: new Error('email failed') });
+    await expect(sendFollowup('off-1', { subject: 's', body: 'b' })).rejects.toThrow('email failed');
+  });
+});
+
+describe('getRecentOpenCounts', () => {
+  it('aggregates open events into a Map<offerId, count>', async () => {
+    const rows = [
+      { offer_id: 'a' },
+      { offer_id: 'a' },
+      { offer_id: 'a' },
+      { offer_id: 'b' },
+    ];
+    const chain = makeChain({ data: rows, error: null });
+    fromMock.mockReturnValue(chain);
+
+    const counts = await getRecentOpenCounts(7);
+
+    expect(fromMock).toHaveBeenCalledWith('email_events');
+    expect(chain.eq).toHaveBeenCalledWith('event_type', 'opened');
+    expect(chain.gte).toHaveBeenCalledTimes(1);
+    expect(chain.gte.mock.calls[0][0]).toBe('occurred_at');
+    expect(counts.get('a')).toBe(3);
+    expect(counts.get('b')).toBe(1);
+    expect(counts.size).toBe(2);
+  });
+
+  it('returns an empty Map when no events match', async () => {
+    fromMock.mockReturnValue(makeChain({ data: [], error: null }));
+    const counts = await getRecentOpenCounts(7);
+    expect(counts.size).toBe(0);
+  });
+
+  it('throws when supabase returns an error', async () => {
+    fromMock.mockReturnValue(makeChain({ data: null, error: new Error('rls denied') }));
+    await expect(getRecentOpenCounts(7)).rejects.toThrow('rls denied');
   });
 });
 

@@ -242,6 +242,44 @@ export async function deleteActivity(activityId) {
   if (error) throw error;
 }
 
+// Send a follow-up email via the send-followup edge function. The
+// function logs an offer_activities row (kind=email) and an
+// email_events row, threads the email into the original offer
+// conversation, and optionally re-attaches the offer PDF.
+export async function sendFollowup(offerId, payload) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+
+  const { data, error } = await supabase.functions.invoke('send-followup', {
+    body: { offerId, ...payload },
+    headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+// Count recent 'opened' events per offer over the last `sinceDays`.
+// Used to surface the "Heiße Spur" bucket — offers the customer has
+// opened > 2 times in the last 7 days. Returns a Map<offerId, count>.
+export async function getRecentOpenCounts(sinceDays = 7) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+
+  const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from('email_events')
+    .select('offer_id')
+    .eq('event_type', 'opened')
+    .gte('occurred_at', since);
+
+  if (error) throw error;
+
+  const counts = new Map();
+  for (const row of data || []) {
+    counts.set(row.offer_id, (counts.get(row.offer_id) || 0) + 1);
+  }
+  return counts;
+}
+
 // Get email events for an offer
 export async function getEmailEvents(offerId) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
