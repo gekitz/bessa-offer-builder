@@ -203,74 +203,89 @@ function FollowUpRow({ offer, opens, onLog, onFollowup, onLoad, onChangeStage, s
   const due = offer.next_followup_at ? new Date(offer.next_followup_at) : null;
   const sent = offer.sent_at ? new Date(offer.sent_at) : null;
   return (
-    <div className="flex items-center gap-2 px-3 py-2.5">
-      <div className="flex-1 min-w-0">
-        <div className="font-semibold text-slate-800 truncate flex items-center gap-2" style={{ fontSize: 13 }}>
-          <span className="truncate">{offer.customer_company || offer.customer_name || 'Ohne Name'}</span>
-          {opens > 0 && (
-            <span className="flex items-center gap-0.5 rounded-full bg-pink-100 text-pink-700 px-1.5 py-0.5 font-medium" style={{ fontSize: 10 }} title={`${opens}× geöffnet in den letzten ${HOT_TRAIL_LOOKBACK_DAYS} Tagen`}>
-              <Eye size={10} /> {opens}
-            </span>
-          )}
+    <div className="px-3 py-2.5 space-y-2">
+      {/* Top: customer info on the left, value on the right.
+          Single horizontal row that fits comfortably on a phone — the
+          actions live on their own row below so they don't fight for
+          width with the customer name. */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-slate-800 truncate flex items-center gap-2" style={{ fontSize: 13 }}>
+            <span className="truncate">{offer.customer_company || offer.customer_name || 'Ohne Name'}</span>
+            {opens > 0 && (
+              <span className="flex items-center gap-0.5 rounded-full bg-pink-100 text-pink-700 px-1.5 py-0.5 font-medium flex-shrink-0" style={{ fontSize: 10 }} title={`${opens}× geöffnet in den letzten ${HOT_TRAIL_LOOKBACK_DAYS} Tagen`}>
+                <Eye size={10} /> {opens}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-500 mt-0.5" style={{ fontSize: 11 }}>
+            {due && (
+              <span className="flex items-center gap-1">
+                <AlarmClock size={11} />
+                Fällig {due.toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' })}
+              </span>
+            )}
+            {!due && sent && <span>Gesendet {sent.toLocaleDateString('de-AT')}</span>}
+            {offer.creator_name && <span className="text-slate-400">{offer.creator_name}</span>}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-500" style={{ fontSize: 11 }}>
-          {due && (
-            <span className="flex items-center gap-1">
-              <AlarmClock size={11} />
-              Fällig {due.toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' })}
-            </span>
-          )}
-          {!due && sent && <span>Gesendet {sent.toLocaleDateString('de-AT')}</span>}
-          {Number(offer.total_period) > 0 && (
-            <span className="text-slate-400">€ {fmt(Number(offer.total_period))}</span>
-          )}
+        <div className="text-right flex-shrink-0" style={{ fontSize: 11 }}>
           {Number(offer.total_monthly) > 0 && (
-            <span className="text-slate-400">€ {fmt(Number(offer.total_monthly))}/Mo</span>
+            <div className="font-semibold text-slate-700 whitespace-nowrap" style={{ fontSize: 12 }}>€ {fmt(Number(offer.total_monthly))}/Mo</div>
           )}
-          {offer.creator_name && <span className="text-slate-400">{offer.creator_name}</span>}
+          {Number(offer.total_period) > 0 && Number(offer.total_monthly) === 0 && (
+            <div className="text-slate-500 whitespace-nowrap">€ {fmt(Number(offer.total_period))}</div>
+          )}
         </div>
       </div>
-      <button
-        onClick={() => onLog(offer.id)}
-        className="flex items-center gap-1 rounded-lg bg-blue-600 text-white px-2.5 py-1 hover:bg-blue-700 transition-colors flex-shrink-0"
-        style={{ fontSize: 11 }}
-        title="Anruf / Notiz protokollieren"
-      >
-        <Phone size={12} /> Kontakt
-      </button>
-      <button
-        onClick={() => onFollowup(offer.id)}
-        className="flex items-center gap-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 hover:bg-blue-100 transition-colors flex-shrink-0"
-        style={{ fontSize: 11 }}
-        title="Folgemail senden"
-      >
-        <Mail size={12} /> Folgemail
-      </button>
-      <button
-        onClick={() => onChangeStage(offer.id, 'closed')}
-        disabled={stageBusy}
-        className="flex items-center gap-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 hover:bg-emerald-100 transition-colors disabled:opacity-50 flex-shrink-0"
-        style={{ fontSize: 11 }}
-        title="Als gewonnen markieren"
-      >
-        <CheckCircle2 size={12} /> Gewonnen
-      </button>
-      <button
-        onClick={() => onChangeStage(offer.id, 'lost')}
-        disabled={stageBusy}
-        className="flex items-center gap-1 rounded-lg bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 hover:bg-red-100 transition-colors disabled:opacity-50 flex-shrink-0"
-        style={{ fontSize: 11 }}
-        title="Als verloren markieren"
-      >
-        <XCircle size={12} /> Verloren
-      </button>
-      <button
-        onClick={() => onLoad(offer.id)}
-        className="flex items-center gap-1 rounded-lg bg-white text-slate-600 border border-slate-200 px-2.5 py-1 hover:bg-slate-50 transition-colors flex-shrink-0"
-        style={{ fontSize: 11 }}
-      >
-        <FileText size={12} /> Öffnen
-      </button>
+
+      {/* Bottom: action buttons. flex-wrap so they break to a 2nd
+          row on narrow screens instead of overflowing. Öffnen
+          ml-auto pushes it to the right edge of its row, separating
+          "open the offer" from the CRM-state actions. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          onClick={() => onLog(offer.id)}
+          className="flex items-center gap-1 rounded-lg bg-blue-600 text-white px-2.5 py-1 hover:bg-blue-700 transition-colors"
+          style={{ fontSize: 11 }}
+          title="Anruf / Notiz protokollieren"
+        >
+          <Phone size={12} /> Kontakt
+        </button>
+        <button
+          onClick={() => onFollowup(offer.id)}
+          className="flex items-center gap-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 hover:bg-blue-100 transition-colors"
+          style={{ fontSize: 11 }}
+          title="Folgemail senden"
+        >
+          <Mail size={12} /> Folgemail
+        </button>
+        <button
+          onClick={() => onChangeStage(offer.id, 'closed')}
+          disabled={stageBusy}
+          className="flex items-center gap-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+          style={{ fontSize: 11 }}
+          title="Als gewonnen markieren"
+        >
+          <CheckCircle2 size={12} /> Gewonnen
+        </button>
+        <button
+          onClick={() => onChangeStage(offer.id, 'lost')}
+          disabled={stageBusy}
+          className="flex items-center gap-1 rounded-lg bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 hover:bg-red-100 transition-colors disabled:opacity-50"
+          style={{ fontSize: 11 }}
+          title="Als verloren markieren"
+        >
+          <XCircle size={12} /> Verloren
+        </button>
+        <button
+          onClick={() => onLoad(offer.id)}
+          className="ml-auto flex items-center gap-1 rounded-lg bg-white text-slate-600 border border-slate-200 px-2.5 py-1 hover:bg-slate-50 transition-colors"
+          style={{ fontSize: 11 }}
+        >
+          <FileText size={12} /> Öffnen
+        </button>
+      </div>
     </div>
   );
 }
