@@ -298,6 +298,57 @@ describe('FollowUpsPage', () => {
     expect((payload as { subject: string }).subject.startsWith('Re: ')).toBe(true);
   });
 
+  it('Phase 2 deep-link: auto-opens SendFollowupModal when autoOpenFollowupOfferId is set', async () => {
+    const onAutoOpenConsumed = vi.fn();
+    listOffersMock.mockResolvedValueOnce([
+      offer({
+        id: 'deep-link-target',
+        customer_company: 'DeepLink GmbH',
+        sent_at: new Date(NOW - 5 * MS).toISOString(),
+        next_followup_at: new Date(NOW - MS).toISOString(),
+        creator_email: 'g.kitz@kitz.co.at',
+        email_subject: 'Re: original',
+        pdf_path: 'offers/deep/x.pdf',
+      }),
+    ]);
+
+    render(
+      <FollowUpsPage
+        onBack={() => {}}
+        onLoad={() => {}}
+        autoOpenFollowupOfferId="deep-link-target"
+        onAutoOpenConsumed={onAutoOpenConsumed}
+      />,
+    );
+
+    // Modal opens automatically once offers load
+    expect(await screen.findByText(/Folgemail an DeepLink GmbH/)).toBeInTheDocument();
+    // Parent is told the prop was consumed so it can clear state
+    await waitFor(() => expect(onAutoOpenConsumed).toHaveBeenCalledTimes(1));
+  });
+
+  it('Phase 2 deep-link: silently fizzles when the offer id no longer exists', async () => {
+    const onAutoOpenConsumed = vi.fn();
+    listOffersMock.mockResolvedValueOnce([
+      offer({ id: 'still-here', customer_company: 'Still GmbH', next_followup_at: new Date(NOW - MS).toISOString() }),
+    ]);
+
+    render(
+      <FollowUpsPage
+        onBack={() => {}}
+        onLoad={() => {}}
+        autoOpenFollowupOfferId="closed-or-deleted"
+        onAutoOpenConsumed={onAutoOpenConsumed}
+      />,
+    );
+
+    await screen.findByText('Still GmbH');
+    // No modal should appear
+    expect(screen.queryByText(/Folgemail an/)).not.toBeInTheDocument();
+    // Still consumed so we don't loop
+    await waitFor(() => expect(onAutoOpenConsumed).toHaveBeenCalledTimes(1));
+  });
+
   it('logging an activity with stageChange triggers BOTH logActivity and updateOfferStage', async () => {
     const user = userEvent.setup();
     listOffersMock.mockResolvedValueOnce([

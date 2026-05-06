@@ -259,6 +259,49 @@ describe('renderDigestHtml', () => {
     expect(html).toMatch(/5× geöffnet/);
   });
 
+  it('wraps each row in a deep-link when appBaseUrl is provided (Phase 2)', () => {
+    const offers = [
+      offer({ id: 'abc-123', next_followup_at: new Date(NOW.getTime() - MS).toISOString() }),
+    ];
+    const html = renderDigestHtml(buildDigest(offers, NOW), {
+      appBaseUrl: 'https://app.kitz.example',
+    });
+    expect(html).toContain('https://app.kitz.example/?action=send-followup&amp;offer=abc-123');
+    expect(html).toMatch(/utm_source=digest/);
+    expect(html).toMatch(/Folgemail senden/);
+  });
+
+  it('renders plain rows without links when appBaseUrl is omitted', () => {
+    const offers = [
+      offer({ id: 'abc-123', next_followup_at: new Date(NOW.getTime() - MS).toISOString() }),
+    ];
+    const html = renderDigestHtml(buildDigest(offers, NOW));
+    expect(html).not.toMatch(/<a href/);
+    expect(html).not.toMatch(/Folgemail senden/);
+  });
+
+  it('strips trailing slashes from appBaseUrl so the URL is well-formed', () => {
+    const offers = [
+      offer({ id: 'abc', next_followup_at: new Date(NOW.getTime() - MS).toISOString() }),
+    ];
+    const html = renderDigestHtml(buildDigest(offers, NOW), {
+      appBaseUrl: 'https://app.kitz.example///',
+    });
+    expect(html).toContain('https://app.kitz.example/?action=send-followup');
+    expect(html).not.toContain('example////?');
+  });
+
+  it('hot-bucket rows also get deep-links', () => {
+    const offers = [
+      offer({ id: 'hot-1', sent_at: new Date(NOW.getTime() - 10 * MS).toISOString() }),
+    ];
+    const opens = new Map([['hot-1', 4]]);
+    const html = renderDigestHtml(buildDigest(offers, NOW, opens), {
+      appBaseUrl: 'https://app.kitz.example',
+    });
+    expect(html).toContain('action=send-followup&amp;offer=hot-1');
+  });
+
   it('escapes HTML in customer and creator names to prevent injection', () => {
     const offers = [
       offer({

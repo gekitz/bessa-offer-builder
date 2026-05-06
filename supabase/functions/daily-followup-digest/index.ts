@@ -41,6 +41,9 @@ serve(async (req: Request) => {
   const recipient = Deno.env.get('DIGEST_RECIPIENT') || 'georg.kitz@bessa.app';
   const fromAddr = Deno.env.get('DIGEST_FROM')
     || 'Kitz Computer & Office GmbH <angebote@kitz.co.at>';
+  // Optional: when set, each digest row becomes a tappable deep-link
+  // back into the SPA's SendFollowupModal for that offer.
+  const appBaseUrl = Deno.env.get('PUBLIC_APP_URL') || null;
 
   if (!supabaseUrl || !supabaseServiceKey || !resendApiKey || !cronSecret) {
     return jsonResponse({ error: 'Missing required environment variables' }, 500);
@@ -102,7 +105,7 @@ serve(async (req: Request) => {
       return jsonResponse({ ok: true, sent: false, reason: 'no follow-ups due' });
     }
 
-    const html = renderDigestHtml(digest);
+    const html = renderDigestHtml(digest, { appBaseUrl });
     const subject = digestSubject(digest);
 
     const resendRes = await fetch('https://api.resend.com/emails', {

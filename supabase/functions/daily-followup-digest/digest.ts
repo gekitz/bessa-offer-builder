@@ -201,7 +201,28 @@ function offerValueLabel(o: DigestOffer): string {
   return '';
 }
 
-function renderRow(o: DigestOffer, kind: BucketKey, opens: number): string {
+// Build the deep-link to the SendFollowupModal for a specific offer.
+// When the rep taps a row in the digest email, this URL drops them
+// straight into the compose modal — Phase 2 of the follow-up flow.
+// Returns null when no app URL is configured (renderer falls back to
+// a non-link row).
+function buildFollowupDeepLink(appBaseUrl: string | null | undefined, offerId: string): string | null {
+  if (!appBaseUrl) return null;
+  const trimmed = appBaseUrl.replace(/\/+$/, '');
+  const params = new URLSearchParams({
+    action: 'send-followup',
+    offer: offerId,
+    utm_source: 'digest',
+  });
+  return `${trimmed}/?${params.toString()}`;
+}
+
+function renderRow(
+  o: DigestOffer,
+  kind: BucketKey,
+  opens: number,
+  appBaseUrl: string | null | undefined,
+): string {
   const label = escapeHtml(offerLabel(o));
   const value = escapeHtml(offerValueLabel(o));
   let meta = '';
@@ -213,11 +234,25 @@ function renderRow(o: DigestOffer, kind: BucketKey, opens: number): string {
     meta = `Heute ${escapeHtml(fmtDateTime(o.next_followup_at || ''))}`;
   }
   const sentBit = o.sent_at ? ` · gesendet ${escapeHtml(fmtDate(o.sent_at))}` : '';
+
+  // Wrap the entire row content in an <a> when we have an app URL.
+  // We use display:block on the anchor inside the table cell so the
+  // whole row remains tappable. Mail clients vary in how they style
+  // <a>, so we explicitly reset color and underline.
+  const deepLink = buildFollowupDeepLink(appBaseUrl, o.id);
+  const labelCell = deepLink
+    ? `<a href="${escapeHtml(deepLink)}" style="display:block;color:inherit;text-decoration:none;">
+         <div style="font-weight:600;color:#1e293b;font-size:13px;">${label}</div>
+         <div style="color:#64748b;font-size:11px;margin-top:2px;">${meta}${sentBit}</div>
+         <div style="color:#2563eb;font-size:10px;margin-top:4px;text-decoration:underline;">→ Folgemail senden</div>
+       </a>`
+    : `<div style="font-weight:600;color:#1e293b;font-size:13px;">${label}</div>
+       <div style="color:#64748b;font-size:11px;margin-top:2px;">${meta}${sentBit}</div>`;
+
   return `
     <tr>
       <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">
-        <div style="font-weight:600;color:#1e293b;font-size:13px;">${label}</div>
-        <div style="color:#64748b;font-size:11px;margin-top:2px;">${meta}${sentBit}</div>
+        ${labelCell}
       </td>
       <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;text-align:right;color:#475569;font-size:12px;white-space:nowrap;">
         ${value}
@@ -225,7 +260,11 @@ function renderRow(o: DigestOffer, kind: BucketKey, opens: number): string {
     </tr>`;
 }
 
-function renderGroup(g: CreatorGroup, opensByOfferId: Map<string, number>): string {
+function renderGroup(
+  g: CreatorGroup,
+  opensByOfferId: Map<string, number>,
+  appBaseUrl: string | null | undefined,
+): string {
   const total = g.hot.length + g.overdue.length + g.dueToday.length;
   const sections: string[] = [];
 
@@ -234,7 +273,7 @@ function renderGroup(g: CreatorGroup, opensByOfferId: Map<string, number>): stri
       <tr><td colspan="2" style="padding:10px 12px 6px;background:#fdf2f8;color:#be185d;font-weight:700;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;">
         Heiße Spur (${g.hot.length}) — Kaufsignal
       </td></tr>
-      ${g.hot.map((o) => renderRow(o, 'hot', opensByOfferId.get(o.id) || 0)).join('')}
+      ${g.hot.map((o) => renderRow(o, 'hot', opensByOfferId.get(o.id) || 0, appBaseUrl)).join('')}
     `);
   }
   if (g.overdue.length > 0) {
@@ -242,7 +281,7 @@ function renderGroup(g: CreatorGroup, opensByOfferId: Map<string, number>): stri
       <tr><td colspan="2" style="padding:10px 12px 6px;background:#fef2f2;color:#b91c1c;font-weight:700;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;">
         Überfällig (${g.overdue.length})
       </td></tr>
-      ${g.overdue.map((o) => renderRow(o, 'overdue', opensByOfferId.get(o.id) || 0)).join('')}
+      ${g.overdue.map((o) => renderRow(o, 'overdue', opensByOfferId.get(o.id) || 0, appBaseUrl)).join('')}
     `);
   }
   if (g.dueToday.length > 0) {
@@ -250,7 +289,7 @@ function renderGroup(g: CreatorGroup, opensByOfferId: Map<string, number>): stri
       <tr><td colspan="2" style="padding:10px 12px 6px;background:#fffbeb;color:#b45309;font-weight:700;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;">
         Heute fällig (${g.dueToday.length})
       </td></tr>
-      ${g.dueToday.map((o) => renderRow(o, 'dueToday', opensByOfferId.get(o.id) || 0)).join('')}
+      ${g.dueToday.map((o) => renderRow(o, 'dueToday', opensByOfferId.get(o.id) || 0, appBaseUrl)).join('')}
     `);
   }
 
@@ -266,14 +305,24 @@ function renderGroup(g: CreatorGroup, opensByOfferId: Map<string, number>): stri
   </div>`;
 }
 
-export function renderDigestHtml(data: DigestData): string {
+export interface RenderOptions {
+  // Public base URL of the SPA (e.g. https://app.kitz.example). When
+  // provided, each digest row becomes a deep-link that pre-opens the
+  // SendFollowupModal for that offer (Phase 2 of the follow-up flow).
+  // Omit / null for plain rows.
+  appBaseUrl?: string | null;
+}
+
+export function renderDigestHtml(data: DigestData, opts: RenderOptions = {}): string {
   const dateStr = data.generatedAt.toLocaleDateString('de-AT', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
   });
 
+  const appBaseUrl = opts.appBaseUrl ?? null;
+
   const groupsHtml = data.groups.length === 0
     ? `<p style="color:#64748b;font-size:14px;">Keine offenen oder überfälligen Follow-ups.</p>`
-    : data.groups.map((g) => renderGroup(g, data.opensByOfferId)).join('');
+    : data.groups.map((g) => renderGroup(g, data.opensByOfferId, appBaseUrl)).join('');
 
   const summary = [
     data.totalHot > 0 ? `${data.totalHot} heiße Spur` : null,

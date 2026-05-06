@@ -122,6 +122,11 @@ export default function OfferBuilderPage() {
   const section = sectionFromPath(location.pathname);
   const pendingApprovalsCount = useApproverPendingCount();
   const [offerView, setOfferView] = useState('list'); // 'list' | 'builder' | 'followups'
+  // When set, the FollowUps page picks this up and immediately opens
+  // SendFollowupModal for that offer. Driven by the digest deep-link
+  // (?action=send-followup&offer=ID); cleared after first render so
+  // a user-driven nav back to the page doesn't reopen the modal.
+  const [pendingFollowupOfferId, setPendingFollowupOfferId] = useState(null);
   const [builderTab, setBuilderTab] = useState('bessa');
   const [globalTier, setGlobalTier] = useState('12mo');
   const [cart, setCart] = useState({});
@@ -259,6 +264,23 @@ export default function OfferBuilderPage() {
       setOfferView('builder'); setBuilderTab('angebot');
       window.history.replaceState({}, '', window.location.pathname);
     }
+  }, []);
+
+  // Phase 2 digest deep-link: ?action=send-followup&offer=<id>
+  // The morning digest email links each row here so the rep can go
+  // from "see the row" to "compose the follow-up" in one tap. We
+  // route to the follow-ups view and stash the target id; the page
+  // picks it up on next render and pre-opens SendFollowupModal.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') !== 'send-followup') return;
+    const offerId = params.get('offer');
+    if (!offerId) return;
+
+    setOfferView('followups');
+    setPendingFollowupOfferId(offerId);
+    // Strip the params so reload / pull-to-refresh doesn't re-trigger.
+    window.history.replaceState({}, '', window.location.pathname);
   }, []);
 
   // Cart handlers
@@ -918,6 +940,8 @@ export default function OfferBuilderPage() {
         <FollowUpsPage
           onBack={() => setOfferView('list')}
           onLoad={(id) => handleLoadOffer(id, false)}
+          autoOpenFollowupOfferId={pendingFollowupOfferId}
+          onAutoOpenConsumed={() => setPendingFollowupOfferId(null)}
         />
       )}
 

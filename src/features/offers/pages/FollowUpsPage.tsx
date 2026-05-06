@@ -275,6 +275,12 @@ function FollowUpRow({ offer, opens, onLog, onFollowup, onLoad, onChangeStage, s
 export interface FollowUpsPageProps {
   onBack: () => void;
   onLoad: (offerId: string) => void;
+  // When set, the page auto-opens SendFollowupModal for this offer
+  // once data has loaded. Used by the digest deep-link in App-level
+  // routing — the parent clears it via onAutoOpenConsumed so the
+  // modal doesn't reopen when the user navigates back manually.
+  autoOpenFollowupOfferId?: string | null;
+  onAutoOpenConsumed?: () => void;
 }
 
 interface AuthShape {
@@ -282,7 +288,7 @@ interface AuthShape {
   profile: { mesonic_rep_name?: string | null } | null;
 }
 
-export default function FollowUpsPage({ onBack, onLoad }: FollowUpsPageProps) {
+export default function FollowUpsPage({ onBack, onLoad, autoOpenFollowupOfferId, onAutoOpenConsumed }: FollowUpsPageProps) {
   const { user, profile } = useAuth() as AuthShape;
   const [offers, setOffers] = useState<OfferRow[]>([]);
   const [opensByOfferId, setOpensByOfferId] = useState<Map<string, number>>(() => new Map());
@@ -321,6 +327,20 @@ export default function FollowUpsPage({ onBack, onLoad }: FollowUpsPageProps) {
   }, []);
 
   useEffect(() => { fetchOffers(); }, [fetchOffers]);
+
+  // Digest deep-link consumer: when the parent passes an offer id
+  // and offers have loaded, open SendFollowupModal for it. We only
+  // open if the offer actually exists in the list — a stale digest
+  // link to a closed/lost offer should fizzle quietly, not crash.
+  useEffect(() => {
+    if (!autoOpenFollowupOfferId) return;
+    if (loading) return;
+    const exists = offers.some((o) => o.id === autoOpenFollowupOfferId);
+    if (exists) {
+      setFollowupTargetId(autoOpenFollowupOfferId);
+    }
+    onAutoOpenConsumed?.();
+  }, [autoOpenFollowupOfferId, loading, offers, onAutoOpenConsumed]);
 
   const uniqueCreators = useMemo<string[]>(
     () => [...new Set(offers.map((o) => o.creator_name).filter((n): n is string => Boolean(n)))].sort(),
