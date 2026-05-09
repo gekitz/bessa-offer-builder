@@ -7,6 +7,8 @@ import LeaveCalendar from '../components/LeaveCalendar';
 import CalendarSubscriptionModal from '../components/CalendarSubscriptionModal';
 import BalancePanel from '../components/BalancePanel';
 import EmployeeBalanceTable from '../components/EmployeeBalanceTable';
+import ShiftAdminPanel from '../../shifts/components/ShiftAdminPanel';
+import MyShiftsPanel from '../../shifts/components/MyShiftsPanel';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { TEAM } from '../../offers/data/catalogs';
@@ -155,11 +157,24 @@ export default function VacationPage() {
           </div>
         )}
 
+        {/* My shifts — strip showing the next ~6 upcoming weekend/holiday
+            duties. Self-hides if the employee isn't in the rotation. */}
+        {!loading && !error && currentEmployee && (
+          <div className="mb-4">
+            <MyShiftsPanel
+              employees={employees}
+              currentEmployeeId={currentEmployee.id}
+              reloadKey={reloadKey}
+            />
+          </div>
+        )}
+
         {/* Calendar — visible once employees load. */}
         {!loading && !error && employees.length > 0 && (
           <div className="mb-4">
             <LeaveCalendar
               reloadKey={reloadKey}
+              currentEmployeeId={currentEmployee?.id ?? null}
               onAddRequest={(start, end) => setRequestForRange({ start, end })}
             />
           </div>
@@ -256,6 +271,14 @@ export default function VacationPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Shift admin — approvers only. Wedge between roster and the
+            empty-state, so it only renders once employees load. */}
+        {!loading && !error && employees.length > 0 && userIsApprover && (
+          <div className="mt-4">
+            <ShiftAdminPanel employees={employees} />
           </div>
         )}
 

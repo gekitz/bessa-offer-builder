@@ -112,6 +112,10 @@ export interface RuleContext {
   // rule to know which employees should pick a substitute on Urlaub /
   // Zeitausgleich.
   substitutes?: { employeeId: string; substituteEmployeeId: string; priority: number }[];
+  // Shifts (weekend / holiday duty) overlapping the request window.
+  // Used by the shiftOverlap rule to block leave that conflicts with
+  // an assigned shift. Empty/undefined disables the rule.
+  shifts?: { id: string; date: IsoDate; employeeId: string | null; status: 'unassigned' | 'assigned' | 'swap_pending' | 'completed' | 'cancelled' }[];
 }
 
 export interface RuleViolation {

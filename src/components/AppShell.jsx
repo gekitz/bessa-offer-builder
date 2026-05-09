@@ -30,7 +30,18 @@ export default function AppShell({
   const displayName = profile?.display_name || profile?.microsoft_email?.split('@')[0] || '';
 
   return (
-    <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", height: '100dvh', display: 'flex', flexDirection: 'column', background: '#f1f5f9' }}>
+    <div style={{
+      fontFamily: "'DM Sans', system-ui, sans-serif",
+      height: '100dvh',
+      display: 'flex',
+      flexDirection: 'column',
+      background: '#f1f5f9',
+      // iOS PWA in standalone mode paints content under the status
+      // bar (black-translucent + viewport-fit=cover). Push the whole
+      // shell down by the OS-reported inset so the title row clears
+      // the clock/battery overlay.
+      paddingTop: 'env(safe-area-inset-top, 0px)',
+    }}>
 
       {/* ── Desktop layout: sidebar + content side by side ── */}
       <div className="hidden md:flex flex-1 min-h-0">

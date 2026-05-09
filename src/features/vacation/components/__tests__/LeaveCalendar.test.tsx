@@ -5,11 +5,20 @@ import userEvent from '@testing-library/user-event';
 const listLeaveRequestsMock = vi.fn();
 const listEmployeesMock = vi.fn();
 const listLeaveTypesMock = vi.fn();
+const listShiftsMock = vi.fn();
+const listSlotKindsMock = vi.fn();
+const listSwapsMock = vi.fn();
 
 vi.mock('../../api/vacationApi', () => ({
   listLeaveRequests: (filter?: unknown) => listLeaveRequestsMock(filter),
   listEmployees: (opts?: unknown) => listEmployeesMock(opts),
   listLeaveTypes: () => listLeaveTypesMock(),
+}));
+
+vi.mock('../../../shifts/api/shiftApi', () => ({
+  listShifts: (filter?: unknown) => listShiftsMock(filter),
+  listSlotKinds: () => listSlotKindsMock(),
+  listSwaps: (filter?: unknown) => listSwapsMock(filter),
 }));
 
 import LeaveCalendar, { buildMonthGrid } from '../LeaveCalendar';
@@ -41,6 +50,9 @@ beforeEach(() => {
   listLeaveRequestsMock.mockReset().mockResolvedValue([]);
   listEmployeesMock.mockReset().mockResolvedValue([stefan, mario, georg, marc]);
   listLeaveTypesMock.mockReset().mockResolvedValue(TYPES);
+  listShiftsMock.mockReset().mockResolvedValue([]);
+  listSlotKindsMock.mockReset().mockResolvedValue([]);
+  listSwapsMock.mockReset().mockResolvedValue([]);
 });
 
 describe('buildMonthGrid', () => {

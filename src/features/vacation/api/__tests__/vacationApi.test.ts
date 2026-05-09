@@ -611,6 +611,7 @@ describe('loadRuleContext', () => {
         case 'coverage_rules':    return makeChain({ data: [], error: null });
         case 'blackout_periods':  return makeChain({ data: [], error: null });
         case 'substitutes':       return makeChain({ data: [], error: null });
+        case 'shifts':            return makeChain({ data: [], error: null });
         default: throw new Error(`unexpected table ${table}`);
       }
     });
@@ -624,9 +625,10 @@ describe('loadRuleContext', () => {
     expect(ctx.coverageRules).toEqual([]);
     expect(ctx.blackouts).toEqual([]);
     expect(ctx.substitutes).toEqual([]);
+    expect(ctx.shifts).toEqual([]);
     const tablesQueried = fromMock.mock.calls.map((c) => c[0]).sort();
     expect(tablesQueried).toEqual([
-      'blackout_periods', 'coverage_rules', 'employee_roles', 'employees', 'leave_requests', 'substitutes',
+      'blackout_periods', 'coverage_rules', 'employee_roles', 'employees', 'leave_requests', 'shifts', 'substitutes',
     ]);
   });
 

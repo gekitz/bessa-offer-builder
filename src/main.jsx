@@ -5,6 +5,32 @@ import { AuthProvider } from './lib/auth.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import './index.css'
 
+// Register the service worker once per page load. It owns push
+// notifications only (no caching), so it can silently swap in fresh
+// code on every deploy. Skipped on dev (Vite handles HMR) and on
+// browsers without SW support.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('SW registration failed:', err);
+    });
+  });
+}
+
+// Forward navigate messages from notificationclick into the SPA.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'kitz:navigate' && typeof e.data.url === 'string') {
+      try {
+        window.history.pushState({}, '', e.data.url);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      } catch {
+        window.location.assign(e.data.url);
+      }
+    }
+  });
+}
+
 const isAcceptFlow = new URLSearchParams(window.location.search).has('a');
 
 ReactDOM.createRoot(document.getElementById('root')).render(

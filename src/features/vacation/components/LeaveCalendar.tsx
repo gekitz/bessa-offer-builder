@@ -6,6 +6,14 @@ import {
   listLeaveTypes,
   type LeaveType,
 } from '../api/vacationApi';
+import {
+  listShifts,
+  listSlotKinds,
+  listSwaps,
+} from '../../shifts/api/shiftApi';
+import type { Shift, ShiftSlotKind, ShiftSwap } from '../../shifts/types';
+import { firstName as shiftFirstName, shortSlotLabel } from '../../shifts/lib/format';
+import ShiftDetailModal from '../../shifts/components/ShiftDetailModal';
 import type { Employee, IsoDate, LeaveRequest, LeaveTypeCode } from '../types';
 import DayDetailModal from './DayDetailModal';
 
@@ -20,6 +28,9 @@ interface LeaveCalendarProps {
   // and the drag-to-range gesture across cells call this. For single-day
   // creates start === end; for ranges, start <= end.
   onAddRequest?: (start: IsoDate, end: IsoDate) => void;
+  // Logged-in employee. Drives "is this my shift" affordances on the
+  // shift detail modal (Tausch anbieten, accept/decline pending swap).
+  currentEmployeeId?: string | null;
 }
 
 type ViewMode = 'month' | 'year';
@@ -99,6 +110,7 @@ export default function LeaveCalendar({
   initialViewMode = 'month',
   reloadKey = 0,
   onAddRequest,
+  currentEmployeeId = null,
 }: LeaveCalendarProps) {
   const today = new Date();
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
@@ -111,6 +123,15 @@ export default function LeaveCalendar({
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [leaves, setLeaves] = useState<Array<LeaveRequest & { id: string }>>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [slotKinds, setSlotKinds] = useState<ShiftSlotKind[]>([]);
+  const [pendingSwaps, setPendingSwaps] = useState<ShiftSwap[]>([]);
+  // Internal counter that re-fires the data fetch after a swap action
+  // (separate from the parent-controlled reloadKey so internal state
+  // changes don't ping the parent).
+  const [internalReload, setInternalReload] = useState(0);
+  // The shift currently open in the detail modal, or null.
+  const [openShift, setOpenShift] = useState<Shift | null>(null);
   const [loading, setLoading] = useState(true);
   // Becomes true after the first successful (or failed) fetch.
   // Subsequent month navigations keep the previous grid mounted
@@ -151,11 +172,21 @@ export default function LeaveCalendar({
       }),
       listEmployees({ activeOnly: false }),
       listLeaveTypes(),
-    ]).then(([reqs, emps, types]) => {
+      listShifts({
+        rangeStart,
+        rangeEnd,
+        status: ['assigned', 'swap_pending'],
+      }),
+      listSlotKinds(),
+      listSwaps({ status: 'pending' }),
+    ]).then(([reqs, emps, types, shifts_, slotKinds_, swaps_]) => {
       if (cancelled) return;
       setLeaves(reqs);
       setEmployees(emps);
       setLeaveTypes(types);
+      setShifts(shifts_);
+      setSlotKinds(slotKinds_);
+      setPendingSwaps(swaps_);
     }).catch((e) => {
       if (!cancelled) setError(e instanceof Error ? e.message : String(e));
     }).finally(() => {
@@ -165,13 +196,37 @@ export default function LeaveCalendar({
       }
     });
     return () => { cancelled = true; };
-  }, [rangeStart, rangeEnd, reloadKey]);
+  }, [rangeStart, rangeEnd, reloadKey, internalReload]);
 
   const employeeById = useMemo(() => new Map(employees.map((e) => [e.id, e])), [employees]);
   const typeByCode = useMemo(
     () => new Map<LeaveTypeCode, LeaveType>(leaveTypes.map((t) => [t.code, t])),
     [leaveTypes],
   );
+  const slotKindById = useMemo(
+    () => new Map<number, ShiftSlotKind>(slotKinds.map((k) => [k.id, k])),
+    [slotKinds],
+  );
+  // Group shifts by date so cell rendering is O(1) per cell.
+  const shiftsByDate = useMemo(() => {
+    const out = new Map<IsoDate, Shift[]>();
+    for (const s of shifts) {
+      const arr = out.get(s.date);
+      if (arr) arr.push(s);
+      else out.set(s.date, [s]);
+    }
+    return out;
+  }, [shifts]);
+  // Index pending swaps by shift id (each shift can have at most one
+  // pending swap touching it).
+  const pendingSwapByShiftId = useMemo(() => {
+    const out = new Map<string, ShiftSwap>();
+    for (const sw of pendingSwaps) {
+      out.set(sw.requesterShiftId, sw);
+      out.set(sw.targetShiftId, sw);
+    }
+    return out;
+  }, [pendingSwaps]);
   const todayIso: IsoDate = toIso(today.getFullYear(), today.getMonth(), today.getDate());
 
   const leavesOnOpenDay = useMemo(() => {
@@ -413,6 +468,8 @@ export default function LeaveCalendar({
                 month={m}
                 monthName={monthName}
                 leaves={leaves}
+                shiftsByDate={shiftsByDate}
+                currentEmployeeId={currentEmployeeId}
                 todayIso={todayIso}
                 onClickDay={(iso) => setOpenDay(iso)}
                 onClickMonth={handleOpenMonth}
@@ -476,6 +533,7 @@ export default function LeaveCalendar({
           <div className="grid grid-cols-7 gap-1">
             {grid.map((cell) => {
               const dayLeaves = leaves.filter((l) => leaveCoversDay(l, cell.iso));
+              const dayShifts = shiftsByDate.get(cell.iso) ?? [];
               const isToday = cell.iso === todayIso;
               const visible = dayLeaves.slice(0, 3);
               const overflow = dayLeaves.length - visible.length;
@@ -489,7 +547,7 @@ export default function LeaveCalendar({
                   onContextMenu={(e) => handleCellContextMenu(e, cell.iso)}
                   onMouseDown={(e) => handleCellMouseDown(e, cell.iso)}
                   onMouseEnter={() => handleCellMouseEnter(cell.iso)}
-                  className={`min-h-[64px] rounded-md border p-1 text-left flex flex-col gap-0.5 hover:border-red-300 transition-colors select-none ${
+                  className={`min-h-[64px] rounded-md border p-1 text-left flex flex-col gap-1 hover:border-red-300 transition-colors select-none ${
                     inDrag
                       ? 'bg-red-50 border-red-300'
                       : cell.current
@@ -507,6 +565,40 @@ export default function LeaveCalendar({
                   >
                     {cell.day}
                   </div>
+                  {dayShifts.map((s) => {
+                    const emp = s.employeeId ? employeeById.get(s.employeeId) : null;
+                    const isMine = !!currentEmployeeId && s.employeeId === currentEmployeeId;
+                    const pending = s.status === 'swap_pending';
+                    const tone = pending
+                      ? 'bg-amber-200 text-amber-900 border-amber-400'
+                      : isMine
+                        ? 'bg-red-700 text-white border-red-700'
+                        : 'bg-slate-700 text-white border-slate-700';
+                    return (
+                      <div
+                        key={s.id}
+                        role="button"
+                        tabIndex={0}
+                        data-testid={`cal-shift-${s.id}`}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenShift(s);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setOpenShift(s);
+                          }
+                        }}
+                        className={`truncate rounded px-1 py-0.5 border ${tone} cursor-pointer`}
+                        style={{ fontSize: 10 }}
+                        title={`${emp?.name ?? s.employeeId ?? '—'} · ${shortSlotLabel(s.slotKindCode)}${pending ? ' · Tausch offen' : ''}`}
+                      >
+                        {emp ? shiftFirstName(emp.name) : '—'} · {shortSlotLabel(s.slotKindCode)}
+                      </div>
+                    );
+                  })}
                   {visible.map((l) => {
                     const emp = employeeById.get(l.employeeId);
                     const colorClass = TYPE_COLORS[l.leaveTypeCode] ?? 'bg-slate-100 text-slate-700';
@@ -521,7 +613,7 @@ export default function LeaveCalendar({
                     return (
                       <div
                         key={l.id}
-                        className={`truncate rounded px-1 ${colorClass}`}
+                        className={`truncate rounded px-1 py-0.5 ${colorClass}`}
                         style={{ fontSize: 10 }}
                         title={tooltip}
                       >
@@ -530,7 +622,7 @@ export default function LeaveCalendar({
                     );
                   })}
                   {overflow > 0 && (
-                    <div className="text-slate-500 px-1" style={{ fontSize: 10 }}>
+                    <div className="text-slate-500 px-1 py-0.5" style={{ fontSize: 10 }}>
                       +{overflow} weitere
                     </div>
                   )}
@@ -546,6 +638,19 @@ export default function LeaveCalendar({
               employees={employeeById}
               leaveTypes={typeByCode}
               onClose={() => setOpenDay(null)}
+            />
+          )}
+
+          {openShift && (
+            <ShiftDetailModal
+              shift={openShift}
+              allShifts={shifts}
+              slotKinds={slotKindById}
+              employees={employeeById}
+              pendingSwap={pendingSwapByShiftId.get(openShift.id) ?? null}
+              currentEmployeeId={currentEmployeeId}
+              onClose={() => setOpenShift(null)}
+              onChange={() => setInternalReload((k) => k + 1)}
             />
           )}
 
@@ -597,6 +702,13 @@ interface MiniMonthGridProps {
   month: number;
   monthName: string;
   leaves: Array<LeaveRequest & { id: string }>;
+  // Day → list of shifts on that day. Used to render a small bottom
+  // marker so users can spot weekend / holiday duty at a glance in
+  // year view.
+  shiftsByDate: Map<IsoDate, Shift[]>;
+  // Logged-in employee. When one of their shifts falls on a day,
+  // the marker uses red instead of slate.
+  currentEmployeeId: string | null;
   todayIso: IsoDate;
   onClickDay: (iso: IsoDate) => void;
   onClickMonth: (year: number, month: number) => void;
@@ -611,6 +723,8 @@ function MiniMonthGrid({
   month,
   monthName,
   leaves,
+  shiftsByDate,
+  currentEmployeeId,
   todayIso,
   onClickDay,
   onClickMonth,
@@ -709,6 +823,23 @@ function MiniMonthGrid({
                     style={{ width: 4, height: 4 }}
                   />
                 )}
+                {/* Bottom stripe marks shift days. Red when the
+                    logged-in user is on duty, slate for everyone
+                    else. Stays under the day number (no overlap). */}
+                {(() => {
+                  const dayShifts = shiftsByDate.get(cell.iso);
+                  if (!dayShifts || dayShifts.length === 0) return null;
+                  const mine = !!currentEmployeeId
+                    && dayShifts.some((s) => s.employeeId === currentEmployeeId);
+                  return (
+                    <span
+                      aria-hidden="true"
+                      data-testid={`cal-mini-shift-${cell.iso}`}
+                      className={`absolute left-0 right-0 bottom-0 rounded-b-sm ${mine ? 'bg-red-700' : 'bg-slate-700'}`}
+                      style={{ height: 2 }}
+                    />
+                  );
+                })()}
               </button>
             );
           })}

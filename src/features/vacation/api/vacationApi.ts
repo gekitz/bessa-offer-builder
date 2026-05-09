@@ -647,7 +647,8 @@ export interface LoadRuleContextOpts {
 
 export async function loadRuleContext(opts: LoadRuleContextOpts = {}): Promise<RuleContext> {
   const today = opts.today ?? new Date().toISOString().slice(0, 10);
-  const [employees, roles, existingLeaves, coverageRules, blackouts, substitutes] = await Promise.all([
+  const { listShifts } = await import('../../shifts/api/shiftApi');
+  const [employees, roles, existingLeaves, coverageRules, blackouts, substitutes, shiftRows] = await Promise.all([
     listEmployees({ activeOnly: true }),
     listEmployeeRoles(),
     listLeaveRequests({
@@ -658,6 +659,16 @@ export async function loadRuleContext(opts: LoadRuleContextOpts = {}): Promise<R
     listCoverageRules({ activeOnly: true }),
     listBlackoutPeriods({ activeOnly: true }),
     listSubstitutes(),
+    // Only the active statuses are relevant for the shiftOverlap rule.
+    // If no range is supplied, fall back to "no shift filter" — the
+    // rule is a no-op when shifts array is empty anyway.
+    opts.rangeStart && opts.rangeEnd
+      ? listShifts({
+          rangeStart: opts.rangeStart,
+          rangeEnd: opts.rangeEnd,
+          status: ['assigned', 'swap_pending'],
+        })
+      : Promise.resolve([]),
   ]);
   // Static Fenstertage list — covers the year of `today` plus the next
   // year so requests crossing year-end still get evaluated.
@@ -693,6 +704,12 @@ export async function loadRuleContext(opts: LoadRuleContextOpts = {}): Promise<R
       employeeId: s.employeeId,
       substituteEmployeeId: s.substituteEmployeeId,
       priority: s.priority,
+    })),
+    shifts: shiftRows.map((s) => ({
+      id: s.id,
+      date: s.date,
+      employeeId: s.employeeId,
+      status: s.status,
     })),
   };
 }
