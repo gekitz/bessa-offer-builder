@@ -1,20 +1,23 @@
 // Path ↔ AppSection mapping for react-router. We deploy on GitHub
 // Pages with HashRouter so the URL looks like:
-//   https://bessa.kitz.co.at/#/leaves      → urlaub
+//   https://bessa.kitz.co.at/#/kalender    → kalender
+//   https://bessa.kitz.co.at/#/tickets     → tickets
 //   https://bessa.kitz.co.at/#/angebote    → angebote
 //   https://bessa.kitz.co.at/#/crm         → crm
 //
-// "leaves" is the public-facing slug we hand out (printed on the
-// office QR). The internal section id stays "urlaub" so most of the
-// codebase doesn't need to learn the new word; both `/leaves` and
-// `/urlaub` resolve to the same view.
+// "leaves" is the public-facing slug originally handed out (printed
+// on the office QR). It now resolves to the kalender section since
+// CalendarPage hosts both the team calendar and the personal Urlaub
+// tabs. Both `/leaves` and `/urlaub` remain valid aliases so any
+// printed/bookmarked links keep working.
 
-export type AppSection = 'angebote' | 'crm' | 'urlaub';
+export type AppSection = 'angebote' | 'crm' | 'kalender' | 'tickets';
 
 const SECTION_TO_PATH: Record<AppSection, string> = {
   angebote: '/angebote',
   crm: '/crm',
-  urlaub: '/leaves',
+  kalender: '/kalender',
+  tickets: '/tickets',
 };
 
 const PATH_ALIASES: Record<string, AppSection> = {
@@ -22,8 +25,11 @@ const PATH_ALIASES: Record<string, AppSection> = {
   '/angebote': 'angebote',
   '/offers': 'angebote',
   '/crm': 'crm',
-  '/leaves': 'urlaub',
-  '/urlaub': 'urlaub',
+  '/kalender': 'kalender',
+  '/calendar': 'kalender',
+  '/leaves': 'kalender',
+  '/urlaub': 'kalender',
+  '/tickets': 'tickets',
 };
 
 // Parse a router pathname into an app section. Tolerates trailing

@@ -67,11 +67,13 @@ import { orderedCartEntries } from '../../../lib/cartOrder';
 import { fmt } from '../../../lib/format';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import AppShell from '../../../components/AppShell';
-// VacationPage is heavy (calendar grids, full leave-request UI) and
-// only rendered when the user is on the urlaub section. Lazy import
-// keeps it out of the main bundle — same pattern as CrmPage below.
-const VacationPage = React.lazy(() => import('../../vacation/pages/VacationPage'));
+// CalendarPage and TicketsPage are heavy (calendar grids, ticket
+// tables) and only rendered when the user is on their respective
+// section. Lazy import keeps them out of the main bundle.
+const CalendarPage = React.lazy(() => import('../../calendar/pages/CalendarPage'));
+const TicketsPage = React.lazy(() => import('../../tickets/pages/TicketsPage'));
 import { useApproverPendingCount } from '../../vacation/hooks/useApproverPendingCount';
+import { useMyTicketCount } from '../../tickets/hooks/useMyTicketCount';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { pathForSection, sectionFromPath } from '../../../lib/sectionRoute';
 
@@ -128,6 +130,7 @@ export default function OfferBuilderPage() {
   const navigate = useNavigate();
   const section = sectionFromPath(location.pathname);
   const pendingApprovalsCount = useApproverPendingCount();
+  const myTicketCount = useMyTicketCount();
   const [offerView, setOfferView] = useState('list'); // 'list' | 'builder' | 'followups'
   // When set, the FollowUps page picks this up and immediately opens
   // SendFollowupModal for that offer. Driven by the digest deep-link
@@ -967,7 +970,7 @@ export default function OfferBuilderPage() {
       showBillingToggle={isBillingAdmin}
       billingToggle={billingToggle}
       onToggleBilling={setBillingToggle}
-      badges={{ urlaub: pendingApprovalsCount }}
+      badges={{ kalender: pendingApprovalsCount, tickets: myTicketCount }}
     >
       {/* ═══ ANGEBOTE SECTION ═══ */}
       {section === 'angebote' && offerView === 'list' && (
@@ -1204,10 +1207,17 @@ export default function OfferBuilderPage() {
         </div>
       )}
 
-      {/* ═══ URLAUB SECTION ═══ */}
-      {section === 'urlaub' && (
+      {/* ═══ KALENDER SECTION ═══ */}
+      {section === 'kalender' && (
         <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
-          <VacationPage />
+          <CalendarPage />
+        </React.Suspense>
+      )}
+
+      {/* ═══ TICKETS SECTION ═══ */}
+      {section === 'tickets' && (
+        <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
+          <TicketsPage />
         </React.Suspense>
       )}
 

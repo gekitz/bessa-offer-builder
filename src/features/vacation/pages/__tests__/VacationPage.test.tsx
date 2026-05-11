@@ -394,8 +394,9 @@ describe('VacationPage', () => {
 
     render(<VacationPage />);
     await waitFor(() => expect(screen.getByRole('button', { name: /Neuer Antrag/ })).toBeInTheDocument());
-    // VacationPage + LeaveRequestsList + LeaveCalendar each call it.
-    expect(listEmployeesMock).toHaveBeenCalledTimes(3);
+    // VacationPage + LeaveRequestsList + LeaveCalendar + useCalendarEvents
+    // (via UnifiedCalendar wrapper) each call it.
+    expect(listEmployeesMock).toHaveBeenCalledTimes(4);
     listEmployeesMock.mockClear();
 
     // Open the form, set valid dates via test seam, submit.

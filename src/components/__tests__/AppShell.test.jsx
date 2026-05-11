@@ -15,22 +15,22 @@ beforeEach(() => {
 });
 
 describe('AppShell', () => {
-  it('renders no badge when badges.urlaub is 0 / undefined', () => {
+  it('renders no badge when badges.kalender is 0 / undefined', () => {
     render(<AppShell activeSection="angebote" onNavigate={vi.fn()}>{null}</AppShell>);
-    expect(screen.queryByTestId('nav-badge-urlaub')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('nav-badge-mobile-urlaub')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('nav-badge-kalender')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('nav-badge-mobile-kalender')).not.toBeInTheDocument();
   });
 
-  it('renders the badge with the count when badges.urlaub > 0', () => {
+  it('renders the badge with the count when badges.kalender > 0', () => {
     render(
-      <AppShell activeSection="angebote" onNavigate={vi.fn()} badges={{ urlaub: 3 }}>
+      <AppShell activeSection="angebote" onNavigate={vi.fn()} badges={{ kalender: 3 }}>
         {null}
       </AppShell>,
     );
     // Both desktop sidebar + mobile bottom-nav copies render the badge;
     // the responsive utility classes hide one of them via CSS, but
     // jsdom doesn't apply media queries so both nodes exist.
-    const badges = screen.getAllByTestId(/nav-badge-(mobile-)?urlaub/);
+    const badges = screen.getAllByTestId(/nav-badge-(mobile-)?kalender/);
     expect(badges.length).toBeGreaterThanOrEqual(2);
     for (const b of badges) {
       expect(b.textContent).toBe('3');
@@ -39,35 +39,48 @@ describe('AppShell', () => {
 
   it('caps at "9+" on mobile and "99+" on desktop', () => {
     render(
-      <AppShell activeSection="angebote" onNavigate={vi.fn()} badges={{ urlaub: 150 }}>
+      <AppShell activeSection="angebote" onNavigate={vi.fn()} badges={{ kalender: 150 }}>
         {null}
       </AppShell>,
     );
-    expect(screen.getByTestId('nav-badge-urlaub').textContent).toBe('99+');
-    expect(screen.getByTestId('nav-badge-mobile-urlaub').textContent).toBe('9+');
+    expect(screen.getByTestId('nav-badge-kalender').textContent).toBe('99+');
+    expect(screen.getByTestId('nav-badge-mobile-kalender').textContent).toBe('9+');
   });
 
   it('does not render badges for sections with 0 / negative counts', () => {
     render(
-      <AppShell activeSection="angebote" onNavigate={vi.fn()} badges={{ urlaub: 0, crm: -1 }}>
+      <AppShell activeSection="angebote" onNavigate={vi.fn()} badges={{ kalender: 0, crm: -1 }}>
         {null}
       </AppShell>,
     );
-    expect(screen.queryByTestId('nav-badge-urlaub')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('nav-badge-kalender')).not.toBeInTheDocument();
     expect(screen.queryByTestId('nav-badge-crm')).not.toBeInTheDocument();
+  });
+
+  it('renders the tickets nav entry with badge', () => {
+    render(
+      <AppShell activeSection="angebote" onNavigate={vi.fn()} badges={{ tickets: 7 }}>
+        {null}
+      </AppShell>,
+    );
+    const ticketBadges = screen.getAllByTestId(/nav-badge-(mobile-)?tickets/);
+    expect(ticketBadges.length).toBeGreaterThanOrEqual(2);
+    for (const b of ticketBadges) {
+      expect(b.textContent).toBe('7');
+    }
   });
 
   it('clicking a nav item with a badge still triggers onNavigate', async () => {
     const onNavigate = vi.fn();
     const u = userEvent.setup();
     render(
-      <AppShell activeSection="angebote" onNavigate={onNavigate} badges={{ urlaub: 5 }}>
+      <AppShell activeSection="angebote" onNavigate={onNavigate} badges={{ kalender: 5 }}>
         {null}
       </AppShell>,
     );
-    // Sidebar Urlaub button.
-    const urlaubBtn = screen.getAllByRole('button', { name: /Urlaub/ })[0];
-    await u.click(urlaubBtn);
-    expect(onNavigate).toHaveBeenCalledWith('urlaub');
+    // Sidebar Kalender button.
+    const kalenderBtn = screen.getAllByRole('button', { name: /Kalender/ })[0];
+    await u.click(kalenderBtn);
+    expect(onNavigate).toHaveBeenCalledWith('kalender');
   });
 });

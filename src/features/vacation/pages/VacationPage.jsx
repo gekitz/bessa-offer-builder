@@ -3,7 +3,7 @@ import { AlertCircle, Calendar, CalendarPlus, ChevronDown, Info, Loader2, MapPin
 import { listEmployees, listStandorte } from '../api/vacationApi';
 import LeaveRequestForm from '../components/LeaveRequestForm';
 import LeaveRequestsList from '../components/LeaveRequestsList';
-import LeaveCalendar from '../components/LeaveCalendar';
+import UnifiedCalendar from '../../calendar/components/UnifiedCalendar';
 import CalendarSubscriptionModal from '../components/CalendarSubscriptionModal';
 import BalancePanel from '../components/BalancePanel';
 import EmployeeBalanceTable from '../components/EmployeeBalanceTable';
@@ -172,7 +172,7 @@ export default function VacationPage() {
         {/* Calendar — visible once employees load. */}
         {!loading && !error && employees.length > 0 && (
           <div className="mb-4">
-            <LeaveCalendar
+            <UnifiedCalendar
               reloadKey={reloadKey}
               currentEmployeeId={currentEmployee?.id ?? null}
               onAddRequest={(start, end) => setRequestForRange({ start, end })}

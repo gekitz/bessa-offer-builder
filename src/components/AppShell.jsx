@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar, FileText, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, X } from 'lucide-react';
+import { Calendar, FileText, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, Wrench, X } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
 // ═══════════════════════════════════════════════════════
@@ -9,7 +9,8 @@ import { useAuth } from '../lib/auth';
 const NAV_ITEMS = [
   { id: 'angebote', label: 'Angebote', icon: FileText },
   { id: 'crm',      label: 'CRM',      icon: Users },
-  { id: 'urlaub',   label: 'Urlaub',   icon: Calendar },
+  { id: 'kalender', label: 'Kalender', icon: Calendar },
+  { id: 'tickets',  label: 'Tickets',  icon: Wrench },
 ];
 
 export default function AppShell({
@@ -18,9 +19,9 @@ export default function AppShell({
   showBillingToggle = false,
   billingToggle = false,
   onToggleBilling,
-  // Per-section badge counts. Currently only `urlaub` is consumed,
-  // but the shape lets us add more later (`crm`, `angebote`, …).
-  // A 0 / undefined count renders no badge.
+  // Per-section badge counts. Consumed by `kalender` (pending leave
+  // approvals) and `tickets` (open assigned tickets). The shape lets
+  // us add more later. A 0 / undefined count renders no badge.
   badges = {},
   children,
 }) {
@@ -64,7 +65,7 @@ export default function AppShell({
             {!collapsed && (
               <div className="min-w-0">
                 <div className="font-bold text-slate-800 truncate" style={{ fontSize: 14, letterSpacing: '-0.3px' }}>KITZ Workspace</div>
-                <div className="text-slate-400 truncate" style={{ fontSize: 10 }}>Angebote · CRM · Urlaub</div>
+                <div className="text-slate-400 truncate" style={{ fontSize: 10 }}>Angebote · CRM · Kalender · Tickets</div>
               </div>
             )}
           </div>
