@@ -628,18 +628,27 @@ export default function WeekGridView({
 
             {/* Day columns */}
             {days.map((day, dayIdx) => {
-              // Original lane-layout for the day, minus the dragged
-              // block (which floats to wherever the cursor is now).
+              // Keep the original block mounted until the drag has
+              // actually moved. If we filter it out on pointerdown,
+              // unmounting it mid-cycle breaks the click event that
+              // follows a no-movement mouseup/touch-tap — and you
+              // lose the click-to-edit affordance.
+              const dragActive =
+                !!dragState
+                && (dragState.currentStartsAt !== dragState.initialStartsAt
+                  || dragState.currentEndsAt !== dragState.initialEndsAt);
               const blocks = (lanesByDay.get(day) ?? []).filter(
-                (b) => b.appointment.id !== dragState?.appointmentId,
+                (b) => !dragActive || b.appointment.id !== dragState?.appointmentId,
               );
               const isToday = day === todayIso;
 
-              // If the dragged block has been moved into THIS day,
-              // render it as a full-width overlay at its current
-              // time. It "ghosts" out of its original day-column.
+              // The ghost overlay only renders once the drag has
+              // visibly moved — same guard as the filter above so
+              // we don't have a duplicate block sitting on top of
+              // the static one while the user is just considering
+              // a click.
               let dragOverlayBlock: { a: Appointment; top: number; height: number } | null = null;
-              if (dragState) {
+              if (dragActive && dragState) {
                 const dragDay = toIso(new Date(dragState.currentStartsAt));
                 if (dragDay === day) {
                   const dragged = appointments.find((x) => x.id === dragState.appointmentId);

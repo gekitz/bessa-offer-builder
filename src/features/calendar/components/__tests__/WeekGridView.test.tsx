@@ -293,6 +293,27 @@ describe('WeekGridView — drag interactions', () => {
     expect(new Date(patch.endsAt).getHours()).toBe(12);
   });
 
+  it('a zero-pixel pointerdown → pointerup → click still opens the edit form (regression)', async () => {
+    // Previously the block was filtered out from its day column the
+    // instant pointerdown fired (because dragState became non-null).
+    // The element was unmounted, the trailing click event had no
+    // target, and click-to-edit silently broke. Fix: keep the block
+    // mounted until the drag actually moves.
+    listAppointmentsMock.mockResolvedValue([WED_9_TO_11]);
+    getAppointmentMock.mockResolvedValue({ id: 'a-1', title: 'X' });
+    fakeColumnWidth(140);
+    render(<WeekGridView visibility={DEFAULT_LAYER_VISIBILITY} />);
+    const block = await screen.findByTestId('week-block-a-1');
+
+    pointer(block, 'pointerdown', 100, 100);
+    pointer(document, 'pointerup', 100, 100);
+    // Block must still be in the DOM — without the regression fix
+    // it'd have unmounted and remounted, breaking the click.
+    expect(screen.getByTestId('week-block-a-1')).toBe(block);
+    fireEvent.click(block);
+    await screen.findByTestId('appointment-form-stub');
+  });
+
   it('does NOT commit a zero-pixel mousedown+mouseup (treated as click)', async () => {
     listAppointmentsMock.mockResolvedValue([WED_9_TO_11]);
     fakeColumnWidth(140);
