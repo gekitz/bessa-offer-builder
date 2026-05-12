@@ -7,6 +7,7 @@ import OfferBuilderPage from './features/offers/pages/OfferBuilderPage';
 // Keeping it out of the main chunk shaves the bundle for everyone
 // who's just opening the app to build / send offers.
 const AcceptPage = React.lazy(() => import('./features/offers/pages/AcceptPage'));
+const CustomerTicketPage = React.lazy(() => import('./features/tickets/pages/CustomerTicketPage'));
 const MesonicTest = React.lazy(() => import('./components/MesonicTest.jsx'));
 
 export default function App() {
@@ -21,13 +22,23 @@ export default function App() {
     );
   }
 
-  // Customer-facing accept flow: ?a=<share_code>. Stays outside the
-  // router — it's a different page entirely.
-  const acceptCode = new URLSearchParams(window.location.search).get('a');
+  // Customer-facing flows live outside the router — each is a
+  // dedicated page with no app shell. ?a=<code> for offer accept,
+  // ?t=<code> for ticket tracking.
+  const search = new URLSearchParams(window.location.search);
+  const acceptCode = search.get('a');
   if (acceptCode) {
     return (
       <React.Suspense fallback={<div className="p-8 text-center">Wird geladen...</div>}>
         <AcceptPage shareCode={acceptCode} />
+      </React.Suspense>
+    );
+  }
+  const ticketShareCode = search.get('t');
+  if (ticketShareCode) {
+    return (
+      <React.Suspense fallback={<div className="p-8 text-center">Wird geladen...</div>}>
+        <CustomerTicketPage shareCode={ticketShareCode} />
       </React.Suspense>
     );
   }

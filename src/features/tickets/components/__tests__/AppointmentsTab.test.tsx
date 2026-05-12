@@ -26,7 +26,7 @@ import AppointmentsTab from '../AppointmentsTab';
 import type { Appointment, Ticket } from '../../types';
 
 const TICKET: Ticket = {
-  id: 't-1', ticketNumber: '26-0000001', title: 'Drucker', description: null,
+  id: 't-1', ticketNumber: '26-0000001', shareCode: 'sc-test-0000001', title: 'Drucker', description: null,
   kind: 'reparatur', priority: 'normal', status: 'open',
   poolAbteilungId: null, assignedTo: null, mesonicCustomerId: null,
   customerName: 'Müller', customerPhone: null, customerEmail: null,

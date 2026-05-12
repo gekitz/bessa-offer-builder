@@ -58,6 +58,12 @@ function toIcsTimestamp(d: Date): string {
   );
 }
 
+// Convert a timestamptz to the ICS format DTSTART/DTEND uses for
+// timed events ('YYYYMMDDTHHMMSSZ', UTC).
+function toIcsUtcStamp(iso: string): string {
+  return toIcsTimestamp(new Date(iso));
+}
+
 interface LeaveRow {
   id: string;
   employee_id: string;
@@ -75,8 +81,36 @@ interface LeaveRow {
 interface EmployeeRow { id: string; name: string }
 interface LeaveTypeRow { id: number; label: string }
 
+interface AppointmentRow {
+  id: string;
+  ticket_id: string | null;
+  title: string;
+  description: string | null;
+  kind: string;
+  starts_at: string;
+  ends_at: string;
+  location: string | null;
+  status: string;
+}
+
+const APPT_STATUS_LABEL: Record<string, string> = {
+  geplant: 'Geplant',
+  bestaetigt: 'Bestätigt',
+  in_arbeit: 'In Arbeit',
+  erledigt: 'Erledigt',
+  abgesagt: 'Abgesagt',
+};
+const APPT_ICS_STATUS: Record<string, string> = {
+  geplant: 'TENTATIVE',
+  bestaetigt: 'CONFIRMED',
+  in_arbeit: 'CONFIRMED',
+  erledigt: 'CONFIRMED',
+  abgesagt: 'CANCELLED',
+};
+
 function buildICalendar(
   leaves: LeaveRow[],
+  appointments: AppointmentRow[],
   employeesById: Map<string, EmployeeRow>,
   leaveTypesById: Map<number, LeaveTypeRow>,
 ): string {
@@ -127,8 +161,34 @@ function buildICalendar(
     );
   }
 
+  // Appointments come scoped to the requesting employee — see the
+  // caller. Each event uses real start/end timestamps (not all-day
+  // like leaves).
+  for (const a of appointments) {
+    const statusLabel = APPT_STATUS_LABEL[a.status] ?? a.status;
+    const icsStatus = APPT_ICS_STATUS[a.status] ?? 'TENTATIVE';
+    const desc: string[] = [`Status: ${statusLabel}`];
+    if (a.description) desc.push(a.description);
+    if (a.ticket_id) desc.push(`Ticket-Ref: ${a.ticket_id}`);
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:appt-${a.id}@kitz.co.at`,
+      `DTSTAMP:${dtstamp}`,
+      `DTSTART:${toIcsUtcStamp(a.starts_at)}`,
+      `DTEND:${toIcsUtcStamp(a.ends_at)}`,
+      `SUMMARY:${escapeText(a.title)}`,
+      a.location ? `LOCATION:${escapeText(a.location)}` : '',
+      `DESCRIPTION:${escapeText(desc.join('\n'))}`,
+      `STATUS:${icsStatus}`,
+      'TRANSP:OPAQUE',
+      'END:VEVENT',
+    );
+  }
+
   lines.push('END:VCALENDAR');
-  return lines.join('\r\n');
+  // Drop the empty lines that LOCATION-when-absent produced above
+  // (LOCATION line was an empty string; ICS readers don't tolerate them).
+  return lines.filter((l) => l !== '').join('\r\n');
 }
 
 serve(async (req: Request) => {
@@ -151,9 +211,10 @@ serve(async (req: Request) => {
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // Validate the token against an existing employee. We don't care
-  // which employee — the team calendar is shared. The check just
-  // gates the public endpoint.
+  // Validate the token against an existing employee. The team
+  // leave calendar is shared across all tokens; appointments are
+  // scoped to the token holder so each technician sees their own
+  // Vor-Ort-Termine.
   const { data: tokenRow, error: tokenError } = await supabase
     .from('employees')
     .select('id')
@@ -165,6 +226,7 @@ serve(async (req: Request) => {
   if (!tokenRow) {
     return new Response('Invalid token', { status: 401 });
   }
+  const requestingEmployeeId = (tokenRow as { id: string }).id;
 
   // Pull approved + pending leaves; skip rejected / cancelled.
   const { data: leaves, error: leavesError } = await supabase
@@ -174,6 +236,25 @@ serve(async (req: Request) => {
     .order('start_date');
   if (leavesError) {
     return new Response('Read failed', { status: 500 });
+  }
+
+  // Pull this employee's appointments — anything where they appear
+  // in appointment_assignees and the appointment isn't cancelled.
+  const { data: apptAssignments } = await supabase
+    .from('appointment_assignees')
+    .select('appointment_id')
+    .eq('employee_id', requestingEmployeeId);
+  const apptIds = (apptAssignments ?? []).map((r: { appointment_id: string }) => r.appointment_id);
+
+  let appointments: AppointmentRow[] = [];
+  if (apptIds.length > 0) {
+    const { data: appts } = await supabase
+      .from('appointments')
+      .select('id, ticket_id, title, description, kind, starts_at, ends_at, location, status')
+      .in('id', apptIds)
+      .neq('status', 'abgesagt')
+      .order('starts_at');
+    appointments = (appts ?? []) as AppointmentRow[];
   }
 
   const { data: employees } = await supabase
@@ -190,7 +271,7 @@ serve(async (req: Request) => {
     (leaveTypes ?? []).map((t: LeaveTypeRow) => [t.id, t]),
   );
 
-  const ics = buildICalendar(leaves ?? [], empById, typeById);
+  const ics = buildICalendar(leaves ?? [], appointments, empById, typeById);
   return new Response(ics, {
     status: 200,
     headers: {

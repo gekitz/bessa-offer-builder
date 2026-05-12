@@ -15,7 +15,7 @@ import type { BillingSummary, Ticket } from '../../types';
 
 const ticket: Ticket = {
   id: 't-1',
-  ticketNumber: '26-0000001',
+  ticketNumber: '26-0000001', shareCode: 'sc-test-0000001',
   title: 'T',
   description: null,
   kind: 'reparatur',

@@ -35,7 +35,7 @@ import RepairOrdersTab from '../RepairOrdersTab';
 import type { RepairOrder, Ticket } from '../../types';
 
 const ticket: Ticket = {
-  id: 't-1', ticketNumber: '26-0000001', title: 'T', description: null,
+  id: 't-1', ticketNumber: '26-0000001', shareCode: 'sc-test-0000001', title: 'T', description: null,
   kind: 'reparatur', priority: 'normal', status: 'open',
   poolAbteilungId: null, assignedTo: null, mesonicCustomerId: null,
   customerName: 'Müller', customerPhone: null, customerEmail: null,

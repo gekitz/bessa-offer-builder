@@ -38,7 +38,7 @@ import type { Ticket } from '../../types';
 function makeTicket(over: Partial<Ticket> = {}): Ticket {
   return {
     id: 't-1',
-    ticketNumber: '26-0000001',
+    ticketNumber: '26-0000001', shareCode: 'sc-test-0000001',
     title: 'Drucker druckt nicht',
     description: null,
     kind: 'reparatur',
@@ -70,8 +70,8 @@ beforeEach(() => {
   window.localStorage.clear();
   navigateMock.mockReset();
   listTicketsMock.mockReset().mockResolvedValue([
-    makeTicket({ id: 't-1', ticketNumber: '26-0000001', title: 'Drucker' }),
-    makeTicket({ id: 't-2', ticketNumber: '26-0000002', title: 'Server-Update', status: 'in_progress' }),
+    makeTicket({ id: 't-1', ticketNumber: '26-0000001', shareCode: 'sc-test-0000001', title: 'Drucker' }),
+    makeTicket({ id: 't-2', ticketNumber: '26-0000002', shareCode: 'sc-test-0000002', title: 'Server-Update', status: 'in_progress' }),
   ]);
   listEmployeesMock.mockReset().mockResolvedValue([]);
   listAbteilungenMock.mockReset().mockResolvedValue([]);

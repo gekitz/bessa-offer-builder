@@ -88,18 +88,27 @@ export default function TicketComments({ ticketId, currentEmployeeId = null }: T
             <li
               key={c.id}
               className={`rounded-lg border px-3 py-2 text-sm ${
-                c.kind === 'comment'
-                  ? 'bg-white border-slate-200'
-                  : 'bg-slate-50 border-slate-200 text-slate-600'
+                c.isExternal
+                  ? 'bg-violet-50 border-violet-200'
+                  : c.kind === 'comment'
+                    ? 'bg-white border-slate-200'
+                    : 'bg-slate-50 border-slate-200 text-slate-600'
               }`}
               data-testid="ticket-comment"
             >
               <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
                 <User size={12} className="text-slate-400" />
                 <span className="font-medium text-slate-700">
-                  {c._authorName ?? (c.kind === 'comment' ? 'Unbekannt' : SYSTEM_KIND_LABEL[c.kind])}
+                  {c.isExternal
+                    ? 'Kunde'
+                    : c._authorName ?? (c.kind === 'comment' ? 'Unbekannt' : SYSTEM_KIND_LABEL[c.kind])}
                 </span>
-                {c.kind !== 'comment' && (
+                {c.isExternal && (
+                  <span className="rounded bg-violet-200 text-violet-800 px-1.5 py-0.5 text-[10px] font-medium">
+                    via Portal
+                  </span>
+                )}
+                {!c.isExternal && c.kind !== 'comment' && (
                   <span className="rounded bg-slate-200 text-slate-600 px-1.5 py-0.5 text-[10px]">
                     {SYSTEM_KIND_LABEL[c.kind]}
                   </span>

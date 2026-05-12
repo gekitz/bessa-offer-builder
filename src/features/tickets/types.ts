@@ -54,6 +54,7 @@ export interface TravelZone {
 export interface Ticket {
   id: string;
   ticketNumber: string; // '26-0000001' — DB trigger fills this
+  shareCode: string;     // public URL token, generated on insert
   title: string;
   description: string | null;
   kind: TicketKind;
@@ -254,6 +255,9 @@ export interface TicketComment {
   body: string | null;
   metadata: Record<string, unknown> | null;
   createdBy: string | null;
+  // External = posted by the customer through the public share-link
+  // portal. Internal staff comments are isExternal=false.
+  isExternal: boolean;
   createdAt: string;
   // Populated by join
   _authorName?: string;

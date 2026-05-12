@@ -30,7 +30,7 @@ const EMPLOYEES: Employee[] = [
 ];
 
 const TICKET: Ticket = {
-  id: 't-1', ticketNumber: '26-0000001', title: 'Drucker', description: null,
+  id: 't-1', ticketNumber: '26-0000001', shareCode: 'sc-test-0000001', title: 'Drucker', description: null,
   kind: 'reparatur', priority: 'normal', status: 'open',
   poolAbteilungId: null, assignedTo: null, mesonicCustomerId: '4711',
   customerName: 'Müller GmbH', customerPhone: null, customerEmail: null,

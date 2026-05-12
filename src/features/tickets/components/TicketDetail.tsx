@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
+  Check,
   CheckCircle2,
   Edit2,
+  Link as LinkIcon,
   Loader2,
   Mail,
   MapPin,
@@ -86,6 +88,28 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
   const [abteilungen, setAbteilungen] = useState<Abteilung[]>([]);
   const [editing, setEditing] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [shareLinkCopied, setShareLinkCopied] = useState(false);
+
+  function buildPublicShareUrl(t: Ticket): string {
+    // The customer-facing flow lives outside the HashRouter at the
+    // origin's root, keyed on the share_code query param. Match the
+    // ?a= pattern used by offers.
+    return `${window.location.origin}${window.location.pathname}?t=${t.shareCode}`;
+  }
+
+  async function handleCopyShareLink() {
+    if (!ticket) return;
+    const url = buildPublicShareUrl(ticket);
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareLinkCopied(true);
+      window.setTimeout(() => setShareLinkCopied(false), 1500);
+    } catch {
+      // Browsers that block clipboard access (HTTP, embedded iframe, …)
+      // — fall back to a prompt the user can manually copy from.
+      window.prompt('Link manuell kopieren:', url);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -204,13 +228,33 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
           <h1 className="font-bold text-slate-800 leading-tight" style={{ fontSize: 18 }}>
             {ticket.title}
           </h1>
-          <button
-            onClick={() => setEditing(true)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-slate-600 hover:bg-slate-100"
-          >
-            <Edit2 size={12} />
-            Bearbeiten
-          </button>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              onClick={handleCopyShareLink}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-slate-600 hover:bg-slate-100"
+              title="Öffentlichen Auftragsverfolgungs-Link kopieren"
+              data-testid="copy-share-link"
+            >
+              {shareLinkCopied ? (
+                <>
+                  <Check size={12} className="text-emerald-600" />
+                  Kopiert
+                </>
+              ) : (
+                <>
+                  <LinkIcon size={12} />
+                  Kundenlink
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => setEditing(true)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-slate-600 hover:bg-slate-100"
+            >
+              <Edit2 size={12} />
+              Bearbeiten
+            </button>
+          </div>
         </div>
       </div>
 

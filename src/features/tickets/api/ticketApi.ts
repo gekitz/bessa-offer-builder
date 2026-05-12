@@ -34,6 +34,26 @@ function requireSupabase(): NonNullable<typeof supabase> {
   return supabase;
 }
 
+// Fire-and-forget notify-ticket-event call. Mutations have already
+// committed by the time we hit this, so an email/Resend outage must
+// never roll them back or surface in the UI. Failures log a warning
+// and stay silent.
+type NotifyEvent =
+  | { event: 'ticket_created'; ticketId: string; triggeredBy?: string | null }
+  | { event: 'status_changed'; ticketId: string; previousStatus: string; newStatus: string; triggeredBy?: string | null }
+  | { event: 'ticket_closed'; ticketId: string; triggeredBy?: string | null }
+  | { event: 'appointment_scheduled'; ticketId: string; appointmentId: string; triggeredBy?: string | null };
+
+function fireNotify(payload: NotifyEvent): void {
+  const sb = supabase;
+  if (!sb) return;
+  void sb.functions
+    .invoke('notify-ticket-event', { body: payload })
+    .catch((err) => {
+      console.warn('notify-ticket-event invoke failed:', err);
+    });
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Row mappers (snake_case → camelCase)
 // ─────────────────────────────────────────────────────────────────────
@@ -70,6 +90,7 @@ function rowToTicket(r: any): Ticket {
   return {
     id: r.id,
     ticketNumber: r.ticket_number,
+    shareCode: r.share_code,
     title: r.title,
     description: r.description,
     kind: r.kind,
@@ -242,6 +263,7 @@ function rowToComment(r: any): TicketComment {
     body: r.body,
     metadata: r.metadata,
     createdBy: r.created_by,
+    isExternal: !!r.is_external,
     createdAt: r.created_at,
     _authorName: r.employees?.name,
   };
@@ -293,7 +315,7 @@ export async function listTravelZones(): Promise<TravelZone[]> {
 // ─────────────────────────────────────────────────────────────────────
 
 const TICKET_COLS =
-  'id, ticket_number, title, description, kind, priority, status, pool_abteilung_id, assigned_to, mesonic_customer_id, customer_name, customer_phone, customer_email, customer_address, customer_has_wartungsvertrag, standort_id, billable, closed_at, closed_by, resolution_note, offer_id, mesonic_beleg_id, created_by, created_at, updated_at';
+  'id, ticket_number, share_code, title, description, kind, priority, status, pool_abteilung_id, assigned_to, mesonic_customer_id, customer_name, customer_phone, customer_email, customer_address, customer_has_wartungsvertrag, standort_id, billable, closed_at, closed_by, resolution_note, offer_id, mesonic_beleg_id, created_by, created_at, updated_at';
 
 export async function listTickets(filters: TicketFilters = {}): Promise<Ticket[]> {
   const sb = requireSupabase();
@@ -331,7 +353,13 @@ export async function createTicket(input: TicketInput): Promise<Ticket> {
     .select(TICKET_COLS)
     .single();
   if (error) throw error;
-  return rowToTicket(data);
+  const ticket = rowToTicket(data);
+  fireNotify({
+    event: 'ticket_created',
+    ticketId: ticket.id,
+    triggeredBy: input.createdBy ?? null,
+  });
+  return ticket;
 }
 
 export async function updateTicket(id: string, patch: Partial<TicketInput>): Promise<Ticket> {
@@ -352,6 +380,18 @@ export async function setTicketStatus(
   opts: { closedBy?: string; resolutionNote?: string } = {},
 ): Promise<Ticket> {
   const sb = requireSupabase();
+
+  // Capture the prior status so the notification can render a
+  // before/after line. We don't fail the mutation if this read
+  // errors — fall back to an empty string.
+  let previousStatus = '';
+  try {
+    const { data: prev } = await sb.from('tickets').select('status').eq('id', id).maybeSingle();
+    previousStatus = (prev as { status?: string } | null)?.status ?? '';
+  } catch {
+    // ignore — best-effort
+  }
+
   const patch: Record<string, unknown> = { status };
   if (status === 'closed') {
     patch.closed_at = new Date().toISOString();
@@ -360,6 +400,22 @@ export async function setTicketStatus(
   }
   const { data, error } = await sb.from('tickets').update(patch).eq('id', id).select(TICKET_COLS).single();
   if (error) throw error;
+
+  // Skip notification when the status didn't actually change — saves
+  // an email when callers idempotently re-apply the same status.
+  if (previousStatus !== status) {
+    if (status === 'closed') {
+      fireNotify({ event: 'ticket_closed', ticketId: id, triggeredBy: opts.closedBy ?? null });
+    } else {
+      fireNotify({
+        event: 'status_changed',
+        ticketId: id,
+        previousStatus,
+        newStatus: status,
+        triggeredBy: opts.closedBy ?? null,
+      });
+    }
+  }
   return rowToTicket(data);
 }
 
@@ -435,6 +491,16 @@ export async function createAppointment(
     }));
     const { error: e2 } = await sb.from('appointment_assignees').insert(rows);
     if (e2) throw e2;
+  }
+  // Notify only when the appointment is tied to a customer ticket —
+  // standalone internal termine don't fan out to the customer.
+  if (input.ticketId) {
+    fireNotify({
+      event: 'appointment_scheduled',
+      ticketId: input.ticketId,
+      appointmentId: appt.id,
+      triggeredBy: input.createdBy ?? null,
+    });
   }
   return rowToAppointment(appt);
 }
@@ -673,7 +739,7 @@ export async function removeMaterial(id: string): Promise<void> {
 // Comments
 // ─────────────────────────────────────────────────────────────────────
 
-const COMMENT_COLS = 'id, ticket_id, kind, body, metadata, created_by, created_at';
+const COMMENT_COLS = 'id, ticket_id, kind, body, metadata, created_by, created_at, is_external';
 
 export async function listComments(ticketId: string): Promise<TicketComment[]> {
   const sb = requireSupabase();

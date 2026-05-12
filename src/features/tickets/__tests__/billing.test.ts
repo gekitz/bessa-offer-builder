@@ -81,7 +81,7 @@ function zone(code: string, flat: number, maxKm: number | null, mesonic: string)
 function ticket(overrides: Partial<Ticket> = {}): Ticket {
   return {
     id: 't-1',
-    ticketNumber: '26-0000001',
+    ticketNumber: '26-0000001', shareCode: 'sc-test-0000001',
     title: 'Test',
     description: null,
     kind: 'support',

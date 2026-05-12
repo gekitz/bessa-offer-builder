@@ -30,7 +30,7 @@ import type { Ticket } from '../../types';
 
 const TICKET: Ticket = {
   id: 't-1',
-  ticketNumber: '26-0000001',
+  ticketNumber: '26-0000001', shareCode: 'sc-test-0000001',
   title: 'Drucker druckt nicht',
   description: 'Toner-Fehler',
   kind: 'reparatur',
