@@ -134,6 +134,35 @@ describe('TicketsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith('/tickets/t-1');
   });
 
+  it('pre-fills the form when navigated with state.initialCustomer (CRM → Ticket flow)', async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: '/tickets',
+            state: {
+              initialCustomer: {
+                company: 'Müller GmbH',
+                name: 'Hans Müller',
+                email: 'h@m.at',
+                phone: '01234',
+                address: 'Musterweg 1, 9020 Klagenfurt',
+                mesonicId: '4711',
+              },
+            },
+          },
+        ]}
+      >
+        <TicketsPage />
+      </MemoryRouter>,
+    );
+    // TicketForm modal opens automatically; the customer name field is
+    // pre-filled with the company from CRM.
+    await screen.findByText('Neues Ticket', { selector: 'h2' });
+    expect((screen.getByPlaceholderText(/Name \/ Firma/) as HTMLInputElement).value)
+      .toBe('Müller GmbH');
+  });
+
   it('navigates to /tickets/<id> after creating a ticket', async () => {
     const u = userEvent.setup();
     renderAt();

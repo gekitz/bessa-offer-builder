@@ -16,8 +16,12 @@ import type { Ticket, TicketKind, TicketPriority } from '../types';
 interface TicketFormProps {
   // null = create mode, otherwise edit
   ticket?: Ticket | null;
-  // Optional initial customer (e.g. when opening from CRM)
+  // Optional initial customer (e.g. when opening from CRM
+  // CustomerDetail). Shape matches CustomerPicker's onSelect payload:
+  // company = Firma, name = Ansprechpartner. The ticket customer_name
+  // field is filled with company when available, else name.
   initialCustomer?: {
+    company?: string | null;
     name?: string | null;
     phone?: string | null;
     email?: string | null;
@@ -67,7 +71,9 @@ export default function TicketForm({
   );
   const [billable, setBillable] = useState(ticket?.billable ?? true);
 
-  const [customerName, setCustomerName] = useState(ticket?.customerName ?? initialCustomer?.name ?? '');
+  const [customerName, setCustomerName] = useState(
+    ticket?.customerName ?? initialCustomer?.company ?? initialCustomer?.name ?? '',
+  );
   const [customerPhone, setCustomerPhone] = useState(ticket?.customerPhone ?? initialCustomer?.phone ?? '');
   const [customerEmail, setCustomerEmail] = useState(ticket?.customerEmail ?? initialCustomer?.email ?? '');
   const [customerAddress, setCustomerAddress] = useState(

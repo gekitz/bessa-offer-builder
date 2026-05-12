@@ -92,8 +92,27 @@ export default function TicketsPage() {
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'list' | 'board'>(loadView);
   const [showCreate, setShowCreate] = useState(false);
+  // Pre-fill the create form from navigation state, e.g. when the
+  // CRM CustomerDetail "Ticket erstellen" button sent us here.
+  const [createInitialCustomer, setCreateInitialCustomer] = useState<
+    React.ComponentProps<typeof TicketForm>['initialCustomer']
+  >(undefined);
 
   useEffect(() => saveView(view), [view]);
+
+  // Pick up { initialCustomer } from react-router state on mount and
+  // immediately open the create modal. Clear the state so a refresh
+  // doesn't re-fire it.
+  useEffect(() => {
+    const state = location.state as { initialCustomer?: unknown } | null;
+    if (state?.initialCustomer) {
+      setCreateInitialCustomer(state.initialCustomer as typeof createInitialCustomer);
+      setShowCreate(true);
+      navigate('/tickets', { replace: true, state: null });
+    }
+    // Intentional: this effect should only fire once at mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -154,7 +173,10 @@ export default function TicketsPage() {
           <button
             type="button"
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition text-sm font-medium"
-            onClick={() => setShowCreate(true)}
+            onClick={() => {
+              setCreateInitialCustomer(undefined);
+              setShowCreate(true);
+            }}
           >
             <Plus size={16} />
             Neues Ticket
@@ -273,9 +295,14 @@ export default function TicketsPage() {
       {showCreate && (
         <TicketForm
           currentEmployeeId={currentEmployeeId}
-          onClose={() => setShowCreate(false)}
+          initialCustomer={createInitialCustomer}
+          onClose={() => {
+            setShowCreate(false);
+            setCreateInitialCustomer(undefined);
+          }}
           onSaved={(t) => {
             setShowCreate(false);
+            setCreateInitialCustomer(undefined);
             navigate(`/tickets/${t.id}`);
           }}
         />

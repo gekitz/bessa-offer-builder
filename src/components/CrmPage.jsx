@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, X, Loader2, ArrowLeft, Building2, Phone, Mail, MapPin, User, FileText, ChevronRight, AlertCircle, RefreshCw, Plus, Pen, Save, CheckCircle2 } from 'lucide-react';
+import { Search, X, Loader2, ArrowLeft, Building2, Phone, Mail, MapPin, User, FileText, ChevronRight, AlertCircle, RefreshCw, Plus, Pen, Save, CheckCircle2, Wrench } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { searchCustomers, getCustomer, listCustomers, getCustomerContacts, saveCustomer, validateCustomer, TYPES, TEMPLATES, mesonicExport } from '../lib/mesonicApi';
 import CustomerForm from './CustomerForm';
 
@@ -124,7 +125,7 @@ function CustomerCard({ record, onClick }) {
 }
 
 // ─── Customer Detail View ───
-function CustomerDetail({ record, onBack, onEdit }) {
+function CustomerDetail({ record, onBack, onEdit, onCreateTicket }) {
   const name = F.name(record) || 'Unbekannt';
   const number = F.number(record);
   const phone = F.phone(record);
@@ -167,16 +168,29 @@ function CustomerDetail({ record, onBack, onEdit }) {
                 {number && <div className="text-slate-400" style={{ fontSize: 12 }}>Kundennummer: {number}</div>}
               </div>
             </div>
-            {onEdit && (
-              <button
-                onClick={onEdit}
-                className="flex items-center gap-1.5 rounded-lg bg-slate-100 text-slate-600 px-3 py-2 hover:bg-slate-200 transition-colors"
-                style={{ fontSize: 13 }}
-              >
-                <Pen size={14} />
-                Bearbeiten
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {onCreateTicket && (
+                <button
+                  onClick={onCreateTicket}
+                  className="flex items-center gap-1.5 rounded-lg bg-red-600 text-white px-3 py-2 hover:bg-red-700 transition-colors"
+                  style={{ fontSize: 13 }}
+                  data-testid="crm-create-ticket"
+                >
+                  <Wrench size={14} />
+                  Ticket erstellen
+                </button>
+              )}
+              {onEdit && (
+                <button
+                  onClick={onEdit}
+                  className="flex items-center gap-1.5 rounded-lg bg-slate-100 text-slate-600 px-3 py-2 hover:bg-slate-200 transition-colors"
+                  style={{ fontSize: 13 }}
+                >
+                  <Pen size={14} />
+                  Bearbeiten
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -250,6 +264,30 @@ export default function CrmPage() {
   const [error, setError] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const inputRef = useRef(null);
+  const navigate = useNavigate();
+
+  // Map a Mesonic customer record to the shape TicketForm expects
+  // as initialCustomer. Same projection CustomerPicker emits.
+  function handleCreateTicketFromCustomer(record) {
+    const name = F.name(record);
+    const contact = F.contact(record);
+    const street = F.street(record);
+    const zip = F.zip(record);
+    const city = F.city(record);
+    const address = [street, [zip, city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    navigate('/tickets', {
+      state: {
+        initialCustomer: {
+          company: name,
+          name: contact,
+          email: F.email(record),
+          phone: F.phone(record),
+          address,
+          mesonicId: F.number(record),
+        },
+      },
+    });
+  }
 
   const debouncedQuery = useDebounce(query, 400);
 
@@ -349,6 +387,7 @@ export default function CrmPage() {
           record={selectedCustomer}
           onBack={handleBackToSearch}
           onEdit={handleEditCustomer}
+          onCreateTicket={() => handleCreateTicketFromCustomer(selectedCustomer)}
         />
       </div>
     );
