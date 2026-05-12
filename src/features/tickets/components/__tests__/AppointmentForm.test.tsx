@@ -9,11 +9,37 @@ const deleteAppointmentMock = vi.fn();
 const listEmployeesMock = vi.fn();
 const listStandorteMock = vi.fn();
 
+const getTicketMock = vi.fn();
 vi.mock('../../api/ticketApi', () => ({
   createAppointment: (input: unknown, assignees: unknown) => createAppointmentMock(input, assignees),
   updateAppointment: (id: string, patch: unknown) => updateAppointmentMock(id, patch),
   setAppointmentAssignees: (apptId: string, assignees: unknown) => setAppointmentAssigneesMock(apptId, assignees),
   deleteAppointment: (id: string) => deleteAppointmentMock(id),
+  getTicket: (id: string) => getTicketMock(id),
+}));
+
+// Stub TicketPicker as a "pick this ticket" button so tests don't need
+// the full searchable modal wiring.
+vi.mock('../TicketPicker', () => ({
+  default: ({ onSelect }: { onSelect: (t: Record<string, unknown>) => void }) => (
+    <div data-testid="ticket-picker-stub">
+      <button
+        type="button"
+        data-testid="ticket-picker-pick"
+        onClick={() =>
+          onSelect({
+            id: 't-pick',
+            ticketNumber: '26-0000099',
+            title: 'Drucker tot',
+            customerName: 'Müller GmbH',
+            status: 'open',
+          })
+        }
+      >
+        pick ticket
+      </button>
+    </div>
+  ),
 }));
 vi.mock('../../../vacation/api/vacationApi', () => ({
   listEmployees: (opts?: unknown) => listEmployeesMock(opts),
@@ -85,6 +111,7 @@ beforeEach(() => {
   deleteAppointmentMock.mockReset().mockResolvedValue(undefined);
   listEmployeesMock.mockReset().mockResolvedValue(EMPLOYEES);
   listStandorteMock.mockReset().mockResolvedValue([{ id: 1, name: 'Klagenfurt' }]);
+  getTicketMock.mockReset().mockResolvedValue(null);
 });
 
 describe('AppointmentForm', () => {
@@ -220,5 +247,69 @@ describe('AppointmentForm — standalone (no ticket)', () => {
     const [input] = createAppointmentMock.mock.calls[0];
     expect(input.ticketId).toBeNull();
     expect(input.title).toBe('Standalone-Termin');
+  });
+});
+
+describe('AppointmentForm — ticket linkage (retroactive attach)', () => {
+  it('shows "Mit Ticket verknüpfen" in standalone mode', () => {
+    render(<AppointmentForm onSaved={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByTestId('appointment-link-ticket-open')).toBeInTheDocument();
+    expect(screen.queryByTestId('appointment-ticket-link')).not.toBeInTheDocument();
+  });
+
+  it('pins the link (no unlink button) when opened with fromTicket', () => {
+    render(<AppointmentForm fromTicket={TICKET} onSaved={vi.fn()} onClose={vi.fn()} />);
+    // The pinned link row is shown but no "+ verknüpfen" or "unlink".
+    expect(screen.getByTestId('appointment-ticket-link')).toBeInTheDocument();
+    expect(screen.queryByTestId('appointment-link-ticket-open')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('appointment-unlink-ticket')).not.toBeInTheDocument();
+  });
+
+  it('links a ticket via the picker and sends ticketId in the create payload', async () => {
+    const u = userEvent.setup();
+    render(<AppointmentForm onSaved={vi.fn()} onClose={vi.fn()} />);
+    await waitFor(() => expect(listEmployeesMock).toHaveBeenCalled());
+
+    await u.click(screen.getByTestId('appointment-link-ticket-open'));
+    await u.click(screen.getByTestId('ticket-picker-pick'));
+
+    // Link row now visible with the picked ticket's data.
+    expect(screen.getByText('26-0000099')).toBeInTheDocument();
+    expect(screen.getByText('Drucker tot')).toBeInTheDocument();
+
+    await u.type(screen.getByPlaceholderText(/z.B. Drucker/), 'Vor-Ort');
+    await u.click(screen.getByRole('button', { name: /Termin anlegen/ }));
+
+    await waitFor(() => expect(createAppointmentMock).toHaveBeenCalled());
+    const [input] = createAppointmentMock.mock.calls[0];
+    expect(input.ticketId).toBe('t-pick');
+  });
+
+  it('unlink resets ticketId to null on save', async () => {
+    const u = userEvent.setup();
+    // Open an edit form on an appointment that already has a ticket linked.
+    getTicketMock.mockResolvedValue({
+      id: APPT.ticketId,
+      ticketNumber: '26-0000001',
+      title: 'Drucker',
+      customerName: 'Müller GmbH',
+    });
+    render(
+      <AppointmentForm appointment={APPT} onSaved={vi.fn()} onClose={vi.fn()} />,
+    );
+    await waitFor(() => expect(getTicketMock).toHaveBeenCalledWith(APPT.ticketId));
+
+    // The link row is shown and an unlink affordance is present (no
+    // fromTicket → editable linkage).
+    expect(screen.getByTestId('appointment-ticket-link')).toBeInTheDocument();
+    await u.click(screen.getByTestId('appointment-unlink-ticket'));
+
+    expect(screen.queryByTestId('appointment-ticket-link')).not.toBeInTheDocument();
+    expect(screen.getByTestId('appointment-link-ticket-open')).toBeInTheDocument();
+
+    await u.click(screen.getByRole('button', { name: /Speichern/ }));
+    await waitFor(() => expect(updateAppointmentMock).toHaveBeenCalled());
+    const [, patch] = updateAppointmentMock.mock.calls[0];
+    expect(patch.ticketId).toBeNull();
   });
 });

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Calendar, Loader2, MapPin, Search, Trash2, User, X } from 'lucide-react';
+import { AlertCircle, Calendar, Link as LinkIcon, Loader2, MapPin, Search, Trash2, User, Wrench, X } from 'lucide-react';
 import CustomerPicker from '../../../components/CustomerPicker';
+import TicketPicker from './TicketPicker';
+import { getTicket } from '../api/ticketApi';
 import {
   createAppointment,
   deleteAppointment,
@@ -128,6 +130,29 @@ export default function AppointmentForm({
   // CustomerPicker visibility — only meaningful in standalone (no
   // fromTicket) mode, where the customer can be replaced.
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+  // Ticket linkage. fromTicket pins the link; otherwise it's editable
+  // via TicketPicker. linkedTicket carries the resolved {number,title}
+  // for display — it's a lookup when only the id is known on open.
+  const [ticketId, setTicketId] = useState<string | null>(
+    fromTicket?.id ?? appointment?.ticketId ?? null,
+  );
+  const [linkedTicket, setLinkedTicket] = useState<{
+    id: string;
+    ticketNumber: string;
+    title: string;
+    customerName: string | null;
+  } | null>(
+    fromTicket
+      ? {
+          id: fromTicket.id,
+          ticketNumber: fromTicket.ticketNumber,
+          title: fromTicket.title,
+          customerName: fromTicket.customerName,
+        }
+      : null,
+  );
+  const [showTicketPicker, setShowTicketPicker] = useState(false);
+  const [linkedTicketLoading, setLinkedTicketLoading] = useState(false);
 
   const initialStarts = appointment?.startsAt ?? defaultStartsAt ?? defaultStarts();
   const initialEnds = appointment?.endsAt
@@ -157,16 +182,51 @@ export default function AppointmentForm({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Don't fire while the nested CustomerPicker owns the ESC handling
-    // — otherwise pressing ESC there would also close the appointment
-    // form behind it.
-    if (showCustomerPicker) return undefined;
+    // Don't fire while a nested picker (Customer or Ticket) owns the
+    // ESC handling — otherwise pressing ESC there would also close
+    // the appointment form behind it.
+    if (showCustomerPicker || showTicketPicker) return undefined;
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, showCustomerPicker]);
+  }, [onClose, showCustomerPicker, showTicketPicker]);
+
+  // Lookup the linked ticket once when only the id is known (e.g.
+  // editing an existing appointment with a ticket_id set). Falls
+  // silent on error — the section just shows the id-only state.
+  useEffect(() => {
+    if (!ticketId) {
+      setLinkedTicket(null);
+      return;
+    }
+    if (linkedTicket && linkedTicket.id === ticketId) return;
+    let cancelled = false;
+    setLinkedTicketLoading(true);
+    getTicket(ticketId)
+      .then((t) => {
+        if (cancelled || !t) return;
+        setLinkedTicket({
+          id: t.id,
+          ticketNumber: t.ticketNumber,
+          title: t.title,
+          customerName: t.customerName,
+        });
+      })
+      .catch(() => {
+        /* leave linkedTicket null; section degrades to "Ticket #unbekannt" */
+      })
+      .finally(() => {
+        if (!cancelled) setLinkedTicketLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // linkedTicket intentionally not in deps — we only refetch when
+    // ticketId changes, not when the cached lookup updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticketId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -222,7 +282,10 @@ export default function AppointmentForm({
     setError(null);
     try {
       const input: AppointmentInput = {
-        ticketId: fromTicket?.id ?? appointment?.ticketId ?? null,
+        // ticketId state tracks the chosen linkage. fromTicket pins
+        // the id at open-time; user can re-pick or unlink in
+        // standalone mode.
+        ticketId,
         title: title.trim(),
         description: description.trim() || null,
         kind,
@@ -405,6 +468,73 @@ export default function AppointmentForm({
             )}
           </div>
 
+          {/* Ticket linkage — visible in both create and edit modes.
+              When fromTicket is set, the link is pinned (no unlink).
+              Otherwise the user can attach / detach a ticket
+              retroactively. */}
+          <div className="rounded-lg border border-slate-200 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-600">Verknüpftes Ticket</span>
+              {!fromTicket && !ticketId && (
+                <button
+                  type="button"
+                  onClick={() => setShowTicketPicker(true)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs text-slate-600 hover:bg-slate-100"
+                  data-testid="appointment-link-ticket-open"
+                >
+                  <LinkIcon size={12} />
+                  Mit Ticket verknüpfen
+                </button>
+              )}
+            </div>
+            {ticketId ? (
+              <div
+                className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2.5 py-2"
+                data-testid="appointment-ticket-link"
+              >
+                <Wrench size={12} className="text-slate-400 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  {linkedTicketLoading ? (
+                    <div className="text-xs text-slate-400">Lade Ticket…</div>
+                  ) : linkedTicket ? (
+                    <>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="font-mono text-slate-400">{linkedTicket.ticketNumber}</span>
+                        {linkedTicket.customerName && (
+                          <span className="text-slate-500 truncate">· {linkedTicket.customerName}</span>
+                        )}
+                      </div>
+                      <div className="text-sm text-slate-800 truncate">{linkedTicket.title}</div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-slate-400">Ticket {ticketId.slice(0, 8)}…</div>
+                  )}
+                </div>
+                {!fromTicket && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTicketId(null);
+                      setLinkedTicket(null);
+                    }}
+                    className="rounded p-1 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                    aria-label="Verknüpfung lösen"
+                    data-testid="appointment-unlink-ticket"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+                {fromTicket && (
+                  <span className="text-[10px] text-slate-400">aus Ticket-Kontext</span>
+                )}
+              </div>
+            ) : (
+              <div className="text-xs text-slate-400">
+                Kein Ticket verknüpft. Du kannst nachträglich eines anhängen.
+              </div>
+            )}
+          </div>
+
           {/* Assignees */}
           <div className="rounded-lg border border-slate-200 p-3 space-y-2">
             <div className="flex items-center justify-between">
@@ -544,6 +674,23 @@ export default function AppointmentForm({
               setShowCustomerPicker(false);
             }}
             onClose={() => setShowCustomerPicker(false)}
+          />
+        )}
+
+        {showTicketPicker && (
+          <TicketPicker
+            customerFilter={mesonicCustomerId ? { mesonicCustomerId } : null}
+            onSelect={(t) => {
+              setTicketId(t.id);
+              setLinkedTicket({
+                id: t.id,
+                ticketNumber: t.ticketNumber,
+                title: t.title,
+                customerName: t.customerName,
+              });
+              setShowTicketPicker(false);
+            }}
+            onClose={() => setShowTicketPicker(false)}
           />
         )}
       </div>
