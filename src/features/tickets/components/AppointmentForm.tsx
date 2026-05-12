@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Calendar, Loader2, MapPin, Trash2, User, X } from 'lucide-react';
+import { AlertCircle, Calendar, Loader2, MapPin, Search, Trash2, User, X } from 'lucide-react';
+import CustomerPicker from '../../../components/CustomerPicker';
 import {
   createAppointment,
   deleteAppointment,
@@ -22,8 +23,19 @@ interface AppointmentFormProps {
   appointment?: Appointment | null;
   // When opened from a ticket, pre-fills customer + ticketId. Otherwise standalone.
   fromTicket?: Ticket | null;
+  // Standalone create — pre-fill the customer fields from a Mesonic
+  // pick (or another source). Ignored when fromTicket is set.
+  initialCustomer?: {
+    company?: string | null;
+    name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+    mesonicId?: string | null;
+  };
   // Default starts_at when creating (e.g. clicked day in calendar). ISO.
   defaultStartsAt?: string;
+  defaultEndsAt?: string;
   onSaved: (a: Appointment) => void;
   onDeleted?: () => void;
   onClose: () => void;
@@ -83,7 +95,9 @@ function defaultStarts(): string {
 export default function AppointmentForm({
   appointment = null,
   fromTicket = null,
+  initialCustomer,
   defaultStartsAt,
+  defaultEndsAt,
   onSaved,
   onDeleted,
   onClose,
@@ -98,20 +112,26 @@ export default function AppointmentForm({
   const [description, setDescription] = useState(appointment?.description ?? '');
   const [kind, setKind] = useState<AppointmentKind>(appointment?.kind ?? 'reparatur');
   const [status, setStatus] = useState<AppointmentStatus>(appointment?.status ?? 'geplant');
-  const [location, setLocation] = useState(appointment?.location ?? fromTicket?.customerAddress ?? '');
+  const [location, setLocation] = useState(
+    appointment?.location ?? fromTicket?.customerAddress ?? initialCustomer?.address ?? '',
+  );
   const [standortId, setStandortId] = useState<number | null>(
     appointment?.standortId ?? fromTicket?.standortId ?? null,
   );
   const [customerName, setCustomerName] = useState(
-    appointment?.customerName ?? fromTicket?.customerName ?? '',
+    appointment?.customerName ?? fromTicket?.customerName ?? initialCustomer?.company ?? initialCustomer?.name ?? '',
   );
   const [mesonicCustomerId, setMesonicCustomerId] = useState(
-    appointment?.mesonicCustomerId ?? fromTicket?.mesonicCustomerId ?? '',
+    appointment?.mesonicCustomerId ?? fromTicket?.mesonicCustomerId ?? initialCustomer?.mesonicId ?? '',
   );
   const [notes, setNotes] = useState(appointment?.notes ?? '');
+  // CustomerPicker visibility — only meaningful in standalone (no
+  // fromTicket) mode, where the customer can be replaced.
+  const [showCustomerPicker, setShowCustomerPicker] = useState(false);
 
   const initialStarts = appointment?.startsAt ?? defaultStartsAt ?? defaultStarts();
   const initialEnds = appointment?.endsAt
+    ?? defaultEndsAt
     ?? new Date(new Date(initialStarts).getTime() + 60 * 60 * 1000).toISOString();
   const [startsAtLocal, setStartsAtLocal] = useState(isoToLocalInput(initialStarts));
   const [endsAtLocal, setEndsAtLocal] = useState(isoToLocalInput(initialEnds));
@@ -137,12 +157,16 @@ export default function AppointmentForm({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Don't fire while the nested CustomerPicker owns the ESC handling
+    // — otherwise pressing ESC there would also close the appointment
+    // form behind it.
+    if (showCustomerPicker) return undefined;
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, showCustomerPicker]);
 
   useEffect(() => {
     let cancelled = false;
@@ -347,7 +371,20 @@ export default function AppointmentForm({
 
           {/* Customer (only editable if not from ticket) */}
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Kunde</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-slate-600">Kunde</label>
+              {!fromTicket && (
+                <button
+                  type="button"
+                  onClick={() => setShowCustomerPicker(true)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs text-slate-600 hover:bg-slate-100"
+                  data-testid="appointment-customer-picker-open"
+                >
+                  <Search size={12} />
+                  Bestandskunde
+                </button>
+              )}
+            </div>
             <input
               type="text"
               value={customerName}
@@ -359,6 +396,11 @@ export default function AppointmentForm({
             {fromTicket && (
               <div className="text-xs text-slate-400 mt-0.5">
                 Aus Ticket {fromTicket.ticketNumber}
+              </div>
+            )}
+            {!fromTicket && mesonicCustomerId && (
+              <div className="text-xs text-slate-400 mt-0.5">
+                Mesonic-Nr: {mesonicCustomerId}
               </div>
             )}
           </div>
@@ -484,6 +526,26 @@ export default function AppointmentForm({
             </div>
           </div>
         </form>
+
+        {showCustomerPicker && (
+          <CustomerPicker
+            onSelect={(c: {
+              company?: string;
+              name?: string;
+              email?: string;
+              phone?: string;
+              address?: string;
+              mesonicId?: string;
+            }) => {
+              const company = c.company || c.name || '';
+              setCustomerName(company);
+              setMesonicCustomerId(c.mesonicId ?? '');
+              if (c.address) setLocation(c.address);
+              setShowCustomerPicker(false);
+            }}
+            onClose={() => setShowCustomerPicker(false)}
+          />
+        )}
       </div>
     </div>
   );

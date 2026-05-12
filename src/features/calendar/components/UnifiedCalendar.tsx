@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, LayoutGrid, Loader2, MapPin, Users } from 'lucide-react';
+import { Calendar, CalendarClock, ChevronLeft, ChevronRight, LayoutGrid, Loader2, MapPin, Plus, Users } from 'lucide-react';
 import LeaveCalendar from '../../vacation/components/LeaveCalendar';
 import TeamView from './TeamView';
+import WeekGridView from './WeekGridView';
+import AppointmentForm from '../../tickets/components/AppointmentForm';
 import { useCalendarEvents } from '../hooks/useCalendarEvents';
 import {
   DEFAULT_LAYER_VISIBILITY,
@@ -21,11 +23,13 @@ import {
 const LS_KEY = 'kitz.calendar.layerVisibility.v1';
 const LS_VIEW_KEY = 'kitz.calendar.viewMode.v1';
 
-type ViewMode = 'month' | 'team';
+type ViewMode = 'month' | 'team' | 'week';
 
 function loadViewMode(): ViewMode {
   if (typeof window === 'undefined') return 'month';
-  return window.localStorage.getItem(LS_VIEW_KEY) === 'team' ? 'team' : 'month';
+  const stored = window.localStorage.getItem(LS_VIEW_KEY);
+  if (stored === 'team' || stored === 'week') return stored;
+  return 'month';
 }
 function saveViewMode(v: ViewMode): void {
   if (typeof window === 'undefined') return;
@@ -100,6 +104,16 @@ export default function UnifiedCalendar({
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [visibility, setVisibility] = useState<LayerVisibility>(loadVisibility);
   const [viewMode, setViewMode] = useState<ViewMode>(loadViewMode);
+  // Standalone-create modal — opens with no fromTicket, customer
+  // picked via Mesonic CustomerPicker. Optional defaultStartsAt is
+  // used by the week-grid click-empty-slot flow.
+  const [createState, setCreateState] = useState<
+    | { open: true; defaultStartsAt?: string; defaultEndsAt?: string }
+    | { open: false }
+  >({ open: false });
+  // Bumped after a successful create so children that own their own
+  // data fetching (TeamView, WeekGridView) re-load.
+  const [localReloadKey, setLocalReloadKey] = useState(0);
 
   useEffect(() => saveVisibility(visibility), [visibility]);
   useEffect(() => saveViewMode(viewMode), [viewMode]);
@@ -143,7 +157,7 @@ export default function UnifiedCalendar({
 
   return (
     <div>
-      {/* View-mode toggle (Monat / Team) */}
+      {/* View-mode toggle + standalone "Neuer Termin" CTA */}
       <div className="mb-3 flex items-center gap-2 flex-wrap">
         <div className="inline-flex rounded-lg bg-slate-100 p-1">
           <button
@@ -160,6 +174,18 @@ export default function UnifiedCalendar({
           </button>
           <button
             type="button"
+            onClick={() => setViewMode('week')}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition ${
+              viewMode === 'week' ? 'bg-white text-red-600 shadow-sm font-medium' : 'text-slate-600 hover:text-slate-800'
+            }`}
+            data-testid="view-mode-week"
+            aria-pressed={viewMode === 'week'}
+          >
+            <CalendarClock size={12} />
+            Arbeitswoche
+          </button>
+          <button
+            type="button"
             onClick={() => setViewMode('team')}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition ${
               viewMode === 'team' ? 'bg-white text-red-600 shadow-sm font-medium' : 'text-slate-600 hover:text-slate-800'
@@ -171,6 +197,15 @@ export default function UnifiedCalendar({
             Team
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => setCreateState({ open: true })}
+          className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700"
+          data-testid="calendar-new-appointment"
+        >
+          <Plus size={12} />
+          Neuer Termin
+        </button>
       </div>
 
       {/* Layer-Filter-Toggles */}
@@ -286,10 +321,10 @@ export default function UnifiedCalendar({
       )}
 
       {/* Switch the main calendar surface based on view mode.
-          Month view: existing LeaveCalendar with appointment-badge
-          overlay. Team view: TeamView grid (employees × week)
-          with its own day-detail modal. */}
-      {viewMode === 'month' ? (
+          - Monat: LeaveCalendar with appointment-badge overlay
+          - Arbeitswoche: time-grid week (hours × days) with blocks
+          - Team: employee × day grid with dot-summary */}
+      {viewMode === 'month' && (
         <LeaveCalendar
           initialYear={viewYear}
           initialMonth={viewMonth}
@@ -298,8 +333,30 @@ export default function UnifiedCalendar({
           onAddRequest={onAddRequest}
           appointments={visibility.appointment ? appointments : []}
         />
-      ) : (
-        <TeamView visibility={visibility} />
+      )}
+      {viewMode === 'week' && (
+        <WeekGridView
+          visibility={visibility}
+          reloadKey={localReloadKey}
+          currentEmployeeId={currentEmployeeId}
+          onCreateAt={(start, end) =>
+            setCreateState({ open: true, defaultStartsAt: start, defaultEndsAt: end })
+          }
+        />
+      )}
+      {viewMode === 'team' && <TeamView visibility={visibility} />}
+
+      {createState.open && (
+        <AppointmentForm
+          currentEmployeeId={currentEmployeeId}
+          defaultStartsAt={createState.defaultStartsAt}
+          defaultEndsAt={createState.defaultEndsAt}
+          onClose={() => setCreateState({ open: false })}
+          onSaved={() => {
+            setCreateState({ open: false });
+            setLocalReloadKey((k) => k + 1);
+          }}
+        />
       )}
     </div>
   );

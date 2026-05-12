@@ -20,6 +20,35 @@ vi.mock('../../../vacation/api/vacationApi', () => ({
   listStandorte: () => listStandorteMock(),
 }));
 
+// CustomerPicker is mocked as a button-trigger so we can verify the
+// onSelect → form-state wiring without dragging Mesonic in.
+let pickerOnSelect: ((c: Record<string, string>) => void) | null = null;
+vi.mock('../../../../components/CustomerPicker', () => ({
+  default: ({ onSelect }: { onSelect: (c: Record<string, string>) => void }) => {
+    pickerOnSelect = onSelect;
+    return (
+      <div data-testid="customer-picker-stub">
+        <button
+          type="button"
+          data-testid="customer-picker-pick"
+          onClick={() =>
+            onSelect({
+              company: 'Acme GmbH',
+              name: 'Anna Acme',
+              email: 'a@acme.at',
+              phone: '01234',
+              address: 'Hauptplatz 1',
+              mesonicId: '9911',
+            })
+          }
+        >
+          pick
+        </button>
+      </div>
+    );
+  },
+}));
+
 import AppointmentForm from '../AppointmentForm';
 import type { Appointment, Ticket } from '../../types';
 import type { Employee } from '../../../vacation/types';
@@ -149,5 +178,47 @@ describe('AppointmentForm', () => {
     await u.click(screen.getByRole('button', { name: /Speichern/ }));
     await waitFor(() => expect(updateAppointmentMock).toHaveBeenCalledTimes(1));
     expect(setAppointmentAssigneesMock).toHaveBeenCalled();
+  });
+});
+
+describe('AppointmentForm — standalone (no ticket)', () => {
+  it('shows the "Bestandskunde" button only when no ticket is bound', async () => {
+    const { rerender } = render(
+      <AppointmentForm onSaved={vi.fn()} onClose={vi.fn()} />,
+    );
+    expect(screen.getByTestId('appointment-customer-picker-open')).toBeInTheDocument();
+
+    rerender(
+      <AppointmentForm fromTicket={TICKET} onSaved={vi.fn()} onClose={vi.fn()} />,
+    );
+    expect(screen.queryByTestId('appointment-customer-picker-open')).not.toBeInTheDocument();
+  });
+
+  it('opens CustomerPicker and pre-fills the customer fields on pick', async () => {
+    const u = userEvent.setup();
+    render(<AppointmentForm onSaved={vi.fn()} onClose={vi.fn()} />);
+    await u.click(screen.getByTestId('appointment-customer-picker-open'));
+    await screen.findByTestId('customer-picker-stub');
+
+    await u.click(screen.getByTestId('customer-picker-pick'));
+    // Customer name input (Name / Firma) now carries the picked company.
+    expect((screen.getByPlaceholderText(/Name \/ Firma/) as HTMLInputElement).value)
+      .toBe('Acme GmbH');
+    expect(screen.getByText(/Mesonic-Nr: 9911/)).toBeInTheDocument();
+  });
+
+  it('saves a standalone appointment with ticketId=null', async () => {
+    const u = userEvent.setup();
+    const onSaved = vi.fn();
+    render(<AppointmentForm currentEmployeeId="emp-a" onSaved={onSaved} onClose={vi.fn()} />);
+    await waitFor(() => expect(listEmployeesMock).toHaveBeenCalled());
+
+    await u.type(screen.getByPlaceholderText(/z.B. Drucker/), 'Standalone-Termin');
+    await u.click(screen.getByRole('button', { name: /Termin anlegen/ }));
+
+    await waitFor(() => expect(createAppointmentMock).toHaveBeenCalled());
+    const [input] = createAppointmentMock.mock.calls[0];
+    expect(input.ticketId).toBeNull();
+    expect(input.title).toBe('Standalone-Termin');
   });
 });
