@@ -136,6 +136,14 @@ export default function AppointmentForm({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useEffect(() => {
     let cancelled = false;
     Promise.all([listEmployees({ activeOnly: true }), listStandorte()])
       .then(([e, s]) => {
@@ -237,7 +245,7 @@ export default function AppointmentForm({
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 overflow-auto"
-      onClick={onClose}
+      // No backdrop close — see TicketForm rationale (data loss).
       data-testid="appointment-form-backdrop"
     >
       <div

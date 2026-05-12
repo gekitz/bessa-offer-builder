@@ -90,6 +90,17 @@ export default function TicketForm({
   const [error, setError] = useState<string | null>(null);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
 
+  // ESC closes the modal. Don't fire while the nested CustomerPicker
+  // is open — that modal owns its own ESC handling.
+  useEffect(() => {
+    if (showCustomerPicker) return undefined;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose, showCustomerPicker]);
+
   useEffect(() => {
     let cancelled = false;
     setLookupsLoading(true);
@@ -168,7 +179,9 @@ export default function TicketForm({
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 overflow-auto"
-      onClick={onClose}
+      // Intentionally no onClick — backdrop-click-to-close would dump
+      // a long form's worth of input. Use ESC, the X button or
+      // "Abbrechen" instead.
       data-testid="ticket-form-backdrop"
     >
       <div

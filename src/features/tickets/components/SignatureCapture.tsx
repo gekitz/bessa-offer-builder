@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Loader2, RotateCcw, X } from 'lucide-react';
 import SignaturePad, { type SignaturePadHandle } from '../../offers/components/SignaturePad';
 
@@ -18,6 +18,14 @@ export default function SignatureCapture({
   const [name, setName] = useState(suggestedName ?? '');
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   function handleClear() {
     padRef.current?.clear();
@@ -49,7 +57,8 @@ export default function SignatureCapture({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-3"
-      onClick={onClose}
+      // No backdrop close — a mid-stroke tap outside the canvas
+      // would otherwise wipe the signature.
       data-testid="signature-capture-backdrop"
     >
       <div

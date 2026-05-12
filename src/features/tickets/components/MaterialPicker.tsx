@@ -71,6 +71,14 @@ export default function MaterialPicker({ onSelect, onClose }: MaterialPickerProp
   }, []);
 
   useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useEffect(() => {
     if (!debouncedQuery || debouncedQuery.length < 2) {
       setResults(null);
       setError(null);
@@ -140,7 +148,7 @@ export default function MaterialPicker({ onSelect, onClose }: MaterialPickerProp
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
+      // No backdrop close — see TicketForm rationale.
       data-testid="material-picker-backdrop"
     >
       <div

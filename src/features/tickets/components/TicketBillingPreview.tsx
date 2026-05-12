@@ -27,6 +27,14 @@ export default function TicketBillingPreview({
   const [resolutionNote, setResolutionNote] = useState('');
 
   useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !closing) onCancel();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onCancel, closing]);
+
+  useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
