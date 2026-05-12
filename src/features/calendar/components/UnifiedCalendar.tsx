@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, Loader2, MapPin } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, LayoutGrid, Loader2, MapPin, Users } from 'lucide-react';
 import LeaveCalendar from '../../vacation/components/LeaveCalendar';
+import TeamView from './TeamView';
 import { useCalendarEvents } from '../hooks/useCalendarEvents';
 import {
   DEFAULT_LAYER_VISIBILITY,
@@ -18,6 +19,22 @@ import {
 // DayDetailModal extension) will plug into this same data stream.
 
 const LS_KEY = 'kitz.calendar.layerVisibility.v1';
+const LS_VIEW_KEY = 'kitz.calendar.viewMode.v1';
+
+type ViewMode = 'month' | 'team';
+
+function loadViewMode(): ViewMode {
+  if (typeof window === 'undefined') return 'month';
+  return window.localStorage.getItem(LS_VIEW_KEY) === 'team' ? 'team' : 'month';
+}
+function saveViewMode(v: ViewMode): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LS_VIEW_KEY, v);
+  } catch {
+    /* ignore quota / private-mode errors */
+  }
+}
 
 const LAYER_DOT_CLASS: Record<LayerColor, string> = {
   lila: 'bg-violet-500',
@@ -82,8 +99,10 @@ export default function UnifiedCalendar({
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [visibility, setVisibility] = useState<LayerVisibility>(loadVisibility);
+  const [viewMode, setViewMode] = useState<ViewMode>(loadViewMode);
 
   useEffect(() => saveVisibility(visibility), [visibility]);
+  useEffect(() => saveViewMode(viewMode), [viewMode]);
 
   const { events, loading, error } = useCalendarEvents(viewYear, viewMonth);
 
@@ -124,6 +143,36 @@ export default function UnifiedCalendar({
 
   return (
     <div>
+      {/* View-mode toggle (Monat / Team) */}
+      <div className="mb-3 flex items-center gap-2 flex-wrap">
+        <div className="inline-flex rounded-lg bg-slate-100 p-1">
+          <button
+            type="button"
+            onClick={() => setViewMode('month')}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition ${
+              viewMode === 'month' ? 'bg-white text-red-600 shadow-sm font-medium' : 'text-slate-600 hover:text-slate-800'
+            }`}
+            data-testid="view-mode-month"
+            aria-pressed={viewMode === 'month'}
+          >
+            <LayoutGrid size={12} />
+            Monat
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('team')}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition ${
+              viewMode === 'team' ? 'bg-white text-red-600 shadow-sm font-medium' : 'text-slate-600 hover:text-slate-800'
+            }`}
+            data-testid="view-mode-team"
+            aria-pressed={viewMode === 'team'}
+          >
+            <Users size={12} />
+            Team
+          </button>
+        </div>
+      </div>
+
       {/* Layer-Filter-Toggles */}
       <div className="mb-3 flex items-center gap-2 flex-wrap">
         <span className="text-xs font-medium text-slate-500 mr-1">Ebenen:</span>
@@ -148,8 +197,10 @@ export default function UnifiedCalendar({
         })}
       </div>
 
-      {/* Appointment-Layer Summary (Sprint-5 will move these into cells) */}
-      {visibility.appointment && (
+      {/* Appointment-Layer Summary — only shown in month mode. In
+          team mode the grid cells already surface appointments
+          (violet dot per day per employee). */}
+      {viewMode === 'month' && visibility.appointment && (
         <div className="mb-3 rounded-xl border border-violet-200 bg-violet-50/40 px-3 py-2.5">
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
@@ -234,19 +285,22 @@ export default function UnifiedCalendar({
         </div>
       )}
 
-      {/* Underlying LeaveCalendar handles leave / shift / holiday in-cell
-          rendering and now also paints a violet badge per day for any
-          appointments returned by useCalendarEvents. Layer-toggle
-          respect: if the appointment layer is hidden, drop the prop
-          so no badges render. */}
-      <LeaveCalendar
-        initialYear={viewYear}
-        initialMonth={viewMonth}
-        reloadKey={reloadKey}
-        currentEmployeeId={currentEmployeeId}
-        onAddRequest={onAddRequest}
-        appointments={visibility.appointment ? appointments : []}
-      />
+      {/* Switch the main calendar surface based on view mode.
+          Month view: existing LeaveCalendar with appointment-badge
+          overlay. Team view: TeamView grid (employees × week)
+          with its own day-detail modal. */}
+      {viewMode === 'month' ? (
+        <LeaveCalendar
+          initialYear={viewYear}
+          initialMonth={viewMonth}
+          reloadKey={reloadKey}
+          currentEmployeeId={currentEmployeeId}
+          onAddRequest={onAddRequest}
+          appointments={visibility.appointment ? appointments : []}
+        />
+      ) : (
+        <TeamView visibility={visibility} />
+      )}
     </div>
   );
 }
