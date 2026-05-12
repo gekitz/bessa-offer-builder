@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Car, Loader2, Save, Trash2, X } from 'lucide-react';
 import { addEntry, deleteEntry, listServiceRates, listTravelZones, updateEntry } from '../api/ticketApi';
 import type { Employee } from '../../vacation/types';
+import Select from '../../../components/Select';
 import type {
   RepairOrderEntry,
   RepairOrderEntryInput,
@@ -187,36 +188,34 @@ export default function TimeEntryForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Techniker</label>
-          <select
+          <Select
             value={employeeId}
-            onChange={(e) => setEmployeeId(e.target.value)}
-            className="w-full px-2.5 py-1.5 rounded border border-slate-200 bg-white text-sm"
-            required
-          >
-            <option value="">—</option>
-            {employees.map((emp) => (
-              <option key={emp.id} value={emp.id}>{emp.name}</option>
-            ))}
-          </select>
+            onChange={setEmployeeId}
+            options={[
+              { value: '', label: '—' },
+              ...employees.map((emp) => ({ value: emp.id, label: emp.name })),
+            ]}
+            ariaLabel="Techniker"
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Stundensatz</label>
-          <select
+          {/* Categories are flattened into a single list; the category
+              name shows on the right as a hint (the Select component
+              doesn't support optgroups). */}
+          <Select
             value={serviceRateCode}
-            onChange={(e) => setServiceRateCode(e.target.value)}
-            className="w-full px-2.5 py-1.5 rounded border border-slate-200 bg-white text-sm"
+            onChange={setServiceRateCode}
+            options={Array.from(ratesByCategory.entries()).flatMap(([category, items]) =>
+              items.map((r) => ({
+                value: r.code,
+                label: `${r.label} (€${r.rate.toFixed(2)}/${r.unit === 'hour' ? 'h' : r.unit === 'km' ? 'km' : 'Pauschale'})`,
+                hint: category,
+              })),
+            )}
             disabled={lookupsLoading}
-          >
-            {Array.from(ratesByCategory.entries()).map(([category, items]) => (
-              <optgroup key={category} label={category}>
-                {items.map((r) => (
-                  <option key={r.code} value={r.code}>
-                    {r.label} (€{r.rate.toFixed(2)}/{r.unit === 'hour' ? 'h' : r.unit === 'km' ? 'km' : 'Pauschale'})
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+            ariaLabel="Stundensatz"
+          />
         </div>
       </div>
 
@@ -251,29 +250,29 @@ export default function TimeEntryForm({
           <Car size={12} className="text-slate-400" />
           <label className="block text-xs font-medium text-slate-600">Anfahrt</label>
         </div>
-        <select
+        <Select
           value={travelMode ?? 'none'}
-          onChange={(e) => setTravelMode(e.target.value as TravelMode)}
-          className="w-full px-2.5 py-1.5 rounded border border-slate-200 bg-white text-sm"
-        >
-          {(Object.keys(TRAVEL_MODE_LABEL) as Array<NonNullable<TravelMode>>).map((m) => (
-            <option key={m} value={m}>{TRAVEL_MODE_LABEL[m]}</option>
-          ))}
-        </select>
+          onChange={(v) => setTravelMode(v as TravelMode)}
+          options={(Object.keys(TRAVEL_MODE_LABEL) as Array<NonNullable<TravelMode>>).map((m) => ({
+            value: m,
+            label: TRAVEL_MODE_LABEL[m],
+          }))}
+          ariaLabel="Anfahrt-Modus"
+        />
 
         {travelMode === 'pauschale' && (
-          <select
-            value={travelZoneCode}
-            onChange={(e) => setTravelZoneCode(e.target.value)}
-            className="w-full px-2.5 py-1.5 rounded border border-slate-200 bg-white text-sm"
-          >
-            <option value="">— Zone wählen —</option>
-            {zones.map((z) => (
-              <option key={z.code} value={z.code}>
-                {z.label} (€{z.flatRate.toFixed(2)})
-              </option>
-            ))}
-          </select>
+          <Select
+            value={travelZoneCode ?? ''}
+            onChange={setTravelZoneCode}
+            options={[
+              { value: '', label: '— Zone wählen —' },
+              ...zones.map((z) => ({
+                value: z.code,
+                label: `${z.label} (€${z.flatRate.toFixed(2)})`,
+              })),
+            ]}
+            ariaLabel="KFZ-Zone"
+          />
         )}
 
         {(travelMode === 'km_plus_wegzeit' || travelMode === 'km_inkl_wegzeit') && (

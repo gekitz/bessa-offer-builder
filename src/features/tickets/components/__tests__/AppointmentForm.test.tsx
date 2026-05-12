@@ -121,8 +121,9 @@ describe('AppointmentForm', () => {
       />,
     );
     await waitFor(() => expect(listEmployeesMock).toHaveBeenCalled());
-    // Add emp-b
-    await u.selectOptions(screen.getByTestId('assignee-add'), 'emp-b');
+    // Add emp-b via the custom Select (button trigger + portaled listbox).
+    await u.click(screen.getByRole('button', { name: 'Techniker hinzufügen' }));
+    await u.click(screen.getByRole('option', { name: 'Klaus Weber' }));
     expect(screen.getByText('Klaus Weber')).toBeInTheDocument();
 
     await u.click(screen.getByRole('button', { name: /Termin anlegen/ }));

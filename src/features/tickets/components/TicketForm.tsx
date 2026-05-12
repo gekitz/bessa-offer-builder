@@ -9,6 +9,7 @@ import {
   type Standort,
 } from '../../vacation/api/vacationApi';
 import CustomerPicker from '../../../components/CustomerPicker';
+import Select from '../../../components/Select';
 import type { Employee } from '../../vacation/types';
 import type { Ticket, TicketKind, TicketPriority } from '../types';
 
@@ -228,15 +229,12 @@ export default function TicketForm({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Art</label>
-              <select
+              <Select
                 value={kind}
-                onChange={(e) => setKind(e.target.value as TicketKind)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500/30"
-              >
-                {KINDS.map((k) => (
-                  <option key={k.id} value={k.id}>{k.label}</option>
-                ))}
-              </select>
+                onChange={(v) => setKind(v as TicketKind)}
+                options={KINDS.map((k) => ({ value: k.id, label: k.label }))}
+                ariaLabel="Art"
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Priorität</label>
@@ -320,45 +318,42 @@ export default function TicketForm({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Standort</label>
-              <select
-                value={standortId ?? ''}
-                onChange={(e) => setStandortId(e.target.value ? Number(e.target.value) : null)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500/30"
+              <Select
+                value={standortId != null ? String(standortId) : ''}
+                onChange={(v) => setStandortId(v ? Number(v) : null)}
+                options={[
+                  { value: '', label: '—' },
+                  ...standorte.map((s) => ({ value: String(s.id), label: s.name })),
+                ]}
                 disabled={lookupsLoading}
-              >
-                <option value="">—</option>
-                {standorte.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+                ariaLabel="Standort"
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Pool / Abteilung</label>
-              <select
-                value={poolAbteilungId ?? ''}
-                onChange={(e) => setPoolAbteilungId(e.target.value ? Number(e.target.value) : null)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500/30"
+              <Select
+                value={poolAbteilungId != null ? String(poolAbteilungId) : ''}
+                onChange={(v) => setPoolAbteilungId(v ? Number(v) : null)}
+                options={[
+                  { value: '', label: '—' },
+                  ...abteilungen.map((a) => ({ value: String(a.id), label: a.name })),
+                ]}
                 disabled={lookupsLoading}
-              >
-                <option value="">—</option>
-                {abteilungen.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
+                ariaLabel="Pool / Abteilung"
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Zugewiesen an</label>
-              <select
+              <Select
                 value={assignedTo ?? ''}
-                onChange={(e) => setAssignedTo(e.target.value || null)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                onChange={(v) => setAssignedTo(v || null)}
+                options={[
+                  { value: '', label: '—' },
+                  ...employees.map((emp) => ({ value: emp.id, label: emp.name })),
+                ]}
                 disabled={lookupsLoading}
-              >
-                <option value="">—</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>{emp.name}</option>
-                ))}
-              </select>
+                ariaLabel="Zugewiesen an"
+              />
             </div>
           </div>
 

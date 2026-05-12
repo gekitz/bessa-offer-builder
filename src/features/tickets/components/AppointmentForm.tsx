@@ -7,6 +7,7 @@ import {
   updateAppointment,
 } from '../api/ticketApi';
 import { listEmployees, listStandorte, type Standort } from '../../vacation/api/vacationApi';
+import Select from '../../../components/Select';
 import type { Employee } from '../../vacation/types';
 import type {
   Appointment,
@@ -306,27 +307,27 @@ export default function AppointmentForm({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Art</label>
-              <select
+              <Select
                 value={kind}
-                onChange={(e) => setKind(e.target.value as AppointmentKind)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm"
-              >
-                {(Object.keys(KIND_LABEL) as AppointmentKind[]).map((k) => (
-                  <option key={k} value={k}>{KIND_LABEL[k]}</option>
-                ))}
-              </select>
+                onChange={(v) => setKind(v as AppointmentKind)}
+                options={(Object.keys(KIND_LABEL) as AppointmentKind[]).map((k) => ({
+                  value: k,
+                  label: KIND_LABEL[k],
+                }))}
+                ariaLabel="Art"
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
-              <select
+              <Select
                 value={status}
-                onChange={(e) => setStatus(e.target.value as AppointmentStatus)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm"
-              >
-                {(Object.keys(STATUS_LABEL) as AppointmentStatus[]).map((s) => (
-                  <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-                ))}
-              </select>
+                onChange={(v) => setStatus(v as AppointmentStatus)}
+                options={(Object.keys(STATUS_LABEL) as AppointmentStatus[]).map((s) => ({
+                  value: s,
+                  label: STATUS_LABEL[s],
+                }))}
+                ariaLabel="Status"
+              />
             </div>
           </div>
 
@@ -377,15 +378,17 @@ export default function AppointmentForm({
                   <li key={a.employeeId} className="flex items-center gap-2 text-sm">
                     <User size={12} className="text-slate-400 flex-shrink-0" />
                     <span className="font-medium text-slate-700 flex-1">{emp?.name ?? a.employeeId}</span>
-                    <select
+                    <Select
                       value={a.role}
-                      onChange={(e) => handleChangeRole(idx, e.target.value as AssigneeRole)}
-                      className="px-2 py-1 rounded border border-slate-200 bg-white text-xs"
-                    >
-                      {(Object.keys(ROLE_LABEL) as AssigneeRole[]).map((r) => (
-                        <option key={r} value={r}>{ROLE_LABEL[r]}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => handleChangeRole(idx, v as AssigneeRole)}
+                      options={(Object.keys(ROLE_LABEL) as AssigneeRole[]).map((r) => ({
+                        value: r,
+                        label: ROLE_LABEL[r],
+                      }))}
+                      size="sm"
+                      className="inline-block w-28"
+                      ariaLabel="Rolle"
+                    />
                     <button
                       type="button"
                       onClick={() => handleRemoveAssignee(idx)}
@@ -398,18 +401,19 @@ export default function AppointmentForm({
                 );
               })}
             </ul>
-            <select
-              value=""
-              onChange={(e) => handleAddAssignee(e.target.value)}
-              disabled={lookupsLoading || availableEmployees.length === 0}
-              className="w-full px-2.5 py-1.5 rounded border border-slate-200 bg-white text-sm"
-              data-testid="assignee-add"
-            >
-              <option value="">+ Techniker hinzufügen…</option>
-              {availableEmployees.map((emp) => (
-                <option key={emp.id} value={emp.id}>{emp.name}</option>
-              ))}
-            </select>
+            <div data-testid="assignee-add">
+              <Select
+                value=""
+                onChange={(v) => handleAddAssignee(v)}
+                options={[
+                  { value: '', label: '+ Techniker hinzufügen…' },
+                  ...availableEmployees.map((emp) => ({ value: emp.id, label: emp.name })),
+                ]}
+                disabled={lookupsLoading || availableEmployees.length === 0}
+                placeholder="+ Techniker hinzufügen…"
+                ariaLabel="Techniker hinzufügen"
+              />
+            </div>
           </div>
 
           {/* Description + Notes */}
@@ -427,16 +431,15 @@ export default function AppointmentForm({
           {!lookupsLoading && standorte.length > 0 && (
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Standort (für Kalender-Filterung)</label>
-              <select
-                value={standortId ?? ''}
-                onChange={(e) => setStandortId(e.target.value ? Number(e.target.value) : null)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm"
-              >
-                <option value="">—</option>
-                {standorte.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+              <Select
+                value={standortId != null ? String(standortId) : ''}
+                onChange={(v) => setStandortId(v ? Number(v) : null)}
+                options={[
+                  { value: '', label: '—' },
+                  ...standorte.map((s) => ({ value: String(s.id), label: s.name })),
+                ]}
+                ariaLabel="Standort"
+              />
             </div>
           )}
 

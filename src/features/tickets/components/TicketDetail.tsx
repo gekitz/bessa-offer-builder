@@ -24,6 +24,7 @@ import RepairOrdersTab from './RepairOrdersTab';
 import AppointmentsTab from './AppointmentsTab';
 import AttachmentsPanel from './AttachmentsPanel';
 import TicketBillingPreview from './TicketBillingPreview';
+import Select from '../../../components/Select';
 
 interface TicketDetailProps {
   ticketId: string;
@@ -260,26 +261,29 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
 
       {/* Status & Assignment quick-controls */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <select
+        <Select
           value={ticket.status}
-          onChange={(e) => handleStatusChange(e.target.value as TicketStatus)}
-          className="px-2.5 py-1 rounded-md border border-slate-200 text-sm bg-white"
+          onChange={(v) => handleStatusChange(v as TicketStatus)}
+          options={(Object.keys(STATUS_LABEL) as TicketStatus[]).map((s) => ({
+            value: s,
+            label: STATUS_LABEL[s],
+          }))}
           disabled={ticket.status === 'closed'}
-        >
-          {(Object.keys(STATUS_LABEL) as TicketStatus[]).map((s) => (
-            <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-          ))}
-        </select>
-        <select
+          size="sm"
+          className="inline-block w-44"
+          ariaLabel="Status"
+        />
+        <Select
           value={ticket.assignedTo ?? ''}
-          onChange={(e) => handleAssign(e.target.value || null)}
-          className="px-2.5 py-1 rounded-md border border-slate-200 text-sm bg-white"
-        >
-          <option value="">Niemandem zugewiesen</option>
-          {employees.map((emp) => (
-            <option key={emp.id} value={emp.id}>{emp.name}</option>
-          ))}
-        </select>
+          onChange={(v) => handleAssign(v || null)}
+          options={[
+            { value: '', label: 'Niemandem zugewiesen' },
+            ...employees.map((emp) => ({ value: emp.id, label: emp.name })),
+          ]}
+          size="sm"
+          className="inline-block w-56"
+          ariaLabel="Zugewiesen an"
+        />
         {ticket.status !== 'closed' && (
           <button
             onClick={() => setShowCloseDialog(true)}

@@ -98,10 +98,10 @@ describe('TimeEntryForm', () => {
       />,
     );
     await waitFor(() => expect(listServiceRatesMock).toHaveBeenCalled());
-    // Select pauschale but no zone
-    const selects = screen.getAllByRole('combobox');
-    const travelSelect = selects.find((s) => (s as HTMLSelectElement).options[0]?.value === 'none')!;
-    await u.selectOptions(travelSelect, 'pauschale');
+    // Open the Anfahrt-Modus dropdown and pick "Pauschale (Zone)" —
+    // the custom Select renders a button trigger + portaled listbox.
+    await u.click(screen.getByRole('button', { name: 'Anfahrt-Modus' }));
+    await u.click(screen.getByRole('option', { name: /KFZ-Pauschale/ }));
     await u.click(screen.getByRole('button', { name: /Hinzufügen/ }));
     expect(screen.getByText(/Bitte eine KFZ-Zone/)).toBeInTheDocument();
     expect(addEntryMock).not.toHaveBeenCalled();
@@ -120,19 +120,14 @@ describe('TimeEntryForm', () => {
     );
     await waitFor(() => expect(listServiceRatesMock).toHaveBeenCalled());
 
-    const selects = screen.getAllByRole('combobox');
-    const travelSelect = selects.find((s) => (s as HTMLSelectElement).options[0]?.value === 'none')!;
-    await u.selectOptions(travelSelect, 'km_plus_wegzeit');
+    await u.click(screen.getByRole('button', { name: 'Anfahrt-Modus' }));
+    await u.click(screen.getByRole('option', { name: /KM-Geld \+ Wegzeit/ }));
 
-    // KM input + wegzeit hours/min
-    const numericInputs = screen.getAllByRole('textbox').filter((i) =>
-      (i as HTMLInputElement).type === 'text',
-    );
     // Set work to non-zero
     await u.clear(screen.getByTestId('work-hours'));
     await u.type(screen.getByTestId('work-hours'), '1');
 
-    // Find the km input — the first text input below the travel select
+    // KM input is the only text input with placeholder "0".
     const kmInput = screen.getByPlaceholderText('0');
     await u.type(kmInput, '50');
 
