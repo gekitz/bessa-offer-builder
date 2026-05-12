@@ -31,12 +31,16 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-const isAcceptFlow = new URLSearchParams(window.location.search).has('a');
+// Public customer-facing flows live outside the auth wall — the offer
+// accept link (?a=) and the ticket-tracking portal (?t=). Both authenticate
+// via their share_code, not via Microsoft SSO.
+const search = new URLSearchParams(window.location.search);
+const isPublicFlow = search.has('a') || search.has('t');
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <AuthProvider>
-      {isAcceptFlow ? (
+      {isPublicFlow ? (
         <App />
       ) : (
         <ProtectedRoute>
