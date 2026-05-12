@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
-  Calendar,
   CheckCircle2,
   Edit2,
   Loader2,
@@ -20,6 +19,7 @@ import type { Ticket, TicketPriority, TicketStatus } from '../types';
 import TicketForm from './TicketForm';
 import TicketComments from './TicketComments';
 import RepairOrdersTab from './RepairOrdersTab';
+import AppointmentsTab from './AppointmentsTab';
 import TicketBillingPreview from './TicketBillingPreview';
 
 interface TicketDetailProps {
@@ -364,10 +364,7 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
       )}
 
       {tab === 'appointments' && (
-        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-6 py-10 text-center text-sm text-slate-500">
-          <Calendar size={24} className="mx-auto mb-2 text-slate-300" />
-          Termine kommen in Sprint 5.
-        </div>
+        <AppointmentsTab ticket={ticket} currentEmployeeId={currentEmployeeId} />
       )}
 
       {tab === 'repair_orders' && (

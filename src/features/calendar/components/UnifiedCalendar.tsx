@@ -235,14 +235,17 @@ export default function UnifiedCalendar({
       )}
 
       {/* Underlying LeaveCalendar handles leave / shift / holiday in-cell
-          rendering. Drives the month-view that VacationPage previously
-          embedded directly. */}
+          rendering and now also paints a violet badge per day for any
+          appointments returned by useCalendarEvents. Layer-toggle
+          respect: if the appointment layer is hidden, drop the prop
+          so no badges render. */}
       <LeaveCalendar
         initialYear={viewYear}
         initialMonth={viewMonth}
         reloadKey={reloadKey}
         currentEmployeeId={currentEmployeeId}
         onAddRequest={onAddRequest}
+        appointments={visibility.appointment ? appointments : []}
       />
     </div>
   );

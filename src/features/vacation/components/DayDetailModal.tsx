@@ -1,16 +1,22 @@
 import { useEffect } from 'react';
-import { Calendar, User, X } from 'lucide-react';
+import { Calendar, MapPin, User, Users, X } from 'lucide-react';
 import LeaveStatusBadge from './LeaveStatusBadge';
 import { formatGermanDate, formatRange } from '../lib/formatDate';
 import type { Employee, IsoDate, LeaveRequest, LeaveTypeCode } from '../types';
 import type { LeaveType } from '../api/vacationApi';
+import type { CalendarEvent } from '../../calendar/types';
 
 interface DayDetailModalProps {
   day: IsoDate;
   leaves: Array<LeaveRequest & { id: string }>;
+  appointments?: CalendarEvent[];
   employees: Map<string, Employee>;
   leaveTypes: Map<LeaveTypeCode, LeaveType>;
   onClose: () => void;
+}
+
+function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
 }
 
 const TYPE_DOT_COLORS: Record<LeaveTypeCode, string> = {
@@ -26,7 +32,7 @@ const TYPE_DOT_COLORS: Record<LeaveTypeCode, string> = {
 // Modal that lists every leave covering a specific day. Opened from
 // the calendar by clicking a day cell. Acts as the answer to
 // "who exactly is out on this day, and why?".
-export default function DayDetailModal({ day, leaves, employees, leaveTypes, onClose }: DayDetailModalProps) {
+export default function DayDetailModal({ day, leaves, appointments = [], employees, leaveTypes, onClose }: DayDetailModalProps) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -50,7 +56,8 @@ export default function DayDetailModal({ day, leaves, employees, leaveTypes, onC
             <Calendar size={16} />
             <span className="font-bold" style={{ fontSize: 16 }}>{formatGermanDate(day)}</span>
             <span className="text-slate-400" style={{ fontSize: 12 }}>
-              ({leaves.length} {leaves.length === 1 ? 'Abwesenheit' : 'Abwesenheiten'})
+              ({appointments.length > 0 ? `${appointments.length} Termin${appointments.length === 1 ? '' : 'e'}, ` : ''}
+              {leaves.length} {leaves.length === 1 ? 'Abwesenheit' : 'Abwesenheiten'})
             </span>
           </div>
           <button
@@ -63,11 +70,51 @@ export default function DayDetailModal({ day, leaves, employees, leaveTypes, onC
         </div>
 
         <div className="flex-1 overflow-auto">
-          {leaves.length === 0 ? (
+          {/* Appointments first — most actionable layer for a dispatcher */}
+          {appointments.length > 0 && (
+            <ul className="divide-y divide-slate-100 border-b border-slate-200 bg-violet-50/40">
+              {appointments.map((a) => {
+                const employeeNames = (a.employeeIds ?? [])
+                  .map((id) => employees.get(id)?.name)
+                  .filter(Boolean) as string[];
+                const location = (a.metadata?.location as string | undefined) ?? null;
+                return (
+                  <li key={a.id} className="px-5 py-3" data-testid="day-detail-appointment">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="min-w-0 flex-1">
+                        <span className="font-semibold text-violet-900 truncate" style={{ fontSize: 13 }}>
+                          {a.title}
+                        </span>
+                      </div>
+                      <span className="text-violet-700 font-mono text-xs flex-shrink-0">
+                        {a.allDay ? 'Ganztägig' : `${fmtTime(a.startsAt)}–${fmtTime(a.endsAt)}`}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-600" style={{ fontSize: 11 }}>
+                      {location && (
+                        <span className="flex items-center gap-1">
+                          <MapPin size={10} className="text-slate-400" />
+                          {location}
+                        </span>
+                      )}
+                      {employeeNames.length > 0 && (
+                        <span className="flex items-center gap-1">
+                          <Users size={10} className="text-slate-400" />
+                          {employeeNames.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {leaves.length === 0 && appointments.length === 0 ? (
             <div className="text-center py-10 text-slate-400">
-              <p style={{ fontSize: 12 }}>Niemand abwesend an diesem Tag.</p>
+              <p style={{ fontSize: 12 }}>Nichts geplant an diesem Tag.</p>
             </div>
-          ) : (
+          ) : leaves.length === 0 ? null : (
             <ul className="divide-y divide-slate-100">
               {leaves.map((req) => {
                 const emp = employees.get(req.employeeId);

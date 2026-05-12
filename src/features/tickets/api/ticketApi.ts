@@ -370,6 +370,21 @@ export async function setTicketStatus(
 const APPOINTMENT_COLS =
   'id, ticket_id, mesonic_customer_id, customer_name, title, description, kind, starts_at, ends_at, all_day, location, status, standort_id, notes, created_by, created_at, updated_at';
 
+export async function listAppointmentsForTicket(ticketId: string): Promise<Appointment[]> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('appointments')
+    .select(`${APPOINTMENT_COLS}, appointment_assignees(id, appointment_id, employee_id, role, created_at, employees(name))`)
+    .eq('ticket_id', ticketId)
+    .order('starts_at');
+  if (error) throw error;
+  return (data ?? []).map((row: any) => {
+    const appt = rowToAppointment(row);
+    appt.assignees = (row.appointment_assignees ?? []).map(rowToAssignee);
+    return appt;
+  });
+}
+
 export async function listAppointments(range: { from: string; to: string }): Promise<Appointment[]> {
   const sb = requireSupabase();
   const { data, error } = await sb

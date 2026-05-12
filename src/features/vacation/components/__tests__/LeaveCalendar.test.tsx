@@ -437,7 +437,7 @@ describe('LeaveCalendar', () => {
     await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
 
     await u.click(screen.getByTestId('cal-cell-2026-05-15'));
-    expect(await screen.findByText(/Niemand abwesend an diesem Tag/)).toBeInTheDocument();
+    expect(await screen.findByText(/Nichts geplant an diesem Tag/)).toBeInTheDocument();
   });
 
   it('shows ½ on both ends for a single-day request flagged half on both sides', async () => {
@@ -712,5 +712,69 @@ describe('LeaveCalendar — fullscreen toggle', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     // Calendar still in fullscreen.
     expect(screen.getByTestId('leave-calendar').className).toMatch(/fixed inset-0/);
+  });
+});
+
+describe('LeaveCalendar — appointment layer', () => {
+  it('does not render appointment badges when no appointments are passed', async () => {
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+    expect(screen.queryByTestId('cal-appointment-badge-2026-05-15')).not.toBeInTheDocument();
+  });
+
+  it('renders a violet badge with the count on days that have appointments', async () => {
+    const appointments = [
+      {
+        id: 'appointment:a-1',
+        type: 'appointment' as const,
+        title: 'Vor-Ort 1',
+        startsAt: '2026-05-15T09:00:00',
+        endsAt: '2026-05-15T11:00:00',
+        allDay: false,
+        color: 'lila' as const,
+        employeeIds: ['sbauer-id'],
+        metadata: { location: 'Klagenfurt' },
+      },
+      {
+        id: 'appointment:a-2',
+        type: 'appointment' as const,
+        title: 'Vor-Ort 2',
+        startsAt: '2026-05-15T13:00:00',
+        endsAt: '2026-05-15T15:00:00',
+        allDay: false,
+        color: 'lila' as const,
+        employeeIds: [],
+        metadata: {},
+      },
+    ];
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} appointments={appointments} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+    const badge = await screen.findByTestId('cal-appointment-badge-2026-05-15');
+    expect(badge.textContent).toBe('2');
+    expect(screen.queryByTestId('cal-appointment-badge-2026-05-14')).not.toBeInTheDocument();
+  });
+
+  it('shows the appointment in DayDetailModal when the day is clicked', async () => {
+    const u = userEvent.setup();
+    const appointments = [
+      {
+        id: 'appointment:a-1',
+        type: 'appointment' as const,
+        title: 'Vor-Ort-Reparatur',
+        startsAt: '2026-05-15T09:00:00',
+        endsAt: '2026-05-15T11:00:00',
+        allDay: false,
+        color: 'lila' as const,
+        employeeIds: ['sbauer-id'],
+        metadata: { location: 'Klagenfurt' },
+      },
+    ];
+    render(<LeaveCalendar initialYear={2026} initialMonth={4} appointments={appointments} />);
+    await waitFor(() => expect(screen.queryByText(/Kalender wird geladen/)).not.toBeInTheDocument());
+
+    await u.click(screen.getByTestId('cal-cell-2026-05-15'));
+    expect(await screen.findByTestId('day-detail-appointment')).toBeInTheDocument();
+    expect(screen.getByText('Vor-Ort-Reparatur')).toBeInTheDocument();
+    expect(screen.getByText('Klagenfurt')).toBeInTheDocument();
   });
 });

@@ -91,7 +91,7 @@ describe('DayDetailModal', () => {
     render(
       <DayDetailModal day="2026-08-12" leaves={[]} employees={employees} leaveTypes={leaveTypes} onClose={() => {}} />,
     );
-    expect(screen.getByText(/Niemand abwesend an diesem Tag/)).toBeInTheDocument();
+    expect(screen.getByText(/Nichts geplant an diesem Tag/)).toBeInTheDocument();
   });
 
   it('closes via the X button, the backdrop, and Escape', async () => {

@@ -3,24 +3,27 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const listRepairOrdersMock = vi.fn();
+const listAppointmentsForTicketMock = vi.fn();
 const createRepairOrderMock = vi.fn();
 const getRepairOrderMock = vi.fn();
 const listServiceRatesMock = vi.fn();
 const listTravelZonesMock = vi.fn();
 const listEmployeesMock = vi.fn();
+const addEntryMock = vi.fn();
 
 vi.mock('../../api/ticketApi', () => ({
   listRepairOrders: (ticketId: string) => listRepairOrdersMock(ticketId),
+  listAppointmentsForTicket: (ticketId: string) => listAppointmentsForTicketMock(ticketId),
   createRepairOrder: (input: unknown) => createRepairOrderMock(input),
   getRepairOrder: (id: string) => getRepairOrderMock(id),
   listServiceRates: () => listServiceRatesMock(),
   listTravelZones: () => listTravelZonesMock(),
+  addEntry: (roId: string, input: unknown) => addEntryMock(roId, input),
   // Detail uses these but they shouldn't be hit in the list-mode tests below.
   updateRepairOrder: vi.fn(),
   addMaterial: vi.fn(),
   removeMaterial: vi.fn(),
   signRepairOrder: vi.fn(),
-  addEntry: vi.fn(),
   updateEntry: vi.fn(),
   deleteEntry: vi.fn(),
 }));
@@ -52,11 +55,13 @@ const ro1: RepairOrder = {
 
 beforeEach(() => {
   listRepairOrdersMock.mockReset().mockResolvedValue([]);
+  listAppointmentsForTicketMock.mockReset().mockResolvedValue([]);
   createRepairOrderMock.mockReset().mockResolvedValue({ ...ro1, id: 'ro-new', seqNumber: 2 });
   getRepairOrderMock.mockReset().mockResolvedValue({ repairOrder: { ...ro1, id: 'ro-new', seqNumber: 2 }, entries: [], materials: [] });
   listServiceRatesMock.mockReset().mockResolvedValue([]);
   listTravelZonesMock.mockReset().mockResolvedValue([]);
   listEmployeesMock.mockReset().mockResolvedValue([]);
+  addEntryMock.mockReset().mockResolvedValue({ id: 'e-1' });
 });
 
 describe('RepairOrdersTab', () => {
@@ -88,5 +93,57 @@ describe('RepairOrdersTab', () => {
     // Detail view loads; back button shows "Zurück zur Liste"
     await screen.findByText(/Zurück zur Liste/);
     expect(getRepairOrderMock).toHaveBeenCalledWith('ro-new');
+  });
+
+  it('shows a "Schein erstellen" CTA for appointments without a rep-order', async () => {
+    listAppointmentsForTicketMock.mockResolvedValueOnce([
+      {
+        id: 'a-1', ticketId: 't-1', mesonicCustomerId: null, customerName: 'Müller',
+        title: 'Vor-Ort', description: null, kind: 'reparatur',
+        startsAt: '2026-05-15T09:00:00.000Z', endsAt: '2026-05-15T11:00:00.000Z',
+        allDay: false, location: null, status: 'geplant', standortId: null,
+        notes: null, createdBy: null, createdAt: '', updatedAt: '',
+        assignees: [
+          { id: 'aa-1', appointmentId: 'a-1', employeeId: 'emp-a', role: 'lead', createdAt: '', _employeeName: 'Hannes' },
+          { id: 'aa-2', appointmentId: 'a-1', employeeId: 'emp-b', role: 'techniker', createdAt: '', _employeeName: 'Klaus' },
+        ],
+      },
+    ]);
+    render(<RepairOrdersTab ticket={ticket} />);
+    await screen.findByTestId('appointments-awaiting-ro');
+    expect(screen.getByText(/Hannes, Klaus/)).toBeInTheDocument();
+    expect(screen.getByTestId('create-ro-from-a-1')).toBeInTheDocument();
+  });
+
+  it('seeds one zero-minute entry per assignee when creating from an appointment', async () => {
+    listAppointmentsForTicketMock.mockResolvedValueOnce([
+      {
+        id: 'a-1', ticketId: 't-1', mesonicCustomerId: null, customerName: 'Müller',
+        title: 'Vor-Ort', description: 'Drucker geprüft', kind: 'reparatur',
+        startsAt: '2026-05-15T09:00:00.000Z', endsAt: '2026-05-15T11:00:00.000Z',
+        allDay: false, location: null, status: 'geplant', standortId: null,
+        notes: null, createdBy: null, createdAt: '', updatedAt: '',
+        assignees: [
+          { id: 'aa-1', appointmentId: 'a-1', employeeId: 'emp-a', role: 'lead', createdAt: '' },
+          { id: 'aa-2', appointmentId: 'a-1', employeeId: 'emp-b', role: 'techniker', createdAt: '' },
+        ],
+      },
+    ]);
+    const u = userEvent.setup();
+    render(<RepairOrdersTab ticket={ticket} currentEmployeeId="emp-a" />);
+    await screen.findByTestId('appointments-awaiting-ro');
+
+    await u.click(screen.getByTestId('create-ro-from-a-1'));
+
+    await waitFor(() => expect(createRepairOrderMock).toHaveBeenCalled());
+    const input = createRepairOrderMock.mock.calls[0][0];
+    expect(input.appointmentId).toBe('a-1');
+    expect(input.performedAt).toBe('2026-05-15');
+    expect(input.workDescription).toBe('Drucker geprüft');
+
+    await waitFor(() => expect(addEntryMock).toHaveBeenCalledTimes(2));
+    expect(addEntryMock.mock.calls[0][1].employeeId).toBe('emp-a');
+    expect(addEntryMock.mock.calls[1][1].employeeId).toBe('emp-b');
+    expect(addEntryMock.mock.calls[0][1].workMinutes).toBe(0);
   });
 });

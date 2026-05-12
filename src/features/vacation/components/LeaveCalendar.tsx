@@ -15,6 +15,7 @@ import type { Shift, ShiftSlotKind, ShiftSwap } from '../../shifts/types';
 import { firstName as shiftFirstName, shortSlotLabel } from '../../shifts/lib/format';
 import ShiftDetailModal from '../../shifts/components/ShiftDetailModal';
 import type { Employee, IsoDate, LeaveRequest, LeaveTypeCode } from '../types';
+import type { CalendarEvent } from '../../calendar/types';
 import DayDetailModal from './DayDetailModal';
 
 interface LeaveCalendarProps {
@@ -31,6 +32,10 @@ interface LeaveCalendarProps {
   // Logged-in employee. Drives "is this my shift" affordances on the
   // shift detail modal (Tausch anbieten, accept/decline pending swap).
   currentEmployeeId?: string | null;
+  // Optional appointment layer — when provided, each day cell shows
+  // a violet badge with the count of appointments starting on that
+  // day, and the DayDetailModal lists them.
+  appointments?: CalendarEvent[];
 }
 
 type ViewMode = 'month' | 'year';
@@ -111,6 +116,7 @@ export default function LeaveCalendar({
   reloadKey = 0,
   onAddRequest,
   currentEmployeeId = null,
+  appointments,
 }: LeaveCalendarProps) {
   const today = new Date();
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
@@ -217,6 +223,20 @@ export default function LeaveCalendar({
     }
     return out;
   }, [shifts]);
+  // Index appointments by their starting calendar day (in local time).
+  // Multi-day appointments still appear only on their start day for
+  // now — the cells just show a violet count badge.
+  const appointmentsByDate = useMemo(() => {
+    const out = new Map<IsoDate, CalendarEvent[]>();
+    for (const a of appointments ?? []) {
+      const d = new Date(a.startsAt);
+      const iso = toIso(d.getFullYear(), d.getMonth(), d.getDate());
+      const arr = out.get(iso);
+      if (arr) arr.push(a);
+      else out.set(iso, [a]);
+    }
+    return out;
+  }, [appointments]);
   // Index pending swaps by shift id (each shift can have at most one
   // pending swap touching it).
   const pendingSwapByShiftId = useMemo(() => {
@@ -233,6 +253,11 @@ export default function LeaveCalendar({
     if (!openDay) return [];
     return leaves.filter((l) => leaveCoversDay(l, openDay));
   }, [openDay, leaves]);
+
+  const appointmentsOnOpenDay = useMemo(() => {
+    if (!openDay) return [];
+    return appointmentsByDate.get(openDay) ?? [];
+  }, [openDay, appointmentsByDate]);
 
   function handlePrev() {
     if (viewMode === 'year') {
@@ -481,6 +506,7 @@ export default function LeaveCalendar({
             <DayDetailModal
               day={openDay}
               leaves={leavesOnOpenDay}
+              appointments={appointmentsOnOpenDay}
               employees={employeeById}
               leaveTypes={typeByCode}
               onClose={() => setOpenDay(null)}
@@ -534,6 +560,7 @@ export default function LeaveCalendar({
             {grid.map((cell) => {
               const dayLeaves = leaves.filter((l) => leaveCoversDay(l, cell.iso));
               const dayShifts = shiftsByDate.get(cell.iso) ?? [];
+              const dayAppointments = appointmentsByDate.get(cell.iso) ?? [];
               const isToday = cell.iso === todayIso;
               const visible = dayLeaves.slice(0, 3);
               const overflow = dayLeaves.length - visible.length;
@@ -556,14 +583,25 @@ export default function LeaveCalendar({
                   }`}
                 >
                   <div
-                    className={`flex justify-end ${
+                    className={`flex items-center justify-between ${
                       isToday
                         ? 'text-red-600 font-semibold'
                         : cell.current ? 'text-slate-700' : 'text-slate-400'
                     }`}
                     style={{ fontSize: 11 }}
                   >
-                    {cell.day}
+                    {dayAppointments.length > 0 ? (
+                      <span
+                        className="inline-flex items-center gap-0.5 rounded-full bg-violet-100 text-violet-700 px-1.5 py-0.5"
+                        style={{ fontSize: 9 }}
+                        title={`${dayAppointments.length} Termin${dayAppointments.length === 1 ? '' : 'e'}`}
+                        data-testid={`cal-appointment-badge-${cell.iso}`}
+                      >
+                        <span className="inline-block w-1 h-1 rounded-full bg-violet-600" />
+                        {dayAppointments.length}
+                      </span>
+                    ) : <span />}
+                    <span>{cell.day}</span>
                   </div>
                   {dayShifts.map((s) => {
                     const emp = s.employeeId ? employeeById.get(s.employeeId) : null;
@@ -635,6 +673,7 @@ export default function LeaveCalendar({
             <DayDetailModal
               day={openDay}
               leaves={leavesOnOpenDay}
+              appointments={appointmentsOnOpenDay}
               employees={employeeById}
               leaveTypes={typeByCode}
               onClose={() => setOpenDay(null)}
