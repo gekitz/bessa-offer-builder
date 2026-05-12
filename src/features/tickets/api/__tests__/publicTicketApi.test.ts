@@ -29,9 +29,13 @@ function makeChain(response: ChainResponse) {
 }
 
 const fromMock = vi.fn<AnyFn>();
+const invokeMock = vi.fn<AnyFn>();
 vi.mock('../../../../lib/supabase', () => ({
   supabase: {
     from: (...args: unknown[]) => fromMock(...args),
+    functions: {
+      invoke: (...args: unknown[]) => invokeMock(...args),
+    },
   },
 }));
 
@@ -39,6 +43,7 @@ import { addPublicComment, getPublicTicketView } from '../publicTicketApi';
 
 beforeEach(() => {
   fromMock.mockReset();
+  invokeMock.mockReset().mockResolvedValue({ data: { success: true }, error: null });
 });
 
 describe('getPublicTicketView', () => {
@@ -164,6 +169,12 @@ describe('addPublicComment', () => {
     expect(payload.created_by).toBeNull();
     expect(payload.ticket_id).toBe('t-1');
     expect(out.isExternal).toBe(true);
+
+    // Fires the customer_replied notification with share_code so the
+    // edge function can validate it against the ticket.
+    expect(invokeMock).toHaveBeenCalledWith('notify-ticket-event', {
+      body: { event: 'customer_replied', ticketId: 't-1', shareCode: 'sc-1' },
+    });
   });
 
   it('throws when the share_code does not match any ticket', async () => {

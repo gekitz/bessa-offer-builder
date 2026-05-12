@@ -170,10 +170,12 @@ export async function addPublicComment(
   if (e1) throw e1;
   if (!ticketRow) throw new Error('Auftrag nicht gefunden');
 
+  const ticketId = (ticketRow as { id: string }).id;
+
   const { data, error } = await sb
     .from('ticket_comments')
     .insert({
-      ticket_id: ticketRow.id,
+      ticket_id: ticketId,
       kind: 'comment',
       body: body.trim(),
       is_external: true,
@@ -182,5 +184,23 @@ export async function addPublicComment(
     .select(COMMENT_COLS)
     .single();
   if (error) throw error;
+
+  // Fire-and-forget notification to the internal assignee. The edge
+  // function validates share_code matches the ticket — without that
+  // check, an anon caller who knows a ticket_id could spam alerts.
+  // The customer's "Senden" UI already succeeded by this point, so
+  // any push/email outage must stay silent here.
+  void sb.functions
+    .invoke('notify-ticket-event', {
+      body: {
+        event: 'customer_replied',
+        ticketId,
+        shareCode,
+      },
+    })
+    .catch((err) => {
+      console.warn('notify-ticket-event (customer_replied) invoke failed:', err);
+    });
+
   return rowToTimelineEntry(data);
 }

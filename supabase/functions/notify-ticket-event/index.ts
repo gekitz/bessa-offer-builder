@@ -1,15 +1,20 @@
-// Send ticket-event emails to the customer (via customer_email) and
-// optionally to the internal assignee. Invoked by the client after a
-// successful mutation — failures here do not fail the mutation, so
-// the function returns a structured `skipped` result rather than 500
-// where possible.
+// Send ticket-event emails + web push notifications to the customer
+// (via customer_email) and the internal assignee. Invoked by the
+// client after a successful mutation — failures here do not fail the
+// mutation, so the function returns a structured `skipped` result
+// rather than 500 where possible.
 //
 // Inputs (POST JSON body):
 //   ticketId:    string                                 (required, all events)
 //   event:       'ticket_created' | 'status_changed' |
-//                'appointment_scheduled' | 'ticket_closed'  (required)
+//                'appointment_scheduled' | 'ticket_closed' |
+//                'customer_replied'                      (required)
 //   previousStatus, newStatus: string                   (status_changed only)
 //   appointmentId: string                               (appointment_scheduled only)
+//   shareCode:   string                                 (customer_replied only —
+//                                                        validated against tickets.share_code
+//                                                        so anonymous callers can't spoof
+//                                                        notifications for arbitrary tickets)
 //   triggeredBy: string                                 (employees.id of actor — used to
 //                                                        suppress self-notifications)
 //
@@ -29,7 +34,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-type EventType = 'ticket_created' | 'status_changed' | 'appointment_scheduled' | 'ticket_closed';
+type EventType =
+  | 'ticket_created'
+  | 'status_changed'
+  | 'appointment_scheduled'
+  | 'ticket_closed'
+  | 'customer_replied';
 
 const STATUS_LABEL_DE: Record<string, string> = {
   open: 'Eingelangt',
@@ -105,6 +115,43 @@ interface AppointmentRow {
   ends_at: string;
   location: string | null;
   kind: string;
+}
+
+async function sendPush(opts: {
+  supabaseUrl: string;
+  serviceKey: string;
+  employeeIds: string[];
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+}): Promise<{ ok: boolean; result?: unknown; error?: unknown }> {
+  if (opts.employeeIds.length === 0) return { ok: true, result: 'no recipients' };
+  try {
+    const res = await fetch(`${opts.supabaseUrl}/functions/v1/send-push`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${opts.serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        employeeIds: opts.employeeIds,
+        title: opts.title,
+        body: opts.body,
+        url: opts.url,
+        tag: opts.tag,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      console.warn('send-push fan-out failed:', data);
+      return { ok: false, error: data };
+    }
+    return { ok: true, result: data };
+  } catch (err) {
+    console.warn('send-push invoke failed:', err);
+    return { ok: false, error: String(err) };
+  }
 }
 
 async function sendResend(opts: {
@@ -194,18 +241,50 @@ serve(async (req: Request) => {
       appointment = (a as AppointmentRow | null) ?? null;
     }
 
-    // Resolve internal assignee (if any) for the internal notification
+    // customer_replied is triggered by anonymous customer clients via
+    // the public share link. The shareCode in the body must match the
+    // ticket's share_code or we reject — otherwise an attacker who
+    // somehow knows a ticket_id could spam the assignee.
+    let customerCommentBody: string | null = null;
+    if (event === 'customer_replied') {
+      if (!body.shareCode || body.shareCode !== t.share_code) {
+        return new Response(JSON.stringify({ error: 'share_code mismatch' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      // Pull the most-recent external comment so the internal email +
+      // push can quote it. Best-effort — we still fire the alert if
+      // the read fails.
+      const { data: latest } = await supabase
+        .from('ticket_comments')
+        .select('body, created_at')
+        .eq('ticket_id', t.id)
+        .eq('is_external', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      customerCommentBody = (latest as { body?: string } | null)?.body ?? null;
+    }
+
+    // Resolve internal assignee (if any) for the internal notification.
+    // customer_replied always notifies the assignee — there's no
+    // triggeredBy to compare against because the customer (anon)
+    // triggered the event.
     let assigneeEmail: string | null = null;
     let assigneeName: string | null = null;
-    if (t.assigned_to && t.assigned_to !== body.triggeredBy) {
+    let assigneeId: string | null = null;
+    const skipSelfNotify = event !== 'customer_replied' && t.assigned_to === body.triggeredBy;
+    if (t.assigned_to && !skipSelfNotify) {
       const { data: emp } = await supabase
         .from('employees')
-        .select('email, name')
+        .select('id, email, name')
         .eq('id', t.assigned_to)
         .maybeSingle();
       if (emp) {
-        assigneeEmail = emp.email ?? null;
-        assigneeName = emp.name ?? null;
+        assigneeEmail = (emp as { email?: string | null }).email ?? null;
+        assigneeName = (emp as { name?: string | null }).name ?? null;
+        assigneeId = (emp as { id?: string | null }).id ?? null;
       }
     }
 
@@ -282,8 +361,10 @@ serve(async (req: Request) => {
         <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px;">
           Bei Rückfragen melden Sie sich jederzeit unter 04352/4176 oder office@kitz.co.at.
         </p>`;
-      // Closing notifications to internal are noisy — skip them.
+      // Closing notifications to internal are noisy — skip both
+      // email and push for the assignee on close.
       assigneeEmail = null;
+      assigneeId = null;
       footerLabel = 'Abschluss-Details ansehen';
     } else if (event === 'appointment_scheduled') {
       accent = '#7c3aed';
@@ -306,6 +387,28 @@ serve(async (req: Request) => {
       internalSubject = `Termin für ${t.ticket_number} geplant`;
       internalBodyHtml = `<p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px;">Neuer Termin für <strong>${escapeHtml(t.ticket_number)}</strong> — ${escapeHtml(t.title)}.</p>${apptInfo}`;
       footerLabel = 'Termin im Portal ansehen';
+    } else if (event === 'customer_replied') {
+      accent = '#7c3aed';
+      // Customer doesn't get an email here — they just submitted the
+      // comment, the confirmation is the "Senden" succeeding in the
+      // portal. Only the internal assignee is notified.
+      const snippet = customerCommentBody
+        ? customerCommentBody.length > 280
+          ? customerCommentBody.slice(0, 277) + '…'
+          : customerCommentBody
+        : '';
+      internalSubject = `Kunden-Rückmeldung zu ${t.ticket_number}`;
+      internalBodyHtml = `
+        <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px;">
+          Hallo ${escapeHtml(assigneeName) || 'Kollege'},
+        </p>
+        <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px;">
+          ${escapeHtml(t.customer_name) || 'Der Kunde'} hat eine Rückmeldung zu Auftrag <strong>${escapeHtml(t.ticket_number)}</strong> hinterlassen.
+        </p>
+        ${snippet
+          ? `<div style="background:#f5f3ff;border-left:3px solid #7c3aed;padding:12px 16px;margin:0 0 18px;font-size:14px;color:#1e1b4b;white-space:pre-wrap;">${escapeHtml(snippet)}</div>`
+          : ''}`;
+      footerLabel = 'Ticket öffnen';
     } else {
       return new Response(JSON.stringify({ skipped: true, reason: `unknown event ${event}` }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -342,7 +445,51 @@ serve(async (req: Request) => {
       sent.internal = { skipped: 'no internal recipient' };
     }
 
-    return new Response(JSON.stringify({ success: true, event, sent }), {
+    // 3. Internal push notification (assignee). Deep-links into the
+    // ticket detail. Body is plain text — push services don't honour
+    // HTML. Body length is capped by the OS (~150 chars on iOS, more
+    // generous on desktop), so the customer-comment quote is already
+    // truncated to 280 above.
+    let pushResult: unknown = null;
+    if (assigneeId && internalSubject) {
+      const pushBody = (() => {
+        if (event === 'customer_replied') {
+          if (customerCommentBody) {
+            return customerCommentBody.length > 140
+              ? customerCommentBody.slice(0, 137) + '…'
+              : customerCommentBody;
+          }
+          return `${t.customer_name ?? 'Der Kunde'} hat eine Rückmeldung hinterlassen.`;
+        }
+        if (event === 'ticket_created') return `${t.title} · ${t.customer_name ?? ''}`.trim();
+        if (event === 'status_changed') {
+          const next = String(body.newStatus ?? t.status);
+          return `${t.title} — ${STATUS_LABEL_DE[next] ?? next}`;
+        }
+        if (event === 'appointment_scheduled' && appointment) {
+          return `${appointment.title} · ${fmtDateTime(appointment.starts_at)}`;
+        }
+        return t.title;
+      })();
+
+      // Deep-link into the workspace SPA, not the public portal —
+      // staff have the internal view available behind auth.
+      const internalUrl = `${publicBase}/#/tickets/${t.id}`;
+      const r = await sendPush({
+        supabaseUrl,
+        serviceKey,
+        employeeIds: [assigneeId],
+        title: internalSubject,
+        body: pushBody,
+        url: internalUrl,
+        tag: `ticket-${t.id}`,
+      });
+      pushResult = r.ok ? r.result ?? 'ok' : { skipped: 'send-push failed' };
+    } else if (!assigneeId) {
+      pushResult = { skipped: 'no internal recipient' };
+    }
+
+    return new Response(JSON.stringify({ success: true, event, sent, push: pushResult }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err: any) {
