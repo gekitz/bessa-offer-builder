@@ -20,6 +20,7 @@ import TicketForm from './TicketForm';
 import TicketComments from './TicketComments';
 import RepairOrdersTab from './RepairOrdersTab';
 import AppointmentsTab from './AppointmentsTab';
+import AttachmentsPanel from './AttachmentsPanel';
 import TicketBillingPreview from './TicketBillingPreview';
 
 interface TicketDetailProps {
@@ -359,6 +360,17 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
                 <div className="text-sm text-slate-700 whitespace-pre-wrap">{ticket.resolutionNote}</div>
               </div>
             )}
+          </div>
+
+          {/* Attachments on the ticket itself (Photos vom Schaden,
+              Schriftverkehr, etc.). Per-Reparaturschein-Anhänge
+              werden in der jeweiligen RO-Detailansicht verwaltet. */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <AttachmentsPanel
+              scope={{ ticketId: ticket.id }}
+              currentEmployeeId={currentEmployeeId}
+              editable={ticket.status !== 'closed' && ticket.status !== 'cancelled'}
+            />
           </div>
         </div>
       )}

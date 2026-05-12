@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
+  Download,
   Edit2,
   FileSignature,
   Loader2,
@@ -34,6 +35,7 @@ import type {
   Ticket,
   TravelZone,
 } from '../types';
+import AttachmentsPanel from './AttachmentsPanel';
 import MaterialPicker from './MaterialPicker';
 import SignatureCapture from './SignatureCapture';
 import TimeEntryForm from './TimeEntryForm';
@@ -81,6 +83,7 @@ export default function RepairOrderDetail({
   const [error, setError] = useState<string | null>(null);
 
   // Inline-editor state
+  const [downloading, setDownloading] = useState(false);
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState<RepairOrderEntry | null>(null);
   const [showMaterialPicker, setShowMaterialPicker] = useState(false);
@@ -194,6 +197,38 @@ export default function RepairOrderDetail({
       onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function handleDownloadPdf() {
+    if (!order || !billing) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      const { generateRepairOrderPdfBlob } = await import('../../../pdf/generateRepairOrderPdf');
+      const employeesByEntry: Record<string, string> = {};
+      for (const e of entries) {
+        const name = employeeNameById.get(e.employeeId);
+        if (name) employeesByEntry[e.id] = name;
+      }
+      const blob = await generateRepairOrderPdfBlob({
+        ticket,
+        repairOrder: order,
+        billing,
+        employeesByEntry,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${ticket.ticketNumber}-Rep-${order.seqNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -480,6 +515,17 @@ export default function RepairOrderDetail({
         )}
       </div>
 
+      {/* Attachments specific to this repair order (photos of the
+          fault, screenshots of error codes, etc.). Read-only once
+          the rep-order is signed or cancelled. */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <AttachmentsPanel
+          scope={{ repairOrderId: order.id }}
+          currentEmployeeId={currentEmployeeId}
+          editable={!locked}
+        />
+      </div>
+
       {/* Billing preview */}
       {billing && (
         <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
@@ -552,6 +598,20 @@ export default function RepairOrderDetail({
               </span>
             )}
           </div>
+        )}
+        {/* PDF download available once the rep-order has any positions
+            to print. Lazy-loads the @react-pdf chunk on first click. */}
+        {billing && billing.subtotal > 0 && (
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={downloading}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            data-testid="download-repair-order-pdf"
+          >
+            {downloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+            PDF herunterladen
+          </button>
         )}
       </div>
 
