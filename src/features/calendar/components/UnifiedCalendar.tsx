@@ -283,10 +283,7 @@ export default function UnifiedCalendar({
             <div className="text-xs text-red-600">{error}</div>
           ) : appointments.length === 0 ? (
             <div className="text-xs text-slate-500">
-              Keine Termine in {monthLabel}.{' '}
-              <span className="text-slate-400">
-                (Termine können ab Sprint 5 direkt im Kalender erstellt werden.)
-              </span>
+              Keine Termine in {monthLabel}.
             </div>
           ) : (
             <ul className="space-y-1">
