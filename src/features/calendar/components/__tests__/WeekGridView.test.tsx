@@ -207,6 +207,17 @@ describe('WeekGridView — drag interactions', () => {
     });
   }
 
+  // testing-library's fireEvent.pointer* in jsdom doesn't propagate
+  // clientX/clientY through the synthesized PointerEvent. Dispatch a
+  // MouseEvent with the right type and forcibly attach clientX/Y so
+  // the component's drag math sees real coordinates.
+  function pointer(target: EventTarget, type: 'pointerdown' | 'pointermove' | 'pointerup', x: number, y: number) {
+    const ev = new MouseEvent(type, { bubbles: true });
+    Object.defineProperty(ev, 'clientX', { value: x });
+    Object.defineProperty(ev, 'clientY', { value: y });
+    target.dispatchEvent(ev);
+  }
+
   it('commits a vertical drag (no day change) by shifting startsAt + endsAt', async () => {
     listAppointmentsMock.mockResolvedValue([WED_9_TO_11]);
     fakeColumnWidth(140);
@@ -214,9 +225,9 @@ describe('WeekGridView — drag interactions', () => {
     const block = await screen.findByTestId('week-block-a-1');
 
     // Drag down 56px (one HOUR_PX, one full hour).
-    fireEvent.mouseDown(block, { clientX: 100, clientY: 100 });
-    fireEvent.mouseMove(document, { clientX: 100, clientY: 156 });
-    fireEvent.mouseUp(document, { clientX: 100, clientY: 156 });
+    pointer(block, 'pointerdown', 100, 100);
+    pointer(document, 'pointermove', 100, 156);
+    pointer(document, 'pointerup', 100, 156);
 
     await waitFor(() => expect(updateAppointmentMock).toHaveBeenCalled());
     const [id, patch] = updateAppointmentMock.mock.calls[0];
@@ -235,9 +246,9 @@ describe('WeekGridView — drag interactions', () => {
     const block = await screen.findByTestId('week-block-a-1');
 
     // Drag right one column (140px) → Wednesday → Thursday.
-    fireEvent.mouseDown(block, { clientX: 100, clientY: 100 });
-    fireEvent.mouseMove(document, { clientX: 240, clientY: 100 });
-    fireEvent.mouseUp(document, { clientX: 240, clientY: 100 });
+    pointer(block, 'pointerdown', 100, 100);
+    pointer(document, 'pointermove', 240, 100);
+    pointer(document, 'pointerup', 240, 100);
 
     await waitFor(() => expect(updateAppointmentMock).toHaveBeenCalled());
     const [, patch] = updateAppointmentMock.mock.calls[0];
@@ -254,9 +265,9 @@ describe('WeekGridView — drag interactions', () => {
     const block = await screen.findByTestId('week-block-a-1');
 
     // 12px ≈ 12.9min. Snaps DOWN to 15min → start becomes 09:15.
-    fireEvent.mouseDown(block, { clientX: 100, clientY: 100 });
-    fireEvent.mouseMove(document, { clientX: 100, clientY: 112 });
-    fireEvent.mouseUp(document, { clientX: 100, clientY: 112 });
+    pointer(block, 'pointerdown', 100, 100);
+    pointer(document, 'pointermove', 100, 112);
+    pointer(document, 'pointerup', 100, 112);
 
     await waitFor(() => expect(updateAppointmentMock).toHaveBeenCalled());
     const [, patch] = updateAppointmentMock.mock.calls[0];
@@ -270,9 +281,9 @@ describe('WeekGridView — drag interactions', () => {
     const handle = await screen.findByTestId('week-block-a-1-resize');
 
     // Drag the bottom handle down 56px → extend end by 1h to 12:00.
-    fireEvent.mouseDown(handle, { clientX: 100, clientY: 200 });
-    fireEvent.mouseMove(document, { clientX: 100, clientY: 256 });
-    fireEvent.mouseUp(document, { clientX: 100, clientY: 256 });
+    pointer(handle, 'pointerdown', 100, 200);
+    pointer(document, 'pointermove', 100, 256);
+    pointer(document, 'pointerup', 100, 256);
 
     await waitFor(() => expect(updateAppointmentMock).toHaveBeenCalled());
     const [, patch] = updateAppointmentMock.mock.calls[0];
@@ -288,8 +299,8 @@ describe('WeekGridView — drag interactions', () => {
     render(<WeekGridView visibility={DEFAULT_LAYER_VISIBILITY} />);
     const block = await screen.findByTestId('week-block-a-1');
 
-    fireEvent.mouseDown(block, { clientX: 100, clientY: 100 });
-    fireEvent.mouseUp(document, { clientX: 100, clientY: 100 });
+    pointer(block, 'pointerdown', 100, 100);
+    pointer(document, 'pointerup', 100, 100);
 
     // No drag committed even after settling.
     await Promise.resolve();

@@ -325,12 +325,14 @@ export default function WeekGridView({
     }
   }
 
-  // Imperative drag handler. mousedown on a block (or its bottom
-  // resize handle) starts a drag — document mousemove/mouseup
+  // Imperative drag handler. pointerdown on a block (or its bottom
+  // resize handle) starts a drag — document pointermove/pointerup
   // listeners are wired here so the drag survives leaving the block.
-  // A mutable `live` snapshot captures the current state in the move
-  // closure so we don't fight stale-React-state issues.
-  function startDrag(e: React.MouseEvent, appointment: Appointment, mode: DragMode) {
+  // Pointer events unify mouse + touch so the same code path serves
+  // dispatchers on desktop and technicians on iPad/phone. The block's
+  // touch-action:none CSS prevents the browser from interpreting the
+  // drag as a scroll on touch screens.
+  function startDrag(e: React.PointerEvent, appointment: Appointment, mode: DragMode) {
     // Block drags on already-saving state — no nested commits.
     if (dragState?.saving) return;
     // Stop propagation so the day-column's create-empty-slot click
@@ -365,9 +367,13 @@ export default function WeekGridView({
     const weekLastDay = new Date(weekFirstDay);
     weekLastDay.setDate(weekLastDay.getDate() + DAY_COUNT - 1);
 
-    function computeNext(ev: MouseEvent): { startsAt: string; endsAt: string } {
-      const dx = ev.clientX - startMouseX;
-      const dy = ev.clientY - startMouseY;
+    function computeNext(ev: PointerEvent): { startsAt: string; endsAt: string } {
+      // Some test-env (jsdom) pointer events lack clientX/clientY —
+      // treat missing values as zero delta rather than NaN.
+      const rawDx = ev.clientX - startMouseX;
+      const rawDy = ev.clientY - startMouseY;
+      const dx = Number.isFinite(rawDx) ? rawDx : 0;
+      const dy = Number.isFinite(rawDy) ? rawDy : 0;
       const dyMin = snapMinutes(Math.round((dy / HOUR_PX) * 60));
       const dxDays = colWidth > 0 ? Math.round(dx / colWidth) : 0;
 
@@ -417,9 +423,11 @@ export default function WeekGridView({
       return { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() };
     }
 
-    function onMove(ev: MouseEvent) {
-      const dx = ev.clientX - startMouseX;
-      const dy = ev.clientY - startMouseY;
+    function onMove(ev: PointerEvent) {
+      const rawDx = ev.clientX - startMouseX;
+      const rawDy = ev.clientY - startMouseY;
+      const dx = Number.isFinite(rawDx) ? rawDx : 0;
+      const dy = Number.isFinite(rawDy) ? rawDy : 0;
       const movedPx = Math.max(live.movedPx, Math.hypot(dx, dy));
       const next = computeNext(ev);
       live.movedPx = movedPx;
@@ -429,8 +437,9 @@ export default function WeekGridView({
     }
 
     async function onUp() {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
 
@@ -473,8 +482,13 @@ export default function WeekGridView({
       }
     }
 
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    // pointercancel fires on touch when the OS interrupts (e.g. an
+    // incoming call, the user dragging onto a system gesture zone).
+    // Treat it like a normal up so we commit / cancel rather than
+    // leaving the block stuck in a "saving" state.
+    document.addEventListener('pointercancel', onUp);
     document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ns-resize';
     document.body.style.userSelect = 'none';
   }
@@ -752,7 +766,7 @@ interface AppointmentBlockProps {
   // haven't been persisted yet.
   displayStart?: Date;
   displayEnd?: Date;
-  onStartDrag: (e: React.MouseEvent, mode: DragMode) => void;
+  onStartDrag: (e: React.PointerEvent, mode: DragMode) => void;
   onOpen?: () => void;
   // Set true on the trailing click after a real drag — the click
   // handler reads this and bails so we don't open the edit form on
@@ -788,7 +802,7 @@ function AppointmentBlock({
     <div
       role="button"
       tabIndex={0}
-      onMouseDown={(e) => onStartDrag(e, 'move')}
+      onPointerDown={(e) => onStartDrag(e, 'move')}
       onClick={() => {
         // Swallow the click that fires right after a real drag — the
         // drop already persisted, opening the edit form is undesired.
@@ -806,6 +820,9 @@ function AppointmentBlock({
         left: `calc(${leftPct}% + 2px)`,
         width: `calc(${widthPct}% - 4px)`,
         zIndex: isDragging ? 30 : 10,
+        // touch-action: none keeps the browser from interpreting a
+        // drag on the block as a page scroll on iPad/phone.
+        touchAction: 'none',
       }}
       title={`${a.title}${customer ? ` — ${customer}` : ''}${empName ? ` · ${empName}` : ''}`}
       data-testid={`week-block-${a.id}`}
@@ -819,16 +836,20 @@ function AppointmentBlock({
       {customer && <div className="text-[11px] truncate opacity-85">{customer}</div>}
       {empName && <div className="text-[10px] truncate opacity-70">{empName}</div>}
 
-      {/* Bottom resize handle — 8px draggable strip. stopPropagation
-          ensures the parent move-drag doesn't also start. Skipped
-          while a drag is already in flight (ghost block). */}
+      {/* Bottom resize handle. stopPropagation ensures the parent
+          move-drag doesn't also start. Skipped while a drag is in
+          flight. Visibly 8px tall for mouse precision but the touch
+          target spans 12px (the negative-margin half-row below)
+          for thumb-friendliness on iPad/phone — same total grid
+          row height. */}
       {!isDragging && (
         <div
-          onMouseDown={(e) => {
+          onPointerDown={(e) => {
             e.stopPropagation();
             onStartDrag(e, 'resize-end');
           }}
-          className="absolute left-0 right-0 bottom-0 h-2 cursor-ns-resize hover:bg-black/10"
+          className="absolute left-0 right-0 -bottom-1 h-3 cursor-ns-resize hover:bg-black/10"
+          style={{ touchAction: 'none' }}
           data-testid={`week-block-${a.id}-resize`}
           aria-label="Dauer ändern"
         />
