@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import {
   listAppointments,
@@ -9,7 +9,7 @@ import AppointmentForm from '../../tickets/components/AppointmentForm';
 import type { Appointment, AppointmentStatus } from '../../tickets/types';
 import type { Employee, IsoDate, LeaveRequest } from '../../vacation/types';
 import type { LayerVisibility } from '../types';
-import { getAppointment } from '../../tickets/api/ticketApi';
+import { getAppointment, updateAppointment } from '../../tickets/api/ticketApi';
 
 // ─────────────────────────────────────────────────────────────────────
 // Arbeitswoche: time-grid Mo–Fr × 7:00–19:00. Appointment blocks live
@@ -23,6 +23,18 @@ const HOUR_END = 19;
 const HOUR_PX = 56; // height per hour row; one row = `${HOUR_PX}px`
 const DAY_COUNT = 5; // Mo–Fr — Arbeitswoche
 const WEEKDAY_LABEL_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr'];
+
+// Drag interactions snap to 15-min increments — same default
+// Outlook / Google Calendar use.
+const SNAP_MIN = 15;
+// A drag must move at least this many pixels before we stop treating
+// the mousedown as a click. Lower → easier to drag, higher → easier
+// to click without accidental moves.
+const DRAG_CLICK_THRESHOLD_PX = 4;
+
+function snapMinutes(m: number): number {
+  return Math.round(m / SNAP_MIN) * SNAP_MIN;
+}
 
 // Tailwind needs static class names, so pre-build the palette. Each
 // entry: bg / border / text / dot variant. Hashed by employee_id.
@@ -159,6 +171,19 @@ function layoutLanes(items: Array<{ appointment: Appointment; startMin: number; 
 
 // ─────────────────────────────────────────────────────────────────────
 
+type DragMode = 'move' | 'resize-end';
+
+interface DragState {
+  appointmentId: string;
+  mode: DragMode;
+  initialStartsAt: string;
+  initialEndsAt: string;
+  currentStartsAt: string;
+  currentEndsAt: string;
+  movedPx: number;
+  saving: boolean;
+}
+
 interface WeekGridViewProps {
   visibility: LayerVisibility;
   reloadKey?: number;
@@ -181,6 +206,16 @@ export default function WeekGridView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Appointment | null>(null);
+  // Drag state — set during a mousedown-driven move or resize. Cleared
+  // on mouseup (commit or cancel).
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  // Measuring ref: the first day-column. We read its bounding rect to
+  // convert mouse X-delta into day-column counts on each drag move.
+  const dayColumnRef = useRef<HTMLDivElement | null>(null);
+  // Set to true at the end of a real drag (movedPx ≥ threshold) so
+  // the click event that browsers fire after mouseup gets swallowed
+  // and we don't open the edit modal on top of a successful drop.
+  const justDraggedRef = useRef(false);
 
   const days: IsoDate[] = useMemo(
     () => Array.from({ length: DAY_COUNT }, (_, i) => toIso(addDays(weekStart, i))),
@@ -288,6 +323,160 @@ export default function WeekGridView({
     } catch {
       setEditing(a);
     }
+  }
+
+  // Imperative drag handler. mousedown on a block (or its bottom
+  // resize handle) starts a drag — document mousemove/mouseup
+  // listeners are wired here so the drag survives leaving the block.
+  // A mutable `live` snapshot captures the current state in the move
+  // closure so we don't fight stale-React-state issues.
+  function startDrag(e: React.MouseEvent, appointment: Appointment, mode: DragMode) {
+    // Block drags on already-saving state — no nested commits.
+    if (dragState?.saving) return;
+    // Stop propagation so the day-column's create-empty-slot click
+    // doesn't fire underneath. Deliberately NOT preventDefault —
+    // that would also suppress the trailing click event we use for
+    // open-edit.
+    e.stopPropagation();
+
+    const colWidth = dayColumnRef.current?.getBoundingClientRect().width ?? 0;
+    const initialStartsAt = appointment.startsAt;
+    const initialEndsAt = appointment.endsAt;
+    const live: DragState = {
+      appointmentId: appointment.id,
+      mode,
+      initialStartsAt,
+      initialEndsAt,
+      currentStartsAt: initialStartsAt,
+      currentEndsAt: initialEndsAt,
+      movedPx: 0,
+      saving: false,
+    };
+    setDragState(live);
+
+    const startMouseX = e.clientX;
+    const startMouseY = e.clientY;
+    const initStart = new Date(initialStartsAt);
+    const initEnd = new Date(initialEndsAt);
+    const durationMin = (initEnd.getTime() - initStart.getTime()) / 60000;
+
+    const weekFirstDay = new Date(weekStart);
+    weekFirstDay.setHours(0, 0, 0, 0);
+    const weekLastDay = new Date(weekFirstDay);
+    weekLastDay.setDate(weekLastDay.getDate() + DAY_COUNT - 1);
+
+    function computeNext(ev: MouseEvent): { startsAt: string; endsAt: string } {
+      const dx = ev.clientX - startMouseX;
+      const dy = ev.clientY - startMouseY;
+      const dyMin = snapMinutes(Math.round((dy / HOUR_PX) * 60));
+      const dxDays = colWidth > 0 ? Math.round(dx / colWidth) : 0;
+
+      let newStart: Date;
+      let newEnd: Date;
+
+      if (mode === 'move') {
+        newStart = new Date(initStart);
+        newStart.setDate(newStart.getDate() + dxDays);
+        newStart.setMinutes(newStart.getMinutes() + dyMin);
+        // Clamp to visible week (Mo–Fr).
+        const dayOnly = new Date(newStart);
+        dayOnly.setHours(0, 0, 0, 0);
+        if (dayOnly < weekFirstDay) {
+          const tod = newStart.getHours() * 60 + newStart.getMinutes();
+          newStart = new Date(weekFirstDay);
+          newStart.setMinutes(tod);
+        } else if (dayOnly > weekLastDay) {
+          const tod = newStart.getHours() * 60 + newStart.getMinutes();
+          newStart = new Date(weekLastDay);
+          newStart.setMinutes(tod);
+        }
+        // Clamp time of day to [HOUR_START, HOUR_END - duration]
+        const todMin = newStart.getHours() * 60 + newStart.getMinutes();
+        const maxStartMin = HOUR_END * 60 - durationMin;
+        const clamped = Math.max(HOUR_START * 60, Math.min(maxStartMin, todMin));
+        newStart.setHours(0, 0, 0, 0);
+        newStart.setMinutes(clamped);
+        newEnd = new Date(newStart.getTime() + durationMin * 60000);
+      } else {
+        // resize-end: only endsAt moves, same day as initial start
+        newStart = new Date(initStart);
+        newEnd = new Date(initEnd);
+        newEnd.setMinutes(newEnd.getMinutes() + dyMin);
+        // Min 15-min duration
+        const minEndMs = newStart.getTime() + 15 * 60 * 1000;
+        if (newEnd.getTime() < minEndMs) newEnd = new Date(minEndMs);
+        // Clamp end to HOUR_END
+        const endTodMin = newEnd.getHours() * 60 + newEnd.getMinutes();
+        if (endTodMin > HOUR_END * 60) {
+          newEnd = new Date(newEnd);
+          newEnd.setHours(0, 0, 0, 0);
+          newEnd.setMinutes(HOUR_END * 60);
+        }
+      }
+
+      return { startsAt: newStart.toISOString(), endsAt: newEnd.toISOString() };
+    }
+
+    function onMove(ev: MouseEvent) {
+      const dx = ev.clientX - startMouseX;
+      const dy = ev.clientY - startMouseY;
+      const movedPx = Math.max(live.movedPx, Math.hypot(dx, dy));
+      const next = computeNext(ev);
+      live.movedPx = movedPx;
+      live.currentStartsAt = next.startsAt;
+      live.currentEndsAt = next.endsAt;
+      setDragState({ ...live });
+    }
+
+    async function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+
+      // Below-threshold movement → not a real drag. Let the natural
+      // click event fire (it opens the edit form via onClick on the
+      // block). Just clean up drag state.
+      if (live.movedPx < DRAG_CLICK_THRESHOLD_PX) {
+        setDragState(null);
+        return;
+      }
+      // We DID drag. Suppress the trailing click so the edit form
+      // doesn't pop on top of the successful drop. The flag clears
+      // on the next macrotask after click has fired.
+      justDraggedRef.current = true;
+      setTimeout(() => {
+        justDraggedRef.current = false;
+      }, 0);
+
+      // No actual delta (snap may collapse small drags) → cancel.
+      if (
+        live.currentStartsAt === live.initialStartsAt
+        && live.currentEndsAt === live.initialEndsAt
+      ) {
+        setDragState(null);
+        return;
+      }
+      // Commit via updateAppointment; refetch on success.
+      live.saving = true;
+      setDragState({ ...live });
+      try {
+        await updateAppointment(appointment.id, {
+          startsAt: live.currentStartsAt,
+          endsAt: live.currentEndsAt,
+        });
+        await load();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setDragState(null);
+      }
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ns-resize';
+    document.body.style.userSelect = 'none';
   }
 
   function gotoPrevWeek() {
@@ -424,16 +613,44 @@ export default function WeekGridView({
             </div>
 
             {/* Day columns */}
-            {days.map((day) => {
-              const blocks = lanesByDay.get(day) ?? [];
+            {days.map((day, dayIdx) => {
+              // Original lane-layout for the day, minus the dragged
+              // block (which floats to wherever the cursor is now).
+              const blocks = (lanesByDay.get(day) ?? []).filter(
+                (b) => b.appointment.id !== dragState?.appointmentId,
+              );
               const isToday = day === todayIso;
+
+              // If the dragged block has been moved into THIS day,
+              // render it as a full-width overlay at its current
+              // time. It "ghosts" out of its original day-column.
+              let dragOverlayBlock: { a: Appointment; top: number; height: number } | null = null;
+              if (dragState) {
+                const dragDay = toIso(new Date(dragState.currentStartsAt));
+                if (dragDay === day) {
+                  const dragged = appointments.find((x) => x.id === dragState.appointmentId);
+                  if (dragged) {
+                    const start = new Date(dragState.currentStartsAt);
+                    const end = new Date(dragState.currentEndsAt);
+                    const startMin = start.getHours() * 60 + start.getMinutes();
+                    const endMin = end.getHours() * 60 + end.getMinutes();
+                    dragOverlayBlock = {
+                      a: dragged,
+                      top: ((startMin - HOUR_START * 60) / 60) * HOUR_PX,
+                      height: Math.max(20, ((endMin - startMin) / 60) * HOUR_PX),
+                    };
+                  }
+                }
+              }
+
               return (
                 <div
                   key={day}
+                  ref={dayIdx === 0 ? dayColumnRef : undefined}
                   className={`relative border-l border-slate-200 ${isToday ? 'bg-red-50/15' : ''}`}
                   style={{ height: (HOUR_END - HOUR_START) * HOUR_PX }}
                 >
-                  {/* Hour separator backdrop */}
+                  {/* Hour separator backdrop — clickable to create */}
                   {hours.map((h, idx) => (
                     <button
                       key={h}
@@ -446,49 +663,49 @@ export default function WeekGridView({
                     />
                   ))}
 
-                  {/* Appointment blocks */}
+                  {/* Static appointment blocks */}
                   {blocks.map((b) => {
                     const top = ((b.startMin - HOUR_START * 60) / 60) * HOUR_PX;
                     const height = Math.max(20, ((b.endMin - b.startMin) / 60) * HOUR_PX);
                     const widthPct = 100 / b.laneCount;
                     const leftPct = b.lane * widthPct;
                     const a = b.appointment;
-                    const primaryEmpId = a.assignees?.[0]?.employeeId;
-                    const pal = paletteFor(primaryEmpId);
-                    const empName = primaryEmpId ? employeesById.get(primaryEmpId)?.name : null;
-                    const customer = a.customerName;
-                    const start = new Date(a.startsAt);
-                    const end = new Date(a.endsAt);
                     return (
-                      <button
+                      <AppointmentBlock
                         key={a.id}
-                        type="button"
-                        onClick={() => handleBlockClick(a)}
-                        className={`absolute rounded-md border-l-4 ${pal.bg} ${pal.border} ${pal.text} px-1.5 py-1 text-left overflow-hidden hover:shadow-md transition-shadow`}
-                        style={{
-                          top,
-                          height,
-                          left: `calc(${leftPct}% + 2px)`,
-                          width: `calc(${widthPct}% - 4px)`,
-                          zIndex: 10,
-                        }}
-                        title={`${a.title}${customer ? ` — ${customer}` : ''}${empName ? ` · ${empName}` : ''}`}
-                        data-testid={`week-block-${a.id}`}
-                      >
-                        <div className="text-[10px] font-mono opacity-80 leading-tight">
-                          {pad2(start.getHours())}:{pad2(start.getMinutes())}–
-                          {pad2(end.getHours())}:{pad2(end.getMinutes())}
-                        </div>
-                        <div className="text-xs font-semibold leading-tight truncate">{a.title}</div>
-                        {customer && (
-                          <div className="text-[11px] truncate opacity-85">{customer}</div>
-                        )}
-                        {empName && (
-                          <div className="text-[10px] truncate opacity-70">{empName}</div>
-                        )}
-                      </button>
+                        a={a}
+                        top={top}
+                        height={height}
+                        leftPct={leftPct}
+                        widthPct={widthPct}
+                        employeesById={employeesById}
+                        onStartDrag={(ev, m) => startDrag(ev, a, m)}
+                        onOpen={() => handleBlockClick(a)}
+                        justDraggedRef={justDraggedRef}
+                        isDragging={false}
+                        isDragSaving={false}
+                      />
                     );
                   })}
+
+                  {/* The dragged block — floats over this column when
+                      its current day matches. Full-width on a single
+                      lane so the user can see where it'll land. */}
+                  {dragOverlayBlock && dragState && (
+                    <AppointmentBlock
+                      a={dragOverlayBlock.a}
+                      top={dragOverlayBlock.top}
+                      height={dragOverlayBlock.height}
+                      leftPct={0}
+                      widthPct={100}
+                      employeesById={employeesById}
+                      displayStart={new Date(dragState.currentStartsAt)}
+                      displayEnd={new Date(dragState.currentEndsAt)}
+                      onStartDrag={() => {/* no nested drag */}}
+                      isDragging
+                      isDragSaving={dragState.saving}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -509,6 +726,111 @@ export default function WeekGridView({
             setEditing(null);
             load();
           }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// AppointmentBlock — single rendered block. Pulled into its own
+// component so the dragged-ghost rendering doesn't duplicate the
+// content markup. mousedown on the body starts a "move" drag; the
+// 8px bottom strip starts a "resize-end" drag (with stopPropagation
+// so the parent move-drag doesn't also fire).
+// ─────────────────────────────────────────────────────────────────────
+
+interface AppointmentBlockProps {
+  a: Appointment;
+  top: number;
+  height: number;
+  leftPct: number;
+  widthPct: number;
+  employeesById: Map<string, Employee>;
+  // Override start/end strictly for time-label rendering — used by
+  // the dragged-ghost overlay where the block's own startsAt/endsAt
+  // haven't been persisted yet.
+  displayStart?: Date;
+  displayEnd?: Date;
+  onStartDrag: (e: React.MouseEvent, mode: DragMode) => void;
+  onOpen?: () => void;
+  // Set true on the trailing click after a real drag — the click
+  // handler reads this and bails so we don't open the edit form on
+  // top of a successful drop.
+  justDraggedRef?: React.MutableRefObject<boolean>;
+  isDragging: boolean;
+  isDragSaving: boolean;
+}
+
+function AppointmentBlock({
+  a,
+  top,
+  height,
+  leftPct,
+  widthPct,
+  employeesById,
+  displayStart,
+  displayEnd,
+  onStartDrag,
+  onOpen,
+  justDraggedRef,
+  isDragging,
+  isDragSaving,
+}: AppointmentBlockProps) {
+  const primaryEmpId = a.assignees?.[0]?.employeeId;
+  const pal = paletteFor(primaryEmpId);
+  const empName = primaryEmpId ? employeesById.get(primaryEmpId)?.name : null;
+  const customer = a.customerName;
+  const start = displayStart ?? new Date(a.startsAt);
+  const end = displayEnd ?? new Date(a.endsAt);
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onMouseDown={(e) => onStartDrag(e, 'move')}
+      onClick={() => {
+        // Swallow the click that fires right after a real drag — the
+        // drop already persisted, opening the edit form is undesired.
+        if (justDraggedRef?.current) return;
+        onOpen?.();
+      }}
+      className={`absolute rounded-md border-l-4 ${pal.bg} ${pal.border} ${pal.text} px-1.5 py-1 text-left overflow-hidden select-none ${
+        isDragging
+          ? 'shadow-lg ring-2 ring-violet-400 cursor-grabbing opacity-90'
+          : 'hover:shadow-md transition-shadow cursor-grab'
+      }`}
+      style={{
+        top,
+        height,
+        left: `calc(${leftPct}% + 2px)`,
+        width: `calc(${widthPct}% - 4px)`,
+        zIndex: isDragging ? 30 : 10,
+      }}
+      title={`${a.title}${customer ? ` — ${customer}` : ''}${empName ? ` · ${empName}` : ''}`}
+      data-testid={`week-block-${a.id}`}
+    >
+      <div className="text-[10px] font-mono opacity-80 leading-tight">
+        {pad2(start.getHours())}:{pad2(start.getMinutes())}–
+        {pad2(end.getHours())}:{pad2(end.getMinutes())}
+        {isDragSaving && <span className="ml-1">…</span>}
+      </div>
+      <div className="text-xs font-semibold leading-tight truncate">{a.title}</div>
+      {customer && <div className="text-[11px] truncate opacity-85">{customer}</div>}
+      {empName && <div className="text-[10px] truncate opacity-70">{empName}</div>}
+
+      {/* Bottom resize handle — 8px draggable strip. stopPropagation
+          ensures the parent move-drag doesn't also start. Skipped
+          while a drag is already in flight (ghost block). */}
+      {!isDragging && (
+        <div
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            onStartDrag(e, 'resize-end');
+          }}
+          className="absolute left-0 right-0 bottom-0 h-2 cursor-ns-resize hover:bg-black/10"
+          data-testid={`week-block-${a.id}-resize`}
+          aria-label="Dauer ändern"
         />
       )}
     </div>
