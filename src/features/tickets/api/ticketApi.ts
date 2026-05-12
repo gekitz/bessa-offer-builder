@@ -54,6 +54,44 @@ function fireNotify(payload: NotifyEvent): void {
     });
 }
 
+// Best-effort audit comment. The mutation has committed by the time
+// this is called, so failure is logged and otherwise silent — a
+// missing audit row never blocks the user-facing action.
+async function fireAuditComment(input: {
+  ticketId: string;
+  kind: 'status_change' | 'assignment' | 'system';
+  body: string;
+  metadata: Record<string, unknown>;
+  actorId?: string | null;
+}): Promise<void> {
+  const sb = supabase;
+  if (!sb) return;
+  try {
+    const { error } = await sb.from('ticket_comments').insert({
+      ticket_id: input.ticketId,
+      kind: input.kind,
+      body: input.body,
+      metadata: input.metadata,
+      created_by: input.actorId ?? null,
+      is_external: false,
+    });
+    if (error) console.warn('audit comment insert failed:', error.message);
+  } catch (err) {
+    console.warn('audit comment insert threw:', err);
+  }
+}
+
+// German status labels for status-change comment bodies. Mirrors the
+// labels rendered in TicketDetail/CustomerTicketPage so the audit row
+// reads the same on both sides of the wall.
+const STATUS_LABEL_DE: Record<TicketStatus, string> = {
+  open: 'Offen',
+  in_progress: 'In Arbeit',
+  waiting: 'Wartend',
+  closed: 'Geschlossen',
+  cancelled: 'Abgesagt',
+};
+
 // ─────────────────────────────────────────────────────────────────────
 // Row mappers (snake_case → camelCase)
 // ─────────────────────────────────────────────────────────────────────
@@ -362,8 +400,30 @@ export async function createTicket(input: TicketInput): Promise<Ticket> {
   return ticket;
 }
 
-export async function updateTicket(id: string, patch: Partial<TicketInput>): Promise<Ticket> {
+export async function updateTicket(
+  id: string,
+  patch: Partial<TicketInput>,
+  opts: { actorId?: string } = {},
+): Promise<Ticket> {
   const sb = requireSupabase();
+
+  // Capture previous assignee only when assignment is part of the
+  // patch — that's the one change we audit-comment. Saves a SELECT
+  // when callers update title/description/etc.
+  let previousAssignedTo: string | null | undefined;
+  if (patch.assignedTo !== undefined) {
+    try {
+      const { data: prev } = await sb
+        .from('tickets')
+        .select('assigned_to')
+        .eq('id', id)
+        .maybeSingle();
+      previousAssignedTo = (prev as { assigned_to?: string | null } | null)?.assigned_to ?? null;
+    } catch {
+      previousAssignedTo = undefined; // best-effort; skip audit if we can't read it
+    }
+  }
+
   const { data, error } = await sb
     .from('tickets')
     .update(ticketInputToRow(patch))
@@ -371,13 +431,54 @@ export async function updateTicket(id: string, patch: Partial<TicketInput>): Pro
     .select(TICKET_COLS)
     .single();
   if (error) throw error;
+
+  // Assignment-change audit comment. Hits only when the patch actually
+  // touched assigned_to AND the value changed.
+  if (
+    patch.assignedTo !== undefined
+    && previousAssignedTo !== undefined
+    && previousAssignedTo !== patch.assignedTo
+  ) {
+    const newAssignedTo = patch.assignedTo ?? null;
+    // Resolve names for the body — short single roundtrip, both
+    // employees usually live in the same lookup batch the caller
+    // already has but the API can't assume that.
+    const ids = [previousAssignedTo, newAssignedTo].filter(Boolean) as string[];
+    let nameById = new Map<string, string>();
+    if (ids.length > 0) {
+      try {
+        const { data: emps } = await sb.from('employees').select('id, name').in('id', ids);
+        nameById = new Map(((emps ?? []) as Array<{ id: string; name: string }>).map((e) => [e.id, e.name]));
+      } catch {
+        // proceed without names; body falls back to "Zuweisung geändert"
+      }
+    }
+    const prevName = previousAssignedTo ? nameById.get(previousAssignedTo) ?? 'Unbekannt' : null;
+    const nextName = newAssignedTo ? nameById.get(newAssignedTo) ?? 'Unbekannt' : null;
+    let body: string;
+    if (nextName && prevName) body = `Zuweisung: ${prevName} → ${nextName}`;
+    else if (nextName) body = `Zugewiesen: ${nextName}`;
+    else if (prevName) body = `Zuweisung entfernt (zuvor: ${prevName})`;
+    else body = 'Zuweisung geändert';
+    void fireAuditComment({
+      ticketId: id,
+      kind: 'assignment',
+      body,
+      metadata: {
+        previousAssignedTo: previousAssignedTo ?? null,
+        newAssignedTo,
+      },
+      actorId: opts.actorId ?? null,
+    });
+  }
+
   return rowToTicket(data);
 }
 
 export async function setTicketStatus(
   id: string,
   status: TicketStatus,
-  opts: { closedBy?: string; resolutionNote?: string } = {},
+  opts: { closedBy?: string; actorId?: string; resolutionNote?: string } = {},
 ): Promise<Ticket> {
   const sb = requireSupabase();
 
@@ -401,18 +502,31 @@ export async function setTicketStatus(
   const { data, error } = await sb.from('tickets').update(patch).eq('id', id).select(TICKET_COLS).single();
   if (error) throw error;
 
-  // Skip notification when the status didn't actually change — saves
-  // an email when callers idempotently re-apply the same status.
+  // Skip side effects when the status didn't actually change — saves
+  // an email + an audit row when callers idempotently re-apply the
+  // same status.
   if (previousStatus !== status) {
+    const actorId = opts.actorId ?? opts.closedBy ?? null;
+    const prevLabel = previousStatus
+      ? STATUS_LABEL_DE[previousStatus as TicketStatus] ?? previousStatus
+      : null;
+    const nextLabel = STATUS_LABEL_DE[status] ?? status;
+    void fireAuditComment({
+      ticketId: id,
+      kind: 'status_change',
+      body: prevLabel ? `Status: ${prevLabel} → ${nextLabel}` : `Status: ${nextLabel}`,
+      metadata: { previousStatus, newStatus: status },
+      actorId,
+    });
     if (status === 'closed') {
-      fireNotify({ event: 'ticket_closed', ticketId: id, triggeredBy: opts.closedBy ?? null });
+      fireNotify({ event: 'ticket_closed', ticketId: id, triggeredBy: actorId });
     } else {
       fireNotify({
         event: 'status_changed',
         ticketId: id,
         previousStatus,
         newStatus: status,
-        triggeredBy: opts.closedBy ?? null,
+        triggeredBy: actorId,
       });
     }
   }

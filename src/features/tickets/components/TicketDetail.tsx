@@ -160,7 +160,9 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
       return;
     }
     try {
-      const updated = await setTicketStatus(ticket.id, status);
+      const updated = await setTicketStatus(ticket.id, status, {
+        actorId: currentEmployeeId ?? undefined,
+      });
       setTicket(updated);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -170,7 +172,9 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
   async function handleAssign(employeeId: string | null) {
     if (!ticket) return;
     try {
-      const updated = await updateTicket(ticket.id, { assignedTo: employeeId });
+      const updated = await updateTicket(ticket.id, { assignedTo: employeeId }, {
+        actorId: currentEmployeeId ?? undefined,
+      });
       setTicket(updated);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
