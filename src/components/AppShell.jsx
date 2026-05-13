@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar, FileText, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, Wrench, X } from 'lucide-react';
+import { Calendar, FileText, Headphones, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, Wrench, X } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
 // ═══════════════════════════════════════════════════════
@@ -7,10 +7,11 @@ import { useAuth } from '../lib/auth';
 // ═══════════════════════════════════════════════════════
 
 const NAV_ITEMS = [
-  { id: 'angebote', label: 'Angebote', icon: FileText },
-  { id: 'crm',      label: 'CRM',      icon: Users },
-  { id: 'kalender', label: 'Kalender', icon: Calendar },
-  { id: 'tickets',  label: 'Tickets',  icon: Wrench },
+  { id: 'dispatcher', label: 'Leitstelle', icon: Headphones },
+  { id: 'angebote',   label: 'Angebote',   icon: FileText },
+  { id: 'crm',        label: 'CRM',        icon: Users },
+  { id: 'kalender',   label: 'Kalender',   icon: Calendar },
+  { id: 'tickets',    label: 'Tickets',    icon: Wrench },
 ];
 
 export default function AppShell({

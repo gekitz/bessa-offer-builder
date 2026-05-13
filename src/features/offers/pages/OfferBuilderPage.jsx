@@ -72,6 +72,7 @@ import AppShell from '../../../components/AppShell';
 // section. Lazy import keeps them out of the main bundle.
 const CalendarPage = React.lazy(() => import('../../calendar/pages/CalendarPage'));
 const TicketsPage = React.lazy(() => import('../../tickets/pages/TicketsPage'));
+const DispatcherPage = React.lazy(() => import('../../dispatcher/pages/DispatcherPage'));
 import { useApproverPendingCount } from '../../vacation/hooks/useApproverPendingCount';
 import { useMyTicketCount } from '../../tickets/hooks/useMyTicketCount';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -1218,6 +1219,13 @@ export default function OfferBuilderPage() {
       {section === 'tickets' && (
         <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
           <TicketsPage />
+        </React.Suspense>
+      )}
+
+      {/* ═══ DISPATCHER SECTION ═══ */}
+      {section === 'dispatcher' && (
+        <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
+          <DispatcherPage />
         </React.Suspense>
       )}
 

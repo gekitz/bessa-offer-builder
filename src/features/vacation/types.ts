@@ -29,6 +29,13 @@ export interface Employee {
   weeklyHours: number;
   employmentType: EmploymentType;
   active: boolean;
+  // Free-text tags ("techniker", "verkauf", ...) used by the dispatcher
+  // view to filter the next-free-slot search. Optional in the type so
+  // older test fixtures and call sites that construct Employee
+  // literals do not need to be updated; rowToEmployee always sets it
+  // to [] when the column is empty, so production reads see a stable
+  // array.
+  tags?: string[];
 }
 
 export interface EmployeeRole {

@@ -127,10 +127,11 @@ function rowToEmployee(row: any): Employee {
     weeklyHours: Number(row.weekly_hours),
     employmentType: row.employment_type,
     active: row.active,
+    tags: Array.isArray(row.tags) ? row.tags : [],
   };
 }
 
-const EMPLOYEE_COLUMNS = 'id, code, name, standort_id, hire_date, weekly_hours, employment_type, active';
+const EMPLOYEE_COLUMNS = 'id, code, name, standort_id, hire_date, weekly_hours, employment_type, active, tags';
 
 export async function listEmployees(opts: { activeOnly?: boolean } = {}): Promise<Employee[]> {
   const sb = requireSupabase();
@@ -186,6 +187,7 @@ export async function updateEmployee(id: string, patch: Partial<Employee>): Prom
   if (patch.employmentType !== undefined) dbPatch.employment_type = patch.employmentType;
   if (patch.active !== undefined) dbPatch.active = patch.active;
   if (patch.standortId !== undefined) dbPatch.standort_id = patch.standortId;
+  if (patch.tags !== undefined) dbPatch.tags = patch.tags;
 
   const { data, error } = await sb
     .from('employees')
