@@ -204,6 +204,14 @@ export const KUECHENMONITORE_SUNMI: Item[] = [
   { id:'dcfacd8a-e274-44ae-89f7-ecc03164c439', name:'Flex 3 Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
 ];
 
+// VK = EK × 2
+export const KIOSK: Item[] = [
+  { id:'kiosk-flex-3-27', name:"Flex Kiosk 3 27''", price:1886, t:'o' },
+  { id:'kiosk-flex-3-22', name:"Flex Kiosk 3 22''", price:1716, t:'o' },
+  { id:'kiosk-flex-tisch-stand', name:'Restaurant Tisch Stand für Flex', price:756, t:'o' },
+  { id:'kiosk-flex-floor-stand', name:'Restaurant Floor Stand für Flex', price:1071.8, t:'o' },
+];
+
 export const DIENSTLEISTUNGEN: Item[] = [
   { id:'00caa501-4266-4459-bbf6-38074fa7a00d', name:'Fiskalisierung', price:190, t:'o' },
   { id:'b01429e1-672e-44ae-ae79-1d08c4f7f918', name:'Arbeitszeit', price:118, t:'o', info:'pro Stunde' },
@@ -248,6 +256,7 @@ for (const item of [
   ...DRUCKER,
   ...KUECHENMONITORE,
   ...KUECHENMONITORE_SUNMI,
+  ...KIOSK,
   ...ORDERMAN,
   ...DIENSTLEISTUNGEN,
 ]) {

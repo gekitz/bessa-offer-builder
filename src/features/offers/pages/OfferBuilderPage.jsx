@@ -47,6 +47,7 @@ import {
   DRUCKER,
   KUECHENMONITORE,
   KUECHENMONITORE_SUNMI,
+  KIOSK,
   DIENSTLEISTUNGEN,
   ORDERMAN,
   TEAM,
@@ -1093,7 +1094,7 @@ export default function OfferBuilderPage() {
             {search.trim() && builderTab !== 'angebot' ? (
               (() => {
                 const q = search.toLowerCase().trim();
-                const allItems = [...BESSA, ...MELZER, ...RCH, ...HARDWARE, ...UNIFY, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...ORDERMAN, ...DIENSTLEISTUNGEN];
+                const allItems = [...BESSA, ...MELZER, ...RCH, ...HARDWARE, ...UNIFY, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...KIOSK, ...ORDERMAN, ...DIENSTLEISTUNGEN];
                 const results = allItems.filter(item =>
                   item.name.toLowerCase().includes(q)
                   || (item.code && item.code.toLowerCase().includes(q))
@@ -1133,6 +1134,7 @@ export default function OfferBuilderPage() {
                     <CatGroup title="Drucker" items={DRUCKER} cart={cart} globalTier={globalTier} handlers={handlers} />
                     <CatGroup title="Küchenmonitore" items={KUECHENMONITORE} cart={cart} globalTier={globalTier} handlers={handlers} />
                     <CatGroup title="Küchenmonitore Sunmi" items={KUECHENMONITORE_SUNMI} cart={cart} globalTier={globalTier} handlers={handlers} />
+                    <CatGroup title="Kiosk" items={KIOSK} cart={cart} globalTier={globalTier} handlers={handlers} />
                     <CatGroup title="Orderman" items={ORDERMAN} cart={cart} globalTier={globalTier} handlers={handlers} />
                     <CatGroup title="Dienstleistungen" items={DIENSTLEISTUNGEN} cart={cart} globalTier={globalTier} handlers={handlers} />
                   </>
