@@ -30,13 +30,13 @@ import { useAuth } from '../../../lib/auth';
 import { TIERS, TIER_LABEL_OFFER, TIER_SHORT } from '../../../data/tiers';
 import { computeAutoTerms } from '../../../data/autoTermRules';
 import {
-  hasDiscount,
   isMonthly,
   price,
-  discountedPrice,
   yearlyServicePerUnit,
 } from '../../../lib/pricing';
 import { computeTotals } from '../../../lib/totals';
+import { buildLineItems } from '../../../lib/offerLineItems';
+import { applyOptionGroup, countedIds } from '../../../lib/optionGroups';
 import {
   COMPANY_DEFAULT,
   BESSA,
@@ -90,9 +90,12 @@ const BUILDER_TABS = [
 ];
 
 // Build wartung rows for PDF rendering from filtered cart entries.
+// Non-selected option-group alternatives are skipped — only the counted member
+// contributes its yearly Wartung, matching computeTotals.
 function buildWartungItems(entries) {
+  const counted = countedIds(Object.fromEntries(entries));
   return entries
-    .filter(([id]) => ALL[id]?.servicePercent > 0)
+    .filter(([id]) => ALL[id]?.servicePercent > 0 && counted.has(id))
     .map(([id, c]) => {
       const item = ALL[id];
       const fullQty = c.qty || 0;
@@ -220,9 +223,9 @@ export default function OfferBuilderPage() {
     Object.keys(ALL).forEach(id => { if (isCustomItem(id)) delete ALL[id]; });
   }
 
-  function handleAddCustomItem({ name, price: p }) {
+  function handleAddCustomItem({ name, price: p, description }) {
     const id = crypto.randomUUID();
-    ALL[id] = { id, name, price: p, t: 'o' };
+    ALL[id] = { id, name, price: p, t: 'o', ...(description ? { description } : {}) };
     setCart(c => ({ ...c, [id]: { qty: 1, discountQty: 0 } }));
     setCartOrder(prev => [...prev, id]);
     setShowCustomModal(false);
@@ -366,11 +369,14 @@ export default function OfferBuilderPage() {
     onMode: (id, mode) => setCart(c => c[id] ? { ...c, [id]: { ...c[id], mode } } : c),
   };
 
-  function handleEditItem(id, { qty, discountQty, price: newPrice }) {
+  function handleEditItem(id, { qty, discountQty, price: newPrice, description, optionGroup, optionSelected }) {
     setCart(c => {
       if (!c[id]) return c;
       return { ...c, [id]: { ...c[id], qty, discountQty } };
     });
+    if (optionGroup !== undefined) {
+      setCart(c => applyOptionGroup(c, id, optionGroup, !!optionSelected));
+    }
     if (newPrice !== undefined) {
       const item = ALL[id];
       if (item) {
@@ -383,6 +389,10 @@ export default function OfferBuilderPage() {
           else item.rent = newPrice;
         }
       }
+    }
+    if (description !== undefined && ALL[id]) {
+      if (description) ALL[id].description = description;
+      else delete ALL[id].description;
     }
   }
 
@@ -475,41 +485,7 @@ export default function OfferBuilderPage() {
     setPdfLoading(true);
     try {
       const validEntries = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
-      const monthlyItems = validEntries
-        .filter(([id, c]) => isMonthly(ALL[id], c.mode))
-        .map(([id, c]) => {
-          const item = ALL[id];
-          const p = price(item, c.tier, c.mode);
-          const dp = discountedPrice(item, c.tier, c.mode);
-          const fullQty = c.qty || 0;
-          const discQty = c.discountQty || 0;
-          return {
-            id, qty: fullQty, discountQty: discQty,
-            code: item.code || '', name: item.name, info: item.info,
-            tier: c.tier, mode: c.mode, type: item.t,
-            unitPrice: p, discountPrice: dp,
-            hasDiscount: hasDiscount(item), discountLabel: item.discount?.label,
-            lineTotal: (p * fullQty) + (dp * discQty),
-          };
-        });
-
-      const onceItems = validEntries
-        .filter(([id, c]) => !isMonthly(ALL[id], c.mode))
-        .map(([id, c]) => {
-          const item = ALL[id];
-          const p = price(item, c.tier, c.mode);
-          const dp = discountedPrice(item, c.tier, c.mode);
-          const fullQty = c.qty || 0;
-          const discQty = c.discountQty || 0;
-          return {
-            id, qty: fullQty, discountQty: discQty,
-            code: item.code || '', name: item.name, info: item.info,
-            tier: c.tier, mode: c.mode, type: item.t,
-            unitPrice: p, discountPrice: dp,
-            hasDiscount: hasDiscount(item), discountLabel: item.discount?.label,
-            lineTotal: (p * fullQty) + (dp * discQty),
-          };
-        });
+      const { monthlyItems, onceItems } = buildLineItems(validEntries, ALL);
 
       const wartungItems = buildWartungItems(validEntries);
       const autoTerms = computeAutoTerms(cart);
@@ -726,37 +702,7 @@ export default function OfferBuilderPage() {
     try {
       const creatorInfo = TEAM.find(t => t.id === creator);
       const validSendEntries = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
-      const monthlyItems = validSendEntries
-        .filter(([id, c]) => isMonthly(ALL[id], c.mode))
-        .map(([id, c]) => {
-          const item = ALL[id];
-          const p = price(item, c.tier, c.mode);
-          const dp = discountedPrice(item, c.tier, c.mode);
-          return {
-            id, qty: c.qty || 0, discountQty: c.discountQty || 0,
-            code: item.code || '', name: item.name, info: item.info,
-            tier: c.tier, mode: c.mode, type: item.t,
-            unitPrice: p, discountPrice: dp,
-            hasDiscount: hasDiscount(item), discountLabel: item.discount?.label,
-            lineTotal: (p * (c.qty || 0)) + (dp * (c.discountQty || 0)),
-          };
-        });
-
-      const onceItems = validSendEntries
-        .filter(([id, c]) => !isMonthly(ALL[id], c.mode))
-        .map(([id, c]) => {
-          const item = ALL[id];
-          const p = price(item, c.tier, c.mode);
-          const dp = discountedPrice(item, c.tier, c.mode);
-          return {
-            id, qty: c.qty || 0, discountQty: c.discountQty || 0,
-            code: item.code || '', name: item.name, info: item.info,
-            tier: c.tier, mode: c.mode, type: item.t,
-            unitPrice: p, discountPrice: dp,
-            hasDiscount: hasDiscount(item), discountLabel: item.discount?.label,
-            lineTotal: (p * (c.qty || 0)) + (dp * (c.discountQty || 0)),
-          };
-        });
+      const { monthlyItems, onceItems } = buildLineItems(validSendEntries, ALL);
 
       const wartungItems = buildWartungItems(validSendEntries);
       const autoTerms = computeAutoTerms(cart);
@@ -801,37 +747,7 @@ export default function OfferBuilderPage() {
   async function handleSign(signatures) {
     const creatorInfo = TEAM.find(t => t.id === creator) || null;
     const validSignEntries = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
-    const monthlyItems = validSignEntries
-      .filter(([id, c]) => isMonthly(ALL[id], c.mode))
-      .map(([id, c]) => {
-        const item = ALL[id];
-        const p = price(item, c.tier, c.mode);
-        const dp = discountedPrice(item, c.tier, c.mode);
-        return {
-          id, qty: c.qty || 0, discountQty: c.discountQty || 0,
-          code: item.code || '', name: item.name, info: item.info,
-          tier: c.tier, mode: c.mode, type: item.t,
-          unitPrice: p, discountPrice: dp,
-          hasDiscount: hasDiscount(item), discountLabel: item.discount?.label,
-          lineTotal: (p * (c.qty || 0)) + (dp * (c.discountQty || 0)),
-        };
-      });
-
-    const onceItems = validSignEntries
-      .filter(([id, c]) => !isMonthly(ALL[id], c.mode))
-      .map(([id, c]) => {
-        const item = ALL[id];
-        const p = price(item, c.tier, c.mode);
-        const dp = discountedPrice(item, c.tier, c.mode);
-        return {
-          id, qty: c.qty || 0, discountQty: c.discountQty || 0,
-          code: item.code || '', name: item.name, info: item.info,
-          tier: c.tier, mode: c.mode, type: item.t,
-          unitPrice: p, discountPrice: dp,
-          hasDiscount: hasDiscount(item), discountLabel: item.discount?.label,
-          lineTotal: (p * (c.qty || 0)) + (dp * (c.discountQty || 0)),
-        };
-      });
+    const { monthlyItems, onceItems } = buildLineItems(validSignEntries, ALL);
 
     const wartungItems = buildWartungItems(validSignEntries);
     const autoTerms = computeAutoTerms(cart);

@@ -7,8 +7,9 @@ import {
   type Catalog,
   type ItemMode,
 } from './pricing';
+import { countedIds, type OptionCartItem } from './optionGroups';
 
-export interface CartItem {
+export interface CartItem extends OptionCartItem {
   qty?: number;
   discountQty?: number;
   tier?: TierKey;
@@ -37,9 +38,14 @@ export function computeTotals(cart: Cart, catalog: Catalog): OfferTotals {
   let periodMonthly = 0;
   let maxMonths = 0;
 
+  // For option groups ("pick one of A/B"), only the selected member's price
+  // counts — the alternatives are shown but not summed.
+  const counted = countedIds(cart);
+
   for (const [id, c] of Object.entries(cart)) {
     const item = catalog[id];
     if (!item) continue;
+    if (!counted.has(id)) continue;
     const p = price(item, c.tier, c.mode);
     const dp = discountedPrice(item, c.tier, c.mode);
     if (p === null) continue;

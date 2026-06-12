@@ -196,6 +196,24 @@ export const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: 1,
   },
+  cellSpec: {
+    fontSize: 7.5,
+    color: COLORS.medium,
+    marginTop: 1.5,
+    lineHeight: 1.3,
+  },
+  // Option-group alternative (not the recommended/counted member)
+  cellTextAlt: {
+    fontSize: 9,
+    color: COLORS.medium,
+    fontStyle: 'italic',
+  },
+  cellPriceAlt: {
+    fontSize: 9,
+    fontWeight: 600,
+    color: COLORS.medium,
+    fontStyle: 'italic',
+  },
 
   // Totals box
   totalsBox: {

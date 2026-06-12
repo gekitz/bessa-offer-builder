@@ -46,6 +46,8 @@ import {
   yearlyServicePerUnit,
 } from '../../../lib/pricing';
 import { orderedCartEntries } from '../../../lib/cartOrder';
+import { decorateLineItems } from '../../../lib/offerLineItems';
+import { listGroups, countedIds } from '../../../lib/optionGroups';
 import { fmt } from '../../../lib/format';
 
 export default function OfferView({
@@ -91,8 +93,14 @@ export default function OfferView({
   const allOrdered = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
   const monthlyItems = allOrdered.filter(([id, c]) => isMonthly(ALL[id], c.mode));
   const onceItems = allOrdered.filter(([id, c]) => !isMonthly(ALL[id], c.mode));
-  const wartungItems = allOrdered.filter(([id]) => ALL[id]?.servicePercent > 0);
+  const counted = countedIds(cart);
+  // Only the counted (recommended) member of an option group accrues Wartung.
+  const wartungItems = allOrdered.filter(([id]) => ALL[id]?.servicePercent > 0 && counted.has(id));
   const autoTerms = computeAutoTerms(cart);
+  const availableGroups = listGroups(cart);
+  // Per-row option-group decoration (selected flag + Mehr-/Minderpreis delta).
+  const decoratedById = {};
+  decorateLineItems(allOrdered, ALL).forEach((r) => { decoratedById[r.id] = r; });
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -120,6 +128,36 @@ export default function OfferView({
 
   const periodNetto = totals.periodTotal;
   const periodBrutto = periodNetto * 1.2;
+
+  // Option-group chips shown next to a line item.
+  function groupTag(d) {
+    if (!d?.optionGroup) return null;
+    const isCounted = d.optionSelected !== false;
+    return (
+      <>
+        <span className="text-xs text-slate-500 bg-slate-100 rounded-full px-1.5 ml-2 whitespace-nowrap">Wahl: {d.optionGroup}</span>
+        {isCounted ? (
+          <span className="text-xs text-emerald-700 bg-emerald-50 rounded-full px-1.5 ml-1 whitespace-nowrap">empfohlen</span>
+        ) : (
+          <span className="text-xs text-amber-700 bg-amber-50 rounded-full px-1.5 ml-1 whitespace-nowrap">Alternative</span>
+        )}
+      </>
+    );
+  }
+
+  // Price cell: counted lines show their amount; alternatives show only the
+  // price difference vs the recommended option (and are muted, not summed).
+  function priceCell(d, lineTotal, monthly) {
+    const isAlt = d?.optionGroup && d.optionSelected === false;
+    if (isAlt) {
+      const delta = d.optionDelta || 0;
+      const label = delta === 0
+        ? 'gleicher Preis'
+        : `${delta > 0 ? '+' : '−'}€ ${fmt(Math.abs(delta))}${monthly ? '/Mo' : ''}`;
+      return <span className="text-sm italic text-slate-400 whitespace-nowrap">{label}</span>;
+    }
+    return <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">€ {fmt(lineTotal)}{monthly ? '/Mo' : ''}</span>;
+  }
 
   return (
     <div>
@@ -239,6 +277,7 @@ export default function OfferView({
                   const lineTotal = (p * fullQty) + (dp * discQty);
                   const totalQty = fullQty + discQty;
                   const qtyLabel = discQty > 0 && fullQty > 0 ? `${fullQty}+${discQty}` : String(totalQty);
+                  const d = decoratedById[id];
                   return (
                     <SortableOfferRow key={id} id={id}>
                       <div className="flex items-center justify-between pr-4 py-2.5">
@@ -247,8 +286,9 @@ export default function OfferView({
                           {c.tier && <span className="text-xs text-slate-400 ml-2">{TIER_LABEL[c.tier]}</span>}
                           {c.mode === 'rent' && item.t === 'term' && <span className="text-xs text-slate-400 ml-2">Miete</span>}
                           {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
+                          {groupTag(d)}
                         </div>
-                        <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">€ {fmt(lineTotal)}/Mo</span>
+                        {priceCell(d, lineTotal, true)}
                         <button onClick={() => setEditingItem({ id, item, cartItem: c, monthly: true })} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><Pencil size={13} /></button>
                         {isCustomItem(id) && <button onClick={() => onRemoveItem(id)} className="ml-1 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
                       </div>
@@ -284,6 +324,7 @@ export default function OfferView({
                   const lineTotal = (p * fullQty) + (dp * discQty);
                   const totalQty = fullQty + discQty;
                   const qtyLabel = discQty > 0 && fullQty > 0 ? `${fullQty}+${discQty}` : String(totalQty);
+                  const d = decoratedById[id];
                   return (
                     <SortableOfferRow key={id} id={id}>
                       <div className="flex items-center justify-between pr-4 py-2.5">
@@ -292,8 +333,9 @@ export default function OfferView({
                           {c.mode === 'buy' && <span className="text-xs text-slate-400 ml-2">Kauf</span>}
                           {item.t === 'h' && <span className="text-xs text-slate-400 ml-2">({fullQty} Std.)</span>}
                           {discQty > 0 && <span className="text-xs text-green-600 ml-2">({item.discount?.label})</span>}
+                          {groupTag(d)}
                         </div>
-                        <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">€ {fmt(lineTotal)}</span>
+                        {priceCell(d, lineTotal, false)}
                         <button onClick={() => setEditingItem({ id, item, cartItem: c, monthly: false })} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><Pencil size={13} /></button>
                         {isCustomItem(id) && <button onClick={() => onRemoveItem(id)} className="ml-1 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
                       </div>
@@ -514,6 +556,7 @@ export default function OfferView({
           cartItem={editingItem.cartItem}
           globalTier={globalTier}
           monthly={editingItem.monthly}
+          availableGroups={availableGroups}
           onClose={() => setEditingItem(null)}
           onSave={(result) => {
             onEditItem(editingItem.id, result);

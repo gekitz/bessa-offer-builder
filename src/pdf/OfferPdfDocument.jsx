@@ -128,6 +128,15 @@ function TableRow({ item, index, isMonthly }) {
   const hasDiscountQty = item.discountQty > 0;
   const totalQty = (item.qty || 0) + (item.discountQty || 0);
 
+  // Option groups: a member that isn't the selected/recommended one renders as
+  // an indented alternative showing only the price difference (Mehr-/Minderpreis).
+  const isAlternative = item.optionSelected === false;
+  const delta = item.optionDelta || 0;
+  const deltaText =
+    delta === 0
+      ? 'gleicher Preis'
+      : `${delta > 0 ? '+' : '-'}${fmt(Math.abs(delta))}${isMonthly ? '/Mo' : ''}`;
+
   // Build quantity display
   let qtyDisplay = String(totalQty);
   if (hasDiscountQty && item.qty > 0) {
@@ -136,18 +145,26 @@ function TableRow({ item, index, isMonthly }) {
     qtyDisplay = String(item.discountQty);
   }
 
+  const specLines = item.description
+    ? item.description.split('\n').map((l) => l.trim()).filter((l) => l.length > 0)
+    : [];
+
   return (
     <View style={[styles.tableRow, isAlt && styles.tableRowAlt]} wrap={false}>
-      <Text style={[styles.cellText, styles.colQty]}>{qtyDisplay}</Text>
-      <Text style={[styles.cellCode, styles.colCode]}>{item.code || '-'}</Text>
+      <Text style={[styles.cellText, styles.colQty]}>{isAlternative ? '' : qtyDisplay}</Text>
+      <Text style={[styles.cellCode, styles.colCode]}>{isAlternative ? '' : item.code || '-'}</Text>
       <View style={styles.colName}>
-        <Text style={styles.cellText}>
+        <Text style={isAlternative ? styles.cellTextAlt : styles.cellText}>
+          {isAlternative ? 'Alternativ: ' : ''}
           {item.name}
           {hourLabel ? ` ${hourLabel}` : ''}
         </Text>
         {item.info && (
           <Text style={styles.cellInfo}>{item.info}</Text>
         )}
+        {specLines.map((line, i) => (
+          <Text key={i} style={styles.cellSpec}>• {line}</Text>
+        ))}
         {hasDiscountQty && item.qty > 0 && (
           <Text style={styles.cellDiscount}>
             ({item.qty}x €{fmt(item.unitPrice)} + {item.discountQty}x €{fmt(item.discountPrice)} {item.discountLabel})
@@ -160,11 +177,10 @@ function TableRow({ item, index, isMonthly }) {
         )}
       </View>
       <Text style={[styles.cellText, styles.colTier]}>
-        {tierLabel || modeLabel || '-'}
+        {isAlternative ? 'statt empf.' : tierLabel || modeLabel || '-'}
       </Text>
-      <Text style={[styles.cellPrice, styles.colPrice]}>
-        {fmt(item.lineTotal)}
-        {isMonthly ? '/Mo' : ''}
+      <Text style={[isAlternative ? styles.cellPriceAlt : styles.cellPrice, styles.colPrice]}>
+        {isAlternative ? deltaText : `${fmt(item.lineTotal)}${isMonthly ? '/Mo' : ''}`}
       </Text>
     </View>
   );

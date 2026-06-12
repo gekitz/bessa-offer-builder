@@ -23,6 +23,8 @@ export interface Item {
   cat?: string;
   note?: string;
   info?: string;
+  /** Optional multi-line article description (one spec per line) shown on the PDF. */
+  description?: string;
 }
 
 export type Catalog = Record<string, Item>;
