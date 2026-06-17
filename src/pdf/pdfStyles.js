@@ -299,6 +299,45 @@ export const styles = StyleSheet.create({
     fontWeight: 700,
     color: COLORS.kitzRed,
   },
+  periodSummaryStrike: {
+    fontSize: 8,
+    color: COLORS.light,
+    textDecoration: 'line-through',
+    marginBottom: 2,
+  },
+  periodSummaryRabatt: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  periodSummaryRabattText: {
+    fontSize: 8,
+    color: COLORS.light,
+  },
+  periodSummarySkonto: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: '#475569',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  periodSummarySkontoLabel: {
+    fontSize: 9,
+    color: COLORS.white,
+    fontWeight: 700,
+  },
+  periodSummarySkontoSub: {
+    fontSize: 8,
+    color: COLORS.light,
+    marginTop: 1,
+  },
+  periodSummarySkontoValue: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: COLORS.white,
+  },
 
   // Financing section
   financingSection: {

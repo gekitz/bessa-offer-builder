@@ -49,6 +49,7 @@ import { orderedCartEntries } from '../../../lib/cartOrder';
 import { decorateLineItems } from '../../../lib/offerLineItems';
 import { listGroups, countedIds } from '../../../lib/optionGroups';
 import { fmt } from '../../../lib/format';
+import { computeDiscounts, SKONTO_DAYS } from '../../../lib/discounts';
 
 export default function OfferView({
   cart,
@@ -72,6 +73,10 @@ export default function OfferView({
   finanzOpen,
   setFinanzOpen,
   globalTier,
+  rabattActive,
+  setRabattActive,
+  skontoActive,
+  setSkontoActive,
   serviceStartDate,
   setServiceStartDate,
   billingEnabled = false,
@@ -127,7 +132,11 @@ export default function OfferView({
   }
 
   const periodNetto = totals.periodTotal;
-  const periodBrutto = periodNetto * 1.2;
+  // Rabatt (2%) is a real reduction of the first-year deal and flows into the
+  // financing figures; Skonto (3%) is a pay-in-full incentive shown as a note
+  // and never affects financing. See src/lib/discounts.ts.
+  const discount = computeDiscounts(periodNetto, { rabattActive, skontoActive });
+  const periodBrutto = discount.brutto;
 
   // Option-group chips shown next to a line item.
   function groupTag(d) {
@@ -387,8 +396,26 @@ export default function OfferView({
       {/* Yearly summary */}
       {(totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl mb-4 text-white overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/10">
+          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-2">
             <span className="font-bold" style={{ fontSize: 13 }}>GESAMTÜBERSICHT</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setRabattActive(!rabattActive)}
+                className={`px-2.5 py-1 rounded-full font-medium transition-colors ${rabattActive ? 'bg-red-500 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/20'}`}
+                style={{ fontSize: 11 }}
+              >
+                2% Rabatt
+              </button>
+              <button
+                type="button"
+                onClick={() => setSkontoActive(!skontoActive)}
+                className={`px-2.5 py-1 rounded-full font-medium transition-colors ${skontoActive ? 'bg-red-500 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/20'}`}
+                style={{ fontSize: 11 }}
+              >
+                3% Skonto
+              </button>
+            </div>
           </div>
           <div className="p-4 space-y-3">
             <div className="flex justify-between items-center pb-3 border-b border-white/10">
@@ -397,10 +424,35 @@ export default function OfferView({
                 <div className="text-xs text-slate-400">(monatlich × Laufzeit + einmalig{totals.yearly > 0 ? ' + Wartung' : ''})</div>
               </div>
               <div className="text-right">
-                <div className="text-sm text-slate-400">€ {fmt(totals.periodTotal)} netto</div>
-                <div className="font-bold text-lg text-red-400">€ {fmt(totals.periodTotal * 1.2)} brutto</div>
+                {rabattActive ? (
+                  <>
+                    <div className="text-xs text-slate-500 line-through">€ {fmt(discount.baseNetto * 1.2)} brutto</div>
+                    <div className="text-sm text-slate-400">€ {fmt(discount.netto)} netto</div>
+                    <div className="font-bold text-lg text-red-400">€ {fmt(discount.brutto)} brutto</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-sm text-slate-400">€ {fmt(totals.periodTotal)} netto</div>
+                    <div className="font-bold text-lg text-red-400">€ {fmt(totals.periodTotal * 1.2)} brutto</div>
+                  </>
+                )}
               </div>
             </div>
+            {rabattActive && (
+              <div className="flex justify-between items-center text-xs text-slate-300 -mt-1">
+                <span>inkl. 2% Rabatt</span>
+                <span className="text-emerald-400">− € {fmt(discount.rabattAmount)} netto</span>
+              </div>
+            )}
+            {skontoActive && (
+              <div className="flex justify-between items-center bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
+                <div>
+                  <div className="text-sm text-emerald-300 font-medium">Bei Zahlung innerhalb {SKONTO_DAYS} Tagen</div>
+                  <div className="text-xs text-slate-400">3% Skonto (− € {fmt(discount.skontoAmount)})</div>
+                </div>
+                <div className="font-bold text-emerald-300">€ {fmt(discount.skontoBrutto)} brutto</div>
+              </div>
+            )}
             {(totals.monthly > 0 && totals.once > 0) || totals.yearly > 0 ? (
               <div className="flex justify-between items-center">
                 <div>

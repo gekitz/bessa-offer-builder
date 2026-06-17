@@ -3,6 +3,7 @@ import { Loader2, Pen, Trash2, X } from 'lucide-react';
 import SignaturePad, { type SignaturePadHandle } from '../SignaturePad';
 import { fmt } from '../../../../lib/format';
 import type { OfferTotals } from '../../../../lib/totals';
+import { computeDiscounts, SKONTO_DAYS } from '../../../../lib/discounts';
 import type { TierKey } from '../../../../data/tiers';
 
 const TIER_LABEL_MAP: Record<TierKey, string> = {
@@ -27,16 +28,19 @@ interface SignModalProps {
   totals: OfferTotals;
   finanzOpen: boolean;
   globalTier: TierKey;
+  rabattActive?: boolean;
+  skontoActive?: boolean;
   onConfirm: (signatures: SignSignatures) => Promise<void> | void;
   onClose: () => void;
 }
 
-export default function SignModal({ customer, totals, finanzOpen, globalTier, onConfirm, onClose }: SignModalProps) {
+export default function SignModal({ customer, totals, finanzOpen, globalTier, rabattActive = false, skontoActive = false, onConfirm, onClose }: SignModalProps) {
   const offerPadRef = useRef<SignaturePadHandle>(null);
   const sepaPadRef = useRef<SignaturePadHandle>(null);
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const showSepa = finanzOpen && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0);
+  const discount = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive });
 
   async function handleConfirm() {
     if (offerPadRef.current?.isEmpty()) { setError('Bitte Auftragsbestätigung unterschreiben.'); return; }
@@ -94,6 +98,22 @@ export default function SignModal({ customer, totals, finanzOpen, globalTier, on
               <div className="font-bold text-slate-800">{TIER_LABEL_MAP[globalTier] || globalTier}</div>
             </div>
           </div>
+          {(rabattActive || skontoActive) && (
+            <div className="mt-3 pt-3 border-t border-slate-200 text-sm space-y-1">
+              {rabattActive && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">inkl. 2% Rabatt (erstes Jahr)</span>
+                  <span className="font-semibold text-emerald-600">€ {fmt(discount.brutto)} brutto</span>
+                </div>
+              )}
+              {skontoActive && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">3% Skonto bei Zahlung in {SKONTO_DAYS} Tagen</span>
+                  <span className="font-semibold text-emerald-600">€ {fmt(discount.skontoBrutto)} brutto</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Signature 1: Auftragsbestätigung */}

@@ -18,6 +18,11 @@ export const AUTO_TERM_RULES: readonly AutoTermRule[] = [
     text: 'Zahlungsziel: 10 Tage netto Kassa',
   },
   {
+    id: 'travel-billing',
+    condition: () => true,
+    text: 'Fahrzeit und KM-Geld werden nach GPS verrechnet',
+  },
+  {
     id: 'network-cabling',
     condition: (cart) => Object.keys(cart).some((id) => id.startsWith('unify-')),
     text: 'Kabel müssen vom Kunden eigenständig verlegt werden',

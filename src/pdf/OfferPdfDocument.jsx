@@ -9,6 +9,7 @@ import {
 import { styles, COLORS } from './pdfStyles';
 import kitzLogo from '/kitz-logo.png';
 import { TIER_LABEL_OFFER } from '../data/tiers';
+import { computeDiscounts, SKONTO_DAYS } from '../lib/discounts';
 
 // Format number to German locale
 const fmt = (n) =>
@@ -211,10 +212,11 @@ function TotalsBox({ netto, isMonthly }) {
 }
 
 // Period total summary component
-function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce, hasYearly }) {
-  const brutto = periodTotal * 1.2;
+function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce, hasYearly, discount }) {
   const recurring = periodMonthly + yearly;
   const showRecurringRow = (hasMonthly && hasOnce) || hasYearly;
+  const rabattActive = discount?.rabattActive;
+  const skontoActive = discount?.skontoActive;
   const firstYearLabel =
     'Kosten im ersten Jahr (monatlich × Laufzeit + einmalig' + (hasYearly ? ' + Wartung' : '') + ')';
   const recurringLabel =
@@ -226,10 +228,28 @@ function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce
       <View style={[styles.periodSummaryContent, { borderBottomWidth: showRecurringRow ? 0.5 : 0, borderBottomColor: '#e2e8f0', paddingBottom: showRecurringRow ? 6 : 0, marginBottom: showRecurringRow ? 4 : 0 }]}>
         <Text style={styles.periodSummaryLabel}>{firstYearLabel}</Text>
         <View style={styles.periodSummaryValues}>
-          <Text style={styles.periodSummaryNetto}>{fmt(periodTotal)} netto</Text>
-          <Text style={styles.periodSummaryBrutto}>{fmt(brutto)} brutto</Text>
+          {rabattActive && (
+            <Text style={styles.periodSummaryStrike}>{fmt(discount.baseNetto * 1.2)} brutto</Text>
+          )}
+          <Text style={styles.periodSummaryNetto}>{fmt(discount.netto)} netto</Text>
+          <Text style={styles.periodSummaryBrutto}>{fmt(discount.brutto)} brutto</Text>
         </View>
       </View>
+      {rabattActive && (
+        <View style={styles.periodSummaryRabatt}>
+          <Text style={styles.periodSummaryRabattText}>inkl. 2% Rabatt</Text>
+          <Text style={styles.periodSummaryRabattText}>- {fmt(discount.rabattAmount)} netto</Text>
+        </View>
+      )}
+      {skontoActive && (
+        <View style={styles.periodSummarySkonto}>
+          <View>
+            <Text style={styles.periodSummarySkontoLabel}>Bei Zahlung innerhalb {SKONTO_DAYS} Tagen</Text>
+            <Text style={styles.periodSummarySkontoSub}>3% Skonto (- {fmt(discount.skontoAmount)})</Text>
+          </View>
+          <Text style={styles.periodSummarySkontoValue}>{fmt(discount.skontoBrutto)} brutto</Text>
+        </View>
+      )}
       {showRecurringRow && (
         <View style={styles.periodSummaryContent}>
           <Text style={styles.periodSummaryLabel}>{recurringLabel}</Text>
@@ -436,6 +456,8 @@ export default function OfferPdfDocument({
   totals,
   notes,
   raten,
+  rabattActive = false,
+  skontoActive = false,
   showFinancing = false,
   creator = null,
   mandatsRef = '',
@@ -445,7 +467,9 @@ export default function OfferPdfDocument({
 }) {
   const date = new Date().toLocaleDateString('de-AT');
   const signedAt = signatures ? new Date().toLocaleDateString('de-AT') : null;
-  const periodBrutto = totals.periodTotal * 1.2;
+  // Rabatt reduces the financing base; Skonto is a pay-in-full note only.
+  const discount = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive });
+  const periodBrutto = discount.brutto;
 
   return (
     <Document>
@@ -531,6 +555,7 @@ export default function OfferPdfDocument({
             hasMonthly={totals.monthly > 0}
             hasOnce={totals.once > 0}
             hasYearly={(totals.yearly || 0) > 0}
+            discount={discount}
           />
         )}
 

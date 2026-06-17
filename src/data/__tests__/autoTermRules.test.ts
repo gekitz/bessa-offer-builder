@@ -21,6 +21,7 @@ describe('computeAutoTerms', () => {
     expect(computeAutoTerms({})).toEqual([
       'Lieferzeit: 2 Wochen',
       'Zahlungsziel: 10 Tage netto Kassa',
+      'Fahrzeit und KM-Geld werden nach GPS verrechnet',
     ]);
   });
 
@@ -41,6 +42,7 @@ describe('computeAutoTerms', () => {
     expect(computeAutoTerms(cart)).toEqual([
       'Lieferzeit: 2 Wochen',
       'Zahlungsziel: 10 Tage netto Kassa',
+      'Fahrzeit und KM-Geld werden nach GPS verrechnet',
       'Kabel müssen vom Kunden eigenständig verlegt werden',
     ]);
   });

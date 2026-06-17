@@ -35,6 +35,7 @@ import {
   yearlyServicePerUnit,
 } from '../../../lib/pricing';
 import { computeTotals } from '../../../lib/totals';
+import { computeDiscounts, SKONTO_DAYS } from '../../../lib/discounts';
 import { buildLineItems } from '../../../lib/offerLineItems';
 import { applyOptionGroup, countedIds } from '../../../lib/optionGroups';
 import {
@@ -168,6 +169,10 @@ export default function OfferBuilderPage() {
   const [search, setSearch] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
   const [finanzOpen, setFinanzOpen] = useState(false);
+  // Offer-level incentives: 2% Rabatt on the first-year total + 3% Skonto
+  // for payment within 14 days. See src/lib/discounts.ts.
+  const [rabattActive, setRabattActive] = useState(false);
+  const [skontoActive, setSkontoActive] = useState(false);
   const [mandatsRef, setMandatsRef] = useState(() => Date.now().toString().slice(-12));
   const [serviceStartDate, setServiceStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [currentOfferId, setCurrentOfferId] = useState(null);
@@ -264,6 +269,8 @@ export default function OfferBuilderPage() {
         setBriefing(offer.briefing || '');
         setRaten(data.raten || 12);
         setFinanzOpen(data.finanzOpen || false);
+        setRabattActive(data.rabattActive || false);
+        setSkontoActive(data.skontoActive || false);
         setGlobalTier(data.globalTier || '12mo');
         setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
         setServiceStartDate(offer.service_start_date || new Date().toISOString().slice(0, 10));
@@ -289,6 +296,8 @@ export default function OfferBuilderPage() {
       setNotes(savedOffer.notes || '');
       setRaten(savedOffer.raten || 12);
       setFinanzOpen(savedOffer.finanzOpen || false);
+      setRabattActive(savedOffer.rabattActive || false);
+      setSkontoActive(savedOffer.skontoActive || false);
       setGlobalTier(savedOffer.globalTier || '12mo');
       if (savedOffer.mandatsRef) setMandatsRef(savedOffer.mandatsRef);
       setOfferView('builder'); setBuilderTab('angebot');
@@ -467,6 +476,26 @@ export default function OfferBuilderPage() {
       lines.push('');
     }
 
+    if ((rabattActive || skontoActive) && totals.periodTotal > 0) {
+      const d2 = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive });
+      lines.push('----------------------------------------');
+      lines.push('GESAMT (erstes Jahr)');
+      lines.push('----------------------------------------');
+      lines.push(`  Netto:         EUR ${fmt(d2.baseNetto)}`);
+      if (rabattActive) {
+        lines.push(`  abzgl. 2% Rabatt: -EUR ${fmt(d2.rabattAmount)}`);
+        lines.push(`  Netto neu:     EUR ${fmt(d2.netto)}`);
+      }
+      lines.push(`  Brutto:        EUR ${fmt(d2.brutto)}`);
+      if (skontoActive) {
+        lines.push('');
+        lines.push(`  Bei Zahlung innerhalb von ${SKONTO_DAYS} Tagen: 3% Skonto`);
+        lines.push(`  Skonto:        -EUR ${fmt(d2.skontoAmount)}`);
+        lines.push(`  Zahlbetrag:    EUR ${fmt(d2.skontoBrutto)} brutto`);
+      }
+      lines.push('');
+    }
+
     if (notes.trim()) {
       lines.push('----------------------------------------');
       lines.push('Anmerkungen:');
@@ -504,7 +533,7 @@ export default function OfferBuilderPage() {
             creatorName: creatorInfo?.name || creator,
             creatorEmail: creatorInfo?.email || null,
             briefing,
-            cart, globalTier, notes, raten, finanzOpen,
+            cart, globalTier, notes, raten, finanzOpen, rabattActive, skontoActive,
             totalMonthly: totals.monthly,
             totalOnce: totals.once,
             totalPeriod: totals.periodTotal,
@@ -534,6 +563,8 @@ export default function OfferBuilderPage() {
         totals,
         notes,
         raten,
+        rabattActive,
+        skontoActive,
         showFinancing: finanzOpen,
         creator: creatorInfo,
         mandatsRef,
@@ -598,6 +629,8 @@ export default function OfferBuilderPage() {
         notes,
         raten,
         finanzOpen,
+        rabattActive,
+        skontoActive,
         totalMonthly: totals.monthly,
         totalOnce: totals.once,
         totalPeriod: totals.periodTotal,
@@ -642,6 +675,8 @@ export default function OfferBuilderPage() {
         notes,
         raten,
         finanzOpen,
+        rabattActive,
+        skontoActive,
         totalMonthly: totals.monthly,
         totalOnce: totals.once,
         totalPeriod: totals.periodTotal,
@@ -680,7 +715,7 @@ export default function OfferBuilderPage() {
         creatorName: creatorInfoForSave?.name || creator,
         creatorEmail: creatorInfoForSave?.email || null,
         briefing,
-        cart, globalTier, notes, raten, finanzOpen,
+        cart, globalTier, notes, raten, finanzOpen, rabattActive, skontoActive,
         totalMonthly: totals.monthly,
         totalOnce: totals.once,
         totalPeriod: totals.periodTotal,
@@ -717,7 +752,7 @@ export default function OfferBuilderPage() {
       const acceptQrDataUrl = billingEnabled ? await generateAcceptQr(effectiveShareCode) : null;
       const pdfBlob = await generateOfferPdfBlob({
         customer, monthlyItems, onceItems, wartungItems, autoTerms,
-        totals, notes, raten,
+        totals, notes, raten, rabattActive, skontoActive,
         showFinancing: finanzOpen, creator: creatorInfo,
         mandatsRef, acceptQrDataUrl, serviceStartDate,
       });
@@ -807,6 +842,8 @@ export default function OfferBuilderPage() {
       setBriefing(offer.briefing || '');
       setRaten(data.raten || 12);
       setFinanzOpen(data.finanzOpen || false);
+      setRabattActive(data.rabattActive || false);
+      setSkontoActive(data.skontoActive || false);
       setGlobalTier(data.globalTier || '12mo');
       setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
       setServiceStartDate(offer.service_start_date || new Date().toISOString().slice(0, 10));
@@ -830,6 +867,8 @@ export default function OfferBuilderPage() {
     setShareCodeState(null);
     setCreator(ssoCreatorId() || '');
     setFinanzOpen(false);
+    setRabattActive(false);
+    setSkontoActive(false);
     setGlobalTier('12mo');
     setMandatsRef(Date.now().toString().slice(-12));
     setServiceStartDate(new Date().toISOString().slice(0, 10));
@@ -1060,6 +1099,7 @@ export default function OfferBuilderPage() {
                     <OfferView
                       cart={cart} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes} briefing={briefing} setBriefing={setBriefing}
                       totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
+                      rabattActive={rabattActive} setRabattActive={setRabattActive} skontoActive={skontoActive} setSkontoActive={setSkontoActive}
                       serviceStartDate={serviceStartDate} setServiceStartDate={setServiceStartDate}
                       billingEnabled={billingEnabled}
                       onSave={handleSave} onSend={openEmailPreview} saving={saving} sending={sending} saveSuccess={saveSuccess} currentOfferId={currentOfferId}
@@ -1081,6 +1121,7 @@ export default function OfferBuilderPage() {
                     )}
                     {showSignModal && (
                       <SignModal customer={customer} totals={totals} finanzOpen={finanzOpen} globalTier={globalTier}
+                        rabattActive={rabattActive} skontoActive={skontoActive}
                         onConfirm={handleSign} onClose={() => setShowSignModal(false)}
                       />
                     )}
