@@ -225,7 +225,9 @@ function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce
   return (
     <View style={styles.periodSummary} wrap={false}>
       <Text style={styles.periodSummaryTitle}>GESAMTÜBERSICHT</Text>
-      <View style={[styles.periodSummaryContent, { borderBottomWidth: showRecurringRow ? 0.5 : 0, borderBottomColor: '#e2e8f0', paddingBottom: showRecurringRow ? 6 : 0, marginBottom: showRecurringRow ? 4 : 0 }]}>
+
+      {/* First-year total (+ Rabatt sub-line, kept together above the divider) */}
+      <View style={styles.periodSummaryContent}>
         <Text style={styles.periodSummaryLabel}>{firstYearLabel}</Text>
         <View style={styles.periodSummaryValues}>
           {rabattActive && (
@@ -241,6 +243,19 @@ function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce
           <Text style={styles.periodSummaryRabattText}>- {fmt(discount.rabattAmount)} netto</Text>
         </View>
       )}
+
+      {/* Recurring cost for every following year */}
+      {showRecurringRow && (
+        <View style={[styles.periodSummaryContent, { borderTopWidth: 0.5, borderTopColor: '#475569', paddingTop: 8, marginTop: 8 }]}>
+          <Text style={styles.periodSummaryLabel}>{recurringLabel}</Text>
+          <View style={styles.periodSummaryValues}>
+            <Text style={styles.periodSummaryNetto}>{fmt(recurring)} netto</Text>
+            <Text style={styles.periodSummaryBrutto}>{fmt(recurring * 1.2)} brutto</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Skonto note — always last, as a conditional pay-in-full footer */}
       {skontoActive && (
         <View style={styles.periodSummarySkonto}>
           <View>
@@ -248,15 +263,6 @@ function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce
             <Text style={styles.periodSummarySkontoSub}>3% Skonto (- {fmt(discount.skontoAmount)})</Text>
           </View>
           <Text style={styles.periodSummarySkontoValue}>{fmt(discount.skontoBrutto)} brutto</Text>
-        </View>
-      )}
-      {showRecurringRow && (
-        <View style={styles.periodSummaryContent}>
-          <Text style={styles.periodSummaryLabel}>{recurringLabel}</Text>
-          <View style={styles.periodSummaryValues}>
-            <Text style={styles.periodSummaryNetto}>{fmt(recurring)} netto</Text>
-            <Text style={styles.periodSummaryBrutto}>{fmt(recurring * 1.2)} brutto</Text>
-          </View>
         </View>
       )}
     </View>

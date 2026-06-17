@@ -444,15 +444,6 @@ export default function OfferView({
                 <span className="text-emerald-400">− € {fmt(discount.rabattAmount)} netto</span>
               </div>
             )}
-            {skontoActive && (
-              <div className="flex justify-between items-center bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
-                <div>
-                  <div className="text-sm text-emerald-300 font-medium">Bei Zahlung innerhalb {SKONTO_DAYS} Tagen</div>
-                  <div className="text-xs text-slate-400">3% Skonto (− € {fmt(discount.skontoAmount)})</div>
-                </div>
-                <div className="font-bold text-emerald-300">€ {fmt(discount.skontoBrutto)} brutto</div>
-              </div>
-            )}
             {(totals.monthly > 0 && totals.once > 0) || totals.yearly > 0 ? (
               <div className="flex justify-between items-center">
                 <div>
@@ -465,6 +456,15 @@ export default function OfferView({
                 </div>
               </div>
             ) : null}
+            {skontoActive && (
+              <div className="flex justify-between items-center bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2 mt-1">
+                <div>
+                  <div className="text-sm text-emerald-300 font-medium">Bei Zahlung innerhalb {SKONTO_DAYS} Tagen</div>
+                  <div className="text-xs text-slate-400">3% Skonto (− € {fmt(discount.skontoAmount)})</div>
+                </div>
+                <div className="font-bold text-emerald-300">€ {fmt(discount.skontoBrutto)} brutto</div>
+              </div>
+            )}
           </div>
         </div>
       )}
