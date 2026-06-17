@@ -79,6 +79,20 @@ describe('computeTotals', () => {
     expect(t.yearly).toBe(0);
   });
 
+  it('honours a per-line priceOverride instead of the catalog price', () => {
+    const cart: Cart = {
+      install: { qty: 2, priceOverride: 199 }, // catalog is 250
+      hardware: { qty: 1 },
+    };
+    const t = computeTotals(cart, catalog);
+    expect(t.once).toBe(199 * 2 + 800);
+  });
+
+  it('treats a priceOverride of 0 as a free line', () => {
+    const cart: Cart = { install: { qty: 3, priceOverride: 0 } };
+    expect(computeTotals(cart, catalog).once).toBe(0);
+  });
+
   it('adds yearly Wartung for items with servicePercent and folds it into periodTotal', () => {
     const cart: Cart = { melzer: { qty: 3 } };
     const t = computeTotals(cart, catalog);

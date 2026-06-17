@@ -279,8 +279,8 @@ export default function OfferView({
               <div className="divide-y divide-slate-100">
                 {monthlyItems.map(([id, c]) => {
                   const item = ALL[id];
-                  const p = price(item, c.tier, c.mode);
-                  const dp = discountedPrice(item, c.tier, c.mode);
+                  const p = price(item, c.tier, c.mode, c.priceOverride);
+                  const dp = discountedPrice(item, c.tier, c.mode, c.priceOverride);
                   const fullQty = c.qty || 0;
                   const discQty = c.discountQty || 0;
                   const lineTotal = (p * fullQty) + (dp * discQty);
@@ -326,8 +326,8 @@ export default function OfferView({
               <div className="divide-y divide-slate-100">
                 {onceItems.map(([id, c]) => {
                   const item = ALL[id];
-                  const p = price(item, c.tier, c.mode);
-                  const dp = discountedPrice(item, c.tier, c.mode);
+                  const p = price(item, c.tier, c.mode, c.priceOverride);
+                  const dp = discountedPrice(item, c.tier, c.mode, c.priceOverride);
                   const fullQty = c.qty || 0;
                   const discQty = c.discountQty || 0;
                   const lineTotal = (p * fullQty) + (dp * discQty);

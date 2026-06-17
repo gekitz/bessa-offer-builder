@@ -123,6 +123,18 @@ describe('price', () => {
   it('falls back to the first available tier when the requested tier has no price', () => {
     expect(price(monthlyPartial, 'event', undefined)).toBe(19); // first available is 12mo
   });
+
+  it('returns the per-line override regardless of item type, including 0', () => {
+    expect(price(onceItem, undefined, undefined, 199)).toBe(199);
+    expect(price(termItem, undefined, 'buy', 1000)).toBe(1000);
+    expect(price(monthly, '12mo', undefined, 5)).toBe(5);
+    expect(price(onceItem, undefined, undefined, 0)).toBe(0); // free line
+  });
+
+  it('ignores a null/undefined override and uses the catalog price', () => {
+    expect(price(onceItem, undefined, undefined, null)).toBe(250);
+    expect(price(onceItem, undefined, undefined, undefined)).toBe(250);
+  });
 });
 
 describe('discountedPrice', () => {
@@ -138,6 +150,11 @@ describe('discountedPrice', () => {
 
   it('applies a percent discount', () => {
     expect(discountedPrice(withPercentDiscount, '12mo', undefined)).toBe(75);
+  });
+
+  it('applies the item discount on top of a price override', () => {
+    // override 200, then fixed discount of 50 -> 150
+    expect(discountedPrice(withFixedDiscount, '12mo', undefined, 200)).toBe(150);
   });
 });
 

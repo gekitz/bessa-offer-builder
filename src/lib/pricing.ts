@@ -44,8 +44,12 @@ export function price(
   item: Item | undefined | null,
   tier: TierKey | undefined,
   mode: ItemMode,
+  // Per-line price override stored on the cart item. When set (incl. 0) it is
+  // the unit net price for this line, replacing the catalog price.
+  override?: number | null,
 ): number | null {
   if (!item) return null;
+  if (override != null && Number.isFinite(override)) return override;
   if (item.t === 'o') return item.p?.o ?? item.price ?? 0;
   if (item.t === 'h') return item.p?.o ?? item.price ?? 0;
   if (item.t === 'term') return (mode === 'buy' ? item.buy : item.rent) ?? null;
@@ -64,8 +68,9 @@ export function discountedPrice(
   item: Item,
   tier: TierKey | undefined,
   mode: ItemMode,
+  override?: number | null,
 ): number | null {
-  const basePrice = price(item, tier, mode);
+  const basePrice = price(item, tier, mode, override);
   if (!item.discount || basePrice === null) return basePrice;
   if (item.discount.type === 'fixed') return Math.max(0, basePrice - item.discount.value);
   if (item.discount.type === 'percent') return basePrice * (1 - item.discount.value / 100);

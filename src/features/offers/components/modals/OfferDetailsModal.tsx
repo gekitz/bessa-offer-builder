@@ -20,6 +20,7 @@ interface CartEntry {
   discountQty?: number;
   tier?: string;
   mode?: ItemMode;
+  priceOverride?: number;
 }
 
 interface OfferDataShape {
@@ -149,8 +150,8 @@ function resolveItems(data: OfferDataShape | null | undefined): ResolvedItem[] {
       // pricing.price/discountedPrice can return null for custom or
       // term items missing tier data. Coalesce to 0 so the read-only
       // modal still renders rather than crashing on legacy rows.
-      const p = price(item, tier as Parameters<typeof price>[1], mode) ?? 0;
-      const dp = discountedPrice(item, tier as Parameters<typeof discountedPrice>[1], mode) ?? 0;
+      const p = price(item, tier as Parameters<typeof price>[1], mode, c?.priceOverride) ?? 0;
+      const dp = discountedPrice(item, tier as Parameters<typeof discountedPrice>[1], mode, c?.priceOverride) ?? 0;
       return {
         id,
         name: item.name,

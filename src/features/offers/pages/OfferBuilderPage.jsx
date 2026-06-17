@@ -381,23 +381,23 @@ export default function OfferBuilderPage() {
   function handleEditItem(id, { qty, discountQty, price: newPrice, description, optionGroup, optionSelected }) {
     setCart(c => {
       if (!c[id]) return c;
-      return { ...c, [id]: { ...c[id], qty, discountQty } };
+      const next = { ...c[id], qty, discountQty };
+      // Store the price as a per-line override on the cart item (so it
+      // persists with the offer), rather than mutating the shared catalog.
+      // If the price equals the catalog default, drop the override.
+      if (newPrice !== undefined) {
+        const item = ALL[id];
+        const def = item ? price(item, next.tier, next.mode) : null;
+        if (def !== null && Math.abs(newPrice - def) < 0.005) {
+          delete next.priceOverride;
+        } else {
+          next.priceOverride = newPrice;
+        }
+      }
+      return { ...c, [id]: next };
     });
     if (optionGroup !== undefined) {
       setCart(c => applyOptionGroup(c, id, optionGroup, !!optionSelected));
-    }
-    if (newPrice !== undefined) {
-      const item = ALL[id];
-      if (item) {
-        if (item.t === 'o' || item.t === 'h') {
-          item.p = { ...item.p, o: newPrice };
-          item.price = newPrice;
-        } else if (item.t === 'term') {
-          const cartItem = cart[id];
-          if (cartItem?.mode === 'buy') item.buy = newPrice;
-          else item.rent = newPrice;
-        }
-      }
     }
     if (description !== undefined && ALL[id]) {
       if (description) ALL[id].description = description;
@@ -444,7 +444,7 @@ export default function OfferBuilderPage() {
       lines.push('----------------------------------------');
       monthlyItems.forEach(([id, c], i) => {
         const item = ALL[id];
-        const p = price(item, c.tier, c.mode);
+        const p = price(item, c.tier, c.mode, c.priceOverride);
         const tierStr = c.tier ? ` (${TIER_LABEL_OFFER[c.tier]})` : '';
         const modeStr = c.mode === 'rent' && item.t === 'term' ? ' [Miete]' : '';
         lines.push(`  ${i + 1}. ${c.qty}x ${item.code ? item.code + ' ' : ''}${item.name}${tierStr}${modeStr}`);
@@ -463,7 +463,7 @@ export default function OfferBuilderPage() {
       lines.push('----------------------------------------');
       onceItems.forEach(([id, c], i) => {
         const item = ALL[id];
-        const p = price(item, c.tier, c.mode);
+        const p = price(item, c.tier, c.mode, c.priceOverride);
         const modeStr = c.mode === 'buy' ? ' [Kauf]' : '';
         const hourStr = item.t === 'h' ? ` (${c.qty} Std.)` : '';
         lines.push(`  ${i + 1}. ${c.qty}x ${item.code ? item.code + ' ' : ''}${item.name}${modeStr}${hourStr}`);

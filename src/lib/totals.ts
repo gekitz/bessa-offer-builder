@@ -14,6 +14,8 @@ export interface CartItem extends OptionCartItem {
   discountQty?: number;
   tier?: TierKey;
   mode?: ItemMode;
+  /** Per-line net unit price override set via the edit dialog. */
+  priceOverride?: number;
 }
 
 export type Cart = Record<string, CartItem>;
@@ -46,8 +48,8 @@ export function computeTotals(cart: Cart, catalog: Catalog): OfferTotals {
     const item = catalog[id];
     if (!item) continue;
     if (!counted.has(id)) continue;
-    const p = price(item, c.tier, c.mode);
-    const dp = discountedPrice(item, c.tier, c.mode);
+    const p = price(item, c.tier, c.mode, c.priceOverride);
+    const dp = discountedPrice(item, c.tier, c.mode, c.priceOverride);
     if (p === null) continue;
     const fullQty = c.qty ?? 0;
     const discQty = c.discountQty ?? 0;

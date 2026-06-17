@@ -15,8 +15,8 @@ export default function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, 
   const inCart = !!cartItem;
   const tier = cartItem?.tier || bestTier(item, globalTier);
   const mode = cartItem?.mode || 'rent';
-  const p = price(item, tier, mode);
-  const dp = discountedPrice(item, tier, mode);
+  const p = price(item, tier, mode, cartItem?.priceOverride);
+  const dp = discountedPrice(item, tier, mode, cartItem?.priceOverride);
   const av = availableTiers(item);
   const monthly = isMonthly(item, mode);
   const hasDiscountOption = hasDiscount(item);

@@ -57,8 +57,8 @@ export function decorateLineItems(entries: CartEntry[], catalog: Catalog): Offer
     .filter(([id]) => catalog[id])
     .map(([id, c]) => {
       const item = catalog[id];
-      const p = price(item, c.tier, c.mode);
-      const dp = discountedPrice(item, c.tier, c.mode);
+      const p = price(item, c.tier, c.mode, c.priceOverride);
+      const dp = discountedPrice(item, c.tier, c.mode, c.priceOverride);
       const fullQty = c.qty || 0;
       const discQty = c.discountQty || 0;
       const lineTotal = (p ?? 0) * fullQty + (dp ?? 0) * discQty;

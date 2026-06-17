@@ -250,8 +250,8 @@ export default function AcceptPage({ shareCode }) {
   Object.entries(cart).forEach(([id, c]) => {
     const item = ALL[id] || customItems[id];
     if (!item) return;
-    const p = price(item, c.tier, c.mode);
-    const dp = discountedPrice(item, c.tier, c.mode);
+    const p = price(item, c.tier, c.mode, c.priceOverride);
+    const dp = discountedPrice(item, c.tier, c.mode, c.priceOverride);
     if (p === null) return;
     const line = (p * (c.qty || 0)) + (dp * (c.discountQty || 0));
     if (isMonthly(item, c.mode)) {
