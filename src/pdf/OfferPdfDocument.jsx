@@ -246,7 +246,7 @@ function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce
 
       {/* Recurring cost for every following year */}
       {showRecurringRow && (
-        <View style={[styles.periodSummaryContent, { borderTopWidth: 0.5, borderTopColor: '#475569', paddingTop: 8, marginTop: 8 }]}>
+        <View style={[styles.periodSummaryContent, { borderTopWidth: 0.5, borderTopColor: '#475569', paddingTop: 12, marginTop: 12 }]}>
           <Text style={styles.periodSummaryLabel}>{recurringLabel}</Text>
           <View style={styles.periodSummaryValues}>
             <Text style={styles.periodSummaryNetto}>{fmt(recurring)} netto</Text>

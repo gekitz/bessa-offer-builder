@@ -315,8 +315,8 @@ export const styles = StyleSheet.create({
     color: COLORS.light,
   },
   periodSummarySkonto: {
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 0.5,
     borderTopColor: '#475569',
     flexDirection: 'row',
