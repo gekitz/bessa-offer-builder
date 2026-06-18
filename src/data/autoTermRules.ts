@@ -20,7 +20,7 @@ export const AUTO_TERM_RULES: readonly AutoTermRule[] = [
   {
     id: 'travel-billing',
     condition: () => true,
-    text: 'Fahrzeit und KM-Geld werden nach GPS verrechnet',
+    text: 'Arbeitszeit, Wegzeit und KM-Geld werden nach tatsächlichem Aufwand verrechnet.',
   },
   {
     id: 'network-cabling',
