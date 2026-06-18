@@ -173,29 +173,31 @@ export const DRUCKER: Item[] = [
   { id:'2ce55292-b567-488a-bd35-20f280dc8381', name:'Bixolon SPP-R200III', price:376, t:'o' },
 ];
 
+// Prices = Black Pepper list price (our cost) × 1.42 (selling margin).
+// Source: 2025-10-20 BlackPepper-Preisliste.
 export const KUECHENMONITORE: Item[] = [
   // KitchenSpeed Lite
-  { id:'b98e4215-ab79-45b0-a365-32a6bb9367a5', name:'KitchenSpeed Lite 15,6" Intel J6412', price:1960, t:'o' },
-  { id:'be7b9177-1682-4388-bfe5-07615adf7cde', name:'KitchenSpeed Lite 15,6" Intel i3', price:2400, t:'o' },
-  { id:'ca26b2dd-e2ee-4068-baeb-0b30bef3652f', name:'KitchenSpeed Lite 15,6" Android PoE++', price:1960, t:'o' },
-  { id:'fcb98549-60de-4634-bf8d-267648cde83e', name:'KitchenSpeed Lite 21,5" Intel J6412', price:2390, t:'o' },
-  { id:'82dfb1e9-37e8-465c-8f08-d56fbe5cd525', name:'KitchenSpeed Lite 21,5" Intel i3', price:2830, t:'o' },
-  { id:'227beac0-cae4-444b-b349-75692a4c288f', name:'KitchenSpeed Lite 21,5" Android PoE++', price:2390, t:'o' },
-  { id:'ba4b1c27-d6dc-4120-b348-236430abecc8', name:'KitchenSpeed Lite 32" Intel J6412', price:3520, t:'o' },
-  { id:'c659e63f-1305-4729-89ab-560e527cd8a2', name:'KitchenSpeed Lite 32" Intel i3', price:3980, t:'o' },
-  { id:'ce5d9b69-52e4-4199-8adf-97f192a9b4e3', name:'KitchenSpeed Lite 32" Android PoE++', price:3520, t:'o' },
+  { id:'b98e4215-ab79-45b0-a365-32a6bb9367a5', name:'KitchenSpeed Lite 15,6" Intel J6412', price:1391.60, t:'o' },
+  { id:'be7b9177-1682-4388-bfe5-07615adf7cde', name:'KitchenSpeed Lite 15,6" Intel i3', price:1704, t:'o' },
+  { id:'ca26b2dd-e2ee-4068-baeb-0b30bef3652f', name:'KitchenSpeed Lite 15,6" Android PoE++', price:1391.60, t:'o' },
+  { id:'fcb98549-60de-4634-bf8d-267648cde83e', name:'KitchenSpeed Lite 21,5" Intel J6412', price:1696.90, t:'o' },
+  { id:'82dfb1e9-37e8-465c-8f08-d56fbe5cd525', name:'KitchenSpeed Lite 21,5" Intel i3', price:2009.30, t:'o' },
+  { id:'227beac0-cae4-444b-b349-75692a4c288f', name:'KitchenSpeed Lite 21,5" Android PoE++', price:1696.90, t:'o' },
+  { id:'ba4b1c27-d6dc-4120-b348-236430abecc8', name:'KitchenSpeed Lite 32" Intel J6412', price:2499.20, t:'o' },
+  { id:'c659e63f-1305-4729-89ab-560e527cd8a2', name:'KitchenSpeed Lite 32" Intel i3', price:2825.80, t:'o' },
+  { id:'ce5d9b69-52e4-4199-8adf-97f192a9b4e3', name:'KitchenSpeed Lite 32" Android PoE++', price:2499.20, t:'o' },
   // KitchenSpeed Ultra
-  { id:'4a898f54-638b-45e8-8f29-d1d3f573d9ad', name:'KitchenSpeed Ultra 22" Intel N97', price:4760, t:'o' },
-  { id:'bd6f02cc-856f-42b2-b3a2-90aacf32c76f', name:'KitchenSpeed Ultra 32" Intel N97', price:5780, t:'o' },
+  { id:'4a898f54-638b-45e8-8f29-d1d3f573d9ad', name:'KitchenSpeed Ultra 22" Intel N97', price:3379.60, t:'o' },
+  { id:'bd6f02cc-856f-42b2-b3a2-90aacf32c76f', name:'KitchenSpeed Ultra 32" Intel N97', price:4103.80, t:'o' },
   // Zubehör
-  { id:'3fff9523-d8bd-4c3f-bcd2-00068feba867', name:'Windows 10 IoT Enterprise LTSC', price:110, t:'o' },
-  { id:'7e3f6afa-b17a-4254-aa8a-a40d80610aa1', name:'Halterungslösung (Wand/Decke/Standfuß)', price:358, t:'o' },
-  { id:'94561292-0c42-47a1-b938-ed3337d8583e', name:'Signalisierungslautsprecher', price:56, t:'o', info:'für Lite' },
+  { id:'3fff9523-d8bd-4c3f-bcd2-00068feba867', name:'Windows 11 IoT Enterprise LTSC', price:78.10, t:'o' },
+  { id:'7e3f6afa-b17a-4254-aa8a-a40d80610aa1', name:'Halterungslösung (Wand/Decke/Standfuß)', price:254.18, t:'o' },
+  { id:'94561292-0c42-47a1-b938-ed3337d8583e', name:'Signalisierungslautsprecher', price:39.76, t:'o', info:'für Lite' },
   // Service
-  { id:'69363519-c612-4ecb-9733-02bd782bd654', name:'Black Pepper-Protect Upgrade', price:96, t:'o', info:'für Lite' },
-  { id:'9472265f-181b-403c-bec5-1a53cdc88117', name:'Garantieverlängerung Lite +1 Jahr', price:196, t:'o' },
-  { id:'767029e1-52cf-40a3-9f76-e49c145b94eb', name:'Garantieverlängerung Ultra +1 Jahr', price:360, t:'o' },
-  { id:'90dc559f-f14a-457d-a328-eb7c6945a5c3', name:'Garantieverlängerung Ultra +2 Jahre', price:640, t:'o' },
+  { id:'69363519-c612-4ecb-9733-02bd782bd654', name:'Black Pepper-Protect Upgrade', price:68.16, t:'o', info:'für Lite' },
+  { id:'9472265f-181b-403c-bec5-1a53cdc88117', name:'Garantieverlängerung Lite +1 Jahr', price:139.16, t:'o' },
+  { id:'767029e1-52cf-40a3-9f76-e49c145b94eb', name:'Garantieverlängerung Ultra +1 Jahr', price:255.60, t:'o' },
+  { id:'90dc559f-f14a-457d-a328-eb7c6945a5c3', name:'Garantieverlängerung Ultra +2 Jahre', price:454.40, t:'o' },
 ];
 
 export const KUECHENMONITORE_SUNMI: Item[] = [
