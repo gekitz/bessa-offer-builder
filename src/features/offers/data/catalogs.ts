@@ -160,7 +160,9 @@ export const RCH: Item[] = [
 export const HARDWARE: Item[] = [
   { id:'fdb37b6a-4ad5-4a46-ba8f-53e4a2154ce3', name:'Sunmi D3 Pro', price:1024, t:'o' },
   { id:'c36c776a-194a-4c32-b758-8ffc09cf991b', name:'Sunmi D3 Mini', price:690, t:'o' },
-  { id:'bbcba755-3fa2-4c21-85e2-9842a1baa541', name:'D3 Pro Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
+  { id:'149f374e-6341-4a33-a1bc-23dff12ad749', name:'Sunmi D3 80mm', price:1049, t:'o' },
+  { id:'9a92555d-b845-4282-ae38-963980fc1479', name:'Sunmi T3 80mm', price:1249, t:'o' },
+  { id:'bbcba755-3fa2-4c21-85e2-9842a1baa541', name:'D3 Pro / D3 80mm / T3 80mm Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
   { id:'91b8a7fa-5b0c-44a4-a4a7-fd6c6f0b25f6', name:'Sunmi V3H', price:649, t:'o' },
   { id:'4bc17b56-5e4e-49cf-b4fb-a0e4d295335a', name:'Sunmi L3H', price:599, t:'o' },
   { id:'1a4f3300-edd2-477f-8188-604b8ef8fba3', name:'V3H/L3H/D3 mini Garantieverlängerung', price:90, t:'o', info:'auf 48 Monate' },
