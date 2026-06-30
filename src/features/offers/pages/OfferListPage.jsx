@@ -49,6 +49,7 @@ import LostReasonModal from '../components/modals/LostReasonModal';
 import OfferDetailsModal from '../components/modals/OfferDetailsModal';
 import { lostReasonLabel } from '../data/lostReasons';
 import { filterOffersBySearch } from '../lib/offerSearch';
+import { isActionableBounce } from '../lib/bounce';
 import { bucketize } from '../followUpBuckets';
 import { fmt } from '../../../lib/format';
 
@@ -325,7 +326,8 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   // Bounced count across the whole dataset (independent of the
   // current stage filter) so reps see "✉ 3 unzustellbar" even when
   // they're scoped to "Neu" — those offers might be in any stage.
-  const bouncedCount = offers.filter((o) => o.status === 'bounced').length;
+  // Won/lost deals are excluded: a stale bounce there needs no action.
+  const bouncedCount = offers.filter(isActionableBounce).length;
   const buckets = useMemo(() => bucketize(creatorFiltered), [creatorFiltered]);
   const followUpCount = buckets.overdue.length + buckets.dueToday.length + buckets.stale.length;
   const logTarget = logTargetId ? offers.find((o) => o.id === logTargetId) : null;
@@ -524,7 +526,7 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
             <div
               key={o.id}
               className={`bg-white rounded-xl border-2 overflow-hidden transition-colors ${
-                o.status === 'bounced'
+                isActionableBounce(o)
                   ? 'border-red-400 ring-2 ring-red-100'
                   : detailId === o.id
                     ? 'border-red-200 shadow-sm'
@@ -533,8 +535,9 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
             >
               {/* Loud bounce warning — full-width banner above the
                   collapsed row so a wrong customer email is the
-                  first thing the rep sees, not a tiny pill. */}
-              {o.status === 'bounced' && (
+                  first thing the rep sees, not a tiny pill. Suppressed
+                  once the deal is won/lost (stale bounce, no action). */}
+              {isActionableBounce(o) && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white" style={{ fontSize: 12 }}>
                   <AlertCircle size={14} className="flex-shrink-0" />
                   <span className="font-semibold">E-Mail unzustellbar</span>
