@@ -1,310 +1,313 @@
-# BESSA CRM — Project Plan & Implementation Roadmap
+# KITZ Workspace — Project Plan & Implementation Roadmap
 
-**Last updated:** 10 April 2026 | **Version:** 1.2
+**Last updated:** 11 May 2026 | **Version:** 2.0
 
 ---
 
 ## Project Overview
 
-Transform the existing **bessa-offer-builder** React app into a full-featured CRM integrated with **Mesonic WinLine ERP** via MDP WebServices. The system serves KITZ Computer + Office GmbH across their Klagenfurt and Wolfsberg locations.
+The **KITZ Workspace** (formerly bessa-offer-builder) is an internal business platform for KITZ Computer + Office GmbH, serving their Klagenfurt and Wolfsberg locations. It integrates offer management, CRM, vacation/leave management, shift planning, and billing into a single React app connected to **Mesonic WinLine ERP** via MDP WebServices.
 
 ### Tech Stack
 
-- **Frontend:** React 18 + Vite 5 + Tailwind CSS 3.4
-- **Backend:** Supabase (PostgreSQL, Auth, Edge Functions, Realtime)
+- **Frontend:** React 18 + Vite 5 + Tailwind CSS 3.4 + TypeScript (new features)
+- **Backend:** Supabase (PostgreSQL, Auth, Edge Functions, Realtime, Storage)
 - **ERP Integration:** Mesonic WinLine MDP WebServices (HTTP/XML, session-based)
 - **Auth:** Microsoft Entra ID SSO via Supabase Azure provider
+- **Payments:** Stripe (checkout, subscriptions, invoicing)
 - **Email:** Resend API
 - **PDF:** @react-pdf/renderer (client-side)
+- **Routing:** HashRouter with section-based deep linking
 - **Future:** Electron for desktop, Starface REST API for CTI
 
 ### Architecture
 
 ```
-React Frontend → Supabase Edge Function (Mesonic Proxy) → WinLine MDP WebServices
+React Frontend ─┬─ Supabase Edge Function (Mesonic Proxy) ─── WinLine MDP WebServices
+                ├─ Supabase PostgreSQL (offers, workforce, shifts, tickets)
+                ├─ Supabase Storage (PDFs, attachments)
+                ├─ Supabase Realtime (live updates)
+                └─ Stripe API (billing, subscriptions)
 ```
 
-The proxy handles session management (login/keepalive/logout), forwards EXIM requests, and caches session tokens. Supabase-native tables handle tickets, user profiles, and other data that doesn't belong in Mesonic.
+### Navigation Structure
+
+```
+KITZ Workspace
+├── Angebote (offers list + builder)
+├── CRM (customer search, detail, create/edit)
+└── Urlaub (leave requests, calendar, shifts)
+```
 
 Mesonic API Type codes: **1**=Customers, **4**=Articles, **5**=Prices, **7**=Contacts, **30**=Belege (invoices/orders).
 
 ---
 
-## Phase 1: Authentication & Mesonic Proxy
+## Phase 1: Authentication & Mesonic Proxy ✅
 
-**Duration:** 2 weeks | **Priority:** Critical (blocks everything)
+**Duration:** 2 weeks | **Status:** Complete
 
-### Week 1: Microsoft SSO & User Profiles
+### Week 1: Microsoft SSO & User Profiles ✅
 
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Supabase migration: user_profiles table with mesonic_rep_id, mesonic_rep_name, role, pools | 2h | ✅ Done | English column names only |
-| Database trigger: handle_new_user() on auth.users INSERT, SECURITY DEFINER, SET search_path = public | 1h | ✅ Done | Creates profile on first SSO login |
-| RLS policies: permissive read/insert/update for authenticated users, admin enforcement in app layer | 1h | ✅ Done | Avoids recursive policy bug |
-| AuthProvider context (src/lib/auth.jsx): session management, profile fetch, SSO login/logout | 3h | ✅ Done | Separate useEffect for profile fetch to avoid Supabase deadlock |
-| LoginPage component: Microsoft SSO button with branding | 1h | ✅ Done | German UI text |
-| ProtectedRoute component: guards app, shows login/loading states | 1h | ✅ Done | |
-| AdminUserMapping component: map users to Mesonic rep IDs, roles, pools | 3h | ✅ Done | Per-user save with optimistic UI |
-| profileApi.js: listProfiles(), updateProfile() | 1h | ✅ Done | |
-| Auto-match SSO email to TEAM array creator (dual email format support) | 1h | ✅ Done | Handles f.last@kitz vs lf@kitz formats |
-| SSO setup documentation for IT admin (PDF) | 1h | ✅ Done | Concrete values filled in for KITZ |
+| Task | Status | Notes |
+|------|--------|-------|
+| Supabase migration: user_profiles table | ✅ Done | mesonic_rep_id, role, pools |
+| Database trigger: handle_new_user() | ✅ Done | Creates profile on first SSO login |
+| RLS policies | ✅ Done | Permissive read/write, admin in app layer |
+| AuthProvider context | ✅ Done | Session management, profile fetch |
+| LoginPage + ProtectedRoute | ✅ Done | Microsoft SSO, German UI |
+| AdminUserMapping component | ✅ Done | Map users to Mesonic rep IDs |
+| Auto-match SSO email to TEAM | ✅ Done | Dual email format support |
 
-### Week 2: Mesonic Proxy Edge Function
+### Week 2: Mesonic Proxy Edge Function ✅
 
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Create Supabase Edge Function: supabase/functions/mesonic-proxy | 2h | ✅ Done | TypeScript, Deno runtime, deployed with --no-verify-jwt |
-| Session management: login to WinLine with credentials from env vars | 2h | ✅ Done | Login returns `Session=<uuid>`, must strip prefix |
-| Session keepalive: in-isolate caching with 4-min TTL | 1h | ✅ Done | Edge Functions are stateless; fresh login per cold start |
-| Session error recovery: detect expired sessions and auto-relogin | 2h | ✅ Done | Checks for 001001/001002 and "session not found" text |
-| EXIM request forwarding: export (parsed JSON + raw XML) and import | 3h | ✅ Done | Actions: export, export_raw, import, ping, debug |
-| XML parser: Mesonic MESOWebService format → JSON records | 2h | ✅ Done | Template name used as record tag, error code extraction |
-| Frontend client: src/lib/mesonicApi.js with typed helper functions | 2h | ✅ Done | searchCustomers, getCustomer, searchArticles, getBeleg, etc. |
-| Auth guard: verify Supabase JWT via getUser() | 1h | ✅ Done | Reject unauthenticated requests |
-| Test with real WinLine: single-key customer export (Type 1) | 2h | ✅ Done | Customer 29385 (Stadtgemeinde Althofen) reads correctly |
-| Environment config: MESONIC_URL, MESONIC_USER, MESONIC_PASS, MESONIC_COMPANY | 1h | ✅ Done | Set as Supabase Edge Function secrets |
-| ✅ WHERE queries (LIKE with %%) | 1h | ✅ Done | Mesonic requires double %% for LIKE wildcards; technician enabled Exportparameter |
-| ⚠️ Wildcard Key=* and range Key=X++Y not supported | — | Won't fix | Use WHERE queries instead (e.g. `where T055.C003 <> ''` for all) |
-| ⚠️ WebKontenListe/WebArtikelListe/WebBelegListe templates don't exist | — | Won't fix | Using WebKontenExport etc. with WHERE queries instead |
+| Task | Status | Notes |
+|------|--------|-------|
+| Edge Function: mesonic-proxy | ✅ Done | TypeScript, Deno, --no-verify-jwt |
+| Session management + keepalive + recovery | ✅ Done | 4-min TTL, auto-relogin |
+| EXIM forwarding: export, export_raw, import, ping, import_debug | ✅ Done | 30s timeout on imports |
+| XML parser → JSON records | ✅ Done | German field names from Mesonic |
+| Frontend client: mesonicApi.js | ✅ Done | Retry on WORKER_LIMIT (3x) |
+| WHERE queries (LIKE with %%) | ✅ Done | Double %% for Mesonic LIKE; Key param built without URLSearchParams encoding |
+| ⚠️ Wildcard/Range/Liste not supported | Won't fix | Use WHERE queries instead |
+
+**Key learnings:**
+- Mesonic returns German field names (Name, Strasse, Ort), not T055_C003 IDs → flexible field accessor `F.name(record)` pattern
+- Import endpoint `/ewlservice/import` hangs indefinitely → 30s AbortController timeout added → **blocked on Mesonic technician** (WebKontenImport template may not be configured)
+- `WebPreisExport` template does not exist → **needs Mesonic technician to create**
+- Large WHERE result sets (all articles) cause Edge Function timeout → use targeted searches only
 
 ---
 
 ## Phase 2: Customer & Article Catalog
 
-**Duration:** 3 weeks | **Depends on:** Phase 1 (Mesonic Proxy)
+**Duration:** 3 weeks | **Depends on:** Phase 1
 
-### Week 3: Customer Management & Layout Refactoring
+### Week 3: Customer Management & Layout ✅
 
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Layout refactoring: sidebar navigation (Angebote / CRM sections) | 4h | ✅ Done | AppShell component, replaces old mobile tab bar |
-| Angebote section: list as default view, builder as sub-view | 2h | ✅ Done | "Neues Angebot" / "Laden" opens builder; back arrow returns to list |
-| Customer search via Mesonic EXIM (WHERE queries with %%) | 3h | ✅ Done | Debounced search, 400ms delay, min 2 chars |
-| Customer list view: card-based results with search bar | 3h | ✅ Done | Shows name, address, phone, email |
-| Customer detail view: master data, quick actions, expandable fields | 3h | ✅ Done | Call/Email/Website buttons, Stammdaten + all fields toggle |
-| CRM page integrated into new sidebar layout | 1h | ✅ Done | Lazy-loaded CrmPage component |
-| Create new customer: form → Mesonic EXIM (Type 1, Schreiben) | 3h | ✅ Done | CustomerForm component, validates + imports via WebKontenImport |
-| Edit customer: update master data in Mesonic | 2h | ✅ Done | Pre-fills form from existing record, "Bearbeiten" button on detail view |
-| Link customer to offer builder: replace manual customer input | 2h | ✅ Done | CustomerPicker modal in OfferView, auto-fills all fields + Mesonic ID badge |
+| Task | Status | Notes |
+|------|--------|-------|
+| AppShell: responsive sidebar + mobile bottom tab bar | ✅ Done | Desktop sidebar, mobile bottom nav, collapsible |
+| Angebote section: list + builder views | ✅ Done | Section-based navigation |
+| CRM customer search (WHERE with %%) | ✅ Done | Debounced, min 2 chars |
+| Customer list + detail + create + edit | ✅ Done | CrmPage with view state, CustomerForm component |
+| CustomerPicker: link Mesonic customer to offer | ✅ Done | Auto-fills fields + mesonicId badge |
+| Store mesonic_customer_id on offers | ✅ Done | Migration 20260410 |
+| Mobile responsive fix | ✅ Done | Bottom tab bar, responsive paddings, safe-area-inset |
+| Mesonic import response parsing | ✅ Done | Detects OverallSuccess=false in XML |
 
-### Week 4: Article Catalog
+### Week 4: Article Catalog ⏸️ Blocked
 
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Fetch articles from Mesonic (Type 4, Lesen) | 2h | Pending | Full catalog pull |
-| Fetch prices from Mesonic (Type 5, Lesen) | 2h | Pending | Price lists, tier pricing |
-| Article list view: categorized, searchable catalog | 3h | Pending | Group by category |
-| Article detail view: description, prices, stock info | 2h | Pending | |
-| Replace hardcoded KASSA/HARDWARE arrays with live Mesonic data | 4h | Pending | Major refactor of product data |
-| Price calculation: handle Mesonic price tiers and discounts | 2h | Pending | Match current tier logic |
+| Task | Status | Notes |
+|------|--------|-------|
+| Article export tested (Type 4, WebArtikelExport) | ✅ Done | Works for single + WHERE search; returns: Artikelnummer, Bezeichnung, Artikelgruppe, Gewicht |
+| Article search in test page (#test) | ✅ Done | Tests 11-16, interactive Article Explorer |
+| Price export (Type 5, WebPreisExport) | ⛔ Blocked | Template does not exist — needs Mesonic technician |
+| bessa articles in Mesonic | ⛔ Blocked | Articles not yet correctly entered in WinLine |
+| Article list view in CRM | Deferred | Waiting for correct article data |
+| Replace hardcoded KASSA/HARDWARE arrays | Deferred | Waiting for correct article data + price export |
+| Price calculation from Mesonic tiers | Deferred | Waiting for price export template |
 
-### Week 5: Team Data Migration & Integration
+**Blockers:** Email sent to Mesonic technician (Heri Scheiber, sh@kitz.co.at) requesting:
+1. WebPreisExport template creation
+2. WebKontenImport endpoint investigation (hangs on POST)
+3. Confirmation of WebArtikelExport field completeness
 
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Replace hardcoded TEAM array with user_profiles query | 3h | Pending | Single source of truth |
-| Update offer PDF generation to use profile data | 2h | Pending | Creator info from profiles |
-| Add phone, location fields to user_profiles if missing | 1h | Pending | Match current TEAM fields |
-| Customer → Offer flow: select customer, auto-fill offer form | 3h | Pending | End-to-end integration |
-| Offer → Customer link: store Mesonic customer ID on offers | 2h | ✅ Done | Migration 20260410, mesonic_customer_id + customer_address columns |
-| Integration testing: full flow from customer search to offer creation | 3h | Pending | |
+### Week 5: Team Data Migration
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Replace hardcoded TEAM array | Pending | Now possible via `employees` table (workforce schema) |
+| Update offer PDF with profile data | Pending | Creator info from employees/user_profiles |
+| Customer → Offer end-to-end flow | Pending | Integration testing |
 
 ---
 
 ## Phase 3: Belege (Documents/Invoices)
 
-**Duration:** 3 weeks | **Depends on:** Phase 2 (Customers & Articles)
+**Duration:** 3 weeks | **Depends on:** Phase 2 + Mesonic Import working
 
-### Week 6: Beleg Reading & Display
+### Week 6-7: Beleg Reading & Creation
 
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Fetch Belege from Mesonic (Type 30, Lesen) | 3h | Pending | Offers, orders, invoices |
-| Beleg list view: filterable by type, status, date range, customer | 4h | Pending | Column sorting, pagination |
-| Beleg detail view: header, positions, totals | 3h | Pending | Read-only initially |
-| Customer → Belege tab: show all documents for a customer | 2h | Pending | Linked via customer number |
-| Beleg PDF preview: render Mesonic document as PDF | 3h | Pending | Using existing PDF infrastructure |
+| Task | Status | Notes |
+|------|--------|-------|
+| Fetch Belege from Mesonic (Type 30) | Pending | Requires working export |
+| Beleg list + detail view | Pending | |
+| Customer → Belege tab | Pending | |
+| Create offer Beleg in Mesonic | ⛔ Blocked | Requires working import endpoint |
+| Offer → Order → Invoice flow | ⛔ Blocked | Requires working import endpoint |
 
-### Week 7: Beleg Creation
+### Week 8: Beleg Polish
 
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Create offer Beleg: push offer data to Mesonic (Type 30, Schreiben) | 4h | Pending | Map offer items to Beleg positions |
-| Create order from offer: convert offer → order in Mesonic | 3h | Pending | Beleg transformation |
-| Create invoice from order: order → invoice conversion | 3h | Pending | |
-| Beleg status tracking: map Mesonic status to UI states | 2h | Pending | |
-| Connect offer builder: Save to Supabase AND create Mesonic Beleg | 3h | Pending | Dual persistence |
+| Task | Status | Notes |
+|------|--------|-------|
+| Beleg number formatting, tax handling | Pending | |
+| Beleg duplication, search | Pending | |
+| Error handling, integration testing | Pending | |
 
-### Week 8: Beleg Polish & Edge Cases
-
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Beleg number formatting: match Mesonic numbering scheme | 2h | Pending | |
-| Multi-currency and tax handling | 2h | Pending | Austrian VAT rules |
-| Beleg duplication: copy existing Beleg as template | 2h | Pending | |
-| Beleg search: full-text search across Beleg data | 2h | Pending | |
-| Error handling: Mesonic write failures, validation errors | 2h | Pending | User-friendly error messages |
-| Integration testing: full offer → order → invoice flow | 3h | Pending | |
+**Analysis complete:** PDF-to-Mesonic storage options documented in `docs/PDF_TO_MESONIC_ANALYSIS.md`. Short-term: Supabase Storage + mesonic_customer_id (implemented). Long-term: Beleg import once articles are ready.
 
 ---
 
-## Phase 4: Ticket Management
+## Phase 4: Vacation & Leave Management ✅ NEW
 
-**Duration:** 3 weeks | **Depends on:** Phase 1 (Auth & Profiles)
+**Duration:** 2 weeks | **Status:** Complete
 
-### Database Schema
+### Database Schema (migration 20260504)
 
-All ticket data lives in Supabase (not Mesonic):
+Supabase tables: `employees`, `employee_roles`, `leave_types`, `leave_requests`, `leave_balances`, `leave_request_decisions`, `substitutes`, `workforce_audit_log`. All with RLS and audit trails.
 
-- **tickets:** id, ticket_number (auto), customer_id, customer_name, subject, description, status (open/in_progress/waiting/resolved/closed), priority (low/medium/high/urgent), pool (kassen/it/netzwerk), assigned_to (user_profiles FK), created_by, notify_customer boolean, customer_email, timestamps
-- **ticket_messages:** id, ticket_id FK, author_id FK, content (text), visibility (public/internal), timestamps
-- **ticket_time_entries:** id, ticket_id FK, user_id FK, duration_minutes, description, billable boolean, date, timestamps
-- **ticket_attachments:** id, ticket_id FK, message_id FK (optional), file_name, file_path (Supabase Storage), file_size, mime_type, uploaded_by FK, timestamps
+### Implementation
 
-### Week 9: Ticket CRUD & Pools
-
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Supabase migration: tickets, ticket_messages, ticket_time_entries, ticket_attachments tables | 3h | Pending | RLS per pool/assignment |
-| Ticket list view: filter by pool, status, assignee, priority | 4h | Pending | Pool tabs, badge counts |
-| Create ticket form: customer search, pool/assignee selection, priority | 3h | Pending | Link to Mesonic customer |
-| Ticket detail view: header, status bar, assignment info | 3h | Pending | |
-| Pool assignment logic: employees see tickets for their configured pools | 2h | Pending | Based on user_profiles.pools |
-| Pick ticket: unassigned → assigned_to = current user | 1h | Pending | One-click claim |
-| Ticket status transitions: open → in_progress → waiting → resolved → closed | 2h | Pending | State machine with validation |
-
-### Week 10: Communication & Attachments
-
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Message thread UI: chronological messages with public/internal toggle | 4h | Pending | Internal messages visually distinct |
-| Add message: rich text input with visibility selector | 2h | Pending | Default to internal |
-| Customer email notification on ticket creation | 3h | Pending | Via Resend, controlled by notify_customer flag |
-| Customer email notification on public message added | 2h | Pending | Only for visibility=public messages |
-| Customer email notification on ticket resolved | 2h | Pending | Resolution summary |
-| File attachments: upload to Supabase Storage, link to ticket or message | 3h | Pending | Drag & drop, file type validation |
-| Time entry logging: duration, description, billable flag | 2h | Pending | Per-ticket time tracking |
-
-### Week 11: Ticket → Invoice & Polish
-
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Time entry summary: total hours per ticket, billable vs non-billable | 2h | Pending | |
-| Generate invoice: create Mesonic Beleg (Type 30) from billable time entries | 4h | Pending | Map time entries to Beleg positions |
-| Ticket → Invoice link: store Beleg reference on ticket | 1h | Pending | |
-| Ticket search: full-text search across tickets and messages | 2h | Pending | |
-| Supabase Realtime: live updates when colleagues add messages or change status | 3h | Pending | Subscribe to ticket changes |
-| Ticket dashboard: open per pool, my assigned, overdue, avg resolution time | 3h | Pending | |
+| Task | Status | Notes |
+|------|--------|-------|
+| Workforce DB schema (employees, roles, leave types, balances) | ✅ Done | 20260504 migration, RBAC support |
+| VacationPage: main UI with tabs | ✅ Done | Lazy-loaded from AppShell |
+| LeaveRequestForm: create/edit with validation | ✅ Done | Half-day support, attachments |
+| LeaveRequestsList: filterable with status tabs | ✅ Done | Decision dialog for approvers |
+| LeaveCalendar: month view with drag-to-range | ✅ Done | DayDetailModal for who's on leave |
+| BalancePanel + EmployeeBalanceTable | ✅ Done | Entitlement, used, remaining per type |
+| DecisionDialog: approve/reject with notes | ✅ Done | Approver-only interface |
+| CalendarSubscriptionModal: iCal feed | ✅ Done | Per-employee token auth |
+| 11 validation rules engine | ✅ Done | Entitlement, lead time, blackout, bridge days, coverage, etc. |
+| Permissions (RBAC) | ✅ Done | isApprover() detection |
+| useApproverPendingCount hook | ✅ Done | Badge in nav sidebar |
+| Leave attachment upload (Krankmeldung) | ✅ Done | Supabase Storage |
+| Comprehensive test suite | ✅ Done | 9 component + 9 rule + utility tests |
 
 ---
 
-## Phase 5: Contacts & Dashboard
+## Phase 5: Shift Management ✅ NEW
+
+**Duration:** 1 week | **Status:** Complete
+
+### Database Schema (migration 20260508)
+
+Tables: `shift_slot_kinds`, `bank_holidays_at`, `shift_roster`, `shifts`, `shift_swaps`. Austrian holidays 2026-2027 seeded.
+
+### Implementation
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Shift DB schema + seed data | ✅ Done | Slot kinds (Fri PM, Sat, Sun, Holiday) |
+| MyShiftsPanel: upcoming ~6 shifts | ✅ Done | Employee view |
+| ShiftAdminPanel: create slots, assign, manage | ✅ Done | Approver interface |
+| ShiftDetailModal + ShiftSwapForm | ✅ Done | Swap request flow |
+| Austrian bank holidays 2026-2027 | ✅ Done | Seeded in migration |
+| Test suite | ✅ Done | 4 component tests |
+
+---
+
+## Phase 6: Stripe Billing Integration 🔧 In Progress NEW
+
+**Duration:** 2 weeks | **Depends on:** Offer builder
+
+### Database Schema (migration 20260423)
+
+New columns on `offers`: `service_start_date`, `plan_chosen` (standard/ratenzahlung/miete), `stripe_customer_id`, `stripe_checkout_id`, `stripe_invoice_ids`, `stripe_subscription_ids`, `stripe_schedule_id`, `payment_status`, `accepted_at`. Audit table: `offer_payment_events`.
+
+### Implementation
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Schema: Stripe columns + payment event audit | ✅ Done | Immutable event log |
+| AppShell billing toggle (admin only: kg@kitz.co.at) | ✅ Done | localStorage gated |
+| Auto-save offer + share code when billing enabled | ✅ Done | QR code generation |
+| PDF: accept QR + service start date | ✅ Done | Conditional rendering |
+| Stripe Checkout integration | Pending | Create checkout session from offer |
+| Stripe Webhook handler | Pending | Edge Function for payment events |
+| Subscription management | Pending | For monthly plans (ratenzahlung/miete) |
+| Payment status UI in offer list | Pending | Badge + filter |
+
+---
+
+## Phase 7: Ticket Management
+
+**Duration:** 3 weeks | **Depends on:** Phase 1
+
+### Week 9-11: Tickets (unchanged from v1.2)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Ticket CRUD + pools | Pending | Schema, list, create, detail |
+| Communication + attachments | Pending | Message threads, email notifications |
+| Ticket → Invoice | Pending | Time entries → Mesonic Beleg |
+
+---
+
+## Phase 8: Contacts & Dashboard
 
 **Duration:** 2 weeks | **Depends on:** Phase 2 + Phase 3
 
-### Week 12: Contact Management
-
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Fetch contacts from Mesonic (Type 7, Lesen) | 2h | Pending | Linked to customers |
-| Contact list per customer: name, role, phone, email | 2h | Pending | |
-| Create/edit contact in Mesonic | 3h | Pending | Type 7, Schreiben |
-| Activity timeline per customer: offers, Belege, tickets, contacts in one view | 4h | Pending | Aggregated from all sources |
-| Quick actions: create ticket, create offer, call contact from customer view | 2h | Pending | |
-
-### Week 13: CRM Dashboard
-
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Dashboard layout: KPI cards, charts, recent activity | 3h | Pending | Responsive grid |
-| Pipeline value: sum of open offers grouped by stage | 2h | Pending | From Supabase offers table |
-| Ticket KPIs: open per pool, avg resolution time, overdue count | 2h | Pending | From tickets table |
-| Revenue overview: invoiced amounts from Mesonic Belege | 3h | Pending | Aggregated from Type 30 |
-| My tasks: assigned tickets, pending offers, follow-ups | 2h | Pending | Per-user view |
-| Recent activity feed: latest changes across all modules | 2h | Pending | |
+| Task | Status | Notes |
+|------|--------|-------|
+| Contact management (Type 7) | Pending | Linked to customers |
+| Activity timeline per customer | Pending | Aggregated view |
+| CRM Dashboard with KPIs | Pending | Pipeline, tickets, revenue |
 
 ---
 
-## Phase 6: Refactoring & Hardening
+## Phase 9: Refactoring & Hardening
 
 **Duration:** 2 weeks | **Depends on:** All previous phases
 
-### Week 14: Frontend Architecture
-
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Split App.jsx monolith (2100+ lines) into route-based components | 6h | Pending | React Router with lazy loading |
-| Add React Router: /dashboard, /customers, /articles, /offers, /belege, /tickets, /admin | 3h | Pending | |
-| Shared layout: sidebar navigation, header with user info | 3h | Pending | |
-| Role-based route access: admin, sales, support roles | 2h | Pending | Based on user_profiles.role |
-| Error boundaries: graceful error handling per route | 2h | Pending | |
-
-### Week 15: Performance & Security
-
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Pagination for all list views: cursor-based for Mesonic, offset for Supabase | 3h | Pending | |
-| Virtual scrolling for large datasets (react-window) | 2h | Pending | Articles, Belege lists |
-| Offline handling: queue Mesonic writes, retry on reconnect | 3h | Pending | |
-| Optimistic UI: instant feedback on mutations | 2h | Pending | |
-| Audit logging: track who changed what and when | 3h | Pending | Supabase table + triggers |
-| Security review: RLS policies, input sanitization, API auth | 2h | Pending | |
+| Task | Status | Notes |
+|------|--------|-------|
+| Split App.jsx monolith | Pending | Now even larger with billing/vacation routing |
+| React Router (proper, not hash-based) | Partially done | HashRouter + sectionRoute.ts in place |
+| Role-based route access | Partially done | isApprover() exists for vacation |
+| Pagination + virtual scrolling | Pending | |
+| Audit logging | ✅ Done | workforce_audit_log + offer_payment_events |
+| Push notifications | ✅ Done | push_subscriptions table |
+| Security review | Pending | |
 
 ---
 
-## Phase 7: Electron & Starface CTI (Future)
+## Phase 10: Electron & Starface CTI (Future)
 
-**Duration:** 3+ weeks | **Priority:** Low (not needed for first release)
+**Duration:** 3+ weeks | **Priority:** Low
 
-### Electron Desktop App
+| Task | Status | Notes |
+|------|--------|-------|
+| Electron shell + auto-updater | Pending | |
+| Starface CTI: call events, customer lookup, click-to-call | Pending | |
 
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Electron shell: wrap web app in native window | 3h | Pending | electron-forge or electron-builder |
-| Auto-updater: push updates to desktop clients | 3h | Pending | electron-updater |
-| Native notifications: system tray, ticket alerts | 2h | Pending | |
-| Local file access: save PDFs to filesystem directly | 2h | Pending | Electron dialog API |
+---
 
-### Starface CTI Integration
+## Open Blockers
 
-| Task | Est. | Status | Notes |
-|------|------|--------|-------|
-| Starface REST API: authenticate, subscribe to call events | 3h | Pending | Polling or WebSocket |
-| Incoming call detection: extract caller number | 2h | Pending | |
-| Customer lookup: match caller number to Mesonic customer | 2h | Pending | Search by phone number |
-| CTI popup: show customer info, open tickets, recent activity on incoming call | 4h | Pending | Electron notification window |
-| Click-to-call: initiate call from customer view | 2h | Pending | Starface originate API |
+| Blocker | Waiting on | Impact |
+|---------|-----------|--------|
+| Mesonic Import endpoint hangs | Heri (sh@kitz.co.at) | Blocks: customer create, Beleg creation |
+| WebPreisExport template missing | Heri | Blocks: article pricing from Mesonic |
+| bessa articles not in Mesonic | Internal data entry | Blocks: replacing hardcoded product arrays |
 
 ---
 
 ## Key Technical Decisions
 
 ### Authentication
-
-Microsoft Entra ID SSO via Supabase Azure provider. Profile trigger creates user_profiles row on first login. RLS uses simple permissive policies to avoid infinite recursion; admin enforcement happens in the app layer. The `onAuthStateChange` callback must be synchronous (no await) to prevent Supabase client deadlock; profile fetch happens in a separate `useEffect`.
+Microsoft Entra ID SSO via Supabase Azure provider. Profile trigger creates user_profiles row on first login. RLS uses simple permissive policies; admin enforcement in app layer.
 
 ### Mesonic Integration Pattern
-
-All Mesonic communication goes through a Supabase Edge Function proxy (`supabase/functions/mesonic-proxy`). The proxy logs into WinLine on each cold start (Edge Functions are stateless across isolates), caches the session within a single isolate lifetime (4-min TTL), and auto-retries on session expiry. EXIM templates define what data is read/written. The frontend never talks to WinLine directly.
+All Mesonic communication through Supabase Edge Function proxy. 30s timeout on imports (AbortController). Retry logic (3x) on WORKER_LIMIT. Session caching with 4-min TTL.
 
 **Key learnings:**
-- Login response format is `Session=<uuid>` — must strip the `Session=` prefix before using as query param
-- Deploy with `--no-verify-jwt` since we handle JWT verification inside the function
-- XML response wraps records in `<MESOWebService Template="X"><X>fields</X></MESOWebService>`
-- Single-key export works (e.g., `Key=29385`); wildcard/WHERE queries need Exportparameter enabled on templates
-- Mesonic connection: `https://mesonic.kitz.co.at`, user `CRM_API`, company `2KCO`
+- Mesonic returns German field names → flexible accessor `F.name(record)` pattern
+- Double `%%` required for LIKE wildcards
+- Import endpoint may require template activation by Mesonic technician
+- Large result sets cause timeout → targeted searches only
 
 ### Data Ownership
-
-Customers, articles, prices, contacts, and Belege live in Mesonic (source of truth). Tickets, user profiles, and offer drafts live in Supabase. Cross-references use Mesonic customer/article numbers stored as foreign keys in Supabase tables.
-
-### Email Format Matching
-
-KITZ employees have two email formats: `<first_initial>.<lastname>@kitz.co.at` (internal, used in TEAM array) and `<last_initial><first_initial>@kitz.co.at` (Microsoft SSO). The auth layer handles both patterns for auto-matching the logged-in user to their team entry.
+- **Mesonic:** Customers, articles, prices, contacts, Belege (source of truth)
+- **Supabase:** Offers, tickets, workforce (employees, leave, shifts), user profiles, audit logs, push subscriptions
+- **Stripe:** Payment state, subscriptions, invoices (synced to Supabase via webhooks)
 
 ### Naming Conventions
+Database columns and code in English. German in UI labels only.
 
-All database columns, code properties, and variable names must be in English. German is used only in UI labels and user-facing text. Examples: `mesonic_rep_id` (not `mesonic_vertreter_nr`), `customer_name` (not `kundenname`).
+### Feature Architecture
+New features (vacation, shifts) use `src/features/{name}/` structure with dedicated api, types, components, rules, lib, pages, and tests. Older features (offers, CRM) still in `src/components/` and `src/App.jsx`.
 
 ---
 
@@ -315,9 +318,9 @@ All database columns, code properties, and variable names must be in English. Ge
 | Supabase Project | `uouryrnyzicdociqberq` |
 | Azure Tenant ID | `3e0069ff-cd50-4459-b2a9-ab509a14f433` |
 | Frontend Domain | `bessa.kitz.co.at` |
-| Supabase Callback | `https://uouryrnyzicdociqberq.supabase.co/auth/v1/callback` |
 | Admin Email | `kg@kitz.co.at` |
 | Mesonic URL | `https://mesonic.kitz.co.at` |
 | Mesonic User | `CRM_API` |
 | Mesonic Company | `2KCO` |
-| Mesonic Templates | WebKontenExport, WebArtikelExport, WebBelegExport (list templates pending) |
+| Mesonic Templates | WebKontenExport, WebKontenImport, WebArtikelExport, WebArtikelImport, WebBelegExport, WebBelegImport, WebKontakteExport |
+| Missing Templates | WebPreisExport (requested) |

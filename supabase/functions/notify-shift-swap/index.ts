@@ -440,7 +440,7 @@ serve(async (req: Request) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'KITZ Schichtplan <schicht@kitz.co.at>',
+          from: 'KITZ Workspace <workspace@kitz.co.at>',
           to: [m.to],
           subject: m.subject,
           html: m.html,

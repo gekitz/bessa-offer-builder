@@ -189,7 +189,7 @@ serve(async (req: Request) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'KITZ Urlaubsplaner <urlaub@kitz.co.at>',
+        from: 'KITZ Workspace <workspace@kitz.co.at>',
         to: [requester.email],
         subject,
         html,
