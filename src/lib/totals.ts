@@ -14,8 +14,19 @@ export interface CartItem extends OptionCartItem {
   discountQty?: number;
   tier?: TierKey;
   mode?: ItemMode;
-  /** Per-line net unit price override set via the edit dialog. */
+  /** Per-line net unit price override set via the edit dialog. For copier
+   *  devices (t='copier') this overrides the device's net VK. */
   priceOverride?: number;
+
+  // --- Copier / MFP cart fields (t === 'copier'), read by copierOffer.ts.
+  /** Whole-offer sale mode; read off the (first) copier device entry. */
+  saleMode?: 'kauf' | 'leasing';
+  /** Trade-in unit credited against this device (Eintauschgerät). */
+  tradeIn?: { name: string; value: number };
+  /** Manual override of the computed Grenke leasing rate (per-deal re-quote). */
+  leasingRateOverride?: number;
+  /** Down payment that reduces the financed base (Mietsonderzahlung). */
+  mietsonderzahlung?: number;
 }
 
 export type Cart = Record<string, CartItem>;
@@ -47,6 +58,9 @@ export function computeTotals(cart: Cart, catalog: Catalog): OfferTotals {
   for (const [id, c] of Object.entries(cart)) {
     const item = catalog[id];
     if (!item) continue;
+    // Copier/MFP devices are priced by copierOffer.ts (leasing, UHG,
+    // per-page maintenance) — never folded into the PoS buckets here.
+    if (item.t === 'copier') continue;
     if (!counted.has(id)) continue;
     const p = price(item, c.tier, c.mode, c.priceOverride);
     const dp = discountedPrice(item, c.tier, c.mode, c.priceOverride);

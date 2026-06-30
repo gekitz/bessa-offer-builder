@@ -18,6 +18,7 @@ const totals = {
 
 const baseProps = {
   cart: {},
+  copierOffer: null,
   customer: { name: '', company: '', email: '', phone: '', address: '' },
   setCustomer: () => {},
   creator: 'gkitz',

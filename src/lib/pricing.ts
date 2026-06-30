@@ -1,6 +1,6 @@
 import { TIERS, TKEY_REV, type TierKey, type PriceKey } from '../data/tiers';
 
-export type ItemKind = 'm' | 'o' | 'h' | 'term';
+export type ItemKind = 'm' | 'o' | 'h' | 'term' | 'copier';
 export type ItemMode = 'rent' | 'buy' | 'kauf' | undefined;
 
 export interface ItemDiscount {
@@ -25,6 +25,26 @@ export interface Item {
   info?: string;
   /** Optional multi-line article description (one spec per line) shown on the PDF. */
   description?: string;
+
+  // --- Copier / MFP fields (t === 'copier'), consumed by copierOffer.ts.
+  // The device's pricing is NOT expressed via p/price/buy/rent — a copier
+  // expands into several lines (device, included options, UHG, install,
+  // trade-in) and a leasing computation, all owned by copierOffer.ts. The
+  // generic price()/computeTotals paths skip copier items entirely.
+  /** One-time net purchase price (Kauf). */
+  vk?: number;
+  /** Reprographievergütung / UHG — copyright levy, fixed per speed class. */
+  uhg?: number;
+  /** Lieferung, Installation und Einschulung (one-time setup fee). */
+  install?: number;
+  /** All-in maintenance price per A4 page, black/white (net). */
+  pageBw?: number;
+  /** All-in maintenance price per A4 page, colour (net). */
+  pageColor?: number;
+  /** All-in maintenance price per scan (net). */
+  pageScan?: number;
+  /** Accessories bundled in the list price, rendered as €0 lines. */
+  includedOptions?: { name: string }[];
 }
 
 export type Catalog = Record<string, Item>;

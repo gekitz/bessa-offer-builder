@@ -237,6 +237,86 @@ export const ORDERMAN: Item[] = [
   { id:'orderman-magellan-i5-garantie', name:'Magellan i5 Garantieverlängerung', price:1092, t:'o', info:'auf 60 Monate (35%)' },
 ];
 
+// Sharp MFP copiers. Source: "Verkaufs- und Leasingpreise MFP Sharp" price
+// list, Stand Jänner 2026. Each device carries its one-time VK, the UHG
+// (Reprographievergütung, fixed per speed class), the Lieferung/Installation
+// fee, and the All-in maintenance per-page rates (scan flat €0,0019). Leasing
+// is computed by copierOffer.ts (Grenke factor on the financed base) — the
+// price-list leasing columns are intentionally NOT stored. The console + inner
+// output bundled in the list price are recorded as includedOptions (€0 lines).
+//
+// ⚠️ Spec descriptions are concise + factual (from the price list / sample
+// offer). Verify full per-model spec sheets before customer-facing use.
+function sharpDevice(o: {
+  code: string;
+  vk: number;
+  uhg: number;
+  install: number;
+  speed: number;
+  pageBw: number;
+  pageColor: number;
+  console: '12' | '14';
+  note?: string;
+}): Item {
+  const consoleName =
+    o.console === '12'
+      ? 'Unterschrank BPDE12 Konsole 1×550 Blatt'
+      : 'Unterschrank BPDE14 Konsole 3×550 Blatt';
+  return {
+    id: `sharp-${o.code.toLowerCase()}`,
+    code: o.code,
+    name: `Sharp ${o.code}`,
+    cat: 'Sharp MFP',
+    t: 'copier',
+    vk: o.vk,
+    uhg: o.uhg,
+    install: o.install,
+    pageBw: o.pageBw,
+    pageColor: o.pageColor,
+    pageScan: 0.0019,
+    includedOptions: [{ name: consoleName }, { name: 'Innere Ausgabe BPTU10' }],
+    info: `${o.speed} A4-Seiten/min · max. A3${o.note ? ' · ' + o.note : ''}`,
+    description: [
+      `Sharp ${o.code} – A3 Multifunktionssystem (Farbe)`,
+      `Geschwindigkeit: ${o.speed} Seiten/Min. (Farbe & S/W)`,
+      'Papierformat: max. A3',
+      `Inkl. ${consoleName}`,
+      'Inkl. innerer Ausgabe BPTU10',
+      'Netzwerkdrucken / Netzwerkscannen Standard',
+      'Duplexeinheit Standard',
+    ].join('\n'),
+  };
+}
+
+export const SHARP: Item[] = [
+  sharpDevice({ code: 'BP51C26', vk: 3150, uhg: 194.73, install: 250, speed: 26, pageBw: 0.0075, pageColor: 0.075, console: '12' }),
+  sharpDevice({ code: 'BP51C31', vk: 3490, uhg: 194.73, install: 300, speed: 31, pageBw: 0.0075, pageColor: 0.075, console: '12' }),
+  sharpDevice({ code: 'BP51C36', vk: 4450, uhg: 194.73, install: 300, speed: 36, pageBw: 0.0075, pageColor: 0.075, console: '14' }),
+  sharpDevice({ code: 'BP51C45', vk: 4780, uhg: 235.02, install: 300, speed: 45, pageBw: 0.0075, pageColor: 0.075, console: '14' }),
+  sharpDevice({ code: 'BP61C31', vk: 4150, uhg: 194.73, install: 300, speed: 31, pageBw: 0.007, pageColor: 0.065, console: '14' }),
+  sharpDevice({ code: 'BP61C36', vk: 4795, uhg: 194.73, install: 300, speed: 36, pageBw: 0.007, pageColor: 0.065, console: '14' }),
+  sharpDevice({ code: 'BP61C45', vk: 5470, uhg: 235.02, install: 350, speed: 45, pageBw: 0.007, pageColor: 0.065, console: '14' }),
+  sharpDevice({ code: 'BP71C31', vk: 5270, uhg: 194.73, install: 350, speed: 31, pageBw: 0.007, pageColor: 0.065, console: '14' }),
+  sharpDevice({ code: 'BP71C36', vk: 5910, uhg: 194.73, install: 350, speed: 36, pageBw: 0.007, pageColor: 0.065, console: '14' }),
+  sharpDevice({ code: 'BP71C45', vk: 6320, uhg: 235.02, install: 400, speed: 45, pageBw: 0.007, pageColor: 0.065, console: '14' }),
+  sharpDevice({ code: 'BP71C55', vk: 7210, uhg: 235.02, install: 400, speed: 55, pageBw: 0.0055, pageColor: 0.055, console: '14' }),
+  sharpDevice({ code: 'BP71C65', vk: 8300, uhg: 235.02, install: 520, speed: 65, pageBw: 0.0055, pageColor: 0.055, console: '14', note: 'ohne Finisher' }),
+];
+
+// Sharp MFP accessories — one-time items (their list-price leasing column is
+// ignored; leasing is computed on VK via the Grenke factor in copierOffer.ts).
+export const SHARP_ZUBEHOR: Item[] = [
+  { id: 'sharp-zb-bpeb10', code: 'BPEB10', name: 'WLAN-Adapter', cat: 'Sharp Zubehör', price: 216, t: 'o' },
+  { id: 'sharp-zb-mxpk13ed', code: 'MXPK13ED', name: 'Post-Script', cat: 'Sharp Zubehör', price: 423, t: 'o' },
+  { id: 'sharp-zb-bpde14', code: 'BPDE14', name: 'Konsole 3×550 Blatt (Aufpreis auf BPDE12)', cat: 'Sharp Zubehör', price: 345, t: 'o' },
+  { id: 'sharp-zb-bpfx11de', code: 'BPFX11DE', name: 'Faxerweiterungs-Kit', cat: 'Sharp Zubehör', price: 553, t: 'o' },
+  { id: 'sharp-zb-bptr12', code: 'BPTR12', name: 'Rechtes Ausgabefach', cat: 'Sharp Zubehör', price: 119.2, t: 'o' },
+  { id: 'sharp-zb-bprb10', code: 'BPRB10', name: 'Papierführung', cat: 'Sharp Zubehör', price: 334, t: 'o' },
+  { id: 'sharp-zb-bpfn13', code: 'BPFN13', name: 'Heft-Finisher 50 Blatt Multiheftung, 1.000 Blatt Ablage', cat: 'Sharp Zubehör', price: 1445, t: 'o' },
+  { id: 'sharp-zb-bpfn15', code: 'BPFN15', name: 'Heft-Finisher 65 Blatt Multiheftung, 3.000 Blatt Ablage', cat: 'Sharp Zubehör', price: 1910, t: 'o' },
+  { id: 'sharp-zb-bppr12u', code: 'BPPR12U', name: 'Data Security Kit', cat: 'Sharp Zubehör', price: 525, t: 'o' },
+];
+
 export const TEAM: TeamMember[] = [
   { id:'gkitz', name:'Georg Kitz', role:'Geschäftsführung', phone:'+43 463 504454 77', email:'g.kitz@kitz.co.at', location:'Klagenfurt' },
   { id:'hbauer', name:'Helmut Bauer', role:'Verkauf', phone:'+43 4352 4176 21', email:'h.bauer@kitz.co.at', location:'Wolfsberg' },
@@ -264,6 +344,8 @@ for (const item of [
   ...KIOSK,
   ...ORDERMAN,
   ...DIENSTLEISTUNGEN,
+  ...SHARP,
+  ...SHARP_ZUBEHOR,
 ]) {
   ALL[item.id] = item;
 }

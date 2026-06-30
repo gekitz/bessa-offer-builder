@@ -1,13 +1,17 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing }) {
+export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos' }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
-  const offerData = { cart, globalTier, notes, raten, finanzOpen, rabattActive: !!rabattActive, skontoActive: !!skontoActive, address: customer.address || '', mandatsRef: mandatsRef || '' };
+  // offer_type lives in a top-level column (source of truth for the
+  // list filter) but is also mirrored into offer_data so the share /
+  // URL load path — which only reads offer_data — restores it too.
+  const offerData = { cart, globalTier, notes, raten, finanzOpen, rabattActive: !!rabattActive, skontoActive: !!skontoActive, address: customer.address || '', mandatsRef: mandatsRef || '', offerType };
   if (customItems && Object.keys(customItems).length > 0) offerData.customItems = customItems;
   if (cartOrder && cartOrder.length > 0) offerData.cartOrder = cartOrder;
   const row = {
+    offer_type: offerType,
     customer_name: customer.name || null,
     customer_company: customer.company || null,
     customer_email: customer.email || null,
@@ -54,7 +58,7 @@ export async function listOffers() {
 
   const { data, error } = await supabase
     .from('offers')
-    .select('id, status, stage, customer_name, customer_company, customer_email, mesonic_customer_id, creator_id, creator_name, briefing, lost_reason, lost_reason_note, lost_at, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at, last_activity_at, next_followup_at')
+    .select('id, status, stage, offer_type, customer_name, customer_company, customer_email, mesonic_customer_id, creator_id, creator_name, briefing, lost_reason, lost_reason_note, lost_at, total_monthly, total_once, total_period, created_at, updated_at, sent_at, opened_at, last_activity_at, next_followup_at')
     .order('updated_at', { ascending: false });
 
   if (error) throw error;

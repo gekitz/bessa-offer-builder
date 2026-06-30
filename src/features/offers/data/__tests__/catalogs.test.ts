@@ -11,6 +11,8 @@ import {
   KIOSK,
   ORDERMAN,
   DIENSTLEISTUNGEN,
+  SHARP,
+  SHARP_ZUBEHOR,
   TEAM,
   ALL,
   CATALOG_IDS,
@@ -29,6 +31,8 @@ const ALL_PRODUCT_LISTS = [
   ['KIOSK', KIOSK],
   ['ORDERMAN', ORDERMAN],
   ['DIENSTLEISTUNGEN', DIENSTLEISTUNGEN],
+  ['SHARP', SHARP],
+  ['SHARP_ZUBEHOR', SHARP_ZUBEHOR],
 ] as const;
 
 describe('catalogs', () => {
@@ -70,5 +74,33 @@ describe('catalogs', () => {
     const firstCatalogId = BESSA[0]!.id;
     expect(isCustomItem(firstCatalogId)).toBe(false);
     expect(isCustomItem('definitely-not-in-catalog')).toBe(true);
+  });
+});
+
+describe('Sharp MFP catalog', () => {
+  it('every Sharp device is t=copier with complete pricing data', () => {
+    expect(SHARP.length).toBe(12);
+    for (const d of SHARP) {
+      expect(d.t).toBe('copier');
+      expect(d.vk).toBeGreaterThan(0);
+      expect(d.uhg).toBeGreaterThan(0);
+      expect(d.install).toBeGreaterThan(0);
+      expect(d.pageBw).toBeGreaterThan(0);
+      expect(d.pageColor).toBeGreaterThan(0);
+      expect(d.pageScan).toBe(0.0019);
+      // Bundled console + inner output shown as €0 lines.
+      expect(d.includedOptions?.length).toBe(2);
+      expect(d.description).toContain(d.code);
+    }
+  });
+
+  it('every Sharp accessory is a one-time item with a positive price', () => {
+    expect(SHARP_ZUBEHOR.length).toBe(9);
+    for (const a of SHARP_ZUBEHOR) {
+      expect(a.t).toBe('o');
+      expect(a.price).toBeGreaterThan(0);
+      // Accessories carry no copier-only fields (leasing derives from VK).
+      expect(a.vk).toBeUndefined();
+    }
   });
 });

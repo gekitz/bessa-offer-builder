@@ -135,6 +135,29 @@ describe('saveOffer', () => {
     fromMock.mockReturnValue(makeChain({ data: null, error: new Error('rls denied') }));
     await expect(saveOffer(baseOfferArgs)).rejects.toThrow('rls denied');
   });
+
+  it("defaults offer_type to 'pos' when not provided, in column and offer_data", async () => {
+    const chain = makeChain({ data: { id: 'x' }, error: null });
+    fromMock.mockReturnValue(chain);
+
+    await saveOffer(baseOfferArgs);
+
+    const inserted = chain.insert.mock.calls[0][0];
+    expect(inserted.offer_type).toBe('pos');
+    // Mirrored into offer_data so the share/URL load path restores it.
+    expect(inserted.offer_data.offerType).toBe('pos');
+  });
+
+  it('passes an explicit offerType through to the column and offer_data', async () => {
+    const chain = makeChain({ data: { id: 'x' }, error: null });
+    fromMock.mockReturnValue(chain);
+
+    await saveOffer({ ...baseOfferArgs, offerType: 'sharp' });
+
+    const inserted = chain.insert.mock.calls[0][0];
+    expect(inserted.offer_type).toBe('sharp');
+    expect(inserted.offer_data.offerType).toBe('sharp');
+  });
 });
 
 describe('listOffers', () => {
@@ -148,6 +171,15 @@ describe('listOffers', () => {
     expect(fromMock).toHaveBeenCalledWith('offers');
     expect(chain.order).toHaveBeenCalledWith('updated_at', { ascending: false });
     expect(result).toEqual(rows);
+  });
+
+  it('selects offer_type so the list can filter by product family', async () => {
+    const chain = makeChain({ data: [], error: null });
+    fromMock.mockReturnValue(chain);
+
+    await listOffers();
+
+    expect(chain.select.mock.calls[0][0]).toContain('offer_type');
   });
 });
 

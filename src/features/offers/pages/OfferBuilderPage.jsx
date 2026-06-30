@@ -35,6 +35,7 @@ import {
   yearlyServicePerUnit,
 } from '../../../lib/pricing';
 import { computeTotals } from '../../../lib/totals';
+import { buildCopierOffer, copierPersistTotals } from '../../../lib/copierOffer';
 import { computeDiscounts, SKONTO_DAYS } from '../../../lib/discounts';
 import { buildLineItems } from '../../../lib/offerLineItems';
 import { applyOptionGroup, countedIds } from '../../../lib/optionGroups';
@@ -51,11 +52,14 @@ import {
   KIOSK,
   DIENSTLEISTUNGEN,
   ORDERMAN,
+  SHARP,
+  SHARP_ZUBEHOR,
   TEAM,
   ALL,
   isCustomItem,
 } from '../data/catalogs';
 import OfferView from '../components/OfferView';
+import CopierItemCard from '../components/CopierItemCard';
 import ItemCard from '../components/ItemCard';
 import CatGroup from '../components/CatGroup';
 import TabContent from '../components/TabContent';
@@ -82,13 +86,35 @@ import { pathForSection, sectionFromPath } from '../../../lib/sectionRoute';
 
 const CrmPage = React.lazy(() => import('../../../components/CrmPage.jsx'));
 
-const BUILDER_TABS = [
+const POS_TABS = [
   { id: 'bessa', label: 'Bessa' },
   { id: 'melzer', label: 'Melzer' },
   { id: 'rch', label: 'RCH' },
   { id: 'hardware', label: 'Hardware' },
   { id: 'angebot', label: 'Angebot' },
 ];
+
+const SHARP_TABS = [
+  { id: 'sharp', label: 'Sharp MFP' },
+  { id: 'zubehoer', label: 'Zubehör' },
+  { id: 'angebot', label: 'Angebot' },
+];
+
+// The product tabs depend on the offer type. PoS keeps the existing tabs;
+// Sharp shows the copier devices + accessories. Brother will slot in here.
+function builderTabsFor(offerType) {
+  if (offerType === 'sharp') return SHARP_TABS;
+  return POS_TABS;
+}
+
+// Offer-type mode switch (segmented). Brother added once its requirements land.
+const OFFER_TYPES = [
+  { id: 'pos', label: 'PoS' },
+  { id: 'sharp', label: 'Sharp MFP' },
+];
+
+// First product tab to land on when switching offer type.
+const FIRST_TAB = { pos: 'bessa', sharp: 'sharp' };
 
 // Build wartung rows for PDF rendering from filtered cart entries.
 // Non-selected option-group alternatives are skipped — only the counted member
@@ -153,6 +179,10 @@ export default function OfferBuilderPage() {
   const [detailsEvents, setDetailsEvents] = useState([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [builderTab, setBuilderTab] = useState('bessa');
+  // Product family this offer belongs to: 'pos' | 'sharp' | 'brother'.
+  // Drives list filtering today; will gate builder tabs + PDF in later
+  // phases. Defaults to 'pos' — the only kind that exists pre-Sharp.
+  const [offerType, setOfferType] = useState('pos');
   const [globalTier, setGlobalTier] = useState('12mo');
   const [cart, setCart] = useState({});
   const [customer, setCustomer] = useState({ name: '', company: '', email: '', phone: '', address: '' });
@@ -272,6 +302,7 @@ export default function OfferBuilderPage() {
         setRabattActive(data.rabattActive || false);
         setSkontoActive(data.skontoActive || false);
         setGlobalTier(data.globalTier || '12mo');
+        setOfferType(offer.offer_type || data.offerType || 'pos');
         setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
         setServiceStartDate(offer.service_start_date || new Date().toISOString().slice(0, 10));
         setCurrentOfferId(offer.id);
@@ -299,6 +330,7 @@ export default function OfferBuilderPage() {
       setRabattActive(savedOffer.rabattActive || false);
       setSkontoActive(savedOffer.skontoActive || false);
       setGlobalTier(savedOffer.globalTier || '12mo');
+      setOfferType(savedOffer.offerType || 'pos');
       if (savedOffer.mandatsRef) setMandatsRef(savedOffer.mandatsRef);
       setOfferView('builder'); setBuilderTab('angebot');
       window.history.replaceState({}, '', window.location.pathname);
@@ -376,6 +408,14 @@ export default function OfferBuilderPage() {
     },
     onTier: (id, tier) => setCart(c => c[id] ? { ...c, [id]: { ...c[id], tier } } : c),
     onMode: (id, mode) => setCart(c => c[id] ? { ...c, [id]: { ...c[id], mode } } : c),
+    // Copier/MFP devices: add with a default Kauf sale mode, and patch
+    // copier-specific fields (saleMode, tradeIn, leasingRateOverride,
+    // mietsonderzahlung) in place.
+    onAddCopier: (id) => {
+      setCart(c => ({ ...c, [id]: { qty: 1, discountQty: 0, saleMode: 'kauf' } }));
+      setCartOrder(prev => [...prev.filter(x => x !== id), id]);
+    },
+    onCopierField: (id, patch) => setCart(c => c[id] ? { ...c, [id]: { ...c[id], ...patch } } : c),
   };
 
   function handleEditItem(id, { qty, discountQty, price: newPrice, description, optionGroup, optionSelected }) {
@@ -407,6 +447,35 @@ export default function OfferBuilderPage() {
 
   // Totals
   const totals = useMemo(() => computeTotals(cart, ALL), [cart]);
+  // Sharp/MFP copier breakdown (device + Grenke leasing + maintenance). Empty
+  // (isCopierOffer=false) for ordinary PoS carts, in which case the PDF falls
+  // back to the standard monthly/once tables.
+  const copierOffer = useMemo(() => buildCopierOffer(cart, ALL), [cart]);
+
+  // Totals persisted to the offers row (and shown in the list / CRM / accept
+  // page / email preview). computeTotals is 0 for copier carts, so for a Sharp
+  // offer we surface the engine's figures instead: Kauf → net as a one-time
+  // amount; Leasing → the monthly rate (and rate × term as the period value),
+  // so the deal shows real pipeline value rather than €0.
+  const persistTotals = useMemo(
+    () => (copierOffer.isCopierOffer ? { ...totals, ...copierPersistTotals(copierOffer) } : totals),
+    [copierOffer, totals],
+  );
+
+  // Online self-acceptance (QR + accept-link + Stripe plans on AcceptPage) is a
+  // PoS-only flow: it offers Ratenzahlung/Miete with an 8% upcharge, which is
+  // wrong for a Sharp deal. A copier lease also can't be self-accepted (needs a
+  // Grenke Bonitätsprüfung), so we never surface the accept link for copier offers.
+  const acceptEnabled = billingEnabled && !copierOffer.isCopierOffer;
+
+  const builderTabs = builderTabsFor(offerType);
+
+  // Switching offer type also moves to that type's first product tab so the
+  // rep never lands on a tab that no longer exists.
+  function changeOfferType(t) {
+    setOfferType(t);
+    setBuilderTab(FIRST_TAB[t] || 'angebot');
+  }
 
   const cartCount = Object.keys(cart).length;
 
@@ -434,11 +503,38 @@ export default function OfferBuilderPage() {
     if (customer.phone) lines.push(`Tel: ${customer.phone}`);
     lines.push('');
 
+    // Sharp/MFP offers print their own copier block instead of the PoS tables.
+    if (copierOffer.isCopierOffer) {
+      const fmtRate = (n) => n.toLocaleString('de-AT', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+      lines.push('----------------------------------------');
+      lines.push('SHARP MFP – DIGITALKOPIERGERÄT');
+      lines.push('----------------------------------------');
+      copierOffer.lines.forEach((l) => {
+        const amount = l.kind === 'included' ? 'inkl.' : `EUR ${fmt(l.lineTotal)}`;
+        lines.push(`  ${l.qty > 1 ? l.qty + 'x ' : ''}${l.code ? l.code + ' ' : ''}${l.name}: ${amount}`);
+      });
+      lines.push('');
+      lines.push(`  Nettosumme:    EUR ${fmt(copierOffer.net)}`);
+      lines.push(`  20% USt:       EUR ${fmt(copierOffer.vat)}`);
+      lines.push(`  Angebotssumme: EUR ${fmt(copierOffer.gross)}`);
+      lines.push('');
+      lines.push(`  Leasing 60 Monate (GRENKE): EUR ${fmt(copierOffer.leasing.rate)}/Monat + 20% MwSt`);
+      lines.push(`    Restwert EUR ${fmt(copierOffer.leasing.restwert)} | Bearbeitungsgebuehr EUR ${fmt(copierOffer.leasing.bearbeitungsgebuehr)} | Vertragsgebuehr 1%`);
+      lines.push('    Moeglich nach erfolgreicher Bonitaetspruefung.');
+      lines.push('');
+      lines.push('  All-in Kopienpreiswartung (zzgl. 20% MwSt):');
+      copierOffer.maintenance.forEach((m) => {
+        lines.push(`    s/w EUR ${fmtRate(m.pageBw)} | Farbe EUR ${fmtRate(m.pageColor)} | Scan EUR ${fmtRate(m.pageScan)}`);
+      });
+      lines.push('    Abrechnung des tatsaechlichen Zaehlerstandes pro Quartal im Nachhinein.');
+      lines.push('');
+    }
+
     const allOrdered = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
     const monthlyItems = allOrdered.filter(([id, c]) => isMonthly(ALL[id], c.mode));
     const onceItems = allOrdered.filter(([id, c]) => !isMonthly(ALL[id], c.mode));
 
-    if (monthlyItems.length > 0) {
+    if (!copierOffer.isCopierOffer && monthlyItems.length > 0) {
       lines.push('----------------------------------------');
       lines.push('MONATLICHE KOSTEN');
       lines.push('----------------------------------------');
@@ -457,7 +553,7 @@ export default function OfferBuilderPage() {
       lines.push('');
     }
 
-    if (onceItems.length > 0) {
+    if (!copierOffer.isCopierOffer && onceItems.length > 0) {
       lines.push('----------------------------------------');
       lines.push('EINMALIGE KOSTEN');
       lines.push('----------------------------------------');
@@ -476,7 +572,7 @@ export default function OfferBuilderPage() {
       lines.push('');
     }
 
-    if ((rabattActive || skontoActive) && totals.periodTotal > 0) {
+    if (!copierOffer.isCopierOffer && (rabattActive || skontoActive) && totals.periodTotal > 0) {
       const d2 = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive });
       lines.push('----------------------------------------');
       lines.push('GESAMT (erstes Jahr)');
@@ -523,7 +619,7 @@ export default function OfferBuilderPage() {
 
       // Ensure the offer is saved and has a share_code so the QR accept URL works
       let effectiveShareCode = shareCode;
-      if (billingEnabled) {
+      if (acceptEnabled) {
         let effectiveOfferId = currentOfferId;
         if (!effectiveOfferId) {
           const saved = await saveOffer({
@@ -534,13 +630,14 @@ export default function OfferBuilderPage() {
             creatorEmail: creatorInfo?.email || null,
             briefing,
             cart, globalTier, notes, raten, finanzOpen, rabattActive, skontoActive,
-            totalMonthly: totals.monthly,
-            totalOnce: totals.once,
-            totalPeriod: totals.periodTotal,
+            totalMonthly: persistTotals.monthly,
+            totalOnce: persistTotals.once,
+            totalPeriod: persistTotals.periodTotal,
             mandatsRef,
             customItems: getCustomItemsFromCart(),
             cartOrder,
             serviceStartDate,
+            offerType,
           });
           effectiveOfferId = saved.id;
           setCurrentOfferId(effectiveOfferId);
@@ -553,7 +650,7 @@ export default function OfferBuilderPage() {
         }
       }
 
-      const acceptQrDataUrl = billingEnabled ? await generateAcceptQr(effectiveShareCode) : null;
+      const acceptQrDataUrl = acceptEnabled ? await generateAcceptQr(effectiveShareCode) : null;
       const pdfBlob = await generateOfferPdfBlob({
         customer,
         monthlyItems,
@@ -570,6 +667,7 @@ export default function OfferBuilderPage() {
         mandatsRef,
         acceptQrDataUrl,
         serviceStartDate,
+        copierOffer,
       });
       const blob = new Blob([pdfBlob], { type: 'application/pdf' });
 
@@ -631,13 +729,14 @@ export default function OfferBuilderPage() {
         finanzOpen,
         rabattActive,
         skontoActive,
-        totalMonthly: totals.monthly,
-        totalOnce: totals.once,
-        totalPeriod: totals.periodTotal,
+        totalMonthly: persistTotals.monthly,
+        totalOnce: persistTotals.once,
+        totalPeriod: persistTotals.periodTotal,
         mandatsRef,
         customItems: getCustomItemsFromCart(),
         cartOrder,
         serviceStartDate,
+        offerType,
       });
       setCurrentOfferId(result.id);
 
@@ -677,13 +776,14 @@ export default function OfferBuilderPage() {
         finanzOpen,
         rabattActive,
         skontoActive,
-        totalMonthly: totals.monthly,
-        totalOnce: totals.once,
-        totalPeriod: totals.periodTotal,
+        totalMonthly: persistTotals.monthly,
+        totalOnce: persistTotals.once,
+        totalPeriod: persistTotals.periodTotal,
         mandatsRef,
         customItems: getCustomItemsFromCart(),
         cartOrder,
         serviceStartDate,
+        offerType,
       });
       setCurrentOfferId(result.id);
       setSaveSuccess(true);
@@ -716,13 +816,14 @@ export default function OfferBuilderPage() {
         creatorEmail: creatorInfoForSave?.email || null,
         briefing,
         cart, globalTier, notes, raten, finanzOpen, rabattActive, skontoActive,
-        totalMonthly: totals.monthly,
-        totalOnce: totals.once,
-        totalPeriod: totals.periodTotal,
+        totalMonthly: persistTotals.monthly,
+        totalOnce: persistTotals.once,
+        totalPeriod: persistTotals.periodTotal,
         mandatsRef,
         customItems: getCustomItemsFromCart(),
         cartOrder,
         serviceStartDate,
+        offerType,
       });
       offerId = result.id;
       setCurrentOfferId(offerId);
@@ -744,17 +845,17 @@ export default function OfferBuilderPage() {
 
       // Ensure a share_code exists so the accept URL works (only needed when billing is enabled)
       let effectiveShareCode = shareCode;
-      if (billingEnabled && !effectiveShareCode) {
+      if (acceptEnabled && !effectiveShareCode) {
         effectiveShareCode = Math.random().toString(36).slice(2, 10);
         await setShareCode(offerId, effectiveShareCode);
         setShareCodeState(effectiveShareCode);
       }
-      const acceptQrDataUrl = billingEnabled ? await generateAcceptQr(effectiveShareCode) : null;
+      const acceptQrDataUrl = acceptEnabled ? await generateAcceptQr(effectiveShareCode) : null;
       const pdfBlob = await generateOfferPdfBlob({
         customer, monthlyItems, onceItems, wartungItems, autoTerms,
         totals, notes, raten, rabattActive, skontoActive,
         showFinancing: finanzOpen, creator: creatorInfo,
-        mandatsRef, acceptQrDataUrl, serviceStartDate,
+        mandatsRef, acceptQrDataUrl, serviceStartDate, copierOffer,
       });
 
       const buffer = await pdfBlob.arrayBuffer();
@@ -768,7 +869,7 @@ export default function OfferBuilderPage() {
         .replace(/[^a-zA-Z0-9äöüÄÖÜß]/g, '_').replace(/_+/g, '_').substring(0, 30);
       const filename = `KITZ_Angebot_${customerName}_${dateStr}.pdf`;
 
-      await sendOffer(offerId, base64, filename, emailText, { includeAcceptLink: billingEnabled });
+      await sendOffer(offerId, base64, filename, emailText, { includeAcceptLink: acceptEnabled });
       try { await updateOfferStage(offerId, 'offer_sent'); } catch {}
       setShowEmailPreview(false);
       alert('Angebot erfolgreich gesendet!');
@@ -787,12 +888,12 @@ export default function OfferBuilderPage() {
     const wartungItems = buildWartungItems(validSignEntries);
     const autoTerms = computeAutoTerms(cart);
 
-    const acceptQrDataUrl = billingEnabled ? await generateAcceptQr(shareCode) : null;
+    const acceptQrDataUrl = acceptEnabled ? await generateAcceptQr(shareCode) : null;
     const pdfBlob = await generateOfferPdfBlob({
       customer, monthlyItems, onceItems, wartungItems, autoTerms,
       totals, notes, raten,
       showFinancing: finanzOpen, creator: creatorInfo,
-      mandatsRef, signatures, acceptQrDataUrl, serviceStartDate,
+      mandatsRef, signatures, acceptQrDataUrl, serviceStartDate, copierOffer,
     });
     const blob = new Blob([pdfBlob], { type: 'application/pdf' });
 
@@ -845,6 +946,7 @@ export default function OfferBuilderPage() {
       setRabattActive(data.rabattActive || false);
       setSkontoActive(data.skontoActive || false);
       setGlobalTier(data.globalTier || '12mo');
+      setOfferType(offer.offer_type || data.offerType || 'pos');
       setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
       setServiceStartDate(offer.service_start_date || new Date().toISOString().slice(0, 10));
       setCurrentOfferId(duplicate ? null : offer.id);
@@ -870,6 +972,7 @@ export default function OfferBuilderPage() {
     setRabattActive(false);
     setSkontoActive(false);
     setGlobalTier('12mo');
+    setOfferType('pos');
     setMandatsRef(Date.now().toString().slice(-12));
     setServiceStartDate(new Date().toISOString().slice(0, 10));
     setBuilderTab('bessa');
@@ -990,10 +1093,24 @@ export default function OfferBuilderPage() {
               </div>
             </div>
 
+            {/* Offer-type switch (PoS / Sharp / …) — drives which product tabs show */}
+            <div className="flex items-center gap-2 px-3 pb-2 md:px-5">
+              <span className="text-slate-500" style={{ fontSize: 11 }}>Angebotstyp:</span>
+              <div className="flex gap-0.5 md:gap-1">
+                {OFFER_TYPES.map(ot => (
+                  <button key={ot.id} onClick={() => changeOfferType(ot.id)}
+                    className={`rounded-lg font-medium transition-all ${offerType === ot.id ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                    style={{ fontSize: 11, padding: '4px 10px' }}>
+                    {ot.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Builder sub-tabs */}
             <div className="flex items-center justify-between px-3 pb-2 md:px-5 gap-2">
               <div className="flex gap-0.5 md:gap-1 overflow-x-auto min-w-0">
-                {BUILDER_TABS.map(t => (
+                {builderTabs.map(t => (
                   <button key={t.id} onClick={() => setBuilderTab(t.id)}
                     className={`relative px-2 py-2 md:px-3 font-medium transition-colors rounded-t-lg whitespace-nowrap flex-shrink-0 ${builderTab === t.id ? 'text-red-600 bg-red-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
                     style={{ fontSize: 12 }}>
@@ -1049,7 +1166,9 @@ export default function OfferBuilderPage() {
             {search.trim() && builderTab !== 'angebot' ? (
               (() => {
                 const q = search.toLowerCase().trim();
-                const allItems = [...BESSA, ...MELZER, ...RCH, ...HARDWARE, ...UNIFY, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...KIOSK, ...ORDERMAN, ...DIENSTLEISTUNGEN];
+                const allItems = offerType === 'sharp'
+                  ? [...SHARP, ...SHARP_ZUBEHOR]
+                  : [...BESSA, ...MELZER, ...RCH, ...HARDWARE, ...UNIFY, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...KIOSK, ...ORDERMAN, ...DIENSTLEISTUNGEN];
                 const results = allItems.filter(item =>
                   item.name.toLowerCase().includes(q)
                   || (item.code && item.code.toLowerCase().includes(q))
@@ -1061,7 +1180,9 @@ export default function OfferBuilderPage() {
                     {results.length > 0 ? (
                       <div className="space-y-2">
                         {results.map(item => (
-                          <ItemCard key={item.id} item={item} cartItem={cart[item.id]} globalTier={globalTier} {...handlers} />
+                          item.t === 'copier'
+                            ? <CopierItemCard key={item.id} item={item} cartItem={cart[item.id]} {...handlers} />
+                            : <ItemCard key={item.id} item={item} cartItem={cart[item.id]} globalTier={globalTier} {...handlers} />
                         ))}
                       </div>
                     ) : (
@@ -1075,6 +1196,14 @@ export default function OfferBuilderPage() {
               })()
             ) : (
               <>
+                {builderTab === 'sharp' && (
+                  <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))' }}>
+                    {SHARP.map(item => (
+                      <CopierItemCard key={item.id} item={item} cartItem={cart[item.id]} {...handlers} />
+                    ))}
+                  </div>
+                )}
+                {builderTab === 'zubehoer' && <TabContent items={SHARP_ZUBEHOR} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'bessa' && <TabContent items={BESSA} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'melzer' && <TabContent items={MELZER} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'rch' && (
@@ -1097,7 +1226,7 @@ export default function OfferBuilderPage() {
                 {builderTab === 'angebot' && (
                   <>
                     <OfferView
-                      cart={cart} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes} briefing={briefing} setBriefing={setBriefing}
+                      cart={cart} copierOffer={copierOffer} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes} briefing={briefing} setBriefing={setBriefing}
                       totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
                       rabattActive={rabattActive} setRabattActive={setRabattActive} skontoActive={skontoActive} setSkontoActive={setSkontoActive}
                       serviceStartDate={serviceStartDate} setServiceStartDate={setServiceStartDate}
@@ -1110,7 +1239,7 @@ export default function OfferBuilderPage() {
                       <EmailPreviewModal
                         customer={customer}
                         creator={TEAM.find(t => t.id === creator)}
-                        totals={totals}
+                        totals={persistTotals}
                         sending={sending}
                         onSend={handleSend}
                         onClose={() => setShowEmailPreview(false)}
@@ -1141,9 +1270,17 @@ export default function OfferBuilderPage() {
                     <span>{cartCount} {cartCount === 1 ? 'Position' : 'Positionen'}</span>
                   </div>
                   <div className="flex gap-4 mt-0.5">
-                    {totals.monthly > 0 && <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>€ {fmt(totals.monthly)}<span className="font-normal text-slate-400" style={{ fontSize: 11 }}>/Mo</span></span>}
-                    {totals.once > 0 && <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>€ {fmt(totals.once)}<span className="font-normal text-slate-400" style={{ fontSize: 11 }}> einm.</span></span>}
-                    {totals.monthly === 0 && totals.once === 0 && <span className="text-slate-400" style={{ fontSize: 13 }}>Noch keine Auswahl</span>}
+                    {copierOffer.isCopierOffer ? (
+                      copierOffer.saleMode === 'leasing'
+                        ? <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>€ {fmt(copierOffer.leasing.rate)}<span className="font-normal text-slate-400" style={{ fontSize: 11 }}>/Mo Leasing</span></span>
+                        : <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>€ {fmt(copierOffer.net)}<span className="font-normal text-slate-400" style={{ fontSize: 11 }}> netto (Kauf)</span></span>
+                    ) : (
+                      <>
+                        {totals.monthly > 0 && <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>€ {fmt(totals.monthly)}<span className="font-normal text-slate-400" style={{ fontSize: 11 }}>/Mo</span></span>}
+                        {totals.once > 0 && <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>€ {fmt(totals.once)}<span className="font-normal text-slate-400" style={{ fontSize: 11 }}> einm.</span></span>}
+                        {totals.monthly === 0 && totals.once === 0 && <span className="text-slate-400" style={{ fontSize: 13 }}>Noch keine Auswahl</span>}
+                      </>
+                    )}
                   </div>
                 </div>
                 <button onClick={() => setBuilderTab('angebot')}

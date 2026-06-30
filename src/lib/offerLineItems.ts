@@ -54,7 +54,9 @@ export type CartEntry = [string, CartItem];
  */
 export function decorateLineItems(entries: CartEntry[], catalog: Catalog): OfferLineItem[] {
   const rows: OfferLineItem[] = entries
-    .filter(([id]) => catalog[id])
+    // Copier/MFP devices expand into their own line set via copierOffer.ts,
+    // so they're excluded from the generic PoS line builder.
+    .filter(([id]) => catalog[id] && catalog[id]!.t !== 'copier')
     .map(([id, c]) => {
       const item = catalog[id];
       const p = price(item, c.tier, c.mode, c.priceOverride);

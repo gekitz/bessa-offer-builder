@@ -18,6 +18,13 @@ const fmt = (n) =>
     maximumFractionDigits: 2,
   });
 
+// Per-page maintenance rates need 4 decimals (e.g. 0,0075 / 0,0019).
+const fmtRate = (n) =>
+  n.toLocaleString('de-AT', {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  });
+
 // Company default info
 const COMPANY = {
   name: 'KITZ Computer + Office GmbH',
@@ -269,6 +276,146 @@ function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce
   );
 }
 
+// --- Copier / MFP (Sharp) offer rendering ----------------------------------
+// A Sharp offer is itemised like the paper Angebot: the device table with its
+// €0 bundled options, the UHG and install lines, an optional trade-in credit,
+// then the Angebotssumme, the Grenke leasing terms, and the All-in
+// Kopienpreiswartung rates block. Data comes from copierOffer.buildCopierOffer.
+
+function CopierTableHeader() {
+  return (
+    <View style={styles.tableHeader}>
+      <Text style={[styles.headerText, styles.colQty]}>Menge</Text>
+      <Text style={[styles.headerText, styles.colCode]}>Code</Text>
+      <Text style={[styles.headerText, styles.colName]}>Bezeichnung</Text>
+      <Text style={[styles.headerText, styles.colTier, { textAlign: 'right' }]}>Einzel</Text>
+      <Text style={[styles.headerText, styles.colPrice]}>Gesamt</Text>
+    </View>
+  );
+}
+
+function CopierLineRow({ line, index }) {
+  const isAlt = index % 2 === 1;
+  const isIncluded = line.kind === 'included';
+  const specLines =
+    line.kind === 'device' && line.description
+      ? line.description.split('\n').map((l) => l.trim()).filter((l) => l.length > 0)
+      : [];
+  return (
+    <View style={[styles.tableRow, isAlt && styles.tableRowAlt]} wrap={false}>
+      <Text style={[styles.cellText, styles.colQty]}>{line.qty}</Text>
+      <Text style={[styles.cellCode, styles.colCode]}>{line.code || '-'}</Text>
+      <View style={styles.colName}>
+        <Text style={styles.cellText}>{line.name}</Text>
+        {specLines.map((l, i) => (
+          <Text key={i} style={styles.cellSpec}>• {l}</Text>
+        ))}
+      </View>
+      <Text style={[styles.cellText, styles.colTier, { textAlign: 'right' }]}>
+        {isIncluded ? '—' : fmt(line.unitPrice)}
+      </Text>
+      <Text style={[styles.cellPrice, styles.colPrice]}>
+        {isIncluded ? 'inkl.' : fmt(line.lineTotal)}
+      </Text>
+    </View>
+  );
+}
+
+function CopierTotalsBox({ net, vat, gross }) {
+  return (
+    <View style={styles.totalsBox} wrap={false}>
+      <View style={styles.totalsRow}>
+        <Text style={styles.totalsLabel}>Nettosumme</Text>
+        <Text style={styles.totalsValue}>{fmt(net)}</Text>
+      </View>
+      <View style={styles.totalsRow}>
+        <Text style={styles.totalsLabel}>20% USt</Text>
+        <Text style={styles.totalsValue}>{fmt(vat)}</Text>
+      </View>
+      <View style={[styles.totalsRow, styles.totalsFinal]}>
+        <Text style={styles.totalsFinalLabel}>Angebotssumme</Text>
+        <Text style={styles.totalsFinalValue}>{fmt(gross)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function LeasingBlock({ leasing, saleMode }) {
+  const { rate, restwert, bearbeitungsgebuehr, vertragsgebuehr, mietsonderzahlung, termMonths } = leasing;
+  const titleSuffix = saleMode === 'leasing' ? ' · gewünschte Zahlungsweise' : ' (Alternative zum Kauf)';
+  return (
+    <View style={styles.financingSection} wrap={false}>
+      <Text style={styles.financingTitle}>LEASING – GRENKE ({termMonths} MONATE){titleSuffix}</Text>
+      <View style={styles.financingRow}>
+        <Text style={styles.financingLabel}>Monatliche Leasingrate</Text>
+        <Text style={[styles.financingValue, styles.financingHighlight]}>{fmt(rate)}/Monat + 20% MwSt</Text>
+      </View>
+      <View style={styles.financingRow}>
+        <Text style={styles.financingLabel}>Restwert (5%)</Text>
+        <Text style={styles.financingValue}>{fmt(restwert)}</Text>
+      </View>
+      <View style={styles.financingRow}>
+        <Text style={styles.financingLabel}>Bearbeitungsgebühr (einmalig)</Text>
+        <Text style={styles.financingValue}>{fmt(bearbeitungsgebuehr)}</Text>
+      </View>
+      <View style={styles.financingRow}>
+        <Text style={styles.financingLabel}>Vertragsgebühr (1% der Auftragssumme)</Text>
+        <Text style={styles.financingValue}>{fmt(vertragsgebuehr)}</Text>
+      </View>
+      {mietsonderzahlung > 0 && (
+        <View style={styles.financingRow}>
+          <Text style={styles.financingLabel}>Mietsonderzahlung (einmalig)</Text>
+          <Text style={styles.financingValue}>{fmt(mietsonderzahlung)}</Text>
+        </View>
+      )}
+      <Text style={[styles.cellInfo, { marginTop: 6 }]}>
+        Möglich nach erfolgreicher Bonitätsprüfung. Leasingpartner: GRENKE.
+      </Text>
+    </View>
+  );
+}
+
+function MaintenanceBlock({ maintenance }) {
+  const single = maintenance.length === 1;
+  return (
+    <View style={styles.notesSection} wrap={false}>
+      <Text style={styles.notesTitle}>All-in Kopienpreiswartung</Text>
+      <Text style={styles.notesText}>
+        Beinhaltet: Service- und Reparaturarbeiten, Ersatzteile, Verbrauchsmaterial (Toner, Trommel, Developer) sowie Arbeits- und Wegzeit.
+      </Text>
+      <Text style={styles.notesText}>Ausgenommen: Papier, Folien und Heftklammern.</Text>
+      <View style={{ marginTop: 6 }}>
+        {maintenance.map((m, i) => (
+          <Text key={i} style={styles.notesText}>
+            {single ? '' : `${m.deviceName} – `}
+            Preis pro Kopie/Druck s/w: € {fmtRate(m.pageBw)} · Farbe: € {fmtRate(m.pageColor)} · Scan: € {fmtRate(m.pageScan)} (zzgl. 20% MwSt)
+          </Text>
+        ))}
+      </View>
+      <Text style={[styles.notesText, { marginTop: 6 }]}>
+        Die Abrechnung des tatsächlichen Zählerstandes erfolgt pro Quartal im Nachhinein.
+      </Text>
+    </View>
+  );
+}
+
+function CopierSection({ copierOffer }) {
+  return (
+    <>
+      <View style={styles.table}>
+        <Text style={[styles.sectionTitle, styles.sectionTitleOnce]}>SHARP MFP – DIGITALKOPIERGERÄT</Text>
+        <CopierTableHeader />
+        {copierOffer.lines.map((line, idx) => (
+          <CopierLineRow key={idx} line={line} index={idx} />
+        ))}
+        <CopierTotalsBox net={copierOffer.net} vat={copierOffer.vat} gross={copierOffer.gross} />
+      </View>
+      <LeasingBlock leasing={copierOffer.leasing} saleMode={copierOffer.saleMode} />
+      <MaintenanceBlock maintenance={copierOffer.maintenance} />
+    </>
+  );
+}
+
 // Signature section component
 function SignatureSection({ signature, signedAt }) {
   return (
@@ -470,12 +617,16 @@ export default function OfferPdfDocument({
   signatures = null,
   acceptQrDataUrl = null,
   serviceStartDate = null,
+  copierOffer = null,
 }) {
   const date = new Date().toLocaleDateString('de-AT');
   const signedAt = signatures ? new Date().toLocaleDateString('de-AT') : null;
   // Rabatt reduces the financing base; Skonto is a pay-in-full note only.
   const discount = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive });
   const periodBrutto = discount.brutto;
+  // A Sharp/MFP offer renders its own itemised copier layout (device table +
+  // Grenke leasing + maintenance rates) instead of the PoS monthly/once tables.
+  const isCopier = !!copierOffer?.isCopierOffer;
 
   return (
     <Document>
@@ -510,8 +661,11 @@ export default function OfferPdfDocument({
             )}
         </View>
 
+        {/* Sharp / MFP copier layout (replaces the PoS cost tables) */}
+        {isCopier && <CopierSection copierOffer={copierOffer} />}
+
         {/* Monthly Costs Table */}
-        {monthlyItems.length > 0 && (
+        {!isCopier && monthlyItems.length > 0 && (
           <View style={styles.table}>
             <Text style={[styles.sectionTitle, styles.sectionTitleMonthly]}>
               MONATLICHE KOSTEN
@@ -525,7 +679,7 @@ export default function OfferPdfDocument({
         )}
 
         {/* One-time Costs Table */}
-        {onceItems.length > 0 && (
+        {!isCopier && onceItems.length > 0 && (
           <View style={styles.table}>
             <Text style={[styles.sectionTitle, styles.sectionTitleOnce]}>
               EINMALIGE KOSTEN
@@ -539,7 +693,7 @@ export default function OfferPdfDocument({
         )}
 
         {/* Wartung pro Jahr (Melzer) */}
-        {wartungItems.length > 0 && (
+        {!isCopier && wartungItems.length > 0 && (
           <View style={styles.table}>
             <Text style={[styles.sectionTitle, styles.sectionTitleOnce]}>
               WARTUNG PRO JAHR
@@ -553,7 +707,7 @@ export default function OfferPdfDocument({
         )}
 
         {/* Period Total Summary */}
-        {(totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
+        {!isCopier && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
           <PeriodSummary
             periodTotal={totals.periodTotal}
             periodMonthly={totals.periodMonthly}
@@ -629,8 +783,8 @@ export default function OfferPdfDocument({
         {/* Signature Section */}
         <SignatureSection signature={signatures?.offer} signedAt={signedAt} />
 
-        {/* Footer - only on last page */}
-        {!(showFinancing && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0)) && (
+        {/* Footer - only on last page (copier offers have no extra pages) */}
+        {!(!isCopier && showFinancing && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0)) && (
           <PdfFooter />
         )}
 
@@ -645,7 +799,7 @@ export default function OfferPdfDocument({
       </Page>
 
       {/* Financing Options - Separate Page */}
-      {showFinancing && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
+      {!isCopier && showFinancing && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
         <Page size="A4" style={styles.page}>
           {/* Header */}
           <PdfHeader />
@@ -671,7 +825,7 @@ export default function OfferPdfDocument({
       )}
 
       {/* SEPA Mandate Page */}
-      {showFinancing && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
+      {!isCopier && showFinancing && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
         <Page size="A4" style={styles.page}>
           <PdfHeader />
           <SepaMandate customer={customer} mandatsRef={mandatsRef} signature={signatures?.sepa} signedAt={signedAt} />

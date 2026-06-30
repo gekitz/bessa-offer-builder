@@ -53,6 +53,7 @@ import { computeDiscounts, SKONTO_DAYS } from '../../../lib/discounts';
 
 export default function OfferView({
   cart,
+  copierOffer,
   customer,
   setCustomer,
   creator,
@@ -95,6 +96,9 @@ export default function OfferView({
 }) {
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // { id, item, cartItem, monthly }
+  // A Sharp/MFP offer renders its own copier summary instead of the PoS
+  // monthly/once/Wartung/financing sections.
+  const isCopier = !!copierOffer?.isCopierOffer;
   const allOrdered = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
   const monthlyItems = allOrdered.filter(([id, c]) => isMonthly(ALL[id], c.mode));
   const onceItems = allOrdered.filter(([id, c]) => !isMonthly(ALL[id], c.mode));
@@ -268,8 +272,11 @@ export default function OfferView({
         </div>
       )}
 
+      {/* Sharp/MFP copier summary (replaces the PoS cost sections) */}
+      {isCopier && <CopierSummary copierOffer={copierOffer} />}
+
       {/* Monthly items */}
-      {monthlyItems.length > 0 && (
+      {!isCopier && monthlyItems.length > 0 && (
         <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 overflow-hidden">
           <div className="bg-red-50 px-4 py-2 border-b border-red-100">
             <span className="font-bold text-red-800" style={{ fontSize: 13 }}>MONATLICHE KOSTEN</span>
@@ -316,7 +323,7 @@ export default function OfferView({
       )}
 
       {/* One-time items */}
-      {onceItems.length > 0 && (
+      {!isCopier && onceItems.length > 0 && (
         <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 overflow-hidden">
           <div className="bg-amber-50 px-4 py-2 border-b border-amber-100">
             <span className="font-bold text-amber-800" style={{ fontSize: 13 }}>EINMALIGE KOSTEN</span>
@@ -363,7 +370,7 @@ export default function OfferView({
       )}
 
       {/* Wartung pro Jahr (Melzer) */}
-      {wartungItems.length > 0 && (
+      {!isCopier && wartungItems.length > 0 && (
         <div className="bg-white rounded-xl border-2 border-amber-200 mb-4 overflow-hidden">
           <div className="bg-amber-100 px-4 py-2 border-b border-amber-200">
             <span className="font-bold text-amber-900" style={{ fontSize: 13 }}>WARTUNG PRO JAHR</span>
@@ -394,7 +401,7 @@ export default function OfferView({
       )}
 
       {/* Yearly summary */}
-      {(totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
+      {!isCopier && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl mb-4 text-white overflow-hidden">
           <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-2">
             <span className="font-bold" style={{ fontSize: 13 }}>GESAMTÜBERSICHT</span>
@@ -469,8 +476,8 @@ export default function OfferView({
         </div>
       )}
 
-      {/* Financing options */}
-      {(totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
+      {/* Financing options (PoS only — copier offers carry their own Grenke leasing) */}
+      {!isCopier && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
         <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 overflow-hidden">
           <button onClick={() => setFinanzOpen(!finanzOpen)} className="w-full bg-red-50 px-4 py-3 border-b border-red-100 flex items-center justify-between hover:bg-red-100 transition-colors">
             <span className="font-bold text-red-800" style={{ fontSize: 13 }}>FINANZIERUNGSOPTIONEN</span>
@@ -621,5 +628,76 @@ export default function OfferView({
         />
       )}
     </div>
+  );
+}
+
+const fmtRate = (n) => n.toLocaleString('de-AT', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+
+// Read-only Sharp/MFP summary shown in the Angebot tab: device + UHG + install
+// + trade-in lines with the Angebotssumme, the Grenke leasing terms, and the
+// All-in maintenance rates. All inputs (Kauf/Leasing, trade-in, override) live
+// on the device card; this just mirrors what the PDF will print.
+function CopierSummary({ copierOffer }) {
+  const { lines, net, vat, gross, leasing, maintenance, saleMode } = copierOffer;
+  return (
+    <>
+      <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 overflow-hidden">
+        <div className="bg-amber-50 px-4 py-2 border-b border-amber-100 flex items-center justify-between">
+          <span className="font-bold text-amber-800" style={{ fontSize: 13 }}>SHARP MFP – DIGITALKOPIERGERÄT</span>
+          <span className="text-amber-700 bg-amber-100 rounded-full px-2 py-0.5 font-medium" style={{ fontSize: 10 }}>
+            {saleMode === 'leasing' ? 'Leasing' : 'Kauf'}
+          </span>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {lines.map((line, i) => (
+            <div key={i} className="flex items-center justify-between px-4 py-2 gap-2">
+              <span className={`text-sm ${line.kind === 'included' ? 'text-slate-400 pl-3' : line.kind === 'tradein' ? 'text-emerald-700' : 'text-slate-700 font-medium'}`}>
+                {line.qty > 1 ? `${line.qty}× ` : ''}{line.code ? line.code + ' ' : ''}{line.name}
+              </span>
+              <span className={`text-sm whitespace-nowrap ${line.kind === 'tradein' ? 'text-emerald-700 font-semibold' : line.kind === 'included' ? 'text-slate-400' : 'font-semibold text-slate-800'}`}>
+                {line.kind === 'included' ? 'inkl.' : `€ ${fmt(line.lineTotal)}`}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="bg-slate-50 px-4 py-3 border-t border-slate-200">
+          <div className="flex justify-between text-sm"><span className="text-slate-500">Nettosumme</span><span className="font-medium">€ {fmt(net)}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-slate-500">20% USt</span><span className="font-medium">€ {fmt(vat)}</span></div>
+          <div className="flex justify-between text-sm font-bold mt-1 pt-1 border-t border-slate-300"><span>Angebotssumme</span><span className="text-red-700">€ {fmt(gross)}</span></div>
+        </div>
+      </div>
+
+      {/* Grenke leasing terms */}
+      <div className={`bg-white rounded-xl border-2 mb-4 overflow-hidden ${saleMode === 'leasing' ? 'border-red-300' : 'border-slate-200'}`}>
+        <div className="bg-red-50 px-4 py-2 border-b border-red-100 flex items-center justify-between">
+          <span className="font-bold text-red-800" style={{ fontSize: 13 }}>LEASING – GRENKE (60 MONATE)</span>
+          <span className="text-red-700" style={{ fontSize: 10 }}>{saleMode === 'leasing' ? 'gewünscht' : 'Alternative'}</span>
+        </div>
+        <div className="p-4 space-y-1.5">
+          <div className="flex justify-between text-sm"><span className="text-slate-600">Monatliche Leasingrate</span><span className="font-bold text-red-700">€ {fmt(leasing.rate)}/Mo {leasing.rateOverridden ? '(manuell)' : ''}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-slate-500">Restwert (5%)</span><span>€ {fmt(leasing.restwert)}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-slate-500">Bearbeitungsgebühr (einmalig)</span><span>€ {fmt(leasing.bearbeitungsgebuehr)}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-slate-500">Vertragsgebühr (1%)</span><span>€ {fmt(leasing.vertragsgebuehr)}</span></div>
+          {leasing.mietsonderzahlung > 0 && (
+            <div className="flex justify-between text-sm"><span className="text-slate-500">Mietsonderzahlung</span><span>€ {fmt(leasing.mietsonderzahlung)}</span></div>
+          )}
+          <p className="text-slate-400 pt-1" style={{ fontSize: 11 }}>Möglich nach erfolgreicher Bonitätsprüfung.</p>
+        </div>
+      </div>
+
+      {/* All-in maintenance rates */}
+      <div className="bg-amber-50 rounded-xl border-2 border-amber-200 mb-4" style={{ padding: '14px 16px' }}>
+        <span className="font-bold text-amber-900 block mb-1" style={{ fontSize: 13 }}>All-in Kopienpreiswartung</span>
+        <p className="text-amber-900" style={{ fontSize: 12 }}>Inkl. Service, Ersatzteile, Verbrauchsmaterial (Toner, Trommel, Developer), Arbeits- &amp; Wegzeit. Ausgenommen: Papier, Folien, Heftklammern.</p>
+        <div className="mt-2 space-y-0.5">
+          {maintenance.map((m, i) => (
+            <p key={i} className="text-amber-900" style={{ fontSize: 12 }}>
+              {maintenance.length > 1 ? `${m.deviceName}: ` : ''}s/w € {fmtRate(m.pageBw)} · Farbe € {fmtRate(m.pageColor)} · Scan € {fmtRate(m.pageScan)} (zzgl. 20% MwSt)
+            </p>
+          ))}
+        </div>
+        <p className="text-amber-700 mt-1" style={{ fontSize: 11 }}>Abrechnung des tatsächlichen Zählerstandes pro Quartal im Nachhinein.</p>
+      </div>
+    </>
   );
 }

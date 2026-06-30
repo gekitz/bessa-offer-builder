@@ -122,6 +122,11 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [stageFilter, setStageFilter] = useState('new');
   const [creatorFilter, setCreatorFilter] = useState('all');
+  // Product family filter: 'all' | 'pos' | 'sharp' | 'brother'. The
+  // pill row only renders once more than one type exists in the data
+  // (i.e. after the first Sharp/Brother offer), so PoS-only installs
+  // stay uncluttered.
+  const [typeFilter, setTypeFilter] = useState('all');
   // Free-text search across customer/briefing/creator/Mesonic id.
   // Multi-word ANDs across fields so "müller klagenfurt" narrows
   // both lines of memory.
@@ -293,8 +298,24 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   // they typed "müller" and 3 of those 4 matches are "Gesendet", the
   // tabs should show that immediately.
   const searched = useMemo(() => filterOffersBySearch(offers, searchTerm), [offers, searchTerm]);
-  const creatorFiltered = creatorFilter === 'all' ? searched : searched.filter((o) => o.creator_name === creatorFilter);
+  // Type filter applies before creator/stage so the creatorFiltered
+  // scope (and the stage counts derived from it) reflect the chosen
+  // product family. offer_type is nullish on rows predating the
+  // column — coalesce to 'pos'.
+  const typeScoped = typeFilter === 'all' ? searched : searched.filter((o) => (o.offer_type || 'pos') === typeFilter);
+  const creatorFiltered = creatorFilter === 'all' ? typeScoped : typeScoped.filter((o) => o.creator_name === creatorFilter);
   const filteredOffers = stageFilter === 'all' ? creatorFiltered : creatorFiltered.filter((o) => o.stage === stageFilter);
+  // Type pill counts are taken within the search+creator scope but
+  // BEFORE the type filter, so each pill shows its true reachable
+  // count regardless of which type is currently selected.
+  const typeCountBase = creatorFilter === 'all' ? searched : searched.filter((o) => o.creator_name === creatorFilter);
+  const typesPresent = [...new Set(offers.map((o) => o.offer_type || 'pos'))];
+  const TYPE_LABELS = { pos: 'PoS', sharp: 'Sharp', brother: 'Brother' };
+  const typeTabs = ['all', 'pos', 'sharp', 'brother'].filter((t) => t === 'all' || typesPresent.includes(t));
+  const typeCounts = { all: typeCountBase.length };
+  for (const t of ['pos', 'sharp', 'brother']) {
+    typeCounts[t] = typeCountBase.filter((o) => (o.offer_type || 'pos') === t).length;
+  }
   const stageCounts = { all: creatorFiltered.length };
   for (const s of ['new', 'offer_sent', 'closed', 'lost']) {
     stageCounts[s] = creatorFiltered.filter((o) => o.stage === s).length;
@@ -409,6 +430,24 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
           </button>
         )}
       </div>
+
+      {/* Product-family filter — only shown once a second type
+          (Sharp/Brother) exists, so PoS-only installs don't see it.
+          Slate accent distinguishes it from the red stage tabs. */}
+      {typesPresent.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5 mb-2">
+          {typeTabs.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTypeFilter(t)}
+              className={`rounded-full px-3 py-1 font-medium transition-colors ${typeFilter === t ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              style={{ fontSize: 11 }}
+            >
+              {t === 'all' ? 'Alle Typen' : TYPE_LABELS[t]} ({typeCounts[t] || 0})
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Stage filter tabs */}
       <div className="flex flex-wrap gap-1.5 mb-3">
