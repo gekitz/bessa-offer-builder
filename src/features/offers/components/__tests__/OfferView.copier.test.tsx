@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import OfferView from '../OfferView';
 import { buildCopierOffer } from '../../../../lib/copierOffer';
@@ -69,5 +70,15 @@ describe('OfferView — Sharp/copier summary', () => {
     expect(screen.queryByText('MONATLICHE KOSTEN')).not.toBeInTheDocument();
     expect(screen.queryByText('EINMALIGE KOSTEN')).not.toBeInTheDocument();
     expect(screen.queryByText('FINANZIERUNGSOPTIONEN')).not.toBeInTheDocument();
+  });
+
+  it('lets the rep edit the device price via the line pencil', async () => {
+    render(<OfferView {...(baseProps as any)} />);
+    // Each editable copier line (device, accessory) has a "Bearbeiten" pencil.
+    const editButtons = screen.getAllByRole('button', { name: 'Bearbeiten' });
+    expect(editButtons.length).toBeGreaterThanOrEqual(1);
+    await userEvent.click(editButtons[0]!);
+    // EditItemModal opens with the net-price field (device VK editable).
+    expect(screen.getByText('Preis netto (€)')).toBeInTheDocument();
   });
 });

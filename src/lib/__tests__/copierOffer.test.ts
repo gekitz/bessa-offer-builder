@@ -116,6 +116,28 @@ describe('buildCopierOffer — Leasing (Grenke factor)', () => {
     expect(offer.leasing.rate).toBe(64.9);
     expect(offer.leasing.rateOverridden).toBe(true);
   });
+
+  it('uses the 36-month factor when the term is changed', () => {
+    const cart: Cart = { [BP51C26]: { qty: 1, saleMode: 'leasing', leasingTermMonths: 36 } };
+    const offer = buildCopierOffer(cart, ALL);
+    expect(offer.leasing.termMonths).toBe(36);
+    // 3.594,73 × 3,15% = 113,23 (matches the Grenke calculator's 36-month rate)
+    expect(offer.leasing.rate).toBe(113.23);
+  });
+
+  it('honours an explicit factor override', () => {
+    const cart: Cart = { [BP51C26]: { qty: 1, saleMode: 'leasing', leasingFactorOverride: 0.025 } };
+    const offer = buildCopierOffer(cart, ALL);
+    expect(offer.leasing.factor).toBe(0.025);
+    expect(offer.leasing.rate).toBe(Math.round(3594.73 * 0.025 * 100) / 100);
+  });
+
+  it('honours Restwert % and Bearbeitungsgebühr overrides', () => {
+    const cart: Cart = { [BP51C26]: { qty: 1, saleMode: 'leasing', restwertPercentOverride: 10, bearbeitungsgebuehrOverride: 120 } };
+    const offer = buildCopierOffer(cart, ALL);
+    expect(offer.leasing.restwert).toBe(359.47); // 3.594,73 × 10%
+    expect(offer.leasing.bearbeitungsgebuehr).toBe(120);
+  });
 });
 
 describe('buildCopierOffer — accessories', () => {
@@ -130,6 +152,37 @@ describe('buildCopierOffer — accessories', () => {
     expect(offer.net).toBe(5039.73);
     const accessory = offer.lines.find((l) => l.kind === 'accessory');
     expect(accessory?.lineTotal).toBe(1445);
+  });
+});
+
+describe('buildCopierOffer — price overrides (edit dialog)', () => {
+  it('device priceOverride replaces the VK in the net and the device line', () => {
+    const cart: Cart = { [BP51C26]: { qty: 1, priceOverride: 3180, saleMode: 'kauf' } };
+    const offer = buildCopierOffer(cart, ALL);
+    expect(offer.net).toBe(3624.73); // 3180 + 194,73 + 250
+    const device = offer.lines.find((l) => l.kind === 'device');
+    expect(device?.unitPrice).toBe(3180);
+    expect(device?.id).toBe(BP51C26);
+  });
+
+  it('accessory priceOverride replaces its unit price in the net and its line', () => {
+    const cart: Cart = {
+      [BP51C26]: { qty: 1, saleMode: 'kauf' },
+      'sharp-zb-bpfn13': { qty: 1, priceOverride: 1200 }, // list 1445 → negotiated 1200
+    };
+    const offer = buildCopierOffer(cart, ALL);
+    // 3150 + 194,73 + 250 + 1200 = 4794,73
+    expect(offer.net).toBe(4794.73);
+    const accessory = offer.lines.find((l) => l.kind === 'accessory');
+    expect(accessory?.unitPrice).toBe(1200);
+    expect(accessory?.id).toBe('sharp-zb-bpfn13');
+  });
+
+  it('included and UHG/install lines carry no editable id', () => {
+    const offer = buildCopierOffer({ [BP51C26]: { qty: 1, saleMode: 'kauf' } }, ALL);
+    for (const l of offer.lines) {
+      if (l.kind === 'included' || l.kind === 'uhg' || l.kind === 'install') expect(l.id).toBeUndefined();
+    }
   });
 });
 

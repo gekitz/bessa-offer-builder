@@ -51,12 +51,19 @@ describe('CopierItemCard', () => {
     expect(screen.getByPlaceholderText(/Gerät/)).toBeInTheDocument();
   });
 
-  it('shows leasing detail inputs only under Leasing mode', () => {
+  it('shows the Leasing-Konditionen button only under Leasing mode', () => {
     const h = handlers();
     const { rerender } = render(<CopierItemCard item={device} cartItem={{ qty: 1, saleMode: 'kauf' }} {...h} />);
-    expect(screen.queryByText(/Mietsonderzahlung/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Leasing-Konditionen bearbeiten/)).not.toBeInTheDocument();
     rerender(<CopierItemCard item={device} cartItem={{ qty: 1, saleMode: 'leasing' }} {...h} />);
-    expect(screen.getByText(/Mietsonderzahlung/)).toBeInTheDocument();
-    expect(screen.getByText(/Leasingrate überschreiben/)).toBeInTheDocument();
+    expect(screen.getByText(/Leasing-Konditionen bearbeiten/)).toBeInTheDocument();
+  });
+
+  it('opens the leasing conditions dialog from the card', async () => {
+    const h = handlers();
+    render(<CopierItemCard item={device} cartItem={{ qty: 1, saleMode: 'leasing' }} {...h} />);
+    await userEvent.click(screen.getByText(/Leasing-Konditionen bearbeiten/));
+    expect(screen.getByText('Leasing-Konditionen')).toBeInTheDocument(); // modal title
+    expect(screen.getByLabelText('Leasingfaktor')).toBeInTheDocument();
   });
 });

@@ -151,5 +151,18 @@ Original spec:
   billingEnabled && !isCopierOffer` gates the accept QR + accept-link + `includeAcceptLink`,
   so copier offers never expose self-acceptance. (AcceptPage itself left PoS-only by design.)
 
+### Leasing-conditions override (post Phase 4) ✅ DONE
+A dedicated `LeasingConditionsModal` lets the rep override the Grenke conditions per offer
+(all defaulted from the `GRENKE` config): **Laufzeit** 36/60 (each with its validated factor —
+36mo = 3,15%, 60mo = 1,98%), **Leasingfaktor**, **Restwert %**, **Bearbeitungsgebühr**,
+**Mietsonderzahlung**, and the absolute **rate override**. Live rate preview via the same
+engine. Opened from the CopierItemCard (replaces the inline leasing inputs) and from the
+CopierSummary leasing block in the Angebot tab. Engine reads the overrides off the primary
+device with `GRENKE` fallback; only deviations are persisted (config defaults keep
+propagating). Design rule: we only compute where we know the factor (36/60) — other
+condition combos require the rep to set the factor or the absolute rate explicitly.
+Device + accessory **price editing** also added (pencil → `EditItemModal` → `priceOverride`,
+honored by the engine for both device VK and accessory unit price).
+
 ### Phase 5 — Brother
 - Add `BROTHER` catalog + one config entry; reuse copier kind, expansion, PDF, type.

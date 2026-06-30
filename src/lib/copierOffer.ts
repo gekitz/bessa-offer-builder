@@ -29,6 +29,11 @@ export type SaleMode = 'kauf' | 'leasing';
 export const GRENKE = {
   termMonths: 60,
   factor: 0.0198,
+  // Leasing factor per term, validated against the Grenke calculator at the
+  // standard Restwert 5% / Provision 2% (60mo €71,18 and 36mo €113,23 on a base
+  // of €3.594,73). We only have factors for these two terms; other conditions
+  // require the rep to set the factor or the absolute rate explicitly.
+  factorByTerm: { 36: 0.0315, 60: 0.0198 },
   restwertPercent: 5,
   provisionPercent: 2,
   bearbeitungsgebuehr: 75,
@@ -39,6 +44,8 @@ export type CopierLineKind = 'device' | 'included' | 'accessory' | 'uhg' | 'inst
 
 export interface CopierLine {
   kind: CopierLineKind;
+  /** Cart-item id for editable lines (device, accessory); undefined otherwise. */
+  id?: string;
   name: string;
   code?: string;
   qty: number;
@@ -101,9 +108,15 @@ const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 1
 export function buildCopierOffer(cart: Cart, catalog: Catalog): CopierOffer {
   const entries = Object.entries(cart);
 
-  type Device = { item: NonNullable<Catalog[string]>; c: CartItem; qty: number; vk: number };
+  type Device = { id: string; item: NonNullable<Catalog[string]>; c: CartItem; qty: number; vk: number };
+  type Accessory = { id: string; item: NonNullable<Catalog[string]>; c: CartItem; qty: number; unit: number };
   const devices: Device[] = [];
-  const accessories: { item: NonNullable<Catalog[string]>; c: CartItem; qty: number }[] = [];
+  const accessories: Accessory[] = [];
+
+  // A per-line priceOverride (set via the edit dialog) replaces the catalog
+  // price for both the device VK and accessory unit prices.
+  const overrideOr = (c: CartItem, fallback: number): number =>
+    c.priceOverride != null && Number.isFinite(c.priceOverride) ? c.priceOverride : fallback;
 
   for (const [id, c] of entries) {
     const item = catalog[id];
@@ -111,12 +124,11 @@ export function buildCopierOffer(cart: Cart, catalog: Catalog): CopierOffer {
     if (item.t === 'copier') {
       const qty = c.qty ?? 1;
       if (qty <= 0) continue;
-      const vk = c.priceOverride != null && Number.isFinite(c.priceOverride) ? c.priceOverride : item.vk ?? 0;
-      devices.push({ item, c, qty, vk });
+      devices.push({ id, item, c, qty, vk: overrideOr(c, item.vk ?? 0) });
     } else if (item.t === 'o') {
       const qty = c.qty ?? 0;
       if (qty <= 0) continue;
-      accessories.push({ item, c, qty });
+      accessories.push({ id, item, c, qty, unit: overrideOr(c, numOr0(item.price)) });
     }
   }
 
@@ -132,7 +144,7 @@ export function buildCopierOffer(cart: Cart, catalog: Catalog): CopierOffer {
   // --- Asset base (everything financed/sold, before credits) ---
   let assetBase = 0;
   for (const d of devices) assetBase += d.vk * d.qty + numOr0(d.item.uhg) * d.qty + numOr0(d.item.install) * d.qty;
-  for (const a of accessories) assetBase += numOr0(a.item.price) * a.qty;
+  for (const a of accessories) assetBase += a.unit * a.qty;
   assetBase = round2(assetBase);
 
   let tradeInTotal = 0;
@@ -145,6 +157,7 @@ export function buildCopierOffer(cart: Cart, catalog: Catalog): CopierOffer {
   for (const d of devices) {
     lines.push({
       kind: 'device',
+      id: d.id,
       name: d.item.name,
       code: d.item.code,
       qty: d.qty,
@@ -157,8 +170,7 @@ export function buildCopierOffer(cart: Cart, catalog: Catalog): CopierOffer {
     }
   }
   for (const a of accessories) {
-    const unit = numOr0(a.item.price);
-    lines.push({ kind: 'accessory', name: a.item.name, code: a.item.code, qty: a.qty, unitPrice: unit, lineTotal: round2(unit * a.qty) });
+    lines.push({ kind: 'accessory', id: a.id, name: a.item.name, code: a.item.code, qty: a.qty, unitPrice: a.unit, lineTotal: round2(a.unit * a.qty) });
   }
   for (const d of devices) {
     const uhg = numOr0(d.item.uhg);
@@ -181,17 +193,32 @@ export function buildCopierOffer(cart: Cart, catalog: Catalog): CopierOffer {
   const gross = round2(net + vat);
 
   // --- Leasing ---
+  // Conditions default to the GRENKE config but are overridable per offer (read
+  // off the primary device): term → its known factor; the factor itself; the
+  // Restwert % and Bearbeitungsgebühr (printed terms); the Mietsonderzahlung;
+  // and finally the absolute rate, which wins over the factor computation.
   const financedBase = round2(assetBase - tradeInTotal - mietsonderzahlung);
-  const computedRate = round2(financedBase * GRENKE.factor);
+  const termMonths = numOr0(primary.leasingTermMonths) || GRENKE.termMonths;
+  const factorForTerm = (GRENKE.factorByTerm as Record<number, number>)[termMonths] ?? GRENKE.factor;
+  const factor = primary.leasingFactorOverride != null && Number.isFinite(primary.leasingFactorOverride)
+    ? primary.leasingFactorOverride
+    : factorForTerm;
+  const restwertPercent = primary.restwertPercentOverride != null && Number.isFinite(primary.restwertPercentOverride)
+    ? primary.restwertPercentOverride
+    : GRENKE.restwertPercent;
+  const bearbeitungsgebuehr = primary.bearbeitungsgebuehrOverride != null && Number.isFinite(primary.bearbeitungsgebuehrOverride)
+    ? primary.bearbeitungsgebuehrOverride
+    : GRENKE.bearbeitungsgebuehr;
+  const computedRate = round2(financedBase * factor);
   const override = primary.leasingRateOverride;
   const rateOverridden = override != null && Number.isFinite(override);
   const leasing: LeasingTerms = {
     rate: rateOverridden ? round2(override as number) : computedRate,
     rateOverridden,
-    termMonths: GRENKE.termMonths,
-    factor: GRENKE.factor,
-    restwert: round2((financedBase * GRENKE.restwertPercent) / 100),
-    bearbeitungsgebuehr: GRENKE.bearbeitungsgebuehr,
+    termMonths,
+    factor,
+    restwert: round2((financedBase * restwertPercent) / 100),
+    bearbeitungsgebuehr,
     vertragsgebuehr: round2((financedBase * GRENKE.vertragsgebuehrPercent) / 100),
     mietsonderzahlung,
   };

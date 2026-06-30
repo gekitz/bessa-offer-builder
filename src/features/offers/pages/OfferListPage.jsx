@@ -299,24 +299,28 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   // they typed "müller" and 3 of those 4 matches are "Gesendet", the
   // tabs should show that immediately.
   const searched = useMemo(() => filterOffersBySearch(offers, searchTerm), [offers, searchTerm]);
-  // Type filter applies before creator/stage so the creatorFiltered
-  // scope (and the stage counts derived from it) reflect the chosen
-  // product family. offer_type is nullish on rows predating the
-  // column — coalesce to 'pos'.
-  const typeScoped = typeFilter === 'all' ? searched : searched.filter((o) => (o.offer_type || 'pos') === typeFilter);
+  // Product-family filter: All / PoS / MFP (copiers — Sharp + future Brother).
+  // Applies before creator/stage so the creatorFiltered scope (and its stage
+  // counts) reflect the chosen family. offer_type is nullish on rows predating
+  // the column — those are PoS.
+  const isMfp = (o) => o.offer_type === 'sharp' || o.offer_type === 'brother';
+  const matchesType = (o) => (typeFilter === 'pos' ? !isMfp(o) : isMfp(o));
+  const typeScoped = typeFilter === 'all' ? searched : searched.filter(matchesType);
   const creatorFiltered = creatorFilter === 'all' ? typeScoped : typeScoped.filter((o) => o.creator_name === creatorFilter);
   const filteredOffers = stageFilter === 'all' ? creatorFiltered : creatorFiltered.filter((o) => o.stage === stageFilter);
-  // Type pill counts are taken within the search+creator scope but
-  // BEFORE the type filter, so each pill shows its true reachable
-  // count regardless of which type is currently selected.
+  // Type pill counts are within the search+creator scope but BEFORE the type
+  // filter, so each pill shows its true reachable count.
   const typeCountBase = creatorFilter === 'all' ? searched : searched.filter((o) => o.creator_name === creatorFilter);
-  const typesPresent = [...new Set(offers.map((o) => o.offer_type || 'pos'))];
-  const TYPE_LABELS = { pos: 'PoS', sharp: 'Sharp', brother: 'Brother' };
-  const typeTabs = ['all', 'pos', 'sharp', 'brother'].filter((t) => t === 'all' || typesPresent.includes(t));
-  const typeCounts = { all: typeCountBase.length };
-  for (const t of ['pos', 'sharp', 'brother']) {
-    typeCounts[t] = typeCountBase.filter((o) => (o.offer_type || 'pos') === t).length;
-  }
+  const TYPE_TABS = [
+    { key: 'all', label: 'Alle' },
+    { key: 'pos', label: 'PoS' },
+    { key: 'mfp', label: 'MFP' },
+  ];
+  const typeCounts = {
+    all: typeCountBase.length,
+    pos: typeCountBase.filter((o) => !isMfp(o)).length,
+    mfp: typeCountBase.filter(isMfp).length,
+  };
   const stageCounts = { all: creatorFiltered.length };
   for (const s of ['new', 'offer_sent', 'closed', 'lost']) {
     stageCounts[s] = creatorFiltered.filter((o) => o.stage === s).length;
@@ -433,23 +437,20 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
         )}
       </div>
 
-      {/* Product-family filter — only shown once a second type
-          (Sharp/Brother) exists, so PoS-only installs don't see it.
-          Slate accent distinguishes it from the red stage tabs. */}
-      {typesPresent.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1.5 mb-2">
-          {typeTabs.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTypeFilter(t)}
-              className={`rounded-full px-3 py-1 font-medium transition-colors ${typeFilter === t ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-              style={{ fontSize: 11 }}
-            >
-              {t === 'all' ? 'Alle Typen' : TYPE_LABELS[t]} ({typeCounts[t] || 0})
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Product-family filter: All / PoS / MFP. Slate accent distinguishes it
+          from the red stage tabs below. */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-2">
+        {TYPE_TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTypeFilter(t.key)}
+            className={`rounded-full px-3 py-1 font-medium transition-colors ${typeFilter === t.key ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+            style={{ fontSize: 11 }}
+          >
+            {t.label} ({typeCounts[t.key] || 0})
+          </button>
+        ))}
+      </div>
 
       {/* Stage filter tabs */}
       <div className="flex flex-wrap gap-1.5 mb-3">

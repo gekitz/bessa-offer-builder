@@ -53,6 +53,7 @@ const baseProps = {
   onReorder: () => {},
   onRemoveItem: () => {},
   onEditItem: () => {},
+  onCopierField: () => {},
 };
 
 // Drives the Rabatt/Skonto toggles through real state, like OfferBuilderPage does.

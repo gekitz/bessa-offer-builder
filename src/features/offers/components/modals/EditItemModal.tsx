@@ -34,7 +34,12 @@ const NEW_GROUP = '__new__';
 export default function EditItemModal({ item, cartItem, monthly, availableGroups = [], onSave, onRemove, onClose }: EditItemModalProps) {
   const [qty, setQty] = useState(cartItem.qty || 0);
   const [discountQty, setDiscountQty] = useState(cartItem.discountQty || 0);
-  const currentPrice = price(item, cartItem.tier, cartItem.mode, cartItem.priceOverride);
+  // Copier devices aren't priced via price() (it returns null) — their editable
+  // net price is the device VK, overridable per line.
+  const isCopierItem = item.t === 'copier';
+  const currentPrice = isCopierItem
+    ? cartItem.priceOverride ?? item.vk ?? 0
+    : price(item, cartItem.tier, cartItem.mode, cartItem.priceOverride);
   const [itemPrice, setItemPrice] = useState(String(currentPrice ?? 0));
   const isCustom = isCustomItem(item.id);
   const [description, setDescription] = useState(item.description ?? '');
@@ -114,6 +119,7 @@ export default function EditItemModal({ item, cartItem, monthly, availableGroups
               <p className="text-xs text-slate-400 mt-1">Erscheint als Aufzählung unter dem Artikel im PDF.</p>
             </div>
           )}
+          {!isCopierItem && (
           <div className="border-t border-slate-100 pt-4">
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Wahlgruppe <span className="font-normal text-slate-400">(optional)</span>
@@ -149,6 +155,7 @@ export default function EditItemModal({ item, cartItem, monthly, availableGroups
               </p>
             )}
           </div>
+          )}
           <button type="submit"
             className={`w-full flex items-center justify-center gap-2 rounded-xl font-semibold py-3 active:scale-[0.98] transition-all ${totalQty < 1 ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-red-600 text-white hover:bg-red-700'}`}
             style={{ fontSize: 14 }}>

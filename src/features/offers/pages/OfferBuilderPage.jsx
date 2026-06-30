@@ -60,6 +60,7 @@ import {
 } from '../data/catalogs';
 import OfferView from '../components/OfferView';
 import CopierItemCard from '../components/CopierItemCard';
+import NewOfferTypeModal from '../components/modals/NewOfferTypeModal';
 import ItemCard from '../components/ItemCard';
 import CatGroup from '../components/CatGroup';
 import TabContent from '../components/TabContent';
@@ -107,13 +108,10 @@ function builderTabsFor(offerType) {
   return POS_TABS;
 }
 
-// Offer-type mode switch (segmented). Brother added once its requirements land.
-const OFFER_TYPES = [
-  { id: 'pos', label: 'PoS' },
-  { id: 'sharp', label: 'Sharp MFP' },
-];
+// Human label for an offer type (read-only indicator in the builder header).
+const OFFER_TYPE_LABEL = { pos: 'PoS · Kasse', sharp: 'Sharp MFP' };
 
-// First product tab to land on when switching offer type.
+// First product tab to land on for a given offer type.
 const FIRST_TAB = { pos: 'bessa', sharp: 'sharp' };
 
 // Build wartung rows for PDF rendering from filtered cart entries.
@@ -183,6 +181,8 @@ export default function OfferBuilderPage() {
   // Drives list filtering today; will gate builder tabs + PDF in later
   // phases. Defaults to 'pos' — the only kind that exists pre-Sharp.
   const [offerType, setOfferType] = useState('pos');
+  // Type-picker modal shown when starting a new offer (PoS vs Sharp MFP tiles).
+  const [showNewOfferModal, setShowNewOfferModal] = useState(false);
   const [globalTier, setGlobalTier] = useState('12mo');
   const [cart, setCart] = useState({});
   const [customer, setCustomer] = useState({ name: '', company: '', email: '', phone: '', address: '' });
@@ -469,13 +469,6 @@ export default function OfferBuilderPage() {
   const acceptEnabled = billingEnabled && !copierOffer.isCopierOffer;
 
   const builderTabs = builderTabsFor(offerType);
-
-  // Switching offer type also moves to that type's first product tab so the
-  // rep never lands on a tab that no longer exists.
-  function changeOfferType(t) {
-    setOfferType(t);
-    setBuilderTab(FIRST_TAB[t] || 'angebot');
-  }
 
   const cartCount = Object.keys(cart).length;
 
@@ -957,7 +950,7 @@ export default function OfferBuilderPage() {
     }
   }
 
-  function handleNewOffer() {
+  function handleNewOffer(type = 'pos') {
     clearCustomItems();
     setCart({});
     setCartOrder([]);
@@ -972,10 +965,10 @@ export default function OfferBuilderPage() {
     setRabattActive(false);
     setSkontoActive(false);
     setGlobalTier('12mo');
-    setOfferType('pos');
+    setOfferType(type);
     setMandatsRef(Date.now().toString().slice(-12));
     setServiceStartDate(new Date().toISOString().slice(0, 10));
-    setBuilderTab('bessa');
+    setBuilderTab(FIRST_TAB[type] || 'bessa');
     setOfferView('builder');
   }
 
@@ -1037,10 +1030,17 @@ export default function OfferBuilderPage() {
         <div className="flex-1 overflow-auto px-4 py-4 md:px-8 md:py-6">
           <OfferListPage
             onLoad={handleLoadOffer}
-            onNew={handleNewOffer}
+            onNew={() => setShowNewOfferModal(true)}
             onOpenFollowUps={() => setOfferView('followups')}
           />
         </div>
+      )}
+
+      {showNewOfferModal && (
+        <NewOfferTypeModal
+          onSelect={(type) => { setShowNewOfferModal(false); handleNewOffer(type); }}
+          onClose={() => setShowNewOfferModal(false)}
+        />
       )}
 
       {section === 'angebote' && offerView === 'followups' && (
@@ -1093,18 +1093,12 @@ export default function OfferBuilderPage() {
               </div>
             </div>
 
-            {/* Offer-type switch (PoS / Sharp / …) — drives which product tabs show */}
+            {/* Offer type — chosen at creation via the New-offer dialog; shown read-only here */}
             <div className="flex items-center gap-2 px-3 pb-2 md:px-5">
               <span className="text-slate-500" style={{ fontSize: 11 }}>Angebotstyp:</span>
-              <div className="flex gap-0.5 md:gap-1">
-                {OFFER_TYPES.map(ot => (
-                  <button key={ot.id} onClick={() => changeOfferType(ot.id)}
-                    className={`rounded-lg font-medium transition-all ${offerType === ot.id ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                    style={{ fontSize: 11, padding: '4px 10px' }}>
-                    {ot.label}
-                  </button>
-                ))}
-              </div>
+              <span className="rounded-lg bg-slate-800 text-white font-medium" style={{ fontSize: 11, padding: '4px 10px' }}>
+                {OFFER_TYPE_LABEL[offerType] || offerType}
+              </span>
             </div>
 
             {/* Builder sub-tabs */}
@@ -1233,7 +1227,7 @@ export default function OfferBuilderPage() {
                       billingEnabled={billingEnabled}
                       onSave={handleSave} onSend={openEmailPreview} saving={saving} sending={sending} saveSuccess={saveSuccess} currentOfferId={currentOfferId}
                       onSign={() => setShowSignModal(true)} onAddCustom={() => setShowCustomModal(true)}
-                      cartOrder={cartOrder} onReorder={setCartOrder} onRemoveItem={handlers.onRemove} onEditItem={handleEditItem}
+                      cartOrder={cartOrder} onReorder={setCartOrder} onRemoveItem={handlers.onRemove} onEditItem={handleEditItem} onCopierField={handlers.onCopierField}
                     />
                     {showEmailPreview && (
                       <EmailPreviewModal

@@ -27,6 +27,14 @@ export interface CartItem extends OptionCartItem {
   leasingRateOverride?: number;
   /** Down payment that reduces the financed base (Mietsonderzahlung). */
   mietsonderzahlung?: number;
+  /** Lease term in months (default 60); selects the known leasing factor. */
+  leasingTermMonths?: number;
+  /** Override the leasing factor (decimal, e.g. 0.0198) for non-standard terms. */
+  leasingFactorOverride?: number;
+  /** Override the residual-value percent (default 5) — drives the printed Restwert. */
+  restwertPercentOverride?: number;
+  /** Override the one-time Bearbeitungsgebühr (default €75, printed term). */
+  bearbeitungsgebuehrOverride?: number;
 }
 
 export type Cart = Record<string, CartItem>;

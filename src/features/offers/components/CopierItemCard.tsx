@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Minus, Plus, X } from 'lucide-react';
+import { Minus, Plus, Settings2, X } from 'lucide-react';
 import { fmt } from '../../../lib/format';
 import type { Item } from '../../../lib/pricing';
 import type { CartItem } from '../../../lib/totals';
 import { buildCopierOffer, type SaleMode } from '../../../lib/copierOffer';
+import LeasingConditionsModal from './modals/LeasingConditionsModal';
 
 // Card for a Sharp/MFP copier device (t='copier'). Unlike ItemCard it has no
 // tiers; instead a Kauf/Leasing toggle, an optional trade-in, and (under
@@ -26,6 +27,7 @@ interface Props extends Partial<Handlers> {
 export default function CopierItemCard({ item, cartItem, onAddCopier, onRemove, onQty, onCopierField }: Props) {
   const inCart = !!cartItem;
   const [tradeInOpen, setTradeInOpen] = useState(!!cartItem?.tradeIn);
+  const [leasingOpen, setLeasingOpen] = useState(false);
 
   const saleMode: SaleMode = cartItem?.saleMode === 'leasing' ? 'leasing' : 'kauf';
   const qty = cartItem?.qty ?? 0;
@@ -147,35 +149,34 @@ export default function CopierItemCard({ item, cartItem, onAddCopier, onRemove, 
             )}
           </div>
 
-          {/* Leasing details (only relevant under Leasing) */}
+          {/* Leasing conditions — edited in a dedicated dialog */}
           {saleMode === 'leasing' && (
-            <div className="mt-2 rounded-lg bg-white border border-slate-200 p-2 space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-slate-500" style={{ fontSize: 11 }}>Mietsonderzahlung</span>
-                <input
-                  type="number"
-                  placeholder="0"
-                  value={cartItem?.mietsonderzahlung ?? ''}
-                  onChange={(e) => patch({ mietsonderzahlung: Number(e.target.value) || 0 })}
-                  className="w-24 border border-slate-200 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:border-red-500"
-                />
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-slate-500" style={{ fontSize: 11 }}>Leasingrate überschreiben</span>
-                <input
-                  type="number"
-                  placeholder={fmt(single.leasing.rate)}
-                  value={cartItem?.leasingRateOverride ?? ''}
-                  onChange={(e) => patch({ leasingRateOverride: e.target.value === '' ? undefined : Number(e.target.value) })}
-                  className="w-24 border border-slate-200 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:border-red-500"
-                />
-              </div>
-              <p className="text-slate-400" style={{ fontSize: 10 }}>
-                Restwert € {fmt(single.leasing.restwert)} · Bearbeitungsgebühr € {fmt(single.leasing.bearbeitungsgebuehr)} · GRENKE, 60 Mo.
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => setLeasingOpen(true)}
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-50 transition-colors"
+                style={{ fontSize: 11, padding: '6px 10px' }}
+              >
+                <Settings2 size={12} /> Leasing-Konditionen bearbeiten
+              </button>
+              <p className="text-slate-400 mt-1" style={{ fontSize: 10 }}>
+                {single.leasing.termMonths} Mo · Restwert € {fmt(single.leasing.restwert)} · Bearb. € {fmt(single.leasing.bearbeitungsgebuehr)}
+                {single.leasing.rateOverridden ? ' · Rate manuell' : ''}
+                {cartItem?.mietsonderzahlung ? ` · Mietsonderz. € ${fmt(cartItem.mietsonderzahlung)}` : ''}
               </p>
             </div>
           )}
         </div>
+      )}
+
+      {leasingOpen && cartItem && (
+        <LeasingConditionsModal
+          item={item}
+          cartItem={cartItem}
+          onClose={() => setLeasingOpen(false)}
+          onSave={(p) => { patch(p); setLeasingOpen(false); }}
+        />
       )}
     </div>
   );

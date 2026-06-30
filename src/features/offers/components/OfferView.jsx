@@ -36,6 +36,7 @@ import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
 import SortableOfferRow from './SortableOfferRow';
 import EditItemModal from './modals/EditItemModal';
+import LeasingConditionsModal from './modals/LeasingConditionsModal';
 import { TIER_LABEL } from '../../../data/tiers';
 import { ALL, TEAM, isCustomItem } from '../data/catalogs';
 import { computeAutoTerms } from '../../../data/autoTermRules';
@@ -93,12 +94,16 @@ export default function OfferView({
   onReorder,
   onRemoveItem,
   onEditItem,
+  onCopierField,
 }) {
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // { id, item, cartItem, monthly }
+  const [editingLeasingId, setEditingLeasingId] = useState(null);
   // A Sharp/MFP offer renders its own copier summary instead of the PoS
   // monthly/once/Wartung/financing sections.
   const isCopier = !!copierOffer?.isCopierOffer;
+  // Leasing conditions are whole-offer; edited against the primary device entry.
+  const primaryCopierId = isCopier ? (Object.keys(cart).find((id) => ALL[id]?.t === 'copier') || null) : null;
   const allOrdered = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
   const monthlyItems = allOrdered.filter(([id, c]) => isMonthly(ALL[id], c.mode));
   const onceItems = allOrdered.filter(([id, c]) => !isMonthly(ALL[id], c.mode));
@@ -273,7 +278,16 @@ export default function OfferView({
       )}
 
       {/* Sharp/MFP copier summary (replaces the PoS cost sections) */}
-      {isCopier && <CopierSummary copierOffer={copierOffer} />}
+      {isCopier && (
+        <CopierSummary
+          copierOffer={copierOffer}
+          onEditLine={(id) => {
+            const item = ALL[id];
+            if (item) setEditingItem({ id, item, cartItem: cart[id] || {}, monthly: false });
+          }}
+          onEditLeasing={primaryCopierId && onCopierField ? () => setEditingLeasingId(primaryCopierId) : null}
+        />
+      )}
 
       {/* Monthly items */}
       {!isCopier && monthlyItems.length > 0 && (
@@ -627,6 +641,18 @@ export default function OfferView({
           }}
         />
       )}
+
+      {editingLeasingId && ALL[editingLeasingId] && (
+        <LeasingConditionsModal
+          item={ALL[editingLeasingId]}
+          cartItem={cart[editingLeasingId] || {}}
+          onClose={() => setEditingLeasingId(null)}
+          onSave={(patch) => {
+            onCopierField(editingLeasingId, patch);
+            setEditingLeasingId(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -637,7 +663,7 @@ const fmtRate = (n) => n.toLocaleString('de-AT', { minimumFractionDigits: 4, max
 // + trade-in lines with the Angebotssumme, the Grenke leasing terms, and the
 // All-in maintenance rates. All inputs (Kauf/Leasing, trade-in, override) live
 // on the device card; this just mirrors what the PDF will print.
-function CopierSummary({ copierOffer }) {
+function CopierSummary({ copierOffer, onEditLine, onEditLeasing }) {
   const { lines, net, vat, gross, leasing, maintenance, saleMode } = copierOffer;
   return (
     <>
@@ -654,9 +680,16 @@ function CopierSummary({ copierOffer }) {
               <span className={`text-sm ${line.kind === 'included' ? 'text-slate-400 pl-3' : line.kind === 'tradein' ? 'text-emerald-700' : 'text-slate-700 font-medium'}`}>
                 {line.qty > 1 ? `${line.qty}× ` : ''}{line.code ? line.code + ' ' : ''}{line.name}
               </span>
-              <span className={`text-sm whitespace-nowrap ${line.kind === 'tradein' ? 'text-emerald-700 font-semibold' : line.kind === 'included' ? 'text-slate-400' : 'font-semibold text-slate-800'}`}>
-                {line.kind === 'included' ? 'inkl.' : `€ ${fmt(line.lineTotal)}`}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm whitespace-nowrap ${line.kind === 'tradein' ? 'text-emerald-700 font-semibold' : line.kind === 'included' ? 'text-slate-400' : 'font-semibold text-slate-800'}`}>
+                  {line.kind === 'included' ? 'inkl.' : `€ ${fmt(line.lineTotal)}`}
+                </span>
+                {line.id && onEditLine && (
+                  <button onClick={() => onEditLine(line.id)} className="text-slate-400 hover:text-red-500 transition-colors" title="Preis/Menge bearbeiten" aria-label="Bearbeiten">
+                    <Pencil size={13} />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -669,9 +702,16 @@ function CopierSummary({ copierOffer }) {
 
       {/* Grenke leasing terms */}
       <div className={`bg-white rounded-xl border-2 mb-4 overflow-hidden ${saleMode === 'leasing' ? 'border-red-300' : 'border-slate-200'}`}>
-        <div className="bg-red-50 px-4 py-2 border-b border-red-100 flex items-center justify-between">
-          <span className="font-bold text-red-800" style={{ fontSize: 13 }}>LEASING – GRENKE (60 MONATE)</span>
-          <span className="text-red-700" style={{ fontSize: 10 }}>{saleMode === 'leasing' ? 'gewünscht' : 'Alternative'}</span>
+        <div className="bg-red-50 px-4 py-2 border-b border-red-100 flex items-center justify-between gap-2">
+          <span className="font-bold text-red-800" style={{ fontSize: 13 }}>LEASING – GRENKE ({leasing.termMonths} MONATE)</span>
+          <div className="flex items-center gap-2">
+            <span className="text-red-700" style={{ fontSize: 10 }}>{saleMode === 'leasing' ? 'gewünscht' : 'Alternative'}</span>
+            {onEditLeasing && (
+              <button onClick={onEditLeasing} className="rounded-md bg-white/70 text-red-700 border border-red-200 px-2 py-0.5 hover:bg-white transition-colors" style={{ fontSize: 10 }}>
+                Konditionen
+              </button>
+            )}
+          </div>
         </div>
         <div className="p-4 space-y-1.5">
           <div className="flex justify-between text-sm"><span className="text-slate-600">Monatliche Leasingrate</span><span className="font-bold text-red-700">€ {fmt(leasing.rate)}/Mo {leasing.rateOverridden ? '(manuell)' : ''}</span></div>
