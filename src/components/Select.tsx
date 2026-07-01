@@ -83,7 +83,11 @@ export default function Select({
     function handleKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
     }
-    function handleScroll() {
+    function handleScroll(e: Event) {
+      // Scrolling the popover's own option list must not close it.
+      // Everything else (ancestor/body scroll) closes, so the popover
+      // doesn't drift away from its trigger.
+      if (popoverRef.current?.contains(e.target as Node)) return;
       setOpen(false);
     }
     document.addEventListener('mousedown', handlePointerDown);
