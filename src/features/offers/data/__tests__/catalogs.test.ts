@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   BESSA,
   MELZER,
+  GASTROTOUCH,
   RCH,
   HARDWARE,
   UNIFY,
@@ -22,6 +23,7 @@ import {
 const ALL_PRODUCT_LISTS = [
   ['BESSA', BESSA],
   ['MELZER', MELZER],
+  ['GASTROTOUCH', GASTROTOUCH],
   ['RCH', RCH],
   ['HARDWARE', HARDWARE],
   ['UNIFY', UNIFY],
@@ -102,5 +104,43 @@ describe('Sharp MFP catalog', () => {
       // Accessories carry no copier-only fields (leasing derives from VK).
       expect(a.vk).toBeUndefined();
     }
+  });
+});
+
+describe('GastroTouch catalog', () => {
+  it('has all 4 products across 3 update-year tiers (12 one-time SKUs)', () => {
+    expect(GASTROTOUCH.length).toBe(12);
+    for (const item of GASTROTOUCH) {
+      expect(item.t).toBe('o');
+      expect(item.price).toBeGreaterThan(0);
+      expect(item.code).toMatch(/^160671\d\d$/);
+    }
+  });
+
+  it('applies the correct surcharge: +0% base, +50% for 2024, +100% for 2023 and older', () => {
+    // Normalpreis (letztes Update innerhalb eines Jahres) per Artikel-Nr.
+    const base: Record<string, number> = {
+      '16067191': 139.90, // Einzelplatz
+      '16067192': 236.80, // Mehrplatz
+      '16067193': 70.30, // Je weiterer Arbeitsplatz
+      '16067194': 22.20, // Je Orderman
+    };
+    const byId = (id: string) => GASTROTOUCH.find((i) => i.id === id)!;
+    for (const [code, normal] of Object.entries(base)) {
+      expect(byId(`gt-${code}-2025`).price).toBeCloseTo(normal, 2);
+      expect(byId(`gt-${code}-2024`).price).toBeCloseTo(normal * 1.5, 2);
+      expect(byId(`gt-${code}-2023`).price).toBeCloseTo(normal * 2, 2);
+    }
+  });
+
+  it('groups each update-year tier into its own category', () => {
+    const cats = new Set(GASTROTOUCH.map((i) => i.cat));
+    expect(cats).toEqual(
+      new Set([
+        'Update – Letztes Update 2025',
+        'Update – Letztes Update 2024 (+50%)',
+        'Update – 2023 und älter (+100%)',
+      ]),
+    );
   });
 });

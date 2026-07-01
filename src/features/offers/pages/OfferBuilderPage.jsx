@@ -43,6 +43,7 @@ import {
   COMPANY_DEFAULT,
   BESSA,
   MELZER,
+  GASTROTOUCH,
   UNIFY,
   RCH,
   HARDWARE,
@@ -90,6 +91,7 @@ const CrmPage = React.lazy(() => import('../../../components/CrmPage.jsx'));
 const POS_TABS = [
   { id: 'bessa', label: 'Bessa' },
   { id: 'melzer', label: 'Melzer' },
+  { id: 'gastrotouch', label: 'GastroTouch' },
   { id: 'rch', label: 'RCH' },
   { id: 'hardware', label: 'Hardware' },
   { id: 'angebot', label: 'Angebot' },
@@ -1152,7 +1154,7 @@ export default function OfferBuilderPage() {
                 const q = search.toLowerCase().trim();
                 const allItems = offerType === 'sharp'
                   ? [...SHARP, ...SHARP_ZUBEHOR]
-                  : [...BESSA, ...MELZER, ...RCH, ...HARDWARE, ...UNIFY, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...KIOSK, ...ORDERMAN, ...DIENSTLEISTUNGEN];
+                  : [...BESSA, ...MELZER, ...GASTROTOUCH, ...RCH, ...HARDWARE, ...UNIFY, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...KIOSK, ...ORDERMAN, ...DIENSTLEISTUNGEN];
                 const results = allItems.filter(item =>
                   item.name.toLowerCase().includes(q)
                   || (item.code && item.code.toLowerCase().includes(q))
@@ -1190,6 +1192,7 @@ export default function OfferBuilderPage() {
                 {builderTab === 'zubehoer' && <TabContent items={SHARP_ZUBEHOR} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'bessa' && <TabContent items={BESSA} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'melzer' && <TabContent items={MELZER} cart={cart} globalTier={globalTier} handlers={handlers} />}
+                {builderTab === 'gastrotouch' && <TabContent items={GASTROTOUCH} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'rch' && (
                   RCH.length > 0
                     ? <TabContent items={RCH} cart={cart} globalTier={globalTier} handlers={handlers} />

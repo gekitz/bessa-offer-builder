@@ -139,6 +139,29 @@ export const MELZER: Item[] = [
   { id:'mel-ds-dongel', name:'Dongel', cat:'Dienstleistungen', price:25, t:'o', info:'EK pro Dongel' },
 ];
 
+// GastroTouch – Update-Preisliste, Stand Jänner 2026. Einmalige Update-Preise
+// (netto, zzgl. 20% MwSt.). Der Preis richtet sich nach dem Zeitpunkt des
+// letzten Updates: innerhalb eines Jahres Normalpreis (+0%), ab dem 2. Jahr
+// +50%, ab dem 3. Jahr +100%. Jede Update-Stufe ist als eigene Position
+// hinterlegt — der Verkäufer wählt die passende Zeile je nach letztem Update.
+export const GASTROTOUCH: Item[] = [
+  // Normalpreis – letztes Update innerhalb eines Jahres (+0%)
+  { id:'gt-16067191-2025', code:'16067191', name:'Einzelplatz', cat:'Update – Letztes Update 2025', price:139.90, t:'o' },
+  { id:'gt-16067192-2025', code:'16067192', name:'Mehrplatz', cat:'Update – Letztes Update 2025', price:236.80, t:'o' },
+  { id:'gt-16067193-2025', code:'16067193', name:'Je weiterer Arbeitsplatz', cat:'Update – Letztes Update 2025', price:70.30, t:'o' },
+  { id:'gt-16067194-2025', code:'16067194', name:'Je Orderman', cat:'Update – Letztes Update 2025', price:22.20, t:'o' },
+  // Ab dem 2. Jahr – letztes Update 2024 (+50%)
+  { id:'gt-16067191-2024', code:'16067191', name:'Einzelplatz', cat:'Update – Letztes Update 2024 (+50%)', price:209.85, t:'o', info:'Normalpreis + 50%' },
+  { id:'gt-16067192-2024', code:'16067192', name:'Mehrplatz', cat:'Update – Letztes Update 2024 (+50%)', price:355.20, t:'o', info:'Normalpreis + 50%' },
+  { id:'gt-16067193-2024', code:'16067193', name:'Je weiterer Arbeitsplatz', cat:'Update – Letztes Update 2024 (+50%)', price:105.45, t:'o', info:'Normalpreis + 50%' },
+  { id:'gt-16067194-2024', code:'16067194', name:'Je Orderman', cat:'Update – Letztes Update 2024 (+50%)', price:33.30, t:'o', info:'Normalpreis + 50%' },
+  // Ab dem 3. Jahr – letztes Update 2023 und älter (+100%)
+  { id:'gt-16067191-2023', code:'16067191', name:'Einzelplatz', cat:'Update – 2023 und älter (+100%)', price:279.80, t:'o', info:'Normalpreis + 100%' },
+  { id:'gt-16067192-2023', code:'16067192', name:'Mehrplatz', cat:'Update – 2023 und älter (+100%)', price:473.60, t:'o', info:'Normalpreis + 100%' },
+  { id:'gt-16067193-2023', code:'16067193', name:'Je weiterer Arbeitsplatz', cat:'Update – 2023 und älter (+100%)', price:140.60, t:'o', info:'Normalpreis + 100%' },
+  { id:'gt-16067194-2023', code:'16067194', name:'Je Orderman', cat:'Update – 2023 und älter (+100%)', price:44.40, t:'o', info:'Normalpreis + 100%' },
+];
+
 export const UNIFY: Item[] = [
   { id:'unify-dream-router-7', name:'Netzwerk - Dream Router 7', price:300, t:'o' },
   { id:'unify-cloud-gateway-max', name:'Netzwerk - Cloud Gateway Max', price:249, t:'o' },
@@ -335,6 +358,7 @@ export const ALL: Catalog = {};
 for (const item of [
   ...BESSA,
   ...MELZER,
+  ...GASTROTOUCH,
   ...RCH,
   ...HARDWARE,
   ...UNIFY,
