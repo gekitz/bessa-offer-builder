@@ -429,8 +429,8 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   return (
     <>
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
           <Archive size={16} className="text-red-600 flex-shrink-0" />
           <span className="font-bold text-slate-700" style={{ fontSize: 14 }}>Angebote</span>
           <span className="text-slate-400" style={{ fontSize: 12 }}>({offers.length})</span>
@@ -438,7 +438,7 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
             <RefreshCw size={13} />
           </button>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex flex-wrap items-center justify-end gap-2 flex-shrink-0">
           {onOpenFollowUps && followUpCount > 0 && (
             <button
               onClick={onOpenFollowUps}
