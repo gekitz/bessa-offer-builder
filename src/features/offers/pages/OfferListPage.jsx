@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Search,
   Send,
+  Tag,
   Trash2,
   User,
   X,
@@ -103,6 +104,63 @@ function CreatorDropdown({ value, onChange, creators }) {
             >
               {value === name && <Check size={12} />}
               <span className={value === name ? 'font-medium' : 'ml-5'}>{name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Product-family scope filter (Alle / PoS / MFP). A compact dropdown grouped
+// with the Ersteller dropdown, mirroring CreatorDropdown's styling.
+function TypeDropdown({ value, onChange, counts }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const OPTIONS = [
+    { v: 'all', l: 'Alle Typen' },
+    { v: 'pos', l: 'PoS' },
+    { v: 'mfp', l: 'MFP' },
+  ];
+  const active = value !== 'all';
+  const label = value === 'all' ? 'Typ' : (OPTIONS.find((o) => o.v === value)?.l ?? 'Typ');
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  function select(v) {
+    onChange(v);
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-medium border transition-colors ${active ? 'bg-red-50 text-red-700 border-red-300' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'}`}
+        style={{ fontSize: 11 }}
+      >
+        <Tag size={11} />
+        <span className="max-w-[80px] truncate">{label}</span>
+        <ChevronDown size={11} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-white rounded-xl border border-slate-200 shadow-lg py-1 z-50 min-w-[160px]">
+          {OPTIONS.map((o) => (
+            <button
+              key={o.v}
+              onClick={() => select(o.v)}
+              className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${value === o.v ? 'bg-red-50 text-red-700' : 'text-slate-700 hover:bg-slate-50'}`}
+              style={{ fontSize: 12 }}
+            >
+              {value === o.v && <Check size={12} />}
+              <span className={value === o.v ? 'font-medium' : 'ml-5'}>{o.l} ({counts[o.v] || 0})</span>
             </button>
           ))}
         </div>
@@ -311,11 +369,6 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   // Type pill counts are within the search+creator scope but BEFORE the type
   // filter, so each pill shows its true reachable count.
   const typeCountBase = creatorFilter === 'all' ? searched : searched.filter((o) => o.creator_name === creatorFilter);
-  const TYPE_TABS = [
-    { key: 'all', label: 'Alle' },
-    { key: 'pos', label: 'PoS' },
-    { key: 'mfp', label: 'MFP' },
-  ];
   const typeCounts = {
     all: typeCountBase.length,
     pos: typeCountBase.filter((o) => !isMfp(o)).length,
@@ -400,6 +453,7 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
               </span>
             </button>
           )}
+          <TypeDropdown value={typeFilter} onChange={setTypeFilter} counts={typeCounts} />
           {uniqueCreators.length > 1 && (
             <CreatorDropdown
               value={creatorFilter}
@@ -435,21 +489,6 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
             <X size={14} />
           </button>
         )}
-      </div>
-
-      {/* Product-family filter: All / PoS / MFP. Slate accent distinguishes it
-          from the red stage tabs below. */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-2">
-        {TYPE_TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTypeFilter(t.key)}
-            className={`rounded-full px-3 py-1 font-medium transition-colors ${typeFilter === t.key ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-            style={{ fontSize: 11 }}
-          >
-            {t.label} ({typeCounts[t.key] || 0})
-          </button>
-        ))}
       </div>
 
       {/* Stage filter tabs */}

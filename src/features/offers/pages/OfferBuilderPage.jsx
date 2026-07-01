@@ -108,9 +108,6 @@ function builderTabsFor(offerType) {
   return POS_TABS;
 }
 
-// Human label for an offer type (read-only indicator in the builder header).
-const OFFER_TYPE_LABEL = { pos: 'PoS · Kasse', sharp: 'Sharp MFP' };
-
 // First product tab to land on for a given offer type.
 const FIRST_TAB = { pos: 'bessa', sharp: 'sharp' };
 
@@ -1093,13 +1090,6 @@ export default function OfferBuilderPage() {
               </div>
             </div>
 
-            {/* Offer type — chosen at creation via the New-offer dialog; shown read-only here */}
-            <div className="flex items-center gap-2 px-3 pb-2 md:px-5">
-              <span className="text-slate-500" style={{ fontSize: 11 }}>Angebotstyp:</span>
-              <span className="rounded-lg bg-slate-800 text-white font-medium" style={{ fontSize: 11, padding: '4px 10px' }}>
-                {OFFER_TYPE_LABEL[offerType] || offerType}
-              </span>
-            </div>
 
             {/* Builder sub-tabs */}
             <div className="flex items-center justify-between px-3 pb-2 md:px-5 gap-2">
