@@ -1,11 +1,11 @@
 import { Calculator, Printer, X } from 'lucide-react';
 
 // Shown when the rep starts a new offer: pick the product family up front via
-// two tiles. The choice sets the offer type, which drives the builder tabs and
-// the PDF/summary layout. Brother will add a third tile once its data lands.
+// three tiles. The choice sets the offer type, which drives the builder tabs
+// and the PDF/summary layout.
 
 interface Props {
-  onSelect: (type: 'pos' | 'sharp') => void;
+  onSelect: (type: 'pos' | 'sharp' | 'brother') => void;
   onClose: () => void;
 }
 
@@ -41,9 +41,10 @@ export default function NewOfferTypeModal({ onSelect, onClose }: Props) {
         </div>
         <div className="p-5">
           <p className="text-slate-500 mb-4" style={{ fontSize: 13 }}>Welche Art von Angebot möchtest du erstellen?</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <Tile icon={<Calculator size={26} />} title="PoS" subtitle="Kasse" onClick={() => onSelect('pos')} />
             <Tile icon={<Printer size={26} />} title="Sharp MFP" subtitle="Kopiersystem" onClick={() => onSelect('sharp')} />
+            <Tile icon={<Printer size={26} />} title="Brother" subtitle="Drucker" onClick={() => onSelect('brother')} />
           </div>
         </div>
       </div>

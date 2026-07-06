@@ -5,11 +5,12 @@ import userEvent from '@testing-library/user-event';
 import NewOfferTypeModal from '../NewOfferTypeModal';
 
 describe('NewOfferTypeModal', () => {
-  it('renders a PoS (Kasse) tile and a Sharp MFP tile', () => {
+  it('renders a PoS (Kasse) tile, a Sharp MFP tile and a Brother tile', () => {
     render(<NewOfferTypeModal onSelect={() => {}} onClose={() => {}} />);
     expect(screen.getByText('PoS')).toBeInTheDocument();
     expect(screen.getByText('Kasse')).toBeInTheDocument();
     expect(screen.getByText('Sharp MFP')).toBeInTheDocument();
+    expect(screen.getByText('Brother')).toBeInTheDocument();
   });
 
   it('calls onSelect with the chosen type', async () => {
@@ -18,6 +19,9 @@ describe('NewOfferTypeModal', () => {
     render(<NewOfferTypeModal onSelect={onSelect} onClose={() => {}} />);
     await user.click(screen.getByText('Sharp MFP'));
     expect(onSelect).toHaveBeenCalledWith('sharp');
+
+    await user.click(screen.getByText('Brother'));
+    expect(onSelect).toHaveBeenCalledWith('brother');
 
     await user.click(screen.getByText('PoS'));
     expect(onSelect).toHaveBeenCalledWith('pos');

@@ -340,6 +340,32 @@ export const SHARP_ZUBEHOR: Item[] = [
   { id: 'sharp-zb-bppr12u', code: 'BPPR12U', name: 'Data Security Kit', cat: 'Sharp Zubehör', price: 525, t: 'o' },
 ];
 
+// Brother printers / MFPs. Source: "Brother" price list, got Juli 2026.
+// Simple one-time devices (t:'o') — no leasing, per-page maintenance or UHG
+// like Sharp, so a Brother offer renders through the ordinary PoS path.
+// Prices stored NET (the app adds 20% MwSt): the two inkjet MFPs are listed
+// "inkl. MWST" (consumer pricing), so their list gross is divided by 1.2
+// (279 → 232,50; 299 → 249,17); every other device is already listed net
+// (+20% MWST) and marked "Nur Firmenkunden" via info.
+export const BROTHER: Item[] = [
+  // Multifunktionsgerät Tinte
+  { id:'brother-mfc-j4350dw', name:'Brother MFC-J4350DW', cat:'Multifunktionsgerät Tinte', price:232.50, t:'o' },
+  { id:'brother-mfc-j4550dw', name:'Brother MFC-J4550DW', cat:'Multifunktionsgerät Tinte', price:249.17, t:'o' },
+  { id:'brother-mfc-j6975dw', name:'Brother MFC-J6975DW', cat:'Multifunktionsgerät Tinte', price:599, t:'o', info:'Nur Firmenkunden' },
+  // Multifunktionsgerät Laser Farbe
+  { id:'brother-mfc-l8390cdw', name:'Brother MFC-L8390CDW', cat:'Multifunktionsgerät Laser Farbe', price:550, t:'o', info:'Nur Firmenkunden' },
+  { id:'brother-mfc-l9570cdw', name:'Brother MFC-L9570CDW', cat:'Multifunktionsgerät Laser Farbe', price:1250, t:'o', info:'Nur Firmenkunden' },
+  { id:'brother-mfc-l9670cdn', name:'Brother MFC-L9670CDN', cat:'Multifunktionsgerät Laser Farbe', price:1499, t:'o', info:'Nur Firmenkunden' },
+  // Laserdrucker Farbe
+  { id:'brother-hl-9310cdw', code:'15931001WO', name:'Brother HL-9310CDW', cat:'Laserdrucker Farbe', price:499, t:'o', info:'Nur Firmenkunden' },
+  // Multifunktionsdrucker Laser Mono
+  { id:'brother-mfc-l5710dw', name:'Brother MFC-L5710DW', cat:'Multifunktionsdrucker Laser Mono', price:727.99, t:'o', info:'Nur Firmenkunden' },
+  { id:'brother-mfc-l6910dn', name:'Brother MFC-L6910DN', cat:'Multifunktionsdrucker Laser Mono', price:685, t:'o', info:'Nur Firmenkunden' },
+  // Laserdrucker Mono
+  { id:'brother-hl-l5210dn', name:'Brother HL-L5210DN', cat:'Laserdrucker Mono', price:350, t:'o', info:'Nur Firmenkunden' },
+  { id:'brother-hl-l6210dw', name:'Brother HL-L6210DW', cat:'Laserdrucker Mono', price:410, t:'o', info:'Nur Firmenkunden' },
+];
+
 export const TEAM: TeamMember[] = [
   { id:'gkitz', name:'Georg Kitz', role:'Geschäftsführung', phone:'+43 463 504454 77', email:'g.kitz@kitz.co.at', location:'Klagenfurt' },
   { id:'hbauer', name:'Helmut Bauer', role:'Verkauf', phone:'+43 4352 4176 21', email:'h.bauer@kitz.co.at', location:'Wolfsberg' },
@@ -370,6 +396,7 @@ for (const item of [
   ...DIENSTLEISTUNGEN,
   ...SHARP,
   ...SHARP_ZUBEHOR,
+  ...BROTHER,
 ]) {
   ALL[item.id] = item;
 }

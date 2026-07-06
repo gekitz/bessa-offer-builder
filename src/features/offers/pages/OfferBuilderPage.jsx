@@ -12,6 +12,7 @@ import {
 // PDF generation is dynamically imported inside generateOfferPdfBlob
 // to keep @react-pdf/renderer (~600 KB) out of the main bundle.
 import { generateOfferPdfBlob } from '../../../pdf/generateOfferPdf';
+import { lazyWithReload } from '../../../lib/lazyWithReload';
 import { getOfferFromURL } from '../../../lib/urlState';
 import {
   saveOffer,
@@ -55,6 +56,7 @@ import {
   ORDERMAN,
   SHARP,
   SHARP_ZUBEHOR,
+  BROTHER,
   TEAM,
   ALL,
   isCustomItem,
@@ -78,15 +80,15 @@ import AppShell from '../../../components/AppShell';
 // CalendarPage and TicketsPage are heavy (calendar grids, ticket
 // tables) and only rendered when the user is on their respective
 // section. Lazy import keeps them out of the main bundle.
-const CalendarPage = React.lazy(() => import('../../calendar/pages/CalendarPage'));
-const TicketsPage = React.lazy(() => import('../../tickets/pages/TicketsPage'));
-const DispatcherPage = React.lazy(() => import('../../dispatcher/pages/DispatcherPage'));
+const CalendarPage = lazyWithReload(() => import('../../calendar/pages/CalendarPage'));
+const TicketsPage = lazyWithReload(() => import('../../tickets/pages/TicketsPage'));
+const DispatcherPage = lazyWithReload(() => import('../../dispatcher/pages/DispatcherPage'));
 import { useApproverPendingCount } from '../../vacation/hooks/useApproverPendingCount';
 import { useMyTicketCount } from '../../tickets/hooks/useMyTicketCount';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { pathForSection, sectionFromPath } from '../../../lib/sectionRoute';
 
-const CrmPage = React.lazy(() => import('../../../components/CrmPage.jsx'));
+const CrmPage = lazyWithReload(() => import('../../../components/CrmPage.jsx'));
 
 const POS_TABS = [
   { id: 'bessa', label: 'Bessa' },
@@ -103,15 +105,21 @@ const SHARP_TABS = [
   { id: 'angebot', label: 'Angebot' },
 ];
 
+const BROTHER_TABS = [
+  { id: 'brother', label: 'Brother' },
+  { id: 'angebot', label: 'Angebot' },
+];
+
 // The product tabs depend on the offer type. PoS keeps the existing tabs;
-// Sharp shows the copier devices + accessories. Brother will slot in here.
+// Sharp shows the copier devices + accessories; Brother shows its printers.
 function builderTabsFor(offerType) {
   if (offerType === 'sharp') return SHARP_TABS;
+  if (offerType === 'brother') return BROTHER_TABS;
   return POS_TABS;
 }
 
 // First product tab to land on for a given offer type.
-const FIRST_TAB = { pos: 'bessa', sharp: 'sharp' };
+const FIRST_TAB = { pos: 'bessa', sharp: 'sharp', brother: 'brother' };
 
 // Build wartung rows for PDF rendering from filtered cart entries.
 // Non-selected option-group alternatives are skipped — only the counted member
@@ -1154,6 +1162,8 @@ export default function OfferBuilderPage() {
                 const q = search.toLowerCase().trim();
                 const allItems = offerType === 'sharp'
                   ? [...SHARP, ...SHARP_ZUBEHOR]
+                  : offerType === 'brother'
+                  ? [...BROTHER]
                   : [...BESSA, ...MELZER, ...GASTROTOUCH, ...RCH, ...HARDWARE, ...UNIFY, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...KIOSK, ...ORDERMAN, ...DIENSTLEISTUNGEN];
                 const results = allItems.filter(item =>
                   item.name.toLowerCase().includes(q)
@@ -1190,6 +1200,7 @@ export default function OfferBuilderPage() {
                   </div>
                 )}
                 {builderTab === 'zubehoer' && <TabContent items={SHARP_ZUBEHOR} cart={cart} globalTier={globalTier} handlers={handlers} />}
+                {builderTab === 'brother' && <TabContent items={BROTHER} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'bessa' && <TabContent items={BESSA} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'melzer' && <TabContent items={MELZER} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'gastrotouch' && <TabContent items={GASTROTOUCH} cart={cart} globalTier={globalTier} handlers={handlers} />}

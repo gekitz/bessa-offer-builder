@@ -14,6 +14,7 @@ import {
   DIENSTLEISTUNGEN,
   SHARP,
   SHARP_ZUBEHOR,
+  BROTHER,
   TEAM,
   ALL,
   CATALOG_IDS,
@@ -35,6 +36,7 @@ const ALL_PRODUCT_LISTS = [
   ['DIENSTLEISTUNGEN', DIENSTLEISTUNGEN],
   ['SHARP', SHARP],
   ['SHARP_ZUBEHOR', SHARP_ZUBEHOR],
+  ['BROTHER', BROTHER],
 ] as const;
 
 describe('catalogs', () => {
@@ -103,6 +105,37 @@ describe('Sharp MFP catalog', () => {
       expect(a.price).toBeGreaterThan(0);
       // Accessories carry no copier-only fields (leasing derives from VK).
       expect(a.vk).toBeUndefined();
+    }
+  });
+});
+
+describe('Brother catalog', () => {
+  it('has all 11 devices as one-time items with a positive net price', () => {
+    expect(BROTHER.length).toBe(11);
+    for (const d of BROTHER) {
+      expect(d.t).toBe('o');
+      expect(d.price).toBeGreaterThan(0);
+      // Brother devices are plain hardware — no copier-only leasing fields.
+      expect(d.vk).toBeUndefined();
+      expect(d.name.startsWith('Brother ')).toBe(true);
+    }
+  });
+
+  it('stores the two inkjet MFPs at their net price (list gross ÷ 1,2)', () => {
+    const byId = (id: string) => BROTHER.find((i) => i.id === id)!;
+    // 279,- inkl. MWST → 232,50 net; 299,- inkl. MWST → ~249,17 net.
+    expect(byId('brother-mfc-j4350dw').price! * 1.2).toBeCloseTo(279, 2);
+    expect(byId('brother-mfc-j4550dw').price! * 1.2).toBeCloseTo(299, 2);
+  });
+
+  it('flags every "Nur Firmenkunden" device and leaves the two consumer inkjets unflagged', () => {
+    const consumer = ['brother-mfc-j4350dw', 'brother-mfc-j4550dw'];
+    for (const d of BROTHER) {
+      if (consumer.includes(d.id)) {
+        expect(d.info).toBeUndefined();
+      } else {
+        expect(d.info).toBe('Nur Firmenkunden');
+      }
     }
   });
 });
