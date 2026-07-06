@@ -2,7 +2,7 @@
   "name": "KITZ Workspace",
   "short_name": "KITZ",
   "description": "Angebote · CRM · Urlaub für KITZ Computer + Office",
-  "start_url": "/bessa-offer-builder/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#f1f5f9",
   "theme_color": "#E42228",
