@@ -1,14 +1,15 @@
 import React from 'react';
 import { HashRouter } from 'react-router-dom';
 import OfferBuilderPage from './features/offers/pages/OfferBuilderPage';
+import { lazyWithReload } from './lib/lazyWithReload';
 
 // Lazy-loaded: AcceptPage is only used on the customer-facing
 // ?a=<share_code> flow, which is a small fraction of total loads.
 // Keeping it out of the main chunk shaves the bundle for everyone
 // who's just opening the app to build / send offers.
-const AcceptPage = React.lazy(() => import('./features/offers/pages/AcceptPage'));
-const CustomerTicketPage = React.lazy(() => import('./features/tickets/pages/CustomerTicketPage'));
-const MesonicTest = React.lazy(() => import('./components/MesonicTest.jsx'));
+const AcceptPage = lazyWithReload(() => import('./features/offers/pages/AcceptPage'));
+const CustomerTicketPage = lazyWithReload(() => import('./features/tickets/pages/CustomerTicketPage'));
+const MesonicTest = lazyWithReload(() => import('./components/MesonicTest.jsx'));
 
 export default function App() {
   // Quick access: add #test to URL to show Mesonic API test page.

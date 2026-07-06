@@ -39,6 +39,7 @@ import AttachmentsPanel from './AttachmentsPanel';
 import MaterialPicker from './MaterialPicker';
 import SignatureCapture from './SignatureCapture';
 import TimeEntryForm from './TimeEntryForm';
+import { importWithReload } from '../../../lib/lazyWithReload';
 
 interface RepairOrderDetailProps {
   ticket: Ticket;
@@ -205,7 +206,9 @@ export default function RepairOrderDetail({
     setDownloading(true);
     setError(null);
     try {
-      const { generateRepairOrderPdfBlob } = await import('../../../pdf/generateRepairOrderPdf');
+      const { generateRepairOrderPdfBlob } = await importWithReload(
+        () => import('../../../pdf/generateRepairOrderPdf'),
+      );
       const employeesByEntry: Record<string, string> = {};
       for (const e of entries) {
         const name = employeeNameById.get(e.employeeId);

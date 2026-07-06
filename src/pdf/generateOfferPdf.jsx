@@ -1,4 +1,5 @@
 import React from 'react';
+import { importWithReload } from '../lib/lazyWithReload';
 
 // Generate the offer PDF as a Blob, lazily loading the heavy
 // @react-pdf/renderer package and the OfferPdfDocument component
@@ -10,9 +11,8 @@ import React from 'react';
 // hits Print / Send / Sign. The first PDF generation has a small
 // extra delay while the chunk loads (cached after that).
 export async function generateOfferPdfBlob(props) {
-  const [{ pdf }, { default: OfferPdfDocument }] = await Promise.all([
-    import('@react-pdf/renderer'),
-    import('./OfferPdfDocument'),
-  ]);
+  const [{ pdf }, { default: OfferPdfDocument }] = await importWithReload(() =>
+    Promise.all([import('@react-pdf/renderer'), import('./OfferPdfDocument')]),
+  );
   return await pdf(<OfferPdfDocument {...props} />).toBlob();
 }
