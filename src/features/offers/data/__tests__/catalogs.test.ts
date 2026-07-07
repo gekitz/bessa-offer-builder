@@ -3,6 +3,7 @@ import {
   BESSA,
   MELZER,
   GASTROTOUCH,
+  GASTROTOUCH_UPDATE_VERSION,
   RCH,
   HARDWARE,
   UNIFY,
@@ -128,6 +129,13 @@ describe('Brother catalog', () => {
     expect(byId('brother-mfc-j4550dw').price! * 1.2).toBeCloseTo(299, 2);
   });
 
+  it('gives every device a non-empty spec description', () => {
+    for (const d of BROTHER) {
+      expect(d.description).toBeTruthy();
+      expect(d.description!.length).toBeGreaterThan(10);
+    }
+  });
+
   it('flags every "Nur Firmenkunden" device and leaves the two consumer inkjets unflagged', () => {
     const consumer = ['brother-mfc-j4350dw', 'brother-mfc-j4550dw'];
     for (const d of BROTHER) {
@@ -163,6 +171,13 @@ describe('GastroTouch catalog', () => {
       expect(byId(`gt-${code}-2025`).price).toBeCloseTo(normal, 2);
       expect(byId(`gt-${code}-2024`).price).toBeCloseTo(normal * 1.5, 2);
       expect(byId(`gt-${code}-2023`).price).toBeCloseTo(normal * 2, 2);
+    }
+  });
+
+  it('appends the target update version to every product name', () => {
+    const suffix = `(Update ${GASTROTOUCH_UPDATE_VERSION})`;
+    for (const item of GASTROTOUCH) {
+      expect(item.name.endsWith(suffix)).toBe(true);
     }
   });
 

@@ -144,7 +144,10 @@ export const MELZER: Item[] = [
 // letzten Updates: innerhalb eines Jahres Normalpreis (+0%), ab dem 2. Jahr
 // +50%, ab dem 3. Jahr +100%. Jede Update-Stufe ist als eigene Position
 // hinterlegt — der Verkäufer wählt die passende Zeile je nach letztem Update.
-export const GASTROTOUCH: Item[] = [
+// Version, auf die aktuell aktualisiert wird — bei jedem Release hier anpassen.
+// Wird an jeden GastroTouch-Positionsnamen angehängt (Angebot + PDF).
+export const GASTROTOUCH_UPDATE_VERSION = 'V.67.25';
+const GASTROTOUCH_BASE: Item[] = [
   // Normalpreis – letztes Update innerhalb eines Jahres (+0%)
   { id:'gt-16067191-2025', code:'16067191', name:'Einzelplatz', cat:'Update – Letztes Update 2025', price:139.90, t:'o' },
   { id:'gt-16067192-2025', code:'16067192', name:'Mehrplatz', cat:'Update – Letztes Update 2025', price:236.80, t:'o' },
@@ -161,6 +164,13 @@ export const GASTROTOUCH: Item[] = [
   { id:'gt-16067193-2023', code:'16067193', name:'Je weiterer Arbeitsplatz', cat:'Update – 2023 und älter (+100%)', price:140.60, t:'o', info:'Normalpreis + 100%' },
   { id:'gt-16067194-2023', code:'16067194', name:'Je Orderman', cat:'Update – 2023 und älter (+100%)', price:44.40, t:'o', info:'Normalpreis + 100%' },
 ];
+
+// Jede Position bekommt die Zielversion in den Namen ("… (Update V.67.25)"),
+// damit sie im Angebot und im PDF sichtbar ist.
+export const GASTROTOUCH: Item[] = GASTROTOUCH_BASE.map((it) => ({
+  ...it,
+  name: `${it.name} (Update ${GASTROTOUCH_UPDATE_VERSION})`,
+}));
 
 export const UNIFY: Item[] = [
   { id:'unify-dream-router-7', name:'Netzwerk - Dream Router 7', price:300, t:'o' },
@@ -349,21 +359,21 @@ export const SHARP_ZUBEHOR: Item[] = [
 // (+20% MWST) and marked "Nur Firmenkunden" via info.
 export const BROTHER: Item[] = [
   // Multifunktionsgerät Tinte
-  { id:'brother-mfc-j4350dw', name:'Brother MFC-J4350DW', cat:'Multifunktionsgerät Tinte', price:232.50, t:'o' },
-  { id:'brother-mfc-j4550dw', name:'Brother MFC-J4550DW', cat:'Multifunktionsgerät Tinte', price:249.17, t:'o' },
-  { id:'brother-mfc-j6975dw', name:'Brother MFC-J6975DW', cat:'Multifunktionsgerät Tinte', price:599, t:'o', info:'Nur Firmenkunden' },
+  { id:'brother-mfc-j4350dw', name:'Brother MFC-J4350DW', cat:'Multifunktionsgerät Tinte', price:232.50, t:'o', description:'A4 Tinten-Multifunktionsgerät (Drucken, Scannen, Kopieren, Faxen), bis 20 S./Min., 20 Blatt ADF, Duplexdruck, WLAN.' },
+  { id:'brother-mfc-j4550dw', name:'Brother MFC-J4550DW', cat:'Multifunktionsgerät Tinte', price:249.17, t:'o', description:'A4 Tinten-Multifunktionsgerät, bis 16 S./Min., 20 Blatt ADF, Duplexdruck, WLAN/LAN, 400 Blatt Papierkapazität.' },
+  { id:'brother-mfc-j6975dw', name:'Brother MFC-J6975DW', cat:'Multifunktionsgerät Tinte', price:599, t:'o', info:'Nur Firmenkunden', description:'Professionelles A3 Multifunktionsgerät, bis 31/30 S./Min. S/W/Farbe, 50 Blatt Duplex-ADF, LAN/WLAN.' },
   // Multifunktionsgerät Laser Farbe
-  { id:'brother-mfc-l8390cdw', name:'Brother MFC-L8390CDW', cat:'Multifunktionsgerät Laser Farbe', price:550, t:'o', info:'Nur Firmenkunden' },
-  { id:'brother-mfc-l9570cdw', name:'Brother MFC-L9570CDW', cat:'Multifunktionsgerät Laser Farbe', price:1250, t:'o', info:'Nur Firmenkunden' },
-  { id:'brother-mfc-l9670cdn', name:'Brother MFC-L9670CDN', cat:'Multifunktionsgerät Laser Farbe', price:1499, t:'o', info:'Nur Firmenkunden' },
+  { id:'brother-mfc-l8390cdw', name:'Brother MFC-L8390CDW', cat:'Multifunktionsgerät Laser Farbe', price:550, t:'o', info:'Nur Firmenkunden', description:'Farb-Laser-Multifunktionsgerät A4, bis 30 S./Min., 50 Blatt Duplex-ADF, LAN/WLAN.' },
+  { id:'brother-mfc-l9570cdw', name:'Brother MFC-L9570CDW', cat:'Multifunktionsgerät Laser Farbe', price:1250, t:'o', info:'Nur Firmenkunden', description:'Professionelles Farb-Laser-Multifunktionsgerät A4, bis 31 S./Min., 80 Blatt Duplex-ADF, für hohe Druckvolumen.' },
+  { id:'brother-mfc-l9670cdn', name:'Brother MFC-L9670CDN', cat:'Multifunktionsgerät Laser Farbe', price:1499, t:'o', info:'Nur Firmenkunden', description:'High-End Farb-Laser-Multifunktionsgerät A4, bis 40 S./Min., 100 Blatt Duplex-ADF, für Unternehmen mit hohem Druckaufkommen.' },
   // Laserdrucker Farbe
-  { id:'brother-hl-9310cdw', code:'15931001WO', name:'Brother HL-9310CDW', cat:'Laserdrucker Farbe', price:499, t:'o', info:'Nur Firmenkunden' },
+  { id:'brother-hl-9310cdw', code:'15931001WO', name:'Brother HL-L9310CDW', cat:'Laserdrucker Farbe', price:499, t:'o', info:'Nur Firmenkunden', description:'Professioneller Farblaserdrucker A4, bis 31 S./Min., Duplexdruck, LAN/WLAN.' },
   // Multifunktionsdrucker Laser Mono
-  { id:'brother-mfc-l5710dw', name:'Brother MFC-L5710DW', cat:'Multifunktionsdrucker Laser Mono', price:727.99, t:'o', info:'Nur Firmenkunden' },
-  { id:'brother-mfc-l6910dn', name:'Brother MFC-L6910DN', cat:'Multifunktionsdrucker Laser Mono', price:685, t:'o', info:'Nur Firmenkunden' },
+  { id:'brother-mfc-l5710dw', name:'Brother MFC-L5710DW', cat:'Multifunktionsdrucker Laser Mono', price:727.99, t:'o', info:'Nur Firmenkunden', description:'Mono-Laser-Multifunktionsgerät A4, bis 48 S./Min., 50 Blatt Duplex-ADF, LAN/WLAN.' },
+  { id:'brother-mfc-l6910dn', name:'Brother MFC-L6910DN', cat:'Multifunktionsdrucker Laser Mono', price:685, t:'o', info:'Nur Firmenkunden', description:'Leistungsstarkes Mono-Laser-Multifunktionsgerät A4, bis 50 S./Min., 80 Blatt Duplex-ADF, für hohe Druckvolumen.' },
   // Laserdrucker Mono
-  { id:'brother-hl-l5210dn', name:'Brother HL-L5210DN', cat:'Laserdrucker Mono', price:350, t:'o', info:'Nur Firmenkunden' },
-  { id:'brother-hl-l6210dw', name:'Brother HL-L6210DW', cat:'Laserdrucker Mono', price:410, t:'o', info:'Nur Firmenkunden' },
+  { id:'brother-hl-l5210dn', name:'Brother HL-L5210DN', cat:'Laserdrucker Mono', price:350, t:'o', info:'Nur Firmenkunden', description:'Mono-Laserdrucker A4, bis 48 S./Min., Duplexdruck, Gigabit-LAN.' },
+  { id:'brother-hl-l6210dw', name:'Brother HL-L6210DW', cat:'Laserdrucker Mono', price:410, t:'o', info:'Nur Firmenkunden', description:'Mono-Laserdrucker A4, bis 50 S./Min., Duplexdruck, LAN/WLAN, für hohe Druckvolumen.' },
 ];
 
 export const TEAM: TeamMember[] = [

@@ -21,7 +21,7 @@ describe('computeAutoTerms', () => {
     expect(computeAutoTerms({})).toEqual([
       'Lieferzeit: 2 Wochen',
       'Zahlungsziel: 10 Tage netto Kassa',
-      'Arbeitszeit, Wegzeit und KM-Geld werden nach tatsächlichem Aufwand verrechnet.',
+      'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
     ]);
   });
 
@@ -42,7 +42,7 @@ describe('computeAutoTerms', () => {
     expect(computeAutoTerms(cart)).toEqual([
       'Lieferzeit: 2 Wochen',
       'Zahlungsziel: 10 Tage netto Kassa',
-      'Arbeitszeit, Wegzeit und KM-Geld werden nach tatsächlichem Aufwand verrechnet.',
+      'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
       'Kabel müssen vom Kunden eigenständig verlegt werden',
     ]);
   });

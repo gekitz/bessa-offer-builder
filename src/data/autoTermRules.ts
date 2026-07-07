@@ -20,7 +20,7 @@ export const AUTO_TERM_RULES: readonly AutoTermRule[] = [
   {
     id: 'travel-billing',
     condition: () => true,
-    text: 'Arbeitszeit, Wegzeit und KM-Geld werden nach tatsächlichem Aufwand verrechnet.',
+    text: 'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
   },
   {
     id: 'network-cabling',

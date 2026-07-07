@@ -37,6 +37,7 @@ export default function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, 
           </div>
           {item.note && <p className="text-slate-400" style={{ fontSize: 11, marginTop: 2 }}>{item.note}</p>}
           {item.info && <p className="text-red-600 font-medium" style={{ fontSize: 11, marginTop: 2 }}>{item.info}</p>}
+          {item.description && <p className="text-slate-500" style={{ fontSize: 11, marginTop: 2 }}>{item.description}</p>}
         </div>
         {!inCart ? (
           <button onClick={() => onAdd(item.id, item.t === 'm' ? bestTier(item, globalTier) : undefined, item.t === 'term' ? 'rent' : undefined)}
