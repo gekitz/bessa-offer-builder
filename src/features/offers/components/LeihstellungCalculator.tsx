@@ -126,10 +126,9 @@ export default function LeihstellungCalculator({ rental, onChange }: Props) {
   };
 
   return (
-    <div className="grid gap-4 items-start" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
-      <div className="grid gap-4 items-start lg:[grid-template-columns:minmax(0,1fr)_340px]">
+    <div className="grid grid-cols-1 gap-4 items-start lg:grid-cols-[minmax(0,1fr)_340px]">
         {/* LEFT: inputs */}
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           {/* Timespan pills — drive every price below */}
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
             <div className="text-slate-500 mb-2" style={{ fontSize: 12 }}>Laufzeit</div>
@@ -243,7 +242,6 @@ export default function LeihstellungCalculator({ rental, onChange }: Props) {
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }
