@@ -1,13 +1,16 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos' }) {
+export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', rental = null }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   // offer_type lives in a top-level column (source of truth for the
   // list filter) but is also mirrored into offer_data so the share /
   // URL load path — which only reads offer_data — restores it too.
   const offerData = { cart, globalTier, notes, raten, finanzOpen, rabattActive: !!rabattActive, skontoActive: !!skontoActive, address: customer.address || '', mandatsRef: mandatsRef || '', offerType };
+  // Leihstellung input state — persisted so the calculator can be re-edited on
+  // reload (the priced line itself rides along as a custom item).
+  if (rental) offerData.rental = rental;
   if (customItems && Object.keys(customItems).length > 0) offerData.customItems = customItems;
   if (cartOrder && cartOrder.length > 0) offerData.cartOrder = cartOrder;
   const row = {

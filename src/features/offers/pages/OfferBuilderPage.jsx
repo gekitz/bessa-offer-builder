@@ -64,6 +64,8 @@ import {
 import OfferView from '../components/OfferView';
 import CopierItemCard from '../components/CopierItemCard';
 import NewOfferTypeModal from '../components/modals/NewOfferTypeModal';
+import LeihstellungCalculator from '../components/LeihstellungCalculator';
+import { emptyRentalState, rentalLineFields, RENTAL_LINE_ID } from '../../../lib/rentalOffer';
 import ItemCard from '../components/ItemCard';
 import CatGroup from '../components/CatGroup';
 import TabContent from '../components/TabContent';
@@ -110,16 +112,23 @@ const BROTHER_TABS = [
   { id: 'angebot', label: 'Angebot' },
 ];
 
+const RENTAL_TABS = [
+  { id: 'leihstellung', label: 'Leihstellung' },
+  { id: 'angebot', label: 'Angebot' },
+];
+
 // The product tabs depend on the offer type. PoS keeps the existing tabs;
-// Sharp shows the copier devices + accessories; Brother shows its printers.
+// Sharp shows the copier devices + accessories; Brother shows its printers;
+// Rental (Leihstellung) shows the rental calculator.
 function builderTabsFor(offerType) {
   if (offerType === 'sharp') return SHARP_TABS;
   if (offerType === 'brother') return BROTHER_TABS;
+  if (offerType === 'rental') return RENTAL_TABS;
   return POS_TABS;
 }
 
 // First product tab to land on for a given offer type.
-const FIRST_TAB = { pos: 'bessa', sharp: 'sharp', brother: 'brother' };
+const FIRST_TAB = { pos: 'bessa', sharp: 'sharp', brother: 'brother', rental: 'leihstellung' };
 
 // Build wartung rows for PDF rendering from filtered cart entries.
 // Non-selected option-group alternatives are skipped — only the counted member
@@ -188,6 +197,10 @@ export default function OfferBuilderPage() {
   // Drives list filtering today; will gate builder tabs + PDF in later
   // phases. Defaults to 'pos' — the only kind that exists pre-Sharp.
   const [offerType, setOfferType] = useState('pos');
+  // Leihstellung (rental) input state — only meaningful when offerType ===
+  // 'rental'. The calculator edits this; an effect mirrors it into a single
+  // custom cart line so the whole Save/Send/Print/PDF pipeline works unchanged.
+  const [rental, setRental] = useState(emptyRentalState());
   // Type-picker modal shown when starting a new offer (PoS vs Sharp MFP tiles).
   const [showNewOfferModal, setShowNewOfferModal] = useState(false);
   const [globalTier, setGlobalTier] = useState('12mo');
@@ -273,6 +286,24 @@ export default function OfferBuilderPage() {
     setShowCustomModal(false);
   }
 
+  // Keep the single "Leihstellung POS" cart line in sync with the rental
+  // calculator. The line is a custom once-item (its id isn't a catalog id), so
+  // it persists via customItems and flows through OfferView/PDF like any other
+  // line. Only active for rental offers.
+  useEffect(() => {
+    if (offerType !== 'rental') return;
+    const fields = rentalLineFields(rental);
+    if (!fields) {
+      delete ALL[RENTAL_LINE_ID];
+      setCart(c => { if (!c[RENTAL_LINE_ID]) return c; const { [RENTAL_LINE_ID]: _drop, ...rest } = c; return rest; });
+      setCartOrder(prev => prev.filter(id => id !== RENTAL_LINE_ID));
+      return;
+    }
+    ALL[RENTAL_LINE_ID] = { id: RENTAL_LINE_ID, name: fields.name, price: fields.price, t: 'o', description: fields.description };
+    setCart(c => (c[RENTAL_LINE_ID] ? c : { ...c, [RENTAL_LINE_ID]: { qty: 1, discountQty: 0 } }));
+    setCartOrder(prev => (prev.includes(RENTAL_LINE_ID) ? prev : [...prev, RENTAL_LINE_ID]));
+  }, [rental, offerType]);
+
   useEffect(() => {
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap';
@@ -310,6 +341,7 @@ export default function OfferBuilderPage() {
         setSkontoActive(data.skontoActive || false);
         setGlobalTier(data.globalTier || '12mo');
         setOfferType(offer.offer_type || data.offerType || 'pos');
+        setRental(data.rental || emptyRentalState());
         setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
         setServiceStartDate(offer.service_start_date || new Date().toISOString().slice(0, 10));
         setCurrentOfferId(offer.id);
@@ -338,6 +370,7 @@ export default function OfferBuilderPage() {
       setSkontoActive(savedOffer.skontoActive || false);
       setGlobalTier(savedOffer.globalTier || '12mo');
       setOfferType(savedOffer.offerType || 'pos');
+      setRental(savedOffer.rental || emptyRentalState());
       if (savedOffer.mandatsRef) setMandatsRef(savedOffer.mandatsRef);
       setOfferView('builder'); setBuilderTab('angebot');
       window.history.replaceState({}, '', window.location.pathname);
@@ -638,6 +671,7 @@ export default function OfferBuilderPage() {
             cartOrder,
             serviceStartDate,
             offerType,
+            rental,
           });
           effectiveOfferId = saved.id;
           setCurrentOfferId(effectiveOfferId);
@@ -737,6 +771,7 @@ export default function OfferBuilderPage() {
         cartOrder,
         serviceStartDate,
         offerType,
+        rental,
       });
       setCurrentOfferId(result.id);
 
@@ -784,6 +819,7 @@ export default function OfferBuilderPage() {
         cartOrder,
         serviceStartDate,
         offerType,
+        rental,
       });
       setCurrentOfferId(result.id);
       setSaveSuccess(true);
@@ -824,6 +860,7 @@ export default function OfferBuilderPage() {
         cartOrder,
         serviceStartDate,
         offerType,
+        rental,
       });
       offerId = result.id;
       setCurrentOfferId(offerId);
@@ -947,6 +984,7 @@ export default function OfferBuilderPage() {
       setSkontoActive(data.skontoActive || false);
       setGlobalTier(data.globalTier || '12mo');
       setOfferType(offer.offer_type || data.offerType || 'pos');
+      setRental(data.rental || emptyRentalState());
       setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
       setServiceStartDate(offer.service_start_date || new Date().toISOString().slice(0, 10));
       setCurrentOfferId(duplicate ? null : offer.id);
@@ -973,6 +1011,7 @@ export default function OfferBuilderPage() {
     setSkontoActive(false);
     setGlobalTier('12mo');
     setOfferType(type);
+    setRental(emptyRentalState());
     setMandatsRef(Date.now().toString().slice(-12));
     setServiceStartDate(new Date().toISOString().slice(0, 10));
     setBuilderTab(FIRST_TAB[type] || 'bessa');
@@ -1134,7 +1173,7 @@ export default function OfferBuilderPage() {
             )}
 
             {/* Product search bar */}
-            {builderTab !== 'angebot' && (
+            {builderTab !== 'angebot' && builderTab !== 'leihstellung' && (
               <div className="px-3 pb-3 md:px-5">
                 <div className="relative">
                   <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1157,7 +1196,7 @@ export default function OfferBuilderPage() {
 
           {/* Builder content */}
           <div className="flex-1 overflow-auto px-3 py-3 md:px-6 md:py-4 md:pb-8">
-            {search.trim() && builderTab !== 'angebot' ? (
+            {search.trim() && builderTab !== 'angebot' && builderTab !== 'leihstellung' ? (
               (() => {
                 const q = search.toLowerCase().trim();
                 const allItems = offerType === 'sharp'
@@ -1201,6 +1240,7 @@ export default function OfferBuilderPage() {
                 )}
                 {builderTab === 'zubehoer' && <TabContent items={SHARP_ZUBEHOR} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'brother' && <TabContent items={BROTHER} cart={cart} globalTier={globalTier} handlers={handlers} />}
+                {builderTab === 'leihstellung' && <LeihstellungCalculator rental={rental} onChange={setRental} />}
                 {builderTab === 'bessa' && <TabContent items={BESSA} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'melzer' && <TabContent items={MELZER} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'gastrotouch' && <TabContent items={GASTROTOUCH} cart={cart} globalTier={globalTier} handlers={handlers} />}
@@ -1268,7 +1308,11 @@ export default function OfferBuilderPage() {
                     <span>{cartCount} {cartCount === 1 ? 'Position' : 'Positionen'}</span>
                   </div>
                   <div className="flex gap-4 mt-0.5">
-                    {copierOffer.isCopierOffer ? (
+                    {offerType === 'rental' ? (
+                      totals.once > 0
+                        ? <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>€ {fmt(totals.once)}<span className="font-normal text-slate-400" style={{ fontSize: 11 }}> Leihpreis netto</span></span>
+                        : <span className="text-slate-400" style={{ fontSize: 13 }}>Noch keine Auswahl</span>
+                    ) : copierOffer.isCopierOffer ? (
                       copierOffer.saleMode === 'leasing'
                         ? <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>€ {fmt(copierOffer.leasing.rate)}<span className="font-normal text-slate-400" style={{ fontSize: 11 }}>/Mo Leasing</span></span>
                         : <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>€ {fmt(copierOffer.net)}<span className="font-normal text-slate-400" style={{ fontSize: 11 }}> netto (Kauf)</span></span>
