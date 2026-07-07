@@ -367,7 +367,7 @@ export const BROTHER: Item[] = [
   { id:'brother-mfc-l9570cdw', name:'Brother MFC-L9570CDW', cat:'Multifunktionsgerät Laser Farbe', price:1250, t:'o', info:'Nur Firmenkunden', description:'Professionelles Farb-Laser-Multifunktionsgerät A4, bis 31 S./Min., 80 Blatt Duplex-ADF, für hohe Druckvolumen.' },
   { id:'brother-mfc-l9670cdn', name:'Brother MFC-L9670CDN', cat:'Multifunktionsgerät Laser Farbe', price:1499, t:'o', info:'Nur Firmenkunden', description:'High-End Farb-Laser-Multifunktionsgerät A4, bis 40 S./Min., 100 Blatt Duplex-ADF, für Unternehmen mit hohem Druckaufkommen.' },
   // Laserdrucker Farbe
-  { id:'brother-hl-9310cdw', code:'15931001WO', name:'Brother HL-L9310CDW', cat:'Laserdrucker Farbe', price:499, t:'o', info:'Nur Firmenkunden', description:'Professioneller Farblaserdrucker A4, bis 31 S./Min., Duplexdruck, LAN/WLAN.' },
+  { id:'brother-hl-9310cdw', name:'Brother HL-L9310CDW', cat:'Laserdrucker Farbe', price:499, t:'o', info:'Nur Firmenkunden', description:'Professioneller Farblaserdrucker A4, bis 31 S./Min., Duplexdruck, LAN/WLAN.' },
   // Multifunktionsdrucker Laser Mono
   { id:'brother-mfc-l5710dw', name:'Brother MFC-L5710DW', cat:'Multifunktionsdrucker Laser Mono', price:727.99, t:'o', info:'Nur Firmenkunden', description:'Mono-Laser-Multifunktionsgerät A4, bis 48 S./Min., 50 Blatt Duplex-ADF, LAN/WLAN.' },
   { id:'brother-mfc-l6910dn', name:'Brother MFC-L6910DN', cat:'Multifunktionsdrucker Laser Mono', price:685, t:'o', info:'Nur Firmenkunden', description:'Leistungsstarkes Mono-Laser-Multifunktionsgerät A4, bis 50 S./Min., 80 Blatt Duplex-ADF, für hohe Druckvolumen.' },
