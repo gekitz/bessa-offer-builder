@@ -163,6 +163,47 @@ describe('TicketsPage', () => {
       .toBe('Müller GmbH');
   });
 
+  it('filters tickets by the pool pill', async () => {
+    const u = userEvent.setup();
+    listAbteilungenMock.mockResolvedValue([
+      { id: 2, name: 'IT' },
+      { id: 1, name: 'Kassen' },
+    ]);
+    listTicketsMock.mockResolvedValue([
+      makeTicket({ id: 't-1', ticketNumber: '26-0000001', shareCode: 's1', title: 'Drucker', poolAbteilungId: 2 }),
+      makeTicket({ id: 't-2', ticketNumber: '26-0000002', shareCode: 's2', title: 'Kassa-Ticket', poolAbteilungId: 1 }),
+    ]);
+    renderAt();
+    await screen.findByText('Drucker');
+    expect(screen.queryAllByTestId('ticket-row')).toHaveLength(2);
+
+    // Pool pills render with counts; picking IT narrows the list.
+    await u.click(screen.getByRole('button', { name: /IT/ }));
+    await waitFor(() => expect(screen.queryAllByTestId('ticket-row')).toHaveLength(1));
+    expect(screen.getByText('Drucker')).toBeInTheDocument();
+    expect(screen.queryByText('Kassa-Ticket')).not.toBeInTheDocument();
+  });
+
+  it('groups the board into per-pool swimlanes', async () => {
+    const u = userEvent.setup();
+    listAbteilungenMock.mockResolvedValue([
+      { id: 2, name: 'IT' },
+      { id: 1, name: 'Kassen' },
+    ]);
+    listTicketsMock.mockResolvedValue([
+      makeTicket({ id: 't-1', ticketNumber: '26-0000001', shareCode: 's1', title: 'Drucker', poolAbteilungId: 2 }),
+      makeTicket({ id: 't-2', ticketNumber: '26-0000002', shareCode: 's2', title: 'Kassa-Ticket', poolAbteilungId: 1 }),
+    ]);
+    renderAt();
+    await screen.findByText('Drucker');
+    await u.click(screen.getByTestId('view-toggle-board'));
+    await waitFor(() => expect(screen.getByTestId('ticket-board')).toBeInTheDocument());
+    // One lane per non-empty pool; the empty 'Ohne Zuordnung' lane is omitted.
+    expect(screen.getByTestId('board-lane-2')).toBeInTheDocument();
+    expect(screen.getByTestId('board-lane-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('board-lane-none')).not.toBeInTheDocument();
+  });
+
   it('navigates to /tickets/<id> after creating a ticket', async () => {
     const u = userEvent.setup();
     renderAt();

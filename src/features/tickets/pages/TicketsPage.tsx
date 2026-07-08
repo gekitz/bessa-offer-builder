@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { TEAM } from '../../offers/data/catalogs';
-import { listEmployees } from '../../vacation/api/vacationApi';
+import { listAbteilungen, listEmployees, type Abteilung } from '../../vacation/api/vacationApi';
 import { listTickets } from '../api/ticketApi';
 import TicketBoard from '../components/TicketBoard';
 import TicketDetail from '../components/TicketDetail';
@@ -91,6 +91,9 @@ export default function TicketsPage() {
   const [statusTab, setStatusTab] = useState<TicketStatus | 'all'>('open');
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'list' | 'board'>(loadView);
+  // Pool (Abteilung) filter. 'all' = every pool, 'none' = unrouted tickets.
+  const [pools, setPools] = useState<Abteilung[]>([]);
+  const [poolFilter, setPoolFilter] = useState<number | 'all' | 'none'>('all');
   const [showCreate, setShowCreate] = useState(false);
   // Pre-fill the create form from navigation state, e.g. when the
   // CRM CustomerDetail "Ticket erstellen" button sent us here.
@@ -99,6 +102,24 @@ export default function TicketsPage() {
   >(undefined);
 
   useEffect(() => saveView(view), [view]);
+
+  useEffect(() => {
+    listAbteilungen().then(setPools).catch(() => {
+      /* pool pills just stay minimal (Alle / Ohne Zuordnung) */
+    });
+  }, []);
+
+  // Per-pool counts from the currently loaded set (status-filtered in
+  // list view, all statuses in board view) — before search/pool filters
+  // so the pills stay stable while typing.
+  const poolCounts = useMemo(() => {
+    const m = new Map<number | 'none', number>();
+    for (const t of tickets) {
+      const key = t.poolAbteilungId ?? 'none';
+      m.set(key, (m.get(key) ?? 0) + 1);
+    }
+    return m;
+  }, [tickets]);
 
   // Pick up { initialCustomer } from react-router state on mount and
   // immediately open the create modal. Clear the state so a refresh
@@ -134,15 +155,20 @@ export default function TicketsPage() {
   }, [reload, detailId]);
 
   const filteredTickets = useMemo(() => {
-    if (!search.trim()) return tickets;
-    const term = search.trim().toLowerCase();
-    return tickets.filter(
-      (t) =>
-        t.title.toLowerCase().includes(term) ||
-        t.ticketNumber.toLowerCase().includes(term) ||
-        (t.customerName?.toLowerCase().includes(term) ?? false),
-    );
-  }, [tickets, search]);
+    let list = tickets;
+    if (poolFilter === 'none') list = list.filter((t) => t.poolAbteilungId == null);
+    else if (poolFilter !== 'all') list = list.filter((t) => t.poolAbteilungId === poolFilter);
+    if (search.trim()) {
+      const term = search.trim().toLowerCase();
+      list = list.filter(
+        (t) =>
+          t.title.toLowerCase().includes(term) ||
+          t.ticketNumber.toLowerCase().includes(term) ||
+          (t.customerName?.toLowerCase().includes(term) ?? false),
+      );
+    }
+    return list;
+  }, [tickets, search, poolFilter]);
 
   function openTicket(t: Ticket) {
     navigate(`/tickets/${t.id}`);
@@ -181,6 +207,33 @@ export default function TicketsPage() {
             <Plus size={16} />
             Neues Ticket
           </button>
+        </div>
+
+        {/* Pool (Abteilung) filter — restores the old per-pool overview */}
+        <div className="flex flex-wrap gap-1.5 mb-2" data-testid="pool-pills">
+          {([{ key: 'all' as const, label: 'Alle', count: tickets.length }]
+            .concat(
+              pools.map((p) => ({ key: p.id as never, label: p.name, count: poolCounts.get(p.id) ?? 0 })),
+            )
+            .concat([{ key: 'none' as never, label: 'Ohne Zuordnung', count: poolCounts.get('none') ?? 0 }])
+          ).map((pill) => {
+            const isActive = poolFilter === pill.key;
+            return (
+              <button
+                key={String(pill.key)}
+                type="button"
+                onClick={() => setPoolFilter(pill.key)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition ${
+                  isActive
+                    ? 'bg-red-50 border-red-200 text-red-700 font-medium'
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                {pill.label}
+                <span className={`text-xs ${isActive ? 'text-red-500' : 'text-slate-400'}`}>{pill.count}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 mb-3">
@@ -258,7 +311,20 @@ export default function TicketsPage() {
             <div className="text-sm text-slate-500">Keine Tickets in dieser Ansicht.</div>
           </div>
         ) : view === 'board' ? (
-          <TicketBoard tickets={filteredTickets} onTicketClick={openTicket} />
+          <TicketBoard
+            tickets={filteredTickets}
+            onTicketClick={openTicket}
+            // Group into per-pool swimlanes only when no single pool is
+            // selected; a specific pool shows as a plain board.
+            swimlanes={
+              poolFilter === 'all'
+                ? [
+                    ...pools.map((p) => ({ id: p.id as number | 'none', name: p.name })),
+                    { id: 'none' as number | 'none', name: 'Ohne Zuordnung' },
+                  ]
+                : undefined
+            }
+          />
         ) : (
           <ul className="space-y-2">
             {filteredTickets.map((t) => {

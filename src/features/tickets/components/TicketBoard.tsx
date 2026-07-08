@@ -3,6 +3,10 @@ import type { Ticket, TicketStatus } from '../types';
 interface TicketBoardProps {
   tickets: Ticket[];
   onTicketClick: (ticket: Ticket) => void;
+  // When provided, tickets are grouped into per-pool swimlanes (rows),
+  // each with the full set of status columns. Lanes with no tickets are
+  // omitted. Without it, a single flat board is rendered.
+  swimlanes?: Array<{ id: number | 'none'; name: string }>;
 }
 
 const BOARD_COLUMNS: Array<{ id: TicketStatus; label: string; cls: string }> = [
@@ -19,7 +23,14 @@ const PRIORITY_DOT: Record<Ticket['priority'], string> = {
   urgent: 'bg-red-500',
 };
 
-export default function TicketBoard({ tickets, onTicketClick }: TicketBoardProps) {
+// The 4 status columns for a given set of tickets.
+function StatusColumns({
+  tickets,
+  onTicketClick,
+}: {
+  tickets: Ticket[];
+  onTicketClick: (ticket: Ticket) => void;
+}) {
   const byStatus = new Map<TicketStatus, Ticket[]>();
   for (const t of tickets) {
     const arr = byStatus.get(t.status) ?? [];
@@ -28,7 +39,7 @@ export default function TicketBoard({ tickets, onTicketClick }: TicketBoardProps
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" data-testid="ticket-board">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
       {BOARD_COLUMNS.map((col) => {
         const items = byStatus.get(col.id) ?? [];
         return (
@@ -67,6 +78,44 @@ export default function TicketBoard({ tickets, onTicketClick }: TicketBoardProps
               )}
             </ul>
           </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function TicketBoard({ tickets, onTicketClick, swimlanes }: TicketBoardProps) {
+  if (!swimlanes) {
+    return (
+      <div data-testid="ticket-board">
+        <StatusColumns tickets={tickets} onTicketClick={onTicketClick} />
+      </div>
+    );
+  }
+
+  // Group tickets by pool once, then render a lane per non-empty pool.
+  const byPool = new Map<number | 'none', Ticket[]>();
+  for (const t of tickets) {
+    const key = t.poolAbteilungId ?? 'none';
+    const arr = byPool.get(key) ?? [];
+    arr.push(t);
+    byPool.set(key, arr);
+  }
+
+  const lanes = swimlanes.filter((l) => (byPool.get(l.id)?.length ?? 0) > 0);
+
+  return (
+    <div className="space-y-4" data-testid="ticket-board">
+      {lanes.map((lane) => {
+        const laneTickets = byPool.get(lane.id) ?? [];
+        return (
+          <section key={String(lane.id)} data-testid={`board-lane-${lane.id}`}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <h3 className="text-sm font-semibold text-slate-700">{lane.name}</h3>
+              <span className="text-xs text-slate-400">{laneTickets.length}</span>
+            </div>
+            <StatusColumns tickets={laneTickets} onTicketClick={onTicketClick} />
+          </section>
         );
       })}
     </div>
