@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Car, Loader2, Save, Trash2, X } from 'lucide-react';
+import { AlertCircle, Car, Loader2, MapPin, Save, Trash2, X } from 'lucide-react';
 import { addEntry, deleteEntry, listServiceRates, listTravelZones, updateEntry } from '../api/ticketApi';
-import type { Employee } from '../../vacation/types';
+import { fetchTrips, listVehicleAssignments } from '../api/webfleetApi';
+import { formatTripNote, resolveVehicle, tripsForDate } from '../lib/webfleetTrips';
+import type { Employee, IsoDate } from '../../vacation/types';
 import Select from '../../../components/Select';
 import type {
   RepairOrderEntry,
@@ -9,10 +11,13 @@ import type {
   ServiceRate,
   TravelMode,
   TravelZone,
+  TripSuggestion,
 } from '../types';
 
 interface TimeEntryFormProps {
   repairOrderId: string;
+  // The repair order's service date — used to look up Webfleet trips.
+  performedAt: IsoDate;
   // null = create mode, otherwise edit
   entry?: RepairOrderEntry | null;
   employees: Employee[];
@@ -41,6 +46,7 @@ function parseFloat0(s: string): number {
 
 export default function TimeEntryForm({
   repairOrderId,
+  performedAt,
   entry = null,
   employees,
   defaultEmployeeId = null,
@@ -76,6 +82,15 @@ export default function TimeEntryForm({
   );
   const [note, setNote] = useState(entry?.note ?? '');
 
+  // Webfleet trip suggestions — loaded lazily when a km-based travel
+  // mode is active and a technician is selected.
+  const [trips, setTrips] = useState<TripSuggestion[] | null>(null);
+  const [tripsLoading, setTripsLoading] = useState(false);
+  const [tripsError, setTripsError] = useState<string | null>(null);
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+
+  const kmMode = travelMode === 'km_plus_wegzeit' || travelMode === 'km_inkl_wegzeit';
+
   useEffect(() => {
     let cancelled = false;
     Promise.all([listServiceRates(), listTravelZones()])
@@ -104,6 +119,51 @@ export default function TimeEntryForm({
     }
     return groups;
   }, [rates]);
+
+  // Load the selected technician's trips for the service date once a
+  // km-based mode is active. Resolves their assigned vehicle first; a
+  // technician with no vehicle assignment simply gets no suggestions.
+  useEffect(() => {
+    if (!kmMode || !employeeId) {
+      setTrips(null);
+      setTripsError(null);
+      return;
+    }
+    let cancelled = false;
+    setTripsLoading(true);
+    setTripsError(null);
+    (async () => {
+      try {
+        const assignments = await listVehicleAssignments();
+        const vehicle = resolveVehicle(assignments, employeeId, performedAt);
+        if (!vehicle) {
+          if (!cancelled) setTrips([]);
+          return;
+        }
+        const all = await fetchTrips(vehicle.webfleetObjectNo, performedAt);
+        if (!cancelled) setTrips(tripsForDate(all, performedAt));
+      } catch (err) {
+        if (!cancelled) setTripsError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (!cancelled) setTripsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [kmMode, employeeId, performedAt]);
+
+  // Fill km (+ Wegzeit for the km_plus mode) from a picked trip, and
+  // prefill the note with the trip's origin if the tech hasn't typed one.
+  function applyTrip(trip: TripSuggestion) {
+    setSelectedTripId(trip.tripId);
+    setTravelKm(String(trip.km).replace('.', ','));
+    if (travelMode === 'km_plus_wegzeit') {
+      setTravelWegzeitHours(String(Math.floor(trip.durationMinutes / 60)));
+      setTravelWegzeitMinsExtra(String(trip.durationMinutes % 60));
+    }
+    setNote((prev) => (prev.trim() ? prev : formatTripNote(trip)));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -275,8 +335,16 @@ export default function TimeEntryForm({
           />
         )}
 
-        {(travelMode === 'km_plus_wegzeit' || travelMode === 'km_inkl_wegzeit') && (
-          <div className="flex items-center gap-1.5">
+        {kmMode && (
+          <div className="space-y-2">
+            <WebfleetTrips
+              loading={tripsLoading}
+              error={tripsError}
+              trips={trips}
+              selectedTripId={selectedTripId}
+              onPick={applyTrip}
+            />
+            <div className="flex items-center gap-1.5">
             <input
               type="text"
               inputMode="decimal"
@@ -308,6 +376,7 @@ export default function TimeEntryForm({
                 <span className="text-xs text-slate-500">min</span>
               </>
             )}
+            </div>
           </div>
         )}
       </div>
@@ -365,5 +434,84 @@ export default function TimeEntryForm({
         </div>
       </div>
     </form>
+  );
+}
+
+function hhmm(iso: string): string {
+  return iso.slice(11, 16);
+}
+
+interface WebfleetTripsProps {
+  loading: boolean;
+  error: string | null;
+  // null = not loaded yet; [] = loaded but nothing to offer.
+  trips: TripSuggestion[] | null;
+  selectedTripId: string | null;
+  onPick: (trip: TripSuggestion) => void;
+}
+
+// Webfleet trip suggestions for the selected technician's vehicle on the
+// service date. Tapping a trip fills km + Wegzeit above.
+function WebfleetTrips({ loading, error, trips, selectedTripId, onPick }: WebfleetTripsProps) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-slate-500">
+        <Loader2 size={12} className="animate-spin" />
+        Webfleet-Fahrten werden geladen…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-amber-600">
+        <AlertCircle size={12} />
+        Webfleet nicht erreichbar: {error}
+      </div>
+    );
+  }
+  if (trips == null) return null;
+  if (trips.length === 0) {
+    return (
+      <div className="text-xs text-slate-400">
+        Keine Webfleet-Fahrten für diesen Techniker an diesem Tag.
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-1" data-testid="webfleet-trips">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+        <Car size={12} className="text-slate-400" />
+        Webfleet-Fahrten
+      </div>
+      {trips.map((t) => {
+        const selected = t.tripId != null && t.tripId === selectedTripId;
+        return (
+          <button
+            key={t.tripId ?? `${t.startTime}-${t.km}`}
+            type="button"
+            onClick={() => onPick(t)}
+            className={`w-full text-left rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
+              selected
+                ? 'border-slate-800 bg-slate-800/5'
+                : 'border-slate-200 hover:border-slate-300 bg-white'
+            }`}
+          >
+            <div className="flex items-center gap-2 font-medium text-slate-700">
+              <span>{hhmm(t.startTime)}–{hhmm(t.endTime)}</span>
+              <span className="text-slate-300">·</span>
+              <span>{t.km.toFixed(2).replace('.', ',')} km</span>
+              <span className="text-slate-300">·</span>
+              <span>{t.durationMinutes} min</span>
+            </div>
+            {t.endAddress && (
+              <div className="flex items-center gap-1 mt-0.5 text-slate-500 truncate">
+                <MapPin size={10} className="flex-shrink-0" />
+                <span className="truncate">{t.endAddress}</span>
+              </div>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }

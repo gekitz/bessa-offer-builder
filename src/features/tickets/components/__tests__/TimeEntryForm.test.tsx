@@ -8,6 +8,9 @@ const deleteEntryMock = vi.fn();
 const listServiceRatesMock = vi.fn();
 const listTravelZonesMock = vi.fn();
 
+const fetchTripsMock = vi.fn();
+const listVehicleAssignmentsMock = vi.fn();
+
 vi.mock('../../api/ticketApi', () => ({
   addEntry: (roId: string, input: unknown) => addEntryMock(roId, input),
   updateEntry: (id: string, patch: unknown) => updateEntryMock(id, patch),
@@ -16,8 +19,14 @@ vi.mock('../../api/ticketApi', () => ({
   listTravelZones: () => listTravelZonesMock(),
 }));
 
+vi.mock('../../api/webfleetApi', () => ({
+  fetchTrips: (objectno: string, date: string) => fetchTripsMock(objectno, date),
+  listVehicleAssignments: () => listVehicleAssignmentsMock(),
+}));
+
 import TimeEntryForm from '../TimeEntryForm';
 import type { Employee } from '../../../vacation/types';
+import type { VehicleAssignment } from '../../types';
 
 const EMPLOYEES: Employee[] = [
   { id: 'emp-a', code: 'a', name: 'Hannes Huber', standortId: 1, weeklyHours: 38.5, employmentType: 'fulltime', active: true },
@@ -35,6 +44,9 @@ beforeEach(() => {
   listTravelZonesMock.mockReset().mockResolvedValue([
     { id: 1, code: 'STADT', label: 'Stadt', maxKm: null, flatRate: 32, mesonicArtikelNr: '31000000', activeFrom: '2026-01-01' },
   ]);
+  // Default: technician has no vehicle assigned → no trip suggestions.
+  listVehicleAssignmentsMock.mockReset().mockResolvedValue([]);
+  fetchTripsMock.mockReset().mockResolvedValue([]);
 });
 
 describe('TimeEntryForm', () => {
@@ -44,6 +56,7 @@ describe('TimeEntryForm', () => {
     render(
       <TimeEntryForm
         repairOrderId="ro-1"
+        performedAt="2026-07-08"
         employees={EMPLOYEES}
         defaultEmployeeId="emp-a"
         onSaved={onSaved}
@@ -74,6 +87,7 @@ describe('TimeEntryForm', () => {
     render(
       <TimeEntryForm
         repairOrderId="ro-1"
+        performedAt="2026-07-08"
         employees={EMPLOYEES}
         defaultEmployeeId="emp-a"
         onSaved={vi.fn()}
@@ -91,6 +105,7 @@ describe('TimeEntryForm', () => {
     render(
       <TimeEntryForm
         repairOrderId="ro-1"
+        performedAt="2026-07-08"
         employees={EMPLOYEES}
         defaultEmployeeId="emp-a"
         onSaved={vi.fn()}
@@ -112,6 +127,7 @@ describe('TimeEntryForm', () => {
     render(
       <TimeEntryForm
         repairOrderId="ro-1"
+        performedAt="2026-07-08"
         employees={EMPLOYEES}
         defaultEmployeeId="emp-a"
         onSaved={vi.fn()}
@@ -137,5 +153,50 @@ describe('TimeEntryForm', () => {
     expect(input.travelMode).toBe('km_plus_wegzeit');
     expect(input.travelKm).toBe(50);
     expect(input.travelZoneCode).toBeNull();
+  });
+
+  it('fills km + Wegzeit from a picked Webfleet trip', async () => {
+    const assignment: VehicleAssignment = {
+      id: 'va-1', employeeId: 'emp-a', webfleetObjectNo: '001',
+      plate: 'K-1', label: 'Kangoo', validFrom: '2026-01-01', validTo: null,
+      createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
+    };
+    listVehicleAssignmentsMock.mockResolvedValue([assignment]);
+    fetchTripsMock.mockResolvedValue([
+      {
+        tripId: 't-9', objectno: '001', objectName: 'Kangoo', driverName: 'HuberH',
+        startTime: '2026-07-08T08:10:15', endTime: '2026-07-08T08:49:29',
+        km: 50.17, durationMinutes: 39,
+        startAddress: 'Start 1', endAddress: 'Kundenstr. 5, Griffen',
+      },
+    ]);
+
+    const u = userEvent.setup();
+    render(
+      <TimeEntryForm
+        repairOrderId="ro-1"
+        performedAt="2026-07-08"
+        employees={EMPLOYEES}
+        defaultEmployeeId="emp-a"
+        onSaved={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(listServiceRatesMock).toHaveBeenCalled());
+
+    await u.click(screen.getByRole('button', { name: 'Anfahrt-Modus' }));
+    await u.click(screen.getByRole('option', { name: /KM-Geld \+ Wegzeit/ }));
+
+    // Trip loads for the assigned vehicle on the service date.
+    const tripBtn = await screen.findByRole('button', { name: /50,17 km/ });
+    expect(fetchTripsMock).toHaveBeenCalledWith('001', '2026-07-08');
+    await u.click(tripBtn);
+
+    await u.click(screen.getByRole('button', { name: /Hinzufügen/ }));
+    await waitFor(() => expect(addEntryMock).toHaveBeenCalled());
+    const [, input] = addEntryMock.mock.calls[0];
+    expect(input.travelKm).toBeCloseTo(50.17, 2);
+    expect(input.travelWegzeitMinutes).toBe(39);
+    expect(input.note).toContain('Webfleet:');
   });
 });

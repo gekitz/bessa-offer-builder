@@ -114,6 +114,49 @@ export interface TicketFilters {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Fahrzeug-Zuordnung (Webfleet) — mirrors
+// supabase/migrations/20260708120000_create_vehicle_assignments.sql
+
+export interface VehicleAssignment {
+  id: string;
+  employeeId: string;
+  webfleetObjectNo: string;
+  plate: string | null;
+  label: string | null;
+  validFrom: IsoDate;
+  validTo: IsoDate | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VehicleAssignmentInput {
+  employeeId: string;
+  webfleetObjectNo: string;
+  plate?: string | null;
+  label?: string | null;
+  validFrom?: IsoDate;
+  validTo?: IsoDate | null;
+}
+
+// A Webfleet trip normalised into the units the repair-order entry
+// needs: km (→ travelKm) and minutes (→ travelWegzeitMinutes).
+// startTime/endTime are Europe/Vienna local wall-clock ISO strings
+// (Webfleet reports UTC; we convert so display + date bucketing match
+// the technician's day).
+export interface TripSuggestion {
+  tripId: string | null;
+  objectno: string;
+  objectName: string | null;
+  driverName: string | null; // Webfleet's per-trip driver, if configured
+  startTime: string; // 'YYYY-MM-DDTHH:mm:ss', Europe/Vienna local
+  endTime: string;
+  km: number;        // trip distance, 2 decimals
+  durationMinutes: number;
+  startAddress: string | null;
+  endAddress: string | null;
+}
+
+// ─────────────────────────────────────────────────────────────────────
 
 export interface Appointment {
   id: string;

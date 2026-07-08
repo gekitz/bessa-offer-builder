@@ -396,6 +396,7 @@ export default function RepairOrderDetail({
                 <li key={e.id}>
                   <TimeEntryForm
                     repairOrderId={order.id}
+                    performedAt={order.performedAt}
                     entry={e}
                     employees={employees}
                     onSaved={(saved) => {
@@ -454,6 +455,7 @@ export default function RepairOrderDetail({
           <div className="mt-2">
             <TimeEntryForm
               repairOrderId={order.id}
+              performedAt={order.performedAt}
               employees={employees}
               defaultEmployeeId={currentEmployeeId}
               onSaved={(saved) => {
