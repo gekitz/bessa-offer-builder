@@ -184,6 +184,26 @@ describe('TicketsPage', () => {
     expect(screen.queryByText('Kassa-Ticket')).not.toBeInTheDocument();
   });
 
+  it('filters tickets by assignee (Nicht zugewiesen)', async () => {
+    const u = userEvent.setup();
+    listEmployeesMock.mockResolvedValue([
+      { id: 'emp-a', code: 'a', name: 'Anna Tech', standortId: 1, weeklyHours: 38.5, employmentType: 'fulltime', active: true },
+    ]);
+    listTicketsMock.mockResolvedValue([
+      makeTicket({ id: 't-1', ticketNumber: '26-0000001', shareCode: 's1', title: 'Drucker', assignedTo: 'emp-a' }),
+      makeTicket({ id: 't-2', ticketNumber: '26-0000002', shareCode: 's2', title: 'Waise', assignedTo: null }),
+    ]);
+    renderAt();
+    await screen.findByText('Drucker');
+    expect(screen.queryAllByTestId('ticket-row')).toHaveLength(2);
+
+    await u.click(screen.getByRole('button', { name: 'Nach Zuweisung filtern' }));
+    await u.click(screen.getByRole('option', { name: 'Nicht zugewiesen' }));
+    await waitFor(() => expect(screen.queryAllByTestId('ticket-row')).toHaveLength(1));
+    expect(screen.getByText('Waise')).toBeInTheDocument();
+    expect(screen.queryByText('Drucker')).not.toBeInTheDocument();
+  });
+
   it('groups the board into per-pool swimlanes', async () => {
     const u = userEvent.setup();
     listAbteilungenMock.mockResolvedValue([

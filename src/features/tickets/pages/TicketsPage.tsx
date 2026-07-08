@@ -9,6 +9,8 @@ import { listTickets } from '../api/ticketApi';
 import TicketBoard from '../components/TicketBoard';
 import TicketDetail from '../components/TicketDetail';
 import TicketForm from '../components/TicketForm';
+import Select from '../../../components/Select';
+import type { Employee } from '../../vacation/types';
 import type { Ticket, TicketStatus } from '../types';
 
 const STATUS_TABS: Array<{ id: TicketStatus | 'all'; label: string }> = [
@@ -94,6 +96,9 @@ export default function TicketsPage() {
   // Pool (Abteilung) filter. 'all' = every pool, 'none' = unrouted tickets.
   const [pools, setPools] = useState<Abteilung[]>([]);
   const [poolFilter, setPoolFilter] = useState<number | 'all' | 'none'>('all');
+  // Assignee filter. 'all' | 'mine' | 'unassigned' | <employeeId>.
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [showCreate, setShowCreate] = useState(false);
   // Pre-fill the create form from navigation state, e.g. when the
   // CRM CustomerDetail "Ticket erstellen" button sent us here.
@@ -106,6 +111,9 @@ export default function TicketsPage() {
   useEffect(() => {
     listAbteilungen().then(setPools).catch(() => {
       /* pool pills just stay minimal (Alle / Ohne Zuordnung) */
+    });
+    listEmployees({ activeOnly: true }).then(setEmployees).catch(() => {
+      /* assignee dropdown just stays at Alle / Meine / Nicht zugewiesen */
     });
   }, []);
 
@@ -158,6 +166,9 @@ export default function TicketsPage() {
     let list = tickets;
     if (poolFilter === 'none') list = list.filter((t) => t.poolAbteilungId == null);
     else if (poolFilter !== 'all') list = list.filter((t) => t.poolAbteilungId === poolFilter);
+    if (assigneeFilter === 'mine') list = list.filter((t) => !!currentEmployeeId && t.assignedTo === currentEmployeeId);
+    else if (assigneeFilter === 'unassigned') list = list.filter((t) => t.assignedTo == null);
+    else if (assigneeFilter !== 'all') list = list.filter((t) => t.assignedTo === assigneeFilter);
     if (search.trim()) {
       const term = search.trim().toLowerCase();
       list = list.filter(
@@ -168,7 +179,7 @@ export default function TicketsPage() {
       );
     }
     return list;
-  }, [tickets, search, poolFilter]);
+  }, [tickets, search, poolFilter, assigneeFilter, currentEmployeeId]);
 
   function openTicket(t: Ticket) {
     navigate(`/tickets/${t.id}`);
@@ -256,6 +267,19 @@ export default function TicketsPage() {
               })}
             </div>
           )}
+          <div className="sm:w-52" data-testid="assignee-filter">
+            <Select
+              value={assigneeFilter}
+              onChange={setAssigneeFilter}
+              options={[
+                { value: 'all', label: 'Alle Techniker' },
+                { value: 'mine', label: 'Meine Tickets' },
+                { value: 'unassigned', label: 'Nicht zugewiesen' },
+                ...employees.map((e) => ({ value: e.id, label: e.name })),
+              ]}
+              ariaLabel="Nach Zuweisung filtern"
+            />
+          </div>
           <div className="relative flex-1">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
