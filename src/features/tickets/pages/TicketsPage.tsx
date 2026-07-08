@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, LayoutGrid, List, Loader2, Plus, Search, Wrench } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronRight, LayoutGrid, List, Loader2, Plus, Search, Wrench } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { TEAM } from '../../offers/data/catalogs';
 import { listAbteilungen, listEmployees, type Abteilung } from '../../vacation/api/vacationApi';
-import { listTickets, setTicketStatus, updateTicket } from '../api/ticketApi';
+import { listTickets, listTicketCounts, setTicketStatus, updateTicket } from '../api/ticketApi';
 import TicketBoard from '../components/TicketBoard';
 import TicketDetail from '../components/TicketDetail';
 import TicketForm from '../components/TicketForm';
+import TicketMatrix from '../components/TicketMatrix';
 import Select from '../../../components/Select';
 import { isClosing, poolKeyToId, type TicketMove } from '../lib/boardDnd';
+import type { CountRow } from '../lib/ticketMatrix';
 import type { Employee } from '../../vacation/types';
 import type { Ticket, TicketStatus } from '../types';
 
@@ -100,6 +102,11 @@ export default function TicketsPage() {
   // Assignee filter. 'all' | 'mine' | 'unassigned' | <employeeId>.
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
+  // Pool × status overview matrix.
+  const [counts, setCounts] = useState<CountRow[]>([]);
+  const [matrixOpen, setMatrixOpen] = useState<boolean>(
+    () => typeof window === 'undefined' || window.localStorage.getItem('kitz.tickets.matrix') !== 'closed',
+  );
   const [showCreate, setShowCreate] = useState(false);
   // Drag-to-close confirmation (board DnD). Holds the pending move until
   // the user confirms, since closing timestamps + notifies the customer.
@@ -163,9 +170,26 @@ export default function TicketsPage() {
     }
   }, [statusTab, view]);
 
+  const loadCounts = useCallback(async () => {
+    try {
+      setCounts(await listTicketCounts());
+    } catch {
+      /* matrix just hides itself when counts can't load */
+    }
+  }, []);
+
   useEffect(() => {
-    if (!detailId) reload();
-  }, [reload, detailId]);
+    if (!detailId) {
+      reload();
+      loadCounts();
+    }
+  }, [reload, loadCounts, detailId]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('kitz.tickets.matrix', matrixOpen ? 'open' : 'closed');
+    }
+  }, [matrixOpen]);
 
   // Apply a board drag: optimistically patch the ticket, then persist
   // (pool via updateTicket, status via setTicketStatus). On failure,
@@ -198,12 +222,13 @@ export default function TicketsPage() {
             resolutionNote: note,
           });
         }
+        loadCounts(); // keep the overview matrix in sync with the move
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
         reload();
       }
     },
-    [currentEmployeeId, reload],
+    [currentEmployeeId, reload, loadCounts],
   );
 
   // Closing goes through a confirm dialog; everything else applies at once.
@@ -242,6 +267,13 @@ export default function TicketsPage() {
     navigate(`/tickets/${t.id}`);
   }
 
+  // Matrix drill-down: focus the list on the chosen pool (+ status).
+  function handleMatrixSelect(poolId: number | 'none', status: TicketStatus | 'all') {
+    setView('list');
+    setStatusTab(status);
+    setPoolFilter(poolId);
+  }
+
   // Detail view (a single ticket).
   if (detailId) {
     return (
@@ -275,6 +307,21 @@ export default function TicketsPage() {
             <Plus size={16} />
             Neues Ticket
           </button>
+        </div>
+
+        {/* Pool × status overview matrix (collapsible landing panel) */}
+        <div className="mb-3">
+          <button
+            type="button"
+            onClick={() => setMatrixOpen((o) => !o)}
+            className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 mb-1.5"
+          >
+            {matrixOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            Übersicht
+          </button>
+          {matrixOpen && (
+            <TicketMatrix counts={counts} pools={pools} onSelect={handleMatrixSelect} />
+          )}
         </div>
 
         {/* Pool (Abteilung) filter — restores the old per-pool overview */}

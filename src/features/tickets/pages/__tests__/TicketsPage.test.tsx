@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
 const listTicketsMock = vi.fn();
+const listTicketCountsMock = vi.fn();
 const listEmployeesMock = vi.fn();
 const listAbteilungenMock = vi.fn();
 const listStandorteMock = vi.fn();
@@ -11,6 +12,7 @@ const createTicketMock = vi.fn();
 
 vi.mock('../../api/ticketApi', () => ({
   listTickets: (filters: unknown) => listTicketsMock(filters),
+  listTicketCounts: () => listTicketCountsMock(),
   createTicket: (input: unknown) => createTicketMock(input),
 }));
 vi.mock('../../../vacation/api/vacationApi', () => ({
@@ -73,6 +75,7 @@ beforeEach(() => {
     makeTicket({ id: 't-1', ticketNumber: '26-0000001', shareCode: 'sc-test-0000001', title: 'Drucker' }),
     makeTicket({ id: 't-2', ticketNumber: '26-0000002', shareCode: 'sc-test-0000002', title: 'Server-Update', status: 'in_progress' }),
   ]);
+  listTicketCountsMock.mockReset().mockResolvedValue([]);
   listEmployeesMock.mockReset().mockResolvedValue([]);
   listAbteilungenMock.mockReset().mockResolvedValue([]);
   listStandorteMock.mockReset().mockResolvedValue([]);
@@ -222,6 +225,48 @@ describe('TicketsPage', () => {
     expect(screen.getByTestId('board-lane-2')).toBeInTheDocument();
     expect(screen.getByTestId('board-lane-1')).toBeInTheDocument();
     expect(screen.queryByTestId('board-lane-none')).not.toBeInTheDocument();
+  });
+
+  it('renders the pool × status overview matrix', async () => {
+    listAbteilungenMock.mockResolvedValue([
+      { id: 2, name: 'IT' },
+      { id: 1, name: 'Kassen' },
+    ]);
+    listTicketCountsMock.mockResolvedValue([
+      { status: 'open', poolAbteilungId: 2 },
+      { status: 'closed', poolAbteilungId: 2 },
+      { status: 'in_progress', poolAbteilungId: 1 },
+    ]);
+    renderAt();
+    const matrix = await screen.findByTestId('ticket-matrix');
+    expect(matrix).toBeInTheDocument();
+    // Both pools appear as rows; no unrouted row (no null-pool counts).
+    expect(screen.getByRole('button', { name: 'IT' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kassen' })).toBeInTheDocument();
+  });
+
+  it('drills down into a pool when a matrix row is clicked', async () => {
+    listAbteilungenMock.mockResolvedValue([
+      { id: 2, name: 'IT' },
+      { id: 1, name: 'Kassen' },
+    ]);
+    listTicketCountsMock.mockResolvedValue([
+      { status: 'open', poolAbteilungId: 2 },
+      { status: 'open', poolAbteilungId: 1 },
+    ]);
+    listTicketsMock.mockResolvedValue([
+      makeTicket({ id: 't-1', ticketNumber: '26-0000001', shareCode: 's1', title: 'Drucker', poolAbteilungId: 2 }),
+      makeTicket({ id: 't-2', ticketNumber: '26-0000002', shareCode: 's2', title: 'Kassa-Ticket', poolAbteilungId: 1 }),
+    ]);
+    const u = userEvent.setup();
+    renderAt();
+    await screen.findByTestId('ticket-matrix');
+    expect(screen.queryAllByTestId('ticket-row')).toHaveLength(2);
+
+    await u.click(screen.getByRole('button', { name: 'IT' }));
+    await waitFor(() => expect(screen.queryAllByTestId('ticket-row')).toHaveLength(1));
+    expect(screen.getByText('Drucker')).toBeInTheDocument();
+    expect(screen.queryByText('Kassa-Ticket')).not.toBeInTheDocument();
   });
 
   it('navigates to /tickets/<id> after creating a ticket', async () => {

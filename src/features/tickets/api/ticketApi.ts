@@ -377,6 +377,20 @@ export async function listTickets(filters: TicketFilters = {}): Promise<Ticket[]
   return (data ?? []).map(rowToTicket);
 }
 
+// Slim fetch for the pool × status overview matrix — just the two
+// dimensions we count on, across all tickets regardless of the list's
+// current filters.
+export async function listTicketCounts(): Promise<
+  Array<{ status: TicketStatus; poolAbteilungId: number | null }>
+> {
+  const sb = requireSupabase();
+  const { data, error } = await sb.from('tickets').select('status, pool_abteilung_id');
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Array<{ status: TicketStatus; pool_abteilung_id: number | null }>).map(
+    (r) => ({ status: r.status, poolAbteilungId: r.pool_abteilung_id }),
+  );
+}
+
 export async function getTicket(id: string): Promise<Ticket | null> {
   const sb = requireSupabase();
   const { data, error } = await sb.from('tickets').select(TICKET_COLS).eq('id', id).maybeSingle();
