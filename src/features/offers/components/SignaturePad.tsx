@@ -82,6 +82,10 @@ const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(function 
       style={{
         width,
         height,
+        // Never overflow the container: clamp the displayed width and let
+        // getPos()'s canvas.width/rect.width scaling keep strokes aligned.
+        maxWidth: '100%',
+        display: 'block',
         border: '2px solid #e2e8f0',
         borderRadius: 12,
         background: '#fff',
