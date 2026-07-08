@@ -209,6 +209,51 @@ describe('updateTicket — assignment audit comment', () => {
     expect(payload.body).toBe('Zugewiesen: Bob');
   });
 
+  it('notifies the new assignee on reassignment', async () => {
+    const prevChain = makeChain('tickets', { data: { assigned_to: 'emp-a' }, error: null });
+    const updateChain = makeChain('tickets', { data: { ...TICKET_ROW, assigned_to: 'emp-b' }, error: null });
+    const employeesChain = makeChain('employees', {
+      data: [{ id: 'emp-a', name: 'Alice' }, { id: 'emp-b', name: 'Bob' }],
+      error: null,
+    });
+    const commentChain = makeChain('ticket_comments', { data: null, error: null });
+    fromMock
+      .mockImplementationOnce(() => prevChain)
+      .mockImplementationOnce(() => updateChain)
+      .mockImplementationOnce(() => employeesChain)
+      .mockImplementationOnce(() => commentChain);
+
+    await updateTicket('t-1', { assignedTo: 'emp-b' }, { actorId: 'emp-z' });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const call = invokeMock.mock.calls.find((c) => c[0] === 'notify-ticket-event');
+    expect(call, 'expected a notify-ticket-event invoke').toBeDefined();
+    expect((call![1] as { body: unknown }).body).toMatchObject({
+      event: 'ticket_assigned',
+      ticketId: 't-1',
+      triggeredBy: 'emp-z',
+    });
+  });
+
+  it('does NOT notify when the ticket is unassigned (set to null)', async () => {
+    const prevChain = makeChain('tickets', { data: { assigned_to: 'emp-a' }, error: null });
+    const updateChain = makeChain('tickets', { data: { ...TICKET_ROW, assigned_to: null }, error: null });
+    const employeesChain = makeChain('employees', { data: [{ id: 'emp-a', name: 'Alice' }], error: null });
+    const commentChain = makeChain('ticket_comments', { data: null, error: null });
+    fromMock
+      .mockImplementationOnce(() => prevChain)
+      .mockImplementationOnce(() => updateChain)
+      .mockImplementationOnce(() => employeesChain)
+      .mockImplementationOnce(() => commentChain);
+
+    await updateTicket('t-1', { assignedTo: null });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(invokeMock.mock.calls.find((c) => c[0] === 'notify-ticket-event')).toBeUndefined();
+  });
+
   it('does NOT insert an assignment comment for unrelated patches (title/description)', async () => {
     const updateChain = makeChain('tickets', { data: TICKET_ROW, error: null });
     fromMock.mockImplementationOnce(() => updateChain);

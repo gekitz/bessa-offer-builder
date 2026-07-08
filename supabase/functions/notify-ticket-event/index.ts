@@ -36,6 +36,7 @@ const corsHeaders = {
 
 type EventType =
   | 'ticket_created'
+  | 'ticket_assigned'
   | 'status_changed'
   | 'appointment_scheduled'
   | 'ticket_closed'
@@ -330,6 +331,23 @@ serve(async (req: Request) => {
           ${t.description ? `<div style="margin-top:8px;color:#475569;white-space:pre-wrap;">${escapeHtml(t.description)}</div>` : ''}
         </div>`;
       footerLabel = 'Auftrag öffnen';
+    } else if (event === 'ticket_assigned') {
+      // Internal-only: a ticket was (re)assigned to someone. No customer
+      // mail (customerSubject stays empty → customer email is skipped).
+      accent = '#dc2626';
+      internalSubject = `Ticket zugewiesen: ${t.ticket_number} — ${t.title}`;
+      internalBodyHtml = `
+        <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px;">
+          Hallo ${escapeHtml(assigneeName) || 'Kollege'},
+        </p>
+        <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px;">
+          Dir wurde ein Ticket zugewiesen.
+        </p>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:18px;margin:0 0 18px;font-size:14px;color:#1e293b;">
+          <div><strong>${escapeHtml(t.ticket_number)}</strong> — ${escapeHtml(t.title)}</div>
+          ${t.customer_name ? `<div style="margin-top:4px;color:#64748b;">Kunde: ${escapeHtml(t.customer_name)}</div>` : ''}
+          ${t.description ? `<div style="margin-top:8px;color:#475569;white-space:pre-wrap;">${escapeHtml(t.description)}</div>` : ''}
+        </div>`;
     } else if (event === 'status_changed') {
       const prev = String(body.previousStatus ?? '');
       const next = String(body.newStatus ?? t.status);
@@ -461,7 +479,7 @@ serve(async (req: Request) => {
           }
           return `${t.customer_name ?? 'Der Kunde'} hat eine Rückmeldung hinterlassen.`;
         }
-        if (event === 'ticket_created') return `${t.title} · ${t.customer_name ?? ''}`.trim();
+        if (event === 'ticket_created' || event === 'ticket_assigned') return `${t.title} · ${t.customer_name ?? ''}`.trim();
         if (event === 'status_changed') {
           const next = String(body.newStatus ?? t.status);
           return `${t.title} — ${STATUS_LABEL_DE[next] ?? next}`;

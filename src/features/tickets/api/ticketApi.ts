@@ -40,6 +40,7 @@ function requireSupabase(): NonNullable<typeof supabase> {
 // and stay silent.
 type NotifyEvent =
   | { event: 'ticket_created'; ticketId: string; triggeredBy?: string | null }
+  | { event: 'ticket_assigned'; ticketId: string; triggeredBy?: string | null }
   | { event: 'status_changed'; ticketId: string; previousStatus: string; newStatus: string; triggeredBy?: string | null }
   | { event: 'ticket_closed'; ticketId: string; triggeredBy?: string | null }
   | { event: 'appointment_scheduled'; ticketId: string; appointmentId: string; triggeredBy?: string | null };
@@ -470,6 +471,13 @@ export async function updateTicket(
       },
       actorId: opts.actorId ?? null,
     });
+
+    // Notify the new assignee (email + push). The Edge Function skips
+    // self-assignment (assigned_to === triggeredBy). Nobody to notify
+    // when the ticket was unassigned.
+    if (newAssignedTo) {
+      fireNotify({ event: 'ticket_assigned', ticketId: id, triggeredBy: opts.actorId ?? null });
+    }
   }
 
   return rowToTicket(data);
