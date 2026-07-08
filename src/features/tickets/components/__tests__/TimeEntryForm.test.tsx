@@ -10,6 +10,7 @@ const listTravelZonesMock = vi.fn();
 
 const fetchTripsMock = vi.fn();
 const listVehicleAssignmentsMock = vi.fn();
+const fetchWebfleetVehiclesMock = vi.fn();
 
 vi.mock('../../api/ticketApi', () => ({
   addEntry: (roId: string, input: unknown) => addEntryMock(roId, input),
@@ -22,6 +23,7 @@ vi.mock('../../api/ticketApi', () => ({
 vi.mock('../../api/webfleetApi', () => ({
   fetchTrips: (objectno: string, date: string) => fetchTripsMock(objectno, date),
   listVehicleAssignments: () => listVehicleAssignmentsMock(),
+  fetchWebfleetVehicles: () => fetchWebfleetVehiclesMock(),
 }));
 
 import TimeEntryForm from '../TimeEntryForm';
@@ -47,6 +49,7 @@ beforeEach(() => {
   // Default: technician has no vehicle assigned → no trip suggestions.
   listVehicleAssignmentsMock.mockReset().mockResolvedValue([]);
   fetchTripsMock.mockReset().mockResolvedValue([]);
+  fetchWebfleetVehiclesMock.mockReset().mockResolvedValue([]);
 });
 
 describe('TimeEntryForm', () => {
@@ -198,5 +201,59 @@ describe('TimeEntryForm', () => {
     expect(input.travelKm).toBeCloseTo(50.17, 2);
     expect(input.travelWegzeitMinutes).toBe(39);
     expect(input.note).toContain('Webfleet:');
+  });
+
+  it('lets you pick another vehicle when none is assigned', async () => {
+    // No assignment for this tech → empty state + escape hatch.
+    listVehicleAssignmentsMock.mockResolvedValue([]);
+    fetchWebfleetVehiclesMock.mockResolvedValue([
+      { objectno: '007', objectName: 'Renault Express', driverName: null },
+      { objectno: '010', objectName: 'ZOE', driverName: null },
+    ]);
+    // Only vehicle 007 has a trip that day.
+    fetchTripsMock.mockImplementation((objectno: string) =>
+      Promise.resolve(
+        objectno === '007'
+          ? [{
+              tripId: 't-7', objectno: '007', objectName: 'Renault Express', driverName: null,
+              startTime: '2026-07-08T10:00:00', endTime: '2026-07-08T10:20:00',
+              km: 12.5, durationMinutes: 20, startAddress: null, endAddress: 'Ziel 7',
+            }]
+          : [],
+      ),
+    );
+
+    const u = userEvent.setup();
+    render(
+      <TimeEntryForm
+        repairOrderId="ro-1"
+        performedAt="2026-07-08"
+        employees={EMPLOYEES}
+        defaultEmployeeId="emp-a"
+        onSaved={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(listServiceRatesMock).toHaveBeenCalled());
+
+    await u.click(screen.getByRole('button', { name: 'Anfahrt-Modus' }));
+    await u.click(screen.getByRole('option', { name: /KM-Geld \+ Wegzeit/ }));
+
+    // No vehicle assigned → empty-state message + override link.
+    expect(await screen.findByText(/Kein Fahrzeug zugeordnet/)).toBeInTheDocument();
+    await u.click(screen.getByRole('button', { name: /Anderes Fahrzeug wählen/ }));
+
+    // Pick vehicle 007 from the revealed dropdown.
+    await u.click(await screen.findByRole('button', { name: 'Fahrzeug wählen' }));
+    await u.click(await screen.findByRole('option', { name: /Renault Express/ }));
+
+    // Its trip now shows and can be picked.
+    const tripBtn = await screen.findByRole('button', { name: /12,50 km/ });
+    expect(fetchTripsMock).toHaveBeenCalledWith('007', '2026-07-08');
+    await u.click(tripBtn);
+
+    await u.click(screen.getByRole('button', { name: /Hinzufügen/ }));
+    await waitFor(() => expect(addEntryMock).toHaveBeenCalled());
+    expect(addEntryMock.mock.calls[0][1].travelKm).toBeCloseTo(12.5, 2);
   });
 });

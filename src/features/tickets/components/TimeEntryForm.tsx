@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Car, Loader2, MapPin, Save, Trash2, X } from 'lucide-react';
 import { addEntry, deleteEntry, listServiceRates, listTravelZones, updateEntry } from '../api/ticketApi';
-import { fetchTrips, listVehicleAssignments } from '../api/webfleetApi';
+import { fetchTrips, fetchWebfleetVehicles, listVehicleAssignments, type WebfleetVehicle } from '../api/webfleetApi';
 import { formatTripNote, resolveVehicle, tripsForDate } from '../lib/webfleetTrips';
 import type { Employee, IsoDate } from '../../vacation/types';
 import Select from '../../../components/Select';
@@ -89,7 +89,17 @@ export default function TimeEntryForm({
   const [tripsError, setTripsError] = useState<string | null>(null);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
 
+  // Vehicle resolution + override. assigned* comes from the technician's
+  // standing assignment; overrideObjectno lets them pick a different car
+  // (swap days). activeObjectno is whichever is currently shown.
+  const [assignedObjectno, setAssignedObjectno] = useState<string | null>(null);
+  const [assignedLabel, setAssignedLabel] = useState<string | null>(null);
+  const [overrideObjectno, setOverrideObjectno] = useState<string | null>(null);
+  const [showVehiclePicker, setShowVehiclePicker] = useState(false);
+  const [vehicles, setVehicles] = useState<WebfleetVehicle[] | null>(null);
+
   const kmMode = travelMode === 'km_plus_wegzeit' || travelMode === 'km_inkl_wegzeit';
+  const activeObjectno = overrideObjectno ?? assignedObjectno;
 
   useEffect(() => {
     let cancelled = false;
@@ -120,13 +130,21 @@ export default function TimeEntryForm({
     return groups;
   }, [rates]);
 
-  // Load the selected technician's trips for the service date once a
-  // km-based mode is active. Resolves their assigned vehicle first; a
-  // technician with no vehicle assignment simply gets no suggestions.
+  // Reset the vehicle override whenever the technician or date changes —
+  // an override only makes sense for the tech/day it was chosen on.
+  useEffect(() => {
+    setOverrideObjectno(null);
+    setShowVehiclePicker(false);
+  }, [employeeId, performedAt]);
+
+  // Resolve the assigned vehicle (unless overridden) and load its trips
+  // for the service date. A technician with no assignment and no override
+  // simply gets an empty list + the "other vehicle" escape hatch.
   useEffect(() => {
     if (!kmMode || !employeeId) {
       setTrips(null);
       setTripsError(null);
+      setAssignedObjectno(null);
       return;
     }
     let cancelled = false;
@@ -134,13 +152,21 @@ export default function TimeEntryForm({
     setTripsError(null);
     (async () => {
       try {
-        const assignments = await listVehicleAssignments();
-        const vehicle = resolveVehicle(assignments, employeeId, performedAt);
-        if (!vehicle) {
+        let objectno = overrideObjectno;
+        if (!objectno) {
+          const assignments = await listVehicleAssignments();
+          const vehicle = resolveVehicle(assignments, employeeId, performedAt);
+          if (!cancelled) {
+            setAssignedObjectno(vehicle?.webfleetObjectNo ?? null);
+            setAssignedLabel(vehicle?.label ?? null);
+          }
+          objectno = vehicle?.webfleetObjectNo ?? null;
+        }
+        if (!objectno) {
           if (!cancelled) setTrips([]);
           return;
         }
-        const all = await fetchTrips(vehicle.webfleetObjectNo, performedAt);
+        const all = await fetchTrips(objectno, performedAt);
         if (!cancelled) setTrips(tripsForDate(all, performedAt));
       } catch (err) {
         if (!cancelled) setTripsError(err instanceof Error ? err.message : String(err));
@@ -151,7 +177,29 @@ export default function TimeEntryForm({
     return () => {
       cancelled = true;
     };
-  }, [kmMode, employeeId, performedAt]);
+  }, [kmMode, employeeId, performedAt, overrideObjectno]);
+
+  // Reveal the vehicle picker and lazily load the vehicle list.
+  async function openVehiclePicker() {
+    setShowVehiclePicker(true);
+    if (vehicles == null) {
+      try {
+        setVehicles(await fetchWebfleetVehicles());
+      } catch {
+        setVehicles([]);
+      }
+    }
+  }
+
+  // Friendly "001 Renault Kangoo lang" label for an objectno, from the
+  // loaded vehicle list or the assignment's stored label as a fallback.
+  function vehicleName(objectno: string | null): string | null {
+    if (!objectno) return null;
+    const v = vehicles?.find((x) => x.objectno === objectno);
+    if (v?.objectName) return `${v.objectno} ${v.objectName}`;
+    if (objectno === assignedObjectno && assignedLabel) return `${objectno} ${assignedLabel}`;
+    return objectno;
+  }
 
   // Fill km (+ Wegzeit for the km_plus mode) from a picked trip, and
   // prefill the note with the trip's origin if the tech hasn't typed one.
@@ -343,39 +391,72 @@ export default function TimeEntryForm({
               trips={trips}
               selectedTripId={selectedTripId}
               onPick={applyTrip}
+              vehicleLabel={vehicleName(activeObjectno)}
+              noVehicle={activeObjectno == null}
             />
-            <div className="flex items-center gap-1.5">
-            <input
-              type="text"
-              inputMode="decimal"
-              value={travelKm}
-              onChange={(e) => setTravelKm(e.target.value)}
-              placeholder="0"
-              className="w-20 px-2 py-1.5 rounded border border-slate-200 text-sm text-right"
-            />
-            <span className="text-xs text-slate-500">km</span>
-            {travelMode === 'km_plus_wegzeit' && (
-              <>
-                <span className="text-xs text-slate-300 mx-1">·</span>
-                <span className="text-xs text-slate-500">Wegzeit:</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={travelWegzeitHours}
-                  onChange={(e) => setTravelWegzeitHours(e.target.value)}
-                  className="w-14 px-2 py-1.5 rounded border border-slate-200 text-sm text-right"
-                />
-                <span className="text-xs text-slate-500">h</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={travelWegzeitMinsExtra}
-                  onChange={(e) => setTravelWegzeitMinsExtra(e.target.value)}
-                  className="w-14 px-2 py-1.5 rounded border border-slate-200 text-sm text-right"
-                />
-                <span className="text-xs text-slate-500">min</span>
-              </>
+            {!tripsLoading && !tripsError && (
+              showVehiclePicker ? (
+                vehicles == null ? (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                    <Loader2 size={11} className="animate-spin" />
+                    Fahrzeuge werden geladen…
+                  </div>
+                ) : (
+                  <Select
+                    value={activeObjectno ?? ''}
+                    onChange={(v) => setOverrideObjectno(v || null)}
+                    options={vehicles.map((veh) => ({
+                      value: veh.objectno,
+                      label:
+                        `${veh.objectno} ${veh.objectName ?? ''}`.trim() +
+                        (veh.objectno === assignedObjectno ? '  (zugeordnet)' : ''),
+                    }))}
+                    ariaLabel="Fahrzeug wählen"
+                  />
+                )
+              ) : (
+                <button
+                  type="button"
+                  onClick={openVehiclePicker}
+                  className="text-xs text-slate-500 hover:text-slate-700 underline underline-offset-2"
+                >
+                  Anderes Fahrzeug wählen ›
+                </button>
+              )
             )}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={travelKm}
+                  onChange={(e) => setTravelKm(e.target.value)}
+                  placeholder="0"
+                  className="w-20 px-2 py-1.5 rounded border border-slate-200 text-sm text-right"
+                />
+                <span className="text-xs text-slate-500">km</span>
+              </div>
+              {travelMode === 'km_plus_wegzeit' && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-500">Wegzeit:</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={travelWegzeitHours}
+                    onChange={(e) => setTravelWegzeitHours(e.target.value)}
+                    className="w-14 px-2 py-1.5 rounded border border-slate-200 text-sm text-right"
+                  />
+                  <span className="text-xs text-slate-500">h</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={travelWegzeitMinsExtra}
+                    onChange={(e) => setTravelWegzeitMinsExtra(e.target.value)}
+                    className="w-14 px-2 py-1.5 rounded border border-slate-200 text-sm text-right"
+                  />
+                  <span className="text-xs text-slate-500">min</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -448,11 +529,24 @@ interface WebfleetTripsProps {
   trips: TripSuggestion[] | null;
   selectedTripId: string | null;
   onPick: (trip: TripSuggestion) => void;
+  // Friendly label of the vehicle whose trips are shown, or null when
+  // no vehicle could be resolved.
+  vehicleLabel: string | null;
+  noVehicle: boolean;
 }
 
-// Webfleet trip suggestions for the selected technician's vehicle on the
-// service date. Tapping a trip fills km + Wegzeit above.
-function WebfleetTrips({ loading, error, trips, selectedTripId, onPick }: WebfleetTripsProps) {
+// Webfleet trip suggestions for a vehicle on the service date. Tapping a
+// trip fills km + Wegzeit above. The vehicle-override control is rendered
+// by the parent, just below this.
+function WebfleetTrips({
+  loading,
+  error,
+  trips,
+  selectedTripId,
+  onPick,
+  vehicleLabel,
+  noVehicle,
+}: WebfleetTripsProps) {
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -470,19 +564,30 @@ function WebfleetTrips({ loading, error, trips, selectedTripId, onPick }: Webfle
     );
   }
   if (trips == null) return null;
+
+  const header = (
+    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+      <Car size={12} className="text-slate-400" />
+      Webfleet-Fahrten
+      {vehicleLabel && <span className="font-normal text-slate-400">· {vehicleLabel}</span>}
+    </div>
+  );
+
   if (trips.length === 0) {
     return (
-      <div className="text-xs text-slate-400">
-        Keine Webfleet-Fahrten für diesen Techniker an diesem Tag.
+      <div className="space-y-1" data-testid="webfleet-trips">
+        {header}
+        <div className="text-xs text-slate-400">
+          {noVehicle
+            ? 'Kein Fahrzeug zugeordnet.'
+            : 'Keine Fahrten an diesem Tag.'}
+        </div>
       </div>
     );
   }
   return (
     <div className="space-y-1" data-testid="webfleet-trips">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
-        <Car size={12} className="text-slate-400" />
-        Webfleet-Fahrten
-      </div>
+      {header}
       {trips.map((t) => {
         const selected = t.tripId != null && t.tripId === selectedTripId;
         return (
