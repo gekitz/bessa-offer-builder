@@ -5,11 +5,12 @@ import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { TEAM } from '../../offers/data/catalogs';
 import { listAbteilungen, listEmployees, type Abteilung } from '../../vacation/api/vacationApi';
-import { listTickets } from '../api/ticketApi';
+import { listTickets, setTicketStatus, updateTicket } from '../api/ticketApi';
 import TicketBoard from '../components/TicketBoard';
 import TicketDetail from '../components/TicketDetail';
 import TicketForm from '../components/TicketForm';
 import Select from '../../../components/Select';
+import { isClosing, poolKeyToId, type TicketMove } from '../lib/boardDnd';
 import type { Employee } from '../../vacation/types';
 import type { Ticket, TicketStatus } from '../types';
 
@@ -100,6 +101,10 @@ export default function TicketsPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [showCreate, setShowCreate] = useState(false);
+  // Drag-to-close confirmation (board DnD). Holds the pending move until
+  // the user confirms, since closing timestamps + notifies the customer.
+  const [pendingClose, setPendingClose] = useState<{ ticket: Ticket; move: TicketMove } | null>(null);
+  const [resolutionNote, setResolutionNote] = useState('');
   // Pre-fill the create form from navigation state, e.g. when the
   // CRM CustomerDetail "Ticket erstellen" button sent us here.
   const [createInitialCustomer, setCreateInitialCustomer] = useState<
@@ -161,6 +166,58 @@ export default function TicketsPage() {
   useEffect(() => {
     if (!detailId) reload();
   }, [reload, detailId]);
+
+  // Apply a board drag: optimistically patch the ticket, then persist
+  // (pool via updateTicket, status via setTicketStatus). On failure,
+  // resync from the server so the UI never lies about what was saved.
+  const applyMove = useCallback(
+    async (ticket: Ticket, move: TicketMove, note?: string) => {
+      setTickets((prev) =>
+        prev.map((t) =>
+          t.id === ticket.id
+            ? {
+                ...t,
+                ...(move.status ? { status: move.status } : {}),
+                ...(move.pool !== undefined ? { poolAbteilungId: poolKeyToId(move.pool) } : {}),
+              }
+            : t,
+        ),
+      );
+      try {
+        if (move.pool !== undefined) {
+          await updateTicket(
+            ticket.id,
+            { poolAbteilungId: poolKeyToId(move.pool) },
+            { actorId: currentEmployeeId ?? undefined },
+          );
+        }
+        if (move.status) {
+          await setTicketStatus(ticket.id, move.status, {
+            actorId: currentEmployeeId ?? undefined,
+            closedBy: move.status === 'closed' ? currentEmployeeId ?? undefined : undefined,
+            resolutionNote: note,
+          });
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        reload();
+      }
+    },
+    [currentEmployeeId, reload],
+  );
+
+  // Closing goes through a confirm dialog; everything else applies at once.
+  const handleCardMove = useCallback(
+    (ticket: Ticket, move: TicketMove) => {
+      if (isClosing(move)) {
+        setResolutionNote('');
+        setPendingClose({ ticket, move });
+      } else {
+        applyMove(ticket, move);
+      }
+    },
+    [applyMove],
+  );
 
   const filteredTickets = useMemo(() => {
     let list = tickets;
@@ -338,6 +395,7 @@ export default function TicketsPage() {
           <TicketBoard
             tickets={filteredTickets}
             onTicketClick={openTicket}
+            onCardMove={handleCardMove}
             // Group into per-pool swimlanes only when no single pool is
             // selected; a specific pool shows as a plain board.
             swimlanes={
@@ -381,6 +439,54 @@ export default function TicketsPage() {
           </ul>
         )}
       </div>
+
+      {pendingClose && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          onClick={() => setPendingClose(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl w-full max-w-md p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="font-semibold text-slate-800 mb-1">Ticket schließen?</h2>
+            <p className="text-sm text-slate-500 mb-3">
+              <span className="font-mono text-xs">{pendingClose.ticket.ticketNumber}</span> ·{' '}
+              {pendingClose.ticket.title}
+            </p>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Lösungsnotiz (optional)
+            </label>
+            <textarea
+              value={resolutionNote}
+              onChange={(e) => setResolutionNote(e.target.value)}
+              rows={3}
+              placeholder="Was wurde gemacht?"
+              className="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingClose(null)}
+                className="px-3 py-1.5 rounded-md text-sm text-slate-600 hover:bg-slate-100"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  applyMove(pendingClose.ticket, pendingClose.move, resolutionNote.trim() || undefined);
+                  setPendingClose(null);
+                }}
+                className="px-3 py-1.5 rounded-md text-sm bg-emerald-600 text-white hover:bg-emerald-700"
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showCreate && (
         <TicketForm
