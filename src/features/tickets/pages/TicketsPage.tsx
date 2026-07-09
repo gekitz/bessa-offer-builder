@@ -104,8 +104,9 @@ export default function TicketsPage() {
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   // Pool × status overview matrix.
   const [counts, setCounts] = useState<CountRow[]>([]);
+  // Hidden by default; only shown if the user explicitly opened it before.
   const [matrixOpen, setMatrixOpen] = useState<boolean>(
-    () => typeof window === 'undefined' || window.localStorage.getItem('kitz.tickets.matrix') !== 'closed',
+    () => typeof window !== 'undefined' && window.localStorage.getItem('kitz.tickets.matrix') === 'open',
   );
   const [showCreate, setShowCreate] = useState(false);
   // Drag-to-close confirmation (board DnD). Holds the pending move until

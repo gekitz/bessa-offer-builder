@@ -228,6 +228,7 @@ describe('TicketsPage', () => {
   });
 
   it('renders the pool × status overview matrix', async () => {
+    const u = userEvent.setup();
     listAbteilungenMock.mockResolvedValue([
       { id: 2, name: 'IT' },
       { id: 1, name: 'Kassen' },
@@ -238,6 +239,9 @@ describe('TicketsPage', () => {
       { status: 'in_progress', poolAbteilungId: 1 },
     ]);
     renderAt();
+    // Hidden by default — open the "Übersicht" panel first.
+    expect(screen.queryByTestId('ticket-matrix')).not.toBeInTheDocument();
+    await u.click(screen.getByRole('button', { name: /Übersicht/ }));
     const matrix = await screen.findByTestId('ticket-matrix');
     expect(matrix).toBeInTheDocument();
     // Both pools appear as rows; no unrouted row (no null-pool counts).
@@ -260,9 +264,11 @@ describe('TicketsPage', () => {
     ]);
     const u = userEvent.setup();
     renderAt();
-    await screen.findByTestId('ticket-matrix');
+    await screen.findByText('Drucker');
     expect(screen.queryAllByTestId('ticket-row')).toHaveLength(2);
-
+    // Open the overview, then drill into IT.
+    await u.click(screen.getByRole('button', { name: /Übersicht/ }));
+    await screen.findByTestId('ticket-matrix');
     await u.click(screen.getByRole('button', { name: 'IT' }));
     await waitFor(() => expect(screen.queryAllByTestId('ticket-row')).toHaveLength(1));
     expect(screen.getByText('Drucker')).toBeInTheDocument();
