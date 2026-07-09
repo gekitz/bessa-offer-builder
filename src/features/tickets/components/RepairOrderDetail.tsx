@@ -94,6 +94,7 @@ export default function RepairOrderDetail({
   const [editingMeta, setEditingMeta] = useState(false);
   const [draftDescription, setDraftDescription] = useState('');
   const [draftGpsTravel, setDraftGpsTravel] = useState('');
+  const [draftPerformedAt, setDraftPerformedAt] = useState('');
   const [savingMeta, setSavingMeta] = useState(false);
 
   const load = useCallback(async () => {
@@ -110,6 +111,7 @@ export default function RepairOrderDetail({
       setMaterials(res.materials);
       setDraftDescription(res.repairOrder.workDescription ?? '');
       setDraftGpsTravel(res.repairOrder.gpsTravelNote ?? '');
+      setDraftPerformedAt(res.repairOrder.performedAt);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -167,6 +169,7 @@ export default function RepairOrderDetail({
       const updated = await updateRepairOrder(order.id, {
         workDescription: draftDescription.trim() || null,
         gpsTravelNote: draftGpsTravel.trim() || null,
+        performedAt: draftPerformedAt || order.performedAt,
       });
       setOrder(updated);
       setEditingMeta(false);
@@ -294,6 +297,18 @@ export default function RepairOrderDetail({
         {editingMeta ? (
           <div className="space-y-2 mt-3">
             <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Durchgeführt am</label>
+              <input
+                type="date"
+                value={draftPerformedAt}
+                onChange={(e) => setDraftPerformedAt(e.target.value)}
+                className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30"
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                Bestimmt, welche Webfleet-Fahrten beim Zeiteintrag vorgeschlagen werden.
+              </p>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Arbeitsbeschreibung</label>
               <textarea
                 value={draftDescription}
@@ -318,6 +333,7 @@ export default function RepairOrderDetail({
                 onClick={() => {
                   setDraftDescription(order.workDescription ?? '');
                   setDraftGpsTravel(order.gpsTravelNote ?? '');
+                  setDraftPerformedAt(order.performedAt);
                   setEditingMeta(false);
                 }}
                 className="px-2.5 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-100"
