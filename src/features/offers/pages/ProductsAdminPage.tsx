@@ -213,15 +213,31 @@ function ProductEditModal({
   const [ts, setTs] = useState(t.s != null ? String(t.s) : '');
   const [tm, setTm] = useState(t.m != null ? String(t.m) : '');
   const [te, setTe] = useState(t.e != null ? String(t.e) : '');
+  const [servicePercent, setServicePercent] = useState(
+    product?.pricing?.servicePercent != null ? String(product.pricing.servicePercent) : '',
+  );
+  const disc = (product?.pricing?.discount ?? null) as { type?: string; value?: number; label?: string } | null;
+  const [discType, setDiscType] = useState(disc?.type ?? 'none');
+  const [discValue, setDiscValue] = useState(disc?.value != null ? String(disc.value) : '');
+  const [discLabel, setDiscLabel] = useState(disc?.label ?? '');
+  const a = (product?.attrs ?? {}) as Record<string, unknown>;
+  const [avk, setAvk] = useState(a.vk != null ? String(a.vk) : '');
+  const [auhg, setAuhg] = useState(a.uhg != null ? String(a.uhg) : '');
+  const [ainstall, setAinstall] = useState(a.install != null ? String(a.install) : '');
+  const [apbw, setApbw] = useState(a.pageBw != null ? String(a.pageBw) : '');
+  const [apcol, setApcol] = useState(a.pageColor != null ? String(a.pageColor) : '');
+  const [adesc, setAdesc] = useState((a.description as string) ?? '');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function submit() {
     if (!name.trim()) { setErr('Name erforderlich.'); return; }
-    // Preserve servicePercent + discount from the existing pricing.
     const pricing: ProductPricing = {};
-    if (product?.pricing?.servicePercent !== undefined) pricing.servicePercent = product.pricing.servicePercent;
-    if (product?.pricing?.discount !== undefined) pricing.discount = product.pricing.discount;
+    const sp = num(servicePercent);
+    if (sp !== undefined) pricing.servicePercent = sp;
+    if (discType !== 'none') {
+      pricing.discount = { type: discType, value: num(discValue) ?? 0, label: discLabel.trim() || undefined };
+    }
     if (priceMode === 'tiers') {
       const tiers: Record<string, number> = {};
       const y = num(ty), s = num(ts), m = num(tm), e = num(te);
@@ -234,6 +250,25 @@ function ProductEditModal({
       const p = num(flat);
       if (p !== undefined) pricing.price = p;
     }
+
+    // Copier attrs — merge over existing (keeps includedOptions etc.).
+    let attrs: Record<string, unknown> | undefined;
+    if (kind === 'copier') {
+      attrs = { ...(product?.attrs ?? {}) };
+      const setNum = (key: string, s: string) => {
+        const n = num(s);
+        if (n !== undefined) attrs![key] = n;
+        else delete attrs![key];
+      };
+      setNum('vk', avk);
+      setNum('uhg', auhg);
+      setNum('install', ainstall);
+      setNum('pageBw', apbw);
+      setNum('pageColor', apcol);
+      if (adesc.trim()) attrs.description = adesc.trim();
+      else delete attrs.description;
+    }
+
     setSaving(true);
     setErr(null);
     try {
@@ -246,6 +281,7 @@ function ProductEditModal({
         note: note.trim() || null,
         info: info.trim() || null,
         pricing,
+        ...(attrs !== undefined ? { attrs } : {}),
       };
       const saved = isNew ? await createProduct(patch) : await updateProduct(product!.id, patch);
       onSaved(saved, isNew);
@@ -308,10 +344,57 @@ function ProductEditModal({
                 ))}
               </div>
             )}
-            {product?.pricing?.servicePercent !== undefined && (
-              <p className="text-[11px] text-slate-400 mt-1">Wartung {String(product.pricing.servicePercent)}% (unverändert)</p>
-            )}
           </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Wartung % / Jahr</label>
+              <input value={servicePercent} onChange={(e) => setServicePercent(e.target.value)} inputMode="decimal" placeholder="—" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-right" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Rabatt</label>
+            <div className="flex items-center gap-1.5">
+              <div className="w-32">
+                <Select
+                  value={discType}
+                  onChange={setDiscType}
+                  options={[
+                    { value: 'none', label: 'Kein Rabatt' },
+                    { value: 'fixed', label: 'Fix (€)' },
+                    { value: 'percent', label: 'Prozent (%)' },
+                  ]}
+                  ariaLabel="Rabatt-Art"
+                />
+              </div>
+              {discType !== 'none' && (
+                <>
+                  <input value={discValue} onChange={(e) => setDiscValue(e.target.value)} inputMode="decimal" placeholder="0" className="w-20 px-2 py-2 rounded-lg border border-slate-200 text-sm text-right" />
+                  <input value={discLabel} onChange={(e) => setDiscLabel(e.target.value)} placeholder="Bezeichnung" className="flex-1 px-2 py-2 rounded-lg border border-slate-200 text-sm" />
+                </>
+              )}
+            </div>
+          </div>
+
+          {kind === 'copier' && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 space-y-2">
+              <div className="text-xs font-semibold text-slate-600">Kopierer-Details</div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {([['VK €', avk, setAvk], ['UHG €', auhg, setAuhg], ['Install €', ainstall, setAinstall], ['Seite S/W', apbw, setApbw], ['Seite Farbe', apcol, setApcol]] as const).map(([label, val, set]) => (
+                  <div key={label}>
+                    <div className="text-[10px] text-slate-400 mb-0.5">{label}</div>
+                    <input value={val} onChange={(e) => set(e.target.value)} inputMode="decimal" placeholder="0" className="w-full px-1.5 py-1.5 rounded border border-slate-200 text-sm text-right" />
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-400 mb-0.5">Beschreibung</div>
+                <textarea value={adesc} onChange={(e) => setAdesc(e.target.value)} rows={3} className="w-full px-2.5 py-1.5 rounded border border-slate-200 text-sm" />
+              </div>
+              <p className="text-[11px] text-slate-400">Inkludierte Optionen bleiben unverändert.</p>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Notiz</label>
@@ -330,11 +413,6 @@ function ProductEditModal({
               {isNew ? 'Anlegen' : 'Speichern'}
             </button>
           </div>
-          {!isNew && (
-            <p className="text-[11px] text-slate-400">
-              Wartungssatz, Rabatt & Kopierer-Details bleiben erhalten (hier noch nicht editierbar).
-            </p>
-          )}
         </div>
       </div>
     </div>

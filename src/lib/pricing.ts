@@ -23,6 +23,9 @@ export interface Item {
   cat?: string;
   note?: string;
   info?: string;
+  /** When this item is added to the cart, auto-add `qty` of another
+   *  product (e.g. Lagerverwaltung → +10h Arbeitszeit). Data-driven. */
+  autoAdd?: { productId: string; qty: number };
   /** Optional multi-line article description (one spec per line) shown on the PDF. */
   description?: string;
 

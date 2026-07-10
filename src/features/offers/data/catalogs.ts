@@ -33,7 +33,7 @@ export const BESSA: Item[] = [
   { id:'6f8ed70a-8388-40d6-8e9e-516f524cd3e5', code:'129', name:'bessa Gastrobetrieb', cat:'Kassa – Gastro', p:{y:240}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
   { id:'40769d58-ebbb-40f8-b4b8-9a89da35a934', code:'020', name:'Zusätzlicher Bediener', cat:'Kassa – Einzelfunktionen', p:{y:3,s:4,m:5,e:6}, t:'m' },
   { id:'4bc73978-ee15-4858-8107-87d3faa210e2', code:'021', name:'Kundenverwaltung', cat:'Kassa – Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
-  { id:'f7a4cb27-d3cf-4e84-ba58-a273da596c06', code:'022', name:'Lagerverwaltung', cat:'Kassa – Einzelfunktionen', p:{y:15,s:18,m:20,e:30}, t:'m', note:'+10h Arbeitszeit' },
+  { id:'f7a4cb27-d3cf-4e84-ba58-a273da596c06', code:'022', name:'Lagerverwaltung', cat:'Kassa – Einzelfunktionen', p:{y:15,s:18,m:20,e:30}, t:'m', note:'+10h Arbeitszeit', autoAdd:{ productId:'b01429e1-672e-44ae-ae79-1d08c4f7f918', qty:10 } },
   { id:'00c9aca1-e463-4c63-a5c2-9fd51d70010a', code:'023', name:'Lokale Gutscheinverwaltung', cat:'Kassa – Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
   { id:'3296ada4-f7f8-47a1-9cf5-a3dc64326f3a', code:'024', name:'Erweitertes Berichtswesen', cat:'Kassa – Einzelfunktionen', p:{y:18,s:22,m:28,e:36}, t:'m' },
   { id:'b2a3bb5a-370c-49d4-96e3-874b5df66c56', code:'030', name:'bessa Signieren', cat:'Kassa – Einzelfunktionen', p:{y:9,s:11,m:25,e:50}, t:'m', note:'derzeit nur DE' },
@@ -42,7 +42,7 @@ export const BESSA: Item[] = [
   { id:'117be9d9-f2b0-409d-9ec6-9497f943ff4f', code:'041', name:'Anbindung Barzahlungsterminal', cat:'Kassa – Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
   { id:'eceb4278-06cc-4fe5-9413-d41ae999166c', code:'042', name:'Nebenterminal', cat:'Kassa – Externe Systeme', p:{y:14,s:16,m:18,e:28}, t:'m' },
   { id:'0824405f-8780-4371-919b-5cee2c6efb07', code:'043', name:'Bestellmonitor', cat:'Kassa – Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
-  { id:'ad5d1834-f864-43a1-8be4-2bae0bfeade4', code:'044', name:'Anbindung Schankanlage', cat:'Kassa – Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m', note:'+10h Arbeitszeit' },
+  { id:'ad5d1834-f864-43a1-8be4-2bae0bfeade4', code:'044', name:'Anbindung Schankanlage', cat:'Kassa – Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m', note:'+10h Arbeitszeit', autoAdd:{ productId:'b01429e1-672e-44ae-ae79-1d08c4f7f918', qty:10 } },
   { id:'a336d467-a39f-4acd-8872-e7d185c45ea9', code:'049', name:'Öffentliche Schnittstelle', cat:'Kassa – Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
   // Module
   { id:'3ad3609d-c87a-485f-b96f-827e60c79e81', code:'300', name:'App (pro Filiale)', cat:'Module – Pakete', p:{y:109}, t:'m', note:'50% Rabatt je weitere Filiale', discount:{type:'percent',value:50,label:'Weitere Filiale'} },

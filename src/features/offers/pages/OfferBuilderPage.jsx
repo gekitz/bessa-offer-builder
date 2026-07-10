@@ -405,23 +405,22 @@ export default function OfferBuilderPage() {
   }, []);
 
   // Cart handlers
-  // Items that auto-add 10h Arbeitszeit when selected
-  const WORK_INTENSIVE_ITEMS = ['f7a4cb27-d3cf-4e84-ba58-a273da596c06', 'ad5d1834-f864-43a1-8be4-2bae0bfeade4']; // Lagerverwaltung, Anbindung Schankanlage
-  const ARBEITSZEIT_ID = 'b01429e1-672e-44ae-ae79-1d08c4f7f918';
-
   const handlers = {
     onAdd: (id, tier, mode) => {
+      // Data-driven auto-add (e.g. Lagerverwaltung → +10h Arbeitszeit),
+      // configured per product via the `autoAdd` field.
+      const auto = ALL[id]?.autoAdd;
       setCart(c => {
         const newCart = { ...c, [id]: { qty: 1, discountQty: 0, tier, mode } };
-        if (WORK_INTENSIVE_ITEMS.includes(id)) {
-          const currentQty = c[ARBEITSZEIT_ID]?.qty || 0;
-          newCart[ARBEITSZEIT_ID] = { qty: currentQty + 10, discountQty: 0 };
+        if (auto?.productId) {
+          const currentQty = c[auto.productId]?.qty || 0;
+          newCart[auto.productId] = { qty: currentQty + (auto.qty || 0), discountQty: 0 };
         }
         return newCart;
       });
       setCartOrder(prev => {
         const ids = [id];
-        if (WORK_INTENSIVE_ITEMS.includes(id) && !prev.includes(ARBEITSZEIT_ID)) ids.push(ARBEITSZEIT_ID);
+        if (auto?.productId && !prev.includes(auto.productId)) ids.push(auto.productId);
         return [...prev.filter(x => !ids.includes(x)), ...ids];
       });
     },

@@ -36,6 +36,7 @@ export interface ProductInput {
   note?: string | null;
   info?: string | null;
   pricing?: ProductPricing;
+  attrs?: Record<string, unknown>;
   active?: boolean;
   sort?: number;
 }
@@ -92,6 +93,7 @@ export async function updateProduct(
   if (patch.note !== undefined) db.note = patch.note;
   if (patch.info !== undefined) db.info = patch.info;
   if (patch.pricing !== undefined) db.pricing = patch.pricing;
+  if (patch.attrs !== undefined) db.attrs = patch.attrs;
   if (patch.active !== undefined) db.active = patch.active;
   if (patch.sort !== undefined) db.sort = patch.sort;
   const { data, error } = await sb.from('products').update(db).eq('id', id).select(COLS).single();
@@ -113,6 +115,7 @@ export async function createProduct(input: ProductInput): Promise<Product> {
       note: input.note ?? null,
       info: input.info ?? null,
       pricing: input.pricing ?? {},
+      attrs: input.attrs ?? {},
       active: input.active ?? true,
       sort: input.sort ?? 999,
     })
