@@ -4,14 +4,8 @@ import { CheckCircle2, Loader2 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { getOfferByShareCode, acceptOfferWithSignature } from '../../../lib/offerApi';
 import SignaturePad from '../components/SignaturePad';
-import {
-  price,
-  discountedPrice,
-  isMonthly,
-  yearlyServicePerUnit,
-} from '../../../lib/pricing';
 import { ALL } from '../data/catalogs';
-import { TIER_MONTHS } from '../../../data/tiers';
+import { computeAcceptTotals } from '../../../lib/acceptTotals';
 import { fmt } from '../../../lib/format';
 
 function AcceptPlanCard({ title, subtitle, rows, cta, onSelect, loading, disabled, highlight }) {
@@ -248,31 +242,12 @@ export default function AcceptPage({ shareCode }) {
   }
 
   const data = offer.offer_data || {};
-  const cart = data.cart || {};
-  const customItems = data.customItems || {};
   const raten = data.raten || 12;
 
-  let monthly = 0, once = 0, yearly = 0, periodTotal = 0, maxMonths = 0;
-  Object.entries(cart).forEach(([id, c]) => {
-    const item = ALL[id] || customItems[id];
-    if (!item) return;
-    const p = price(item, c.tier, c.mode, c.priceOverride);
-    const dp = discountedPrice(item, c.tier, c.mode, c.priceOverride);
-    if (p === null) return;
-    const line = (p * (c.qty || 0)) + (dp * (c.discountQty || 0));
-    if (isMonthly(item, c.mode)) {
-      monthly += line;
-      const months = TIER_MONTHS[c.tier] || 12;
-      periodTotal += line * months;
-      if (months > maxMonths) maxMonths = months;
-    } else {
-      once += line;
-      periodTotal += line;
-      const svc = yearlyServicePerUnit(item) * ((c.qty || 0) + (c.discountQty || 0));
-      if (svc > 0) { yearly += svc; periodTotal += svc; }
-    }
-  });
-  maxMonths = maxMonths || 12;
+  // Prefer the snapshot frozen at send time; fall back to live computation
+  // for offers sent before snapshotting existed.
+  const { monthly, once, yearly, periodTotal, maxMonths } =
+    data.acceptSnapshot || computeAcceptTotals(data, ALL);
 
   const onceBrutto = once * 1.2;
   const monthlyBrutto = monthly * 1.2;

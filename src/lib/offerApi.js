@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', rental = null, paymentEnabled = false }) {
+export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', rental = null, paymentEnabled = false, acceptSnapshot = undefined }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   // offer_type lives in a top-level column (source of truth for the
@@ -13,6 +13,9 @@ export async function saveOffer({ id, customer, creator, creatorName, creatorEma
   if (rental) offerData.rental = rental;
   if (customItems && Object.keys(customItems).length > 0) offerData.customItems = customItems;
   if (cartOrder && cartOrder.length > 0) offerData.cartOrder = cartOrder;
+  // Frozen accept-page totals, snapshotted at send so the customer's page
+  // shows the quoted numbers even if catalog prices later change.
+  if (acceptSnapshot) offerData.acceptSnapshot = acceptSnapshot;
   const row = {
     offer_type: offerType,
     customer_name: customer.name || null,

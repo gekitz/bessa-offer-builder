@@ -62,6 +62,7 @@ import {
   isCustomItem,
 } from '../data/catalogs';
 import { useHydratedCatalog } from '../data/catalogLoader';
+import { computeAcceptTotals } from '../../../lib/acceptTotals';
 import OfferView from '../components/OfferView';
 import CopierItemCard from '../components/CopierItemCard';
 import NewOfferTypeModal from '../components/modals/NewOfferTypeModal';
@@ -873,6 +874,12 @@ export default function OfferBuilderPage() {
         offerType,
         paymentEnabled,
         rental,
+        // Freeze the accept-page totals as quoted (decouples the customer
+        // page from later catalog price changes).
+        acceptSnapshot: computeAcceptTotals(
+          { cart, customItems: getCustomItemsFromCart(), raten },
+          ALL,
+        ),
       });
       offerId = result.id;
       setCurrentOfferId(offerId);
