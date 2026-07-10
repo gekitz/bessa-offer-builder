@@ -14,6 +14,7 @@ import {
   User,
 } from 'lucide-react';
 import { getTicket, setTicketStatus, updateTicket } from '../api/ticketApi';
+import { getOffer } from '../../../lib/offerApi';
 import { listAbteilungen, listEmployees } from '../../vacation/api/vacationApi';
 import type { Abteilung } from '../../vacation/api/vacationApi';
 import type { Employee } from '../../vacation/types';
@@ -84,6 +85,9 @@ const KIND_LABEL: Record<Ticket['kind'], string> = {
 
 export default function TicketDetail({ ticketId, onBack, currentEmployeeId = null }: TicketDetailProps) {
   const [ticket, setTicket] = useState<Ticket | null>(null);
+  // share_code of the linked offer (if this ticket came from an accepted
+  // offer) — lets us deep-link into the offer via ?s=<code>.
+  const [offerShareCode, setOfferShareCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<DetailTab>('overview');
@@ -135,6 +139,26 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
   useEffect(() => {
     load();
   }, [load]);
+
+  // Resolve the linked offer's share_code so we can offer a deep link.
+  useEffect(() => {
+    const offerId = ticket?.offerId;
+    if (!offerId) {
+      setOfferShareCode(null);
+      return;
+    }
+    let cancelled = false;
+    getOffer(offerId)
+      .then((o) => {
+        if (!cancelled) setOfferShareCode((o as { share_code?: string })?.share_code ?? null);
+      })
+      .catch(() => {
+        /* no link if the offer can't be read */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ticket?.offerId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -393,6 +417,24 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
                 <div className="text-xs font-medium text-slate-500">Verrechenbar</div>
                 <div className="text-slate-700">{ticket.billable ? 'Ja' : 'Nein'}</div>
               </div>
+              {ticket.offerId && (
+                <div>
+                  <div className="text-xs font-medium text-slate-500">Angebot</div>
+                  {offerShareCode ? (
+                    <a
+                      href={`?s=${encodeURIComponent(offerShareCode)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-red-600 hover:underline"
+                    >
+                      <LinkIcon size={12} />
+                      Angebot ansehen
+                    </a>
+                  ) : (
+                    <div className="text-slate-400">verknüpft</div>
+                  )}
+                </div>
+              )}
               <div>
                 <div className="text-xs font-medium text-slate-500">Erstellt</div>
                 <div className="text-slate-700">
