@@ -61,6 +61,7 @@ import {
   ALL,
   isCustomItem,
 } from '../data/catalogs';
+import { useHydratedCatalog } from '../data/catalogLoader';
 import OfferView from '../components/OfferView';
 import CopierItemCard from '../components/CopierItemCard';
 import NewOfferTypeModal from '../components/modals/NewOfferTypeModal';
@@ -157,6 +158,9 @@ function buildWartungItems(entries) {
 }
 
 export default function OfferBuilderPage() {
+  // Hydrate the product catalog from the DB (falls back to the bundled
+  // catalog); re-renders when the DB catalog swaps in.
+  useHydratedCatalog();
   const { profile, user } = useAuth();
   const currentEmail = (profile?.microsoft_email || user?.email || '').toLowerCase();
   const isBillingAdmin = currentEmail === 'kg@kitz.co.at';
