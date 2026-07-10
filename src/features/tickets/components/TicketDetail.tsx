@@ -45,6 +45,7 @@ const STATUS_LABEL: Record<TicketStatus, string> = {
   open: 'Offen',
   in_progress: 'In Arbeit',
   waiting: 'Wartend',
+  review: 'In Prüfung',
   closed: 'Geschlossen',
   cancelled: 'Abgesagt',
 };
@@ -53,6 +54,7 @@ const STATUS_CLS: Record<TicketStatus, string> = {
   open:        'bg-blue-50 text-blue-700 border-blue-200',
   in_progress: 'bg-amber-50 text-amber-700 border-amber-200',
   waiting:     'bg-slate-100 text-slate-600 border-slate-200',
+  review:      'bg-violet-50 text-violet-700 border-violet-200',
   closed:      'bg-emerald-50 text-emerald-700 border-emerald-200',
   cancelled:   'bg-rose-50 text-rose-700 border-rose-200',
 };

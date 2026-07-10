@@ -39,7 +39,7 @@ vi.mock('../../../../lib/supabase', () => ({
   },
 }));
 
-import { createRepairOrder, setTicketStatus, signRepairOrder, updateTicket } from '../ticketApi';
+import { createRepairOrder, setTicketStatus, signRepairOrder, updateRepairOrder, updateTicket } from '../ticketApi';
 
 // Realistic-shape ticket row the SELECTs after UPDATE return.
 const TICKET_ROW = {
@@ -278,7 +278,7 @@ describe('updateTicket — assignment audit comment', () => {
 
 describe('createRepairOrder — status bump + milestone', () => {
   it('bumps an open ticket to in_progress and writes a milestone', async () => {
-    const roChain = makeChain('repair_orders', { data: { id: 'ro-1', ticket_id: 't-1' }, error: null });
+    const roChain = makeChain('repair_orders', { data: { id: 'ro-1', ticket_id: 't-1', seq_number: 1 }, error: null });
     const statusChain = makeChain('tickets', { data: { status: 'open' }, error: null }); // status check
     // setTicketStatus internals:
     const prevChain = makeChain('tickets', { data: { status: 'open' }, error: null });
@@ -304,7 +304,7 @@ describe('createRepairOrder — status bump + milestone', () => {
   });
 
   it('does NOT bump a ticket that is not open, but still writes a milestone', async () => {
-    const roChain = makeChain('repair_orders', { data: { id: 'ro-2', ticket_id: 't-1' }, error: null });
+    const roChain = makeChain('repair_orders', { data: { id: 'ro-2', ticket_id: 't-1', seq_number: 1 }, error: null });
     const statusChain = makeChain('tickets', { data: { status: 'in_progress' }, error: null });
     const milestoneChain = makeChain('ticket_comments', { data: null, error: null });
     fromMock
@@ -320,6 +320,55 @@ describe('createRepairOrder — status bump + milestone', () => {
     expect(fromMock).toHaveBeenCalledTimes(3);
     const ms = milestoneChain._calls.find((c) => c.method === 'insert');
     expect(ms?.args[0]).toMatchObject({ kind: 'milestone' });
+  });
+
+  it('does NOT write a milestone for a follow-up Reparaturschein (seq > 1)', async () => {
+    const roChain = makeChain('repair_orders', { data: { id: 'ro-3', ticket_id: 't-1', seq_number: 2 }, error: null });
+    const statusChain = makeChain('tickets', { data: { status: 'review' }, error: null });
+    fromMock
+      .mockImplementationOnce(() => roChain)
+      .mockImplementationOnce(() => statusChain);
+
+    await createRepairOrder({ ticketId: 't-1', createdBy: 'emp-a' });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Only 2 from() calls: insert + status check — no milestone insert.
+    expect(fromMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('updateRepairOrder — auto move to review', () => {
+  it('moves an in_progress ticket to review when a schein is completed', async () => {
+    const updRoChain = makeChain('repair_orders', { data: { id: 'ro-1', ticket_id: 't-1', status: 'completed' }, error: null });
+    const statusChain = makeChain('tickets', { data: { status: 'in_progress' }, error: null });
+    // setTicketStatus internals (review transition):
+    const prevChain = makeChain('tickets', { data: { status: 'in_progress' }, error: null });
+    const ticketUpdChain = makeChain('tickets', { data: { ...TICKET_ROW, status: 'review' }, error: null });
+    const commentChain = makeChain('ticket_comments', { data: null, error: null });
+    fromMock
+      .mockImplementationOnce(() => updRoChain)
+      .mockImplementationOnce(() => statusChain)
+      .mockImplementationOnce(() => prevChain)
+      .mockImplementationOnce(() => ticketUpdChain)
+      .mockImplementationOnce(() => commentChain);
+
+    await updateRepairOrder('ro-1', { status: 'completed' });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const upd = ticketUpdChain._calls.find((c) => c.method === 'update');
+    expect(upd?.args[0]).toMatchObject({ status: 'review' });
+  });
+
+  it('does not touch ticket status for non-completed patches', async () => {
+    const updRoChain = makeChain('repair_orders', { data: { id: 'ro-1', ticket_id: 't-1', status: 'draft' }, error: null });
+    fromMock.mockImplementationOnce(() => updRoChain);
+
+    await updateRepairOrder('ro-1', { workDescription: 'x' });
+    await Promise.resolve();
+    // Only the repair_orders update — no ticket status lookup/change.
+    expect(fromMock).toHaveBeenCalledTimes(1);
   });
 });
 

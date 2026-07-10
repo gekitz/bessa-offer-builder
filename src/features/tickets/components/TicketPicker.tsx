@@ -25,6 +25,7 @@ const STATUS_LABEL: Record<Ticket['status'], string> = {
   open: 'Offen',
   in_progress: 'In Arbeit',
   waiting: 'Wartend',
+  review: 'In Prüfung',
   closed: 'Geschlossen',
   cancelled: 'Abgesagt',
 };

@@ -89,6 +89,7 @@ const STATUS_LABEL_DE: Record<TicketStatus, string> = {
   open: 'Offen',
   in_progress: 'In Arbeit',
   waiting: 'Wartend',
+  review: 'In Prüfung',
   closed: 'Geschlossen',
   cancelled: 'Abgesagt',
 };
@@ -750,14 +751,18 @@ export async function createRepairOrder(input: RepairOrderInput): Promise<Repair
     console.warn('auto status-bump on repair order create failed:', err);
   }
 
-  // Customer-facing milestone (shown on the public portal timeline).
-  void fireAuditComment({
-    ticketId: input.ticketId,
-    kind: 'milestone',
-    body: 'Ein Reparaturschein wurde erstellt.',
-    metadata: { repairOrderId: data.id },
-    actorId: input.createdBy ?? null,
-  });
+  // Customer-facing milestone — only for the first Reparaturschein on a
+  // ticket. Follow-up scheine (e.g. an internal office-prep schein added
+  // during review) don't spam the customer timeline.
+  if ((data as { seq_number?: number }).seq_number === 1) {
+    void fireAuditComment({
+      ticketId: input.ticketId,
+      kind: 'milestone',
+      body: 'Ein Reparaturschein wurde erstellt.',
+      metadata: { repairOrderId: data.id },
+      actorId: input.createdBy ?? null,
+    });
+  }
 
   return rowToRepairOrder(data);
 }
@@ -776,6 +781,22 @@ export async function updateRepairOrder(
   if (patch.status !== undefined) dbPatch.status = patch.status;
   const { data, error } = await sb.from('repair_orders').update(dbPatch).eq('id', id).select(REPAIR_ORDER_COLS).single();
   if (error) throw error;
+
+  // Marking a Reparaturschein "completed" means the technician is done:
+  // move an open/in-progress ticket into the review (Prüfung) gate.
+  if (patch.status === 'completed') {
+    try {
+      const ticketId = (data as { ticket_id: string }).ticket_id;
+      const { data: t } = await sb.from('tickets').select('status').eq('id', ticketId).maybeSingle();
+      const st = (t as { status?: string } | null)?.status;
+      if (st === 'open' || st === 'in_progress') {
+        await setTicketStatus(ticketId, 'review');
+      }
+    } catch (err) {
+      console.warn('auto move-to-review on repair order completion failed:', err);
+    }
+  }
+
   return rowToRepairOrder(data);
 }
 

@@ -46,6 +46,7 @@ const STATUS_LABEL_DE: Record<string, string> = {
   open: 'Eingelangt',
   in_progress: 'In Bearbeitung',
   waiting: 'Wartet auf Rückmeldung',
+  review: 'In Prüfung',
   closed: 'Abgeschlossen',
   cancelled: 'Storniert',
 };

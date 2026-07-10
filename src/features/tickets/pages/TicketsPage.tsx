@@ -21,6 +21,7 @@ const STATUS_TABS: Array<{ id: TicketStatus | 'all'; label: string }> = [
   { id: 'open', label: 'Offen' },
   { id: 'in_progress', label: 'In Arbeit' },
   { id: 'waiting', label: 'Wartend' },
+  { id: 'review', label: 'In Prüfung' },
   { id: 'closed', label: 'Geschlossen' },
 ];
 
@@ -28,6 +29,7 @@ const STATUS_BADGE: Record<TicketStatus, { label: string; cls: string }> = {
   open:        { label: 'Offen',        cls: 'bg-blue-50 text-blue-700 border-blue-200' },
   in_progress: { label: 'In Arbeit',    cls: 'bg-amber-50 text-amber-700 border-amber-200' },
   waiting:     { label: 'Wartend',      cls: 'bg-slate-100 text-slate-600 border-slate-200' },
+  review:      { label: 'In Prüfung',   cls: 'bg-violet-50 text-violet-700 border-violet-200' },
   closed:      { label: 'Geschlossen',  cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   cancelled:   { label: 'Abgesagt',     cls: 'bg-rose-50 text-rose-700 border-rose-200' },
 };

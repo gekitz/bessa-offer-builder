@@ -4,7 +4,7 @@
 import type { TicketStatus } from '../types';
 
 // The four active statuses the board + matrix show (cancelled is omitted).
-export const MATRIX_STATUSES: TicketStatus[] = ['open', 'in_progress', 'waiting', 'closed'];
+export const MATRIX_STATUSES: TicketStatus[] = ['open', 'in_progress', 'waiting', 'review', 'closed'];
 
 export interface CountRow {
   status: TicketStatus;
@@ -25,7 +25,7 @@ export interface Matrix {
 }
 
 function emptyCounts(): Record<TicketStatus, number> {
-  return { open: 0, in_progress: 0, waiting: 0, closed: 0, cancelled: 0 };
+  return { open: 0, in_progress: 0, waiting: 0, review: 0, closed: 0, cancelled: 0 };
 }
 
 // Build the matrix from raw (status, pool) rows. Only pools with at

@@ -30,6 +30,7 @@ const BOARD_COLUMNS: Array<{ id: TicketStatus; label: string; cls: string }> = [
   { id: 'open',        label: 'Offen',       cls: 'border-blue-200 bg-blue-50/40' },
   { id: 'in_progress', label: 'In Arbeit',   cls: 'border-amber-200 bg-amber-50/40' },
   { id: 'waiting',     label: 'Wartend',     cls: 'border-slate-200 bg-slate-50' },
+  { id: 'review',      label: 'In Prüfung',  cls: 'border-violet-200 bg-violet-50/40' },
   { id: 'closed',      label: 'Geschlossen', cls: 'border-emerald-200 bg-emerald-50/40' },
 ];
 
@@ -142,7 +143,7 @@ function StatusColumns({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
       {BOARD_COLUMNS.map((col) => {
         const items = byStatus.get(col.id) ?? [];
         return (

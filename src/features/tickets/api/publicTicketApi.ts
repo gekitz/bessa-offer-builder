@@ -17,7 +17,7 @@ function requireSupabase(): NonNullable<typeof supabase> {
   return supabase;
 }
 
-export type PublicTicketStatus = 'open' | 'in_progress' | 'waiting' | 'closed' | 'cancelled';
+export type PublicTicketStatus = 'open' | 'in_progress' | 'waiting' | 'review' | 'closed' | 'cancelled';
 
 export interface PublicTicket {
   id: string;

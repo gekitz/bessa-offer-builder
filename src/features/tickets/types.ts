@@ -8,7 +8,7 @@ import type { IsoDate } from '../vacation/types';
 
 export type TicketKind = 'support' | 'installation' | 'reparatur' | 'wartung' | 'beratung' | 'intern';
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
-export type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'closed' | 'cancelled';
+export type TicketStatus = 'open' | 'in_progress' | 'waiting' | 'review' | 'closed' | 'cancelled';
 
 export type AppointmentKind = 'installation' | 'reparatur' | 'wartung' | 'beratung' | 'abholung' | 'lieferung' | 'intern';
 export type AppointmentStatus = 'geplant' | 'bestaetigt' | 'in_arbeit' | 'erledigt' | 'abgesagt';
