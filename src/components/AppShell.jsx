@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar, FileText, Headphones, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, Wrench, X } from 'lucide-react';
+import { Calendar, FileText, Headphones, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, Package, Wrench, X } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
 // ═══════════════════════════════════════════════════════
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { id: 'crm',        label: 'CRM',        icon: Users },
   { id: 'kalender',   label: 'Kalender',   icon: Calendar },
   { id: 'tickets',    label: 'Tickets',    icon: Wrench },
+  { id: 'produkte',   label: 'Produkte',   icon: Package, adminOnly: true },
 ];
 
 export default function AppShell({
@@ -28,6 +29,8 @@ export default function AppShell({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const { profile, logout } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+  const navItems = NAV_ITEMS.filter((i) => !i.adminOnly || isAdmin);
 
   const displayName = profile?.display_name || profile?.microsoft_email?.split('@')[0] || '';
 
@@ -74,7 +77,7 @@ export default function AppShell({
           {/* Navigation */}
           <nav className="flex-1 py-3" style={{ padding: collapsed ? '12px 8px' : '12px' }}>
             <div className="space-y-1">
-              {NAV_ITEMS.map(item => {
+              {navItems.map(item => {
                 const Icon = item.icon;
                 const isActive = activeSection === item.id;
                 const badgeCount = badges[item.id];
@@ -217,7 +220,7 @@ export default function AppShell({
         <nav className="no-print flex-shrink-0 border-t border-slate-200 bg-white flex items-center justify-around safe-bottom"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
-          {NAV_ITEMS.map(item => {
+          {navItems.map(item => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
             const badgeCount = badges[item.id];

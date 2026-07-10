@@ -11,7 +11,7 @@
 // tabs. Both `/leaves` and `/urlaub` remain valid aliases so any
 // printed/bookmarked links keep working.
 
-export type AppSection = 'dispatcher' | 'angebote' | 'crm' | 'kalender' | 'tickets';
+export type AppSection = 'dispatcher' | 'angebote' | 'crm' | 'kalender' | 'tickets' | 'produkte';
 
 const SECTION_TO_PATH: Record<AppSection, string> = {
   dispatcher: '/leitstelle',
@@ -19,6 +19,7 @@ const SECTION_TO_PATH: Record<AppSection, string> = {
   crm: '/crm',
   kalender: '/kalender',
   tickets: '/tickets',
+  produkte: '/produkte',
 };
 
 const PATH_ALIASES: Record<string, AppSection> = {
@@ -33,6 +34,8 @@ const PATH_ALIASES: Record<string, AppSection> = {
   '/tickets': 'tickets',
   '/leitstelle': 'dispatcher',
   '/dispatcher': 'dispatcher',
+  '/produkte': 'produkte',
+  '/products': 'produkte',
 };
 
 // Parse a router pathname into an app section. Tolerates trailing
