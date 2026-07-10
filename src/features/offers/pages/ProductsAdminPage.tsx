@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Loader2, Package, Pencil, Plus, Save, Search, X } from 'lucide-react';
+import { AlertCircle, GripVertical, Loader2, Package, Pencil, Plus, Save, Search, X } from 'lucide-react';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import Select from '../../../components/Select';
 import {
   createProduct,
@@ -45,6 +48,27 @@ export default function ProductsAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  // Reorder a catalog's products and persist the new `sort` for the ones
+  // that moved. Disabled while searching (the list is filtered then).
+  function handleReorder(items: Product[], event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = items.map((p) => p.id);
+    const oldI = ids.indexOf(String(active.id));
+    const newI = ids.indexOf(String(over.id));
+    if (oldI < 0 || newI < 0) return;
+    const reordered = arrayMove(items, oldI, newI);
+    const sortById = new Map(reordered.map((p, i) => [p.id, i]));
+    setProducts((prev) =>
+      prev.map((p) => (sortById.has(p.id) ? { ...p, sort: sortById.get(p.id)! } : p)),
+    );
+    // Persist only the products whose sort actually changed.
+    reordered.forEach((p, i) => {
+      if (p.sort !== i) updateProduct(p.id, { sort: i }).catch(() => { /* best-effort */ });
+    });
+  }
 
   async function load() {
     setLoading(true);
@@ -144,35 +168,21 @@ export default function ProductsAdminPage() {
                 <h2 className="text-sm font-semibold text-slate-700">{catalog}</h2>
                 <span className="text-xs text-slate-400">{items.length}</span>
               </div>
-              <ul className="space-y-1">
-                {items.map((p) => (
-                  <li
-                    key={p.id}
-                    className={`rounded-lg border border-slate-200 bg-white px-3 py-2 flex items-center gap-2 text-sm ${p.active ? '' : 'opacity-55'}`}
-                    data-testid="product-row"
-                  >
-                    {p.code && <span className="font-mono text-xs text-slate-400 w-12 flex-shrink-0">{p.code}</span>}
-                    <span className="font-medium text-slate-800 truncate flex-1">{p.name}</span>
-                    <span className="text-slate-600 font-mono text-xs whitespace-nowrap">{priceSummary(p.pricing)}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleActive(p)}
-                      className={`text-xs px-1.5 py-0.5 rounded border ${p.active ? 'border-emerald-200 text-emerald-700 bg-emerald-50' : 'border-slate-200 text-slate-500'}`}
-                      title={p.active ? 'Aktiv — klicken zum Deaktivieren' : 'Inaktiv — klicken zum Aktivieren'}
-                    >
-                      {p.active ? 'aktiv' : 'inaktiv'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditing(p)}
-                      className="rounded p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                      aria-label="Bearbeiten"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleReorder(items, e)}>
+                <SortableContext items={items.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                  <ul className="space-y-1">
+                    {items.map((p) => (
+                      <SortableProductRow
+                        key={p.id}
+                        product={p}
+                        draggable={!search.trim()}
+                        onToggle={toggleActive}
+                        onEdit={setEditing}
+                      />
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
             </section>
           ))
         )}
@@ -186,6 +196,66 @@ export default function ProductsAdminPage() {
         />
       )}
     </div>
+  );
+}
+
+function SortableProductRow({
+  product: p,
+  draggable,
+  onToggle,
+  onEdit,
+}: {
+  product: Product;
+  draggable: boolean;
+  onToggle: (p: Product) => void;
+  onEdit: (p: Product) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: p.id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : p.active ? 1 : 0.55,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="rounded-lg border border-slate-200 bg-white pr-3 pl-1 py-2 flex items-center gap-1.5 text-sm"
+      data-testid="product-row"
+    >
+      {draggable ? (
+        <button
+          {...attributes}
+          {...listeners}
+          className="flex-shrink-0 touch-none px-1 py-1 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing"
+          aria-label="Verschieben"
+        >
+          <GripVertical size={14} />
+        </button>
+      ) : (
+        <span className="w-6 flex-shrink-0" />
+      )}
+      {p.code && <span className="font-mono text-xs text-slate-400 w-12 flex-shrink-0">{p.code}</span>}
+      <span className="font-medium text-slate-800 truncate flex-1">{p.name}</span>
+      <span className="text-slate-600 font-mono text-xs whitespace-nowrap">{priceSummary(p.pricing)}</span>
+      <button
+        type="button"
+        onClick={() => onToggle(p)}
+        className={`text-xs px-1.5 py-0.5 rounded border ${p.active ? 'border-emerald-200 text-emerald-700 bg-emerald-50' : 'border-slate-200 text-slate-500'}`}
+        title={p.active ? 'Aktiv — klicken zum Deaktivieren' : 'Inaktiv — klicken zum Aktivieren'}
+      >
+        {p.active ? 'aktiv' : 'inaktiv'}
+      </button>
+      <button
+        type="button"
+        onClick={() => onEdit(p)}
+        className="rounded p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+        aria-label="Bearbeiten"
+      >
+        <Pencil size={13} />
+      </button>
+    </li>
   );
 }
 
