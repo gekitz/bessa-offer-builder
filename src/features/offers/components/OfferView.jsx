@@ -243,9 +243,9 @@ export default function OfferView({
             />
             <div className="mt-3 flex items-center justify-between">
               <div>
-                <div className="text-xs font-medium text-slate-500">Zahlung über Stripe</div>
+                <div className="text-xs font-medium text-slate-500">Zahlung für dieses Angebot</div>
                 <div className="text-slate-400" style={{ fontSize: 11 }}>
-                  {paymentEnabled ? 'Kunde wählt Zahlungsart' : 'Kunde nimmt per Unterschrift an'}
+                  {paymentEnabled ? 'Kunde wählt Zahlungsart (Stripe)' : 'Kunde nimmt per Unterschrift an'}
                 </div>
               </div>
               <button

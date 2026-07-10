@@ -128,12 +128,12 @@ export default function AppShell({
           <div className="border-t border-slate-100 flex-shrink-0" style={{ padding: collapsed ? '12px 8px' : '12px' }}>
             {showBillingToggle && !collapsed && (
               <div className="flex items-center justify-between mb-3 px-1">
-                <span className="text-slate-500" style={{ fontSize: 11, fontWeight: 500 }}>Stripe-Billing</span>
+                <span className="text-slate-500" style={{ fontSize: 11, fontWeight: 500 }}>Stripe-Integration</span>
                 <button
                   onClick={() => onToggleBilling?.(!billingToggle)}
                   className={`relative inline-flex items-center rounded-full transition-colors ${billingToggle ? 'bg-red-500' : 'bg-slate-300'}`}
                   style={{ width: 32, height: 18 }}
-                  title={billingToggle ? 'Stripe-Billing aktiv' : 'Stripe-Billing aus'}
+                  title={billingToggle ? 'Stripe-Integration aktiv' : 'Stripe-Integration aus'}
                 >
                   <span
                     className="inline-block bg-white rounded-full shadow"
@@ -150,7 +150,7 @@ export default function AppShell({
               <button
                 onClick={() => onToggleBilling?.(!billingToggle)}
                 className={`w-full flex justify-center mb-3 transition-colors ${billingToggle ? 'text-red-500 hover:text-red-600' : 'text-slate-300 hover:text-slate-500'}`}
-                title={billingToggle ? 'Stripe-Billing aktiv' : 'Stripe-Billing aus'}
+                title={billingToggle ? 'Stripe-Integration aktiv' : 'Stripe-Integration aus'}
               >
                 <span
                   className={`inline-block rounded-full ${billingToggle ? 'bg-red-500' : 'bg-slate-300'}`}
