@@ -197,6 +197,9 @@ export default function OfferBuilderPage() {
   // Drives list filtering today; will gate builder tabs + PDF in later
   // phases. Defaults to 'pos' — the only kind that exists pre-Sharp.
   const [offerType, setOfferType] = useState('pos');
+  // When true, the customer accept page shows Stripe payment plans; when
+  // false (default) it shows the signature acceptance.
+  const [paymentEnabled, setPaymentEnabled] = useState(false);
   // Leihstellung (rental) input state — only meaningful when offerType ===
   // 'rental'. The calculator edits this; an effect mirrors it into a single
   // custom cart line so the whole Save/Send/Print/PDF pipeline works unchanged.
@@ -341,6 +344,7 @@ export default function OfferBuilderPage() {
         setSkontoActive(data.skontoActive || false);
         setGlobalTier(data.globalTier || '12mo');
         setOfferType(offer.offer_type || data.offerType || 'pos');
+        setPaymentEnabled(!!offer.payment_enabled);
         setRental(data.rental || emptyRentalState());
         setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
         setServiceStartDate(offer.service_start_date || new Date().toISOString().slice(0, 10));
@@ -671,6 +675,7 @@ export default function OfferBuilderPage() {
             cartOrder,
             serviceStartDate,
             offerType,
+            paymentEnabled,
             rental,
           });
           effectiveOfferId = saved.id;
@@ -771,6 +776,7 @@ export default function OfferBuilderPage() {
         cartOrder,
         serviceStartDate,
         offerType,
+        paymentEnabled,
         rental,
       });
       setCurrentOfferId(result.id);
@@ -819,6 +825,7 @@ export default function OfferBuilderPage() {
         cartOrder,
         serviceStartDate,
         offerType,
+        paymentEnabled,
         rental,
       });
       setCurrentOfferId(result.id);
@@ -860,6 +867,7 @@ export default function OfferBuilderPage() {
         cartOrder,
         serviceStartDate,
         offerType,
+        paymentEnabled,
         rental,
       });
       offerId = result.id;
@@ -1269,6 +1277,7 @@ export default function OfferBuilderPage() {
                       rabattActive={rabattActive} setRabattActive={setRabattActive} skontoActive={skontoActive} setSkontoActive={setSkontoActive}
                       serviceStartDate={serviceStartDate} setServiceStartDate={setServiceStartDate}
                       billingEnabled={billingEnabled}
+                      paymentEnabled={paymentEnabled} setPaymentEnabled={setPaymentEnabled}
                       onSave={handleSave} onSend={openEmailPreview} saving={saving} sending={sending} saveSuccess={saveSuccess} currentOfferId={currentOfferId}
                       onSign={() => setShowSignModal(true)} onAddCustom={() => setShowCustomModal(true)}
                       cartOrder={cartOrder} onReorder={setCartOrder} onRemoveItem={handlers.onRemove} onEditItem={handleEditItem} onCopierField={handlers.onCopierField}

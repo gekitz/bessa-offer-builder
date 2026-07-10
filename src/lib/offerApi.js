@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', rental = null }) {
+export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', rental = null, paymentEnabled = false }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   // offer_type lives in a top-level column (source of truth for the
@@ -30,6 +30,7 @@ export async function saveOffer({ id, customer, creator, creatorName, creatorEma
     total_once: totalOnce,
     total_period: totalPeriod,
     service_start_date: serviceStartDate || null,
+    payment_enabled: !!paymentEnabled,
     updated_at: new Date().toISOString(),
   };
 
@@ -210,6 +211,29 @@ export async function signOffer(offerId, signatureData, signedPdfBlob, pdfFilena
       stage: 'closed',
     })
     .eq('id', offerId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// Customer accepts an offer by signature (no payment) from the public
+// accept page. Records the signature + name and marks the offer accepted,
+// which fires the DB trigger that creates the fulfillment ticket.
+export async function acceptOfferWithSignature(shareCode, signatureData, signedByName) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('offers')
+    .update({
+      signature_data: signatureData,
+      signed_by_name: signedByName || null,
+      signed_at: now,
+      accepted_at: now,
+      status: 'accepted',
+      updated_at: now,
+    })
+    .eq('share_code', shareCode)
     .select()
     .single();
   if (error) throw error;

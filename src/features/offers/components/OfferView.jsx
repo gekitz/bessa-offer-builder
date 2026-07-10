@@ -82,6 +82,8 @@ export default function OfferView({
   serviceStartDate,
   setServiceStartDate,
   billingEnabled = false,
+  paymentEnabled = false,
+  setPaymentEnabled = () => {},
   onSave,
   onSend,
   saving,
@@ -239,6 +241,27 @@ export default function OfferView({
               onChange={setServiceStartDate}
               ariaLabel="Leistungsbeginn"
             />
+            <div className="mt-3 flex items-center justify-between">
+              <div>
+                <div className="text-xs font-medium text-slate-500">Zahlung über Stripe</div>
+                <div className="text-slate-400" style={{ fontSize: 11 }}>
+                  {paymentEnabled ? 'Kunde wählt Zahlungsart' : 'Kunde nimmt per Unterschrift an'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPaymentEnabled?.(!paymentEnabled)}
+                className={`relative inline-flex items-center rounded-full transition-colors flex-shrink-0 ${paymentEnabled ? 'bg-red-500' : 'bg-slate-300'}`}
+                style={{ width: 32, height: 18 }}
+                title={paymentEnabled ? 'Stripe-Zahlung aktiv' : 'Annahme per Unterschrift'}
+                aria-label="Zahlung über Stripe aktivieren"
+              >
+                <span
+                  className="inline-block bg-white rounded-full shadow"
+                  style={{ width: 14, height: 14, transform: paymentEnabled ? 'translateX(15px)' : 'translateX(2px)', transition: 'transform 120ms ease' }}
+                />
+              </button>
+            </div>
           </div>
         )}
       </div>
