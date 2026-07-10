@@ -49,7 +49,7 @@ export interface PublicAppointment {
 
 export interface PublicTimelineEntry {
   id: string;
-  kind: 'comment' | 'status_change';
+  kind: 'comment' | 'status_change' | 'milestone';
   body: string | null;
   metadata: Record<string, unknown> | null;
   createdAt: string;
@@ -137,7 +137,7 @@ export async function getPublicTicketView(shareCode: string): Promise<PublicTick
       .from('ticket_comments')
       .select(COMMENT_COLS)
       .eq('ticket_id', ticket.id)
-      .in('kind', ['comment', 'status_change'])
+      .in('kind', ['comment', 'status_change', 'milestone'])
       .order('created_at'),
   ]);
   if (e2) throw e2;

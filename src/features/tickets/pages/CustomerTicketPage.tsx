@@ -4,6 +4,7 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  FileText,
   Loader2,
   MapPin,
   MessageSquare,
@@ -71,7 +72,7 @@ function fmtDateTimeShort(iso: string): string {
 }
 
 interface TimelineItem {
-  kind: 'created' | 'status' | 'comment' | 'appointment' | 'closed';
+  kind: 'created' | 'status' | 'comment' | 'appointment' | 'closed' | 'milestone';
   ts: string;
   payload: PublicTimelineEntry | PublicAppointment | PublicTicket;
 }
@@ -85,7 +86,7 @@ function buildTimeline(view: PublicTicketView): TimelineItem[] {
       payload: a,
     })),
     ...view.timeline.map<TimelineItem>((c) => ({
-      kind: c.kind === 'status_change' ? 'status' : 'comment',
+      kind: c.kind === 'status_change' ? 'status' : c.kind === 'milestone' ? 'milestone' : 'comment',
       ts: c.createdAt,
       payload: c,
     })),
@@ -353,6 +354,20 @@ function TimelineRow({ item }: { item: TimelineItem }) {
             <span className="text-slate-400">·</span>
             <span className="text-slate-500">{APPT_STATUS_LABEL_DE[a.status] ?? a.status}</span>
           </div>
+        </div>
+      </li>
+    );
+  }
+  if (item.kind === 'milestone') {
+    const c = item.payload as PublicTimelineEntry;
+    return (
+      <li className="flex items-start gap-2.5">
+        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-red-50 flex items-center justify-center mt-0.5">
+          <FileText size={12} className="text-red-600" />
+        </div>
+        <div className="min-w-0 flex-1">
+          {c.body && <div className="text-sm text-slate-800">{c.body}</div>}
+          <div className="text-xs text-slate-400 mt-0.5">{fmtDateTimeShort(c.createdAt)}</div>
         </div>
       </li>
     );

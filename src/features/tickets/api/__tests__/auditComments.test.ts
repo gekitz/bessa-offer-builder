@@ -39,7 +39,7 @@ vi.mock('../../../../lib/supabase', () => ({
   },
 }));
 
-import { setTicketStatus, updateTicket } from '../ticketApi';
+import { createRepairOrder, setTicketStatus, signRepairOrder, updateTicket } from '../ticketApi';
 
 // Realistic-shape ticket row the SELECTs after UPDATE return.
 const TICKET_ROW = {
@@ -273,5 +273,74 @@ describe('updateTicket — assignment audit comment', () => {
     await updateTicket('t-1', { assignedTo: 'emp-a' });
     await Promise.resolve();
     expect(fromMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('createRepairOrder — status bump + milestone', () => {
+  it('bumps an open ticket to in_progress and writes a milestone', async () => {
+    const roChain = makeChain('repair_orders', { data: { id: 'ro-1', ticket_id: 't-1' }, error: null });
+    const statusChain = makeChain('tickets', { data: { status: 'open' }, error: null }); // status check
+    // setTicketStatus internals:
+    const prevChain = makeChain('tickets', { data: { status: 'open' }, error: null });
+    const updChain = makeChain('tickets', { data: { ...TICKET_ROW, status: 'in_progress' }, error: null });
+    const statusCommentChain = makeChain('ticket_comments', { data: null, error: null });
+    const milestoneChain = makeChain('ticket_comments', { data: null, error: null });
+    fromMock
+      .mockImplementationOnce(() => roChain)
+      .mockImplementationOnce(() => statusChain)
+      .mockImplementationOnce(() => prevChain)
+      .mockImplementationOnce(() => updChain)
+      .mockImplementationOnce(() => statusCommentChain)
+      .mockImplementationOnce(() => milestoneChain);
+
+    await createRepairOrder({ ticketId: 't-1', createdBy: 'emp-a' });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const upd = updChain._calls.find((c) => c.method === 'update');
+    expect(upd?.args[0]).toMatchObject({ status: 'in_progress' });
+    const ms = milestoneChain._calls.find((c) => c.method === 'insert');
+    expect(ms?.args[0]).toMatchObject({ kind: 'milestone', body: 'Ein Reparaturschein wurde erstellt.' });
+  });
+
+  it('does NOT bump a ticket that is not open, but still writes a milestone', async () => {
+    const roChain = makeChain('repair_orders', { data: { id: 'ro-2', ticket_id: 't-1' }, error: null });
+    const statusChain = makeChain('tickets', { data: { status: 'in_progress' }, error: null });
+    const milestoneChain = makeChain('ticket_comments', { data: null, error: null });
+    fromMock
+      .mockImplementationOnce(() => roChain)
+      .mockImplementationOnce(() => statusChain)
+      .mockImplementationOnce(() => milestoneChain);
+
+    await createRepairOrder({ ticketId: 't-1', createdBy: 'emp-a' });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Only 3 from() calls: repair_orders insert, status check, milestone.
+    expect(fromMock).toHaveBeenCalledTimes(3);
+    const ms = milestoneChain._calls.find((c) => c.method === 'insert');
+    expect(ms?.args[0]).toMatchObject({ kind: 'milestone' });
+  });
+});
+
+describe('signRepairOrder — milestone', () => {
+  it('writes a "unterschrieben" milestone on sign', async () => {
+    const signChain = makeChain('repair_orders', {
+      data: { id: 'ro-1', ticket_id: 't-1', status: 'signed' },
+      error: null,
+    });
+    const milestoneChain = makeChain('ticket_comments', { data: null, error: null });
+    fromMock.mockImplementationOnce(() => signChain).mockImplementationOnce(() => milestoneChain);
+
+    await signRepairOrder('ro-1', 'data:image/png;base64,x', 'Max Mustermann');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const ms = milestoneChain._calls.find((c) => c.method === 'insert');
+    expect(ms?.args[0]).toMatchObject({
+      ticket_id: 't-1',
+      kind: 'milestone',
+      body: 'Reparaturschein wurde unterschrieben.',
+    });
   });
 });

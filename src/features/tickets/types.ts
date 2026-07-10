@@ -21,7 +21,7 @@ export type TravelMode = 'none' | 'pauschale' | 'km_plus_wegzeit' | 'km_inkl_weg
 export type ServiceRateCategory = 'hardware' | 'it' | 'kassen' | 'buero' | 'software' | 'service' | 'travel';
 export type ServiceRateUnit = 'hour' | 'pauschale' | 'km';
 
-export type CommentKind = 'comment' | 'status_change' | 'assignment' | 'system';
+export type CommentKind = 'comment' | 'status_change' | 'assignment' | 'system' | 'milestone';
 
 // ─────────────────────────────────────────────────────────────────────
 

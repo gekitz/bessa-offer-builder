@@ -27,6 +27,7 @@ const SYSTEM_KIND_LABEL: Record<TicketComment['kind'], string> = {
   status_change: 'Status geändert',
   assignment: 'Zuweisung geändert',
   system: 'System',
+  milestone: 'Meilenstein',
 };
 
 export default function TicketComments({ ticketId, currentEmployeeId = null }: TicketCommentsProps) {

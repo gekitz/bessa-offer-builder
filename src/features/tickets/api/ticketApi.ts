@@ -60,7 +60,7 @@ function fireNotify(payload: NotifyEvent): void {
 // missing audit row never blocks the user-facing action.
 async function fireAuditComment(input: {
   ticketId: string;
-  kind: 'status_change' | 'assignment' | 'system';
+  kind: 'status_change' | 'assignment' | 'system' | 'milestone';
   body: string;
   metadata: Record<string, unknown>;
   actorId?: string | null;
@@ -738,6 +738,27 @@ export async function createRepairOrder(input: RepairOrderInput): Promise<Repair
     .select(REPAIR_ORDER_COLS)
     .single();
   if (error) throw error;
+
+  // Starting a Reparaturschein means work has begun: advance an open
+  // ticket to In Bearbeitung (never override waiting/closed/etc.).
+  try {
+    const { data: t } = await sb.from('tickets').select('status').eq('id', input.ticketId).maybeSingle();
+    if ((t as { status?: string } | null)?.status === 'open') {
+      await setTicketStatus(input.ticketId, 'in_progress', { actorId: input.createdBy ?? undefined });
+    }
+  } catch (err) {
+    console.warn('auto status-bump on repair order create failed:', err);
+  }
+
+  // Customer-facing milestone (shown on the public portal timeline).
+  void fireAuditComment({
+    ticketId: input.ticketId,
+    kind: 'milestone',
+    body: 'Ein Reparaturschein wurde erstellt.',
+    metadata: { repairOrderId: data.id },
+    actorId: input.createdBy ?? null,
+  });
+
   return rowToRepairOrder(data);
 }
 
@@ -776,6 +797,17 @@ export async function signRepairOrder(
     .select(REPAIR_ORDER_COLS)
     .single();
   if (error) throw error;
+
+  // Customer-facing milestone. repairOrderId is stashed so a link to the
+  // signed document can be attached later without a data migration.
+  void fireAuditComment({
+    ticketId: (data as { ticket_id: string }).ticket_id,
+    kind: 'milestone',
+    body: 'Reparaturschein wurde unterschrieben.',
+    metadata: { repairOrderId: id, signed: true },
+    actorId: null,
+  });
+
   return rowToRepairOrder(data);
 }
 

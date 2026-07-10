@@ -117,8 +117,8 @@ describe('getPublicTicketView', () => {
     const inCall = commentChain._calls.find((c) => c.method === 'in');
     expect(inCall).toBeDefined();
     expect(inCall!.args[0]).toBe('kind');
-    expect(inCall!.args[1]).toEqual(['comment', 'status_change']);
-    // 'assignment' and 'system' must not leak.
+    // Customer-safe kinds only — 'assignment' and 'system' must not leak.
+    expect(inCall!.args[1]).toEqual(['comment', 'status_change', 'milestone']);
   });
 
   it('exposes only public appointment fields (no internal standort/notes/created_by)', async () => {
