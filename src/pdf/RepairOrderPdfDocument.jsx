@@ -27,13 +27,13 @@ const COMPANY = {
   website: 'www.kitz.co.at',
 };
 
-const fmt = (n) =>
+export const fmt = (n) =>
   Number(n).toLocaleString('de-AT', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 
-const POSITION_LABEL = {
+export const POSITION_LABEL = {
   labor: 'Arbeit',
   travel_flat: 'Anfahrt',
   travel_km: 'KM-Geld',
@@ -192,7 +192,7 @@ const local = StyleSheet.create({
 // Reusable header (mirrors OfferPdfDocument)
 // ─────────────────────────────────────────────────────────────────────
 
-function PdfHeader() {
+export function PdfHeader() {
   return (
     <View style={base.header} fixed>
       <Text style={base.senderLine}>{COMPANY.senderLine}</Text>
@@ -218,7 +218,7 @@ function PdfHeader() {
   );
 }
 
-function PdfFooter() {
+export function PdfFooter() {
   return (
     <View style={base.footer} fixed>
       <Text style={base.footerTextBold}>
@@ -238,7 +238,7 @@ function PdfFooter() {
 // Main document
 // ─────────────────────────────────────────────────────────────────────
 
-function fmtDate(iso) {
+export function fmtDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;

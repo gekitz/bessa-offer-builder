@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, Loader2, X } from 'lucide-react';
+import { AlertCircle, Download, Loader2, X } from 'lucide-react';
 import {
   getPublicSignedRepairOrder,
   type PublicSignedRepairOrder,
 } from '../api/publicTicketApi';
+import { importWithReload } from '../../../lib/lazyWithReload';
 
 interface Props {
   shareCode: string;
@@ -21,6 +22,30 @@ export default function PublicSignedRepairOrderModal({ shareCode, repairOrderId,
   const [doc, setDoc] = useState<PublicSignedRepairOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload() {
+    if (!doc) return;
+    setDownloading(true);
+    try {
+      const { generatePublicRepairOrderPdfBlob } = await importWithReload(
+        () => import('../../../pdf/generatePublicRepairOrderPdf'),
+      );
+      const blob = await generatePublicRepairOrderPdfBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${doc.ticketNumber}-Reparaturschein-${doc.seqNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -61,9 +86,21 @@ export default function PublicSignedRepairOrderModal({ shareCode, repairOrderId,
           <h3 className="font-bold text-slate-800" style={{ fontSize: 16 }}>
             Unterschriebener Reparaturschein
           </h3>
-          <button onClick={onClose} className="rounded p-1.5 hover:bg-slate-100" aria-label="Schließen">
-            <X size={16} className="text-slate-500" />
-          </button>
+          <div className="flex items-center gap-1">
+            {doc && (
+              <button
+                onClick={handleDownload}
+                disabled={downloading}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+              >
+                {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                PDF
+              </button>
+            )}
+            <button onClick={onClose} className="rounded p-1.5 hover:bg-slate-100" aria-label="Schließen">
+              <X size={16} className="text-slate-500" />
+            </button>
+          </div>
         </div>
 
         <div className="px-5 py-4">
