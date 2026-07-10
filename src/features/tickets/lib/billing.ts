@@ -7,6 +7,7 @@ import type {
   BillingPosition,
   BillingSummary,
   RepairOrder,
+  RepairOrderAdjustment,
   RepairOrderBilling,
   RepairOrderEntry,
   RepairOrderMaterial,
@@ -73,6 +74,7 @@ interface CalcRepairOrderArgs {
   repairOrder: RepairOrder;
   entries: RepairOrderEntry[];
   materials: RepairOrderMaterial[];
+  adjustments?: RepairOrderAdjustment[];
   rateByCode: Map<string, ServiceRate>;
   zoneByCode: Map<string, TravelZone>;
   employeeNameById?: Map<string, string>;
@@ -227,6 +229,25 @@ export function calcRepairOrderBilling(args: CalcRepairOrderArgs): RepairOrderBi
     materialTotal += total;
   }
 
+  // Corrections (Gutschrift/Korrektur) — signed amounts posted by an
+  // admin during review. Rendered as their own lines; never edit the
+  // original signed positions.
+  let adjustmentTotal = 0;
+  for (const adj of args.adjustments ?? []) {
+    positions.push({
+      kind: 'adjustment',
+      label: adj.reason,
+      quantity: 1,
+      unit: 'pauschale',
+      unitPrice: adj.amount,
+      total: round2(adj.amount),
+      repairOrderId: repairOrder.id,
+      repairOrderSeq: repairOrder.seqNumber,
+    });
+    adjustmentTotal += adj.amount;
+  }
+  adjustmentTotal = round2(adjustmentTotal);
+
   return {
     repairOrderId: repairOrder.id,
     seqNumber: repairOrder.seqNumber,
@@ -237,7 +258,8 @@ export function calcRepairOrderBilling(args: CalcRepairOrderArgs): RepairOrderBi
     travelTotal: round2(travelTotal),
     materialTotal: round2(materialTotal),
     serviceTotal: round2(serviceTotal),
-    subtotal: round2(laborTotal + travelTotal + materialTotal + serviceTotal),
+    adjustmentTotal,
+    subtotal: round2(laborTotal + travelTotal + materialTotal + serviceTotal + adjustmentTotal),
   };
 }
 
@@ -247,6 +269,7 @@ interface CalcTicketArgs {
     repairOrder: RepairOrder;
     entries: RepairOrderEntry[];
     materials: RepairOrderMaterial[];
+    adjustments?: RepairOrderAdjustment[];
   }>;
   rateByCode: Map<string, ServiceRate>;
   zoneByCode: Map<string, TravelZone>;
@@ -259,11 +282,12 @@ export function calcTicketBilling(args: CalcTicketArgs): BillingSummary {
   // Only billable repair orders count.
   const billings = repairOrders
     .filter(({ repairOrder }) => repairOrder.billable)
-    .map(({ repairOrder, entries, materials }) =>
+    .map(({ repairOrder, entries, materials, adjustments }) =>
       calcRepairOrderBilling({
         repairOrder,
         entries,
         materials,
+        adjustments,
         rateByCode,
         zoneByCode,
         employeeNameById,
@@ -275,7 +299,8 @@ export function calcTicketBilling(args: CalcTicketArgs): BillingSummary {
   const travelTotal = round2(billings.reduce((s, b) => s + b.travelTotal, 0));
   const materialTotal = round2(billings.reduce((s, b) => s + b.materialTotal, 0));
   const serviceTotal = round2(billings.reduce((s, b) => s + b.serviceTotal, 0));
-  const subtotalNet = round2(laborTotal + travelTotal + materialTotal + serviceTotal);
+  const adjustmentTotal = round2(billings.reduce((s, b) => s + b.adjustmentTotal, 0));
+  const subtotalNet = round2(laborTotal + travelTotal + materialTotal + serviceTotal + adjustmentTotal);
   const vatAmount = round2((subtotalNet * VAT_PERCENT) / 100);
   const grandTotalGross = round2(subtotalNet + vatAmount);
 
@@ -287,6 +312,7 @@ export function calcTicketBilling(args: CalcTicketArgs): BillingSummary {
     travelTotal,
     materialTotal,
     serviceTotal,
+    adjustmentTotal,
     subtotalNet,
     vatPercent: VAT_PERCENT,
     vatAmount,

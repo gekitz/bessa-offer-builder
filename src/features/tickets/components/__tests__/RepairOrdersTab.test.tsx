@@ -23,12 +23,17 @@ vi.mock('../../api/ticketApi', () => ({
   updateRepairOrder: vi.fn(),
   addMaterial: vi.fn(),
   removeMaterial: vi.fn(),
+  addRepairOrderAdjustment: vi.fn(),
+  removeRepairOrderAdjustment: vi.fn(),
   signRepairOrder: vi.fn(),
   updateEntry: vi.fn(),
   deleteEntry: vi.fn(),
 }));
 vi.mock('../../../vacation/api/vacationApi', () => ({
   listEmployees: (opts?: unknown) => listEmployeesMock(opts),
+}));
+vi.mock('../../../../lib/auth', () => ({
+  useAuth: () => ({ isAdmin: false }),
 }));
 
 import RepairOrdersTab from '../RepairOrdersTab';
@@ -57,7 +62,7 @@ beforeEach(() => {
   listRepairOrdersMock.mockReset().mockResolvedValue([]);
   listAppointmentsForTicketMock.mockReset().mockResolvedValue([]);
   createRepairOrderMock.mockReset().mockResolvedValue({ ...ro1, id: 'ro-new', seqNumber: 2 });
-  getRepairOrderMock.mockReset().mockResolvedValue({ repairOrder: { ...ro1, id: 'ro-new', seqNumber: 2 }, entries: [], materials: [] });
+  getRepairOrderMock.mockReset().mockResolvedValue({ repairOrder: { ...ro1, id: 'ro-new', seqNumber: 2 }, entries: [], materials: [], adjustments: [] });
   listServiceRatesMock.mockReset().mockResolvedValue([]);
   listTravelZonesMock.mockReset().mockResolvedValue([]);
   listEmployeesMock.mockReset().mockResolvedValue([]);

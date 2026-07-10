@@ -185,6 +185,41 @@ describe('calcRepairOrderBilling', () => {
     expect(r.positions).toEqual([]);
   });
 
+  it('applies a negative correction (Gutschrift) to the subtotal', () => {
+    const r = calcRepairOrderBilling({
+      repairOrder: repairOrder(),
+      entries: [entry({ rate: 'PC_NB', minutes: 180 })], // 3h × €130 = €390
+      materials: [],
+      adjustments: [
+        {
+          id: 'adj-1', repairOrderId: 'ro-1', amount: -130,
+          reason: 'Arbeitszeit 3 h → 2 h korrigiert', createdBy: null, createdAt: '',
+        },
+      ],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+      customerHasWartungsvertrag: false,
+    });
+    expect(r.laborTotal).toBe(390);
+    expect(r.adjustmentTotal).toBe(-130);
+    expect(r.subtotal).toBe(260); // 390 − 130
+    const adj = r.positions.find((p) => p.kind === 'adjustment');
+    expect(adj?.total).toBe(-130);
+    expect(adj?.label).toBe('Arbeitszeit 3 h → 2 h korrigiert');
+  });
+
+  it('defaults adjustmentTotal to 0 when there are no corrections', () => {
+    const r = calcRepairOrderBilling({
+      repairOrder: repairOrder(),
+      entries: [entry({ rate: 'PC_NB', minutes: 60 })],
+      materials: [],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+      customerHasWartungsvertrag: false,
+    });
+    expect(r.adjustmentTotal).toBe(0);
+  });
+
   it('bills 1.5h PC work at €130 → €195', () => {
     const r = calcRepairOrderBilling({
       repairOrder: repairOrder(),

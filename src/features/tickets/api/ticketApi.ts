@@ -13,6 +13,8 @@ import type {
   AssigneeRole,
   BillingSummary,
   RepairOrder,
+  RepairOrderAdjustment,
+  RepairOrderAdjustmentInput,
   RepairOrderEntry,
   RepairOrderEntryInput,
   RepairOrderInput,
@@ -292,6 +294,18 @@ function rowToMaterial(r: any): RepairOrderMaterial {
     unitPrice: Number(r.unit_price),
     total: Number(r.total),
     createdAt: r.created_at,
+  };
+}
+
+function rowToAdjustment(r: any): RepairOrderAdjustment {
+  return {
+    id: r.id,
+    repairOrderId: r.repair_order_id,
+    amount: Number(r.amount),
+    reason: r.reason,
+    createdBy: r.created_by ?? null,
+    createdAt: r.created_at,
+    _authorName: r.employees?.name,
   };
 }
 
@@ -693,6 +707,8 @@ const ENTRY_COLS =
   'id, repair_order_id, employee_id, service_rate_code, work_minutes, travel_mode, travel_zone_code, travel_km, travel_wegzeit_minutes, note, created_at';
 const MATERIAL_COLS =
   'id, repair_order_id, mesonic_artikel_nr, bezeichnung, quantity, unit_price, total, created_at';
+const ADJUSTMENT_COLS =
+  'id, repair_order_id, amount, reason, created_by, created_at';
 
 export async function listRepairOrders(ticketId: string): Promise<RepairOrder[]> {
   const sb = requireSupabase();
@@ -709,6 +725,7 @@ export async function getRepairOrder(id: string): Promise<{
   repairOrder: RepairOrder;
   entries: RepairOrderEntry[];
   materials: RepairOrderMaterial[];
+  adjustments: RepairOrderAdjustment[];
 } | null> {
   const sb = requireSupabase();
   const { data, error } = await sb
@@ -716,7 +733,8 @@ export async function getRepairOrder(id: string): Promise<{
     .select(
       `${REPAIR_ORDER_COLS},
        repair_order_entries(${ENTRY_COLS}, employees(name)),
-       repair_order_materials(${MATERIAL_COLS})`,
+       repair_order_materials(${MATERIAL_COLS}),
+       repair_order_adjustments(${ADJUSTMENT_COLS}, employees(name))`,
     )
     .eq('id', id)
     .maybeSingle();
@@ -726,6 +744,7 @@ export async function getRepairOrder(id: string): Promise<{
     repairOrder: rowToRepairOrder(data),
     entries: ((data as any).repair_order_entries ?? []).map(rowToEntry),
     materials: ((data as any).repair_order_materials ?? []).map(rowToMaterial),
+    adjustments: ((data as any).repair_order_adjustments ?? []).map(rowToAdjustment),
   };
 }
 
@@ -931,6 +950,35 @@ export async function removeMaterial(id: string): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Adjustments (Korrekturen) — admin-only in the UI; internal billing only
+// ─────────────────────────────────────────────────────────────────────
+
+export async function addRepairOrderAdjustment(
+  repairOrderId: string,
+  input: RepairOrderAdjustmentInput,
+): Promise<RepairOrderAdjustment> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('repair_order_adjustments')
+    .insert({
+      repair_order_id: repairOrderId,
+      amount: input.amount,
+      reason: input.reason,
+      created_by: input.createdBy ?? null,
+    })
+    .select(`${ADJUSTMENT_COLS}, employees(name)`)
+    .single();
+  if (error) throw error;
+  return rowToAdjustment(data);
+}
+
+export async function removeRepairOrderAdjustment(id: string): Promise<void> {
+  const sb = requireSupabase();
+  const { error } = await sb.from('repair_order_adjustments').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Comments
 // ─────────────────────────────────────────────────────────────────────
 
@@ -1079,10 +1127,16 @@ export async function calculateTicketBilling(ticketId: string): Promise<BillingS
         .select(MATERIAL_COLS)
         .eq('repair_order_id', order.id);
       if (mErr) throw mErr;
+      const { data: adjustments, error: aErr } = await sb
+        .from('repair_order_adjustments')
+        .select(ADJUSTMENT_COLS)
+        .eq('repair_order_id', order.id);
+      if (aErr) throw aErr;
       return {
         repairOrder: order,
         entries: (entries ?? []).map(rowToEntry),
         materials: (materials ?? []).map(rowToMaterial),
+        adjustments: (adjustments ?? []).map(rowToAdjustment),
       };
     }),
   );

@@ -289,6 +289,26 @@ export interface RepairOrderMaterialInput {
   unitPrice: number;
 }
 
+// Admin correction on a repair order (Gutschrift/Korrektur). A signed net
+// amount (negative = reduction) with a required reason. Never edits the
+// original signed line-items; billing sums these in. Internal only.
+export interface RepairOrderAdjustment {
+  id: string;
+  repairOrderId: string;
+  amount: number; // signed net EUR
+  reason: string;
+  createdBy: string | null;
+  createdAt: string;
+  // Populated by join
+  _authorName?: string;
+}
+
+export interface RepairOrderAdjustmentInput {
+  amount: number;
+  reason: string;
+  createdBy?: string | null;
+}
+
 // ─────────────────────────────────────────────────────────────────────
 
 export interface TicketComment {
@@ -323,7 +343,7 @@ export interface TicketAttachment {
 
 export interface BillingPosition {
   // Type of position for grouping/sort
-  kind: 'labor' | 'travel_flat' | 'travel_km' | 'travel_wegzeit' | 'material' | 'service_flat';
+  kind: 'labor' | 'travel_flat' | 'travel_km' | 'travel_wegzeit' | 'material' | 'service_flat' | 'adjustment';
   label: string;
   quantity: number;       // hours, km, units
   unit: string;           // 'h', 'km', 'Stk', 'pauschale'
@@ -347,6 +367,7 @@ export interface RepairOrderBilling {
   travelTotal: number;
   materialTotal: number;
   serviceTotal: number;
+  adjustmentTotal: number; // signed sum of corrections
   subtotal: number; // sum of above (net)
 }
 
@@ -358,6 +379,7 @@ export interface BillingSummary {
   travelTotal: number;
   materialTotal: number;
   serviceTotal: number;
+  adjustmentTotal: number;
   subtotalNet: number;
   vatPercent: number; // 20
   vatAmount: number;

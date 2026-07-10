@@ -12,23 +12,29 @@ import {
   PenTool,
   Plus,
   Receipt,
+  Save,
+  SlidersHorizontal,
   Trash2,
   User,
 } from 'lucide-react';
 import {
   addMaterial,
+  addRepairOrderAdjustment,
   getRepairOrder,
   listServiceRates,
   listTravelZones,
   removeMaterial,
+  removeRepairOrderAdjustment,
   signRepairOrder,
   updateRepairOrder,
 } from '../api/ticketApi';
 import { listEmployees } from '../../vacation/api/vacationApi';
 import { calcRepairOrderBilling } from '../lib/billing';
+import { useAuth } from '../../../lib/auth';
 import type { Employee } from '../../vacation/types';
 import type {
   RepairOrder,
+  RepairOrderAdjustment,
   RepairOrderEntry,
   RepairOrderMaterial,
   ServiceRate,
@@ -77,6 +83,7 @@ export default function RepairOrderDetail({
   const [order, setOrder] = useState<RepairOrder | null>(null);
   const [entries, setEntries] = useState<RepairOrderEntry[]>([]);
   const [materials, setMaterials] = useState<RepairOrderMaterial[]>([]);
+  const [adjustments, setAdjustments] = useState<RepairOrderAdjustment[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [rates, setRates] = useState<ServiceRate[]>([]);
   const [zones, setZones] = useState<TravelZone[]>([]);
@@ -97,6 +104,12 @@ export default function RepairOrderDetail({
   const [draftPerformedAt, setDraftPerformedAt] = useState('');
   const [savingMeta, setSavingMeta] = useState(false);
 
+  // Admin correction (Korrektur) editing
+  const [showAdjustForm, setShowAdjustForm] = useState(false);
+  const [adjAmount, setAdjAmount] = useState('');
+  const [adjReason, setAdjReason] = useState('');
+  const [savingAdj, setSavingAdj] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -109,6 +122,7 @@ export default function RepairOrderDetail({
       setOrder(res.repairOrder);
       setEntries(res.entries);
       setMaterials(res.materials);
+      setAdjustments(res.adjustments);
       setDraftDescription(res.repairOrder.workDescription ?? '');
       setDraftGpsTravel(res.repairOrder.gpsTravelNote ?? '');
       setDraftPerformedAt(res.repairOrder.performedAt);
@@ -152,14 +166,58 @@ export default function RepairOrderDetail({
       repairOrder: order,
       entries,
       materials,
+      adjustments,
       rateByCode,
       zoneByCode,
       employeeNameById,
       customerHasWartungsvertrag: ticket.customerHasWartungsvertrag,
     });
-  }, [order, entries, materials, rateByCode, zoneByCode, employeeNameById, ticket.customerHasWartungsvertrag]);
+  }, [order, entries, materials, adjustments, rateByCode, zoneByCode, employeeNameById, ticket.customerHasWartungsvertrag]);
 
+  const { isAdmin } = useAuth() as { isAdmin: boolean };
   const locked = order?.status === 'signed' || order?.status === 'cancelled';
+
+  async function handleAddAdjustment() {
+    if (!order) return;
+    const amt = Math.round(parseFloat(adjAmount.replace(',', '.')) * 100) / 100;
+    if (!Number.isFinite(amt) || amt === 0) {
+      setError('Bitte einen Betrag ≠ 0 eingeben (negativ = Reduktion).');
+      return;
+    }
+    if (!adjReason.trim()) {
+      setError('Bitte einen Grund für die Korrektur angeben.');
+      return;
+    }
+    setSavingAdj(true);
+    setError(null);
+    try {
+      const saved = await addRepairOrderAdjustment(order.id, {
+        amount: amt,
+        reason: adjReason.trim(),
+        createdBy: currentEmployeeId ?? undefined,
+      });
+      setAdjustments((prev) => [...prev, saved]);
+      setAdjAmount('');
+      setAdjReason('');
+      setShowAdjustForm(false);
+      onChanged?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingAdj(false);
+    }
+  }
+
+  async function handleRemoveAdjustment(id: string) {
+    setError(null);
+    try {
+      await removeRepairOrderAdjustment(id);
+      setAdjustments((prev) => prev.filter((a) => a.id !== id));
+      onChanged?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   async function handleSaveMeta() {
     if (!order) return;
@@ -547,6 +605,103 @@ export default function RepairOrderDetail({
         />
       </div>
 
+      {/* Corrections — admin only. Never edits the signed positions;
+          posts a separate signed-amount line that billing sums in. */}
+      {isAdmin && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal size={14} className="text-slate-500" />
+              <span className="text-sm font-semibold text-slate-800">Korrekturen</span>
+              <span className="text-xs text-slate-400">nur Leitung</span>
+            </div>
+            {!showAdjustForm && (
+              <button
+                type="button"
+                onClick={() => setShowAdjustForm(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs text-slate-600 hover:bg-slate-100"
+              >
+                <Plus size={12} />
+                Korrektur
+              </button>
+            )}
+          </div>
+
+          {adjustments.length === 0 && !showAdjustForm && (
+            <div className="text-xs text-slate-400 text-center py-2">Keine Korrekturen.</div>
+          )}
+
+          <ul className="space-y-1">
+            {adjustments.map((a) => (
+              <li
+                key={a.id}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm flex items-center gap-2"
+                data-testid="adjustment-row"
+              >
+                <span className="flex-1 text-slate-700 truncate">{a.reason}</span>
+                <span className={`font-mono font-medium ${a.amount < 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                  {eur(a.amount)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveAdjustment(a.id)}
+                  className="rounded p-1 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                  aria-label="Entfernen"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          {showAdjustForm && (
+            <div className="mt-2 space-y-2 rounded-lg border border-slate-200 bg-slate-50/50 p-2.5">
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={adjAmount}
+                  onChange={(e) => setAdjAmount(e.target.value)}
+                  placeholder="-105,30"
+                  className="w-28 px-2 py-1.5 rounded border border-slate-200 text-sm text-right"
+                />
+                <span className="text-xs text-slate-500">€ netto · negativ = Reduktion</span>
+              </div>
+              <input
+                type="text"
+                value={adjReason}
+                onChange={(e) => setAdjReason(e.target.value)}
+                placeholder="Grund, z.B. Arbeitszeit 3 h → 2 h korrigiert"
+                className="w-full px-2.5 py-1.5 rounded border border-slate-200 text-sm"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAdjustForm(false);
+                    setAdjAmount('');
+                    setAdjReason('');
+                  }}
+                  disabled={savingAdj}
+                  className="px-2.5 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-100"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddAdjustment}
+                  disabled={savingAdj}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-slate-800 text-white text-xs font-medium hover:bg-slate-900 disabled:opacity-50"
+                >
+                  {savingAdj ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                  Hinzufügen
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Billing preview */}
       {billing && (
         <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
@@ -577,6 +732,14 @@ export default function RepairOrderDetail({
               <li className="flex items-center justify-between">
                 <span className="text-slate-600">Material</span>
                 <span className="font-mono text-slate-800">{eur(billing.materialTotal)}</span>
+              </li>
+            )}
+            {billing.adjustmentTotal !== 0 && (
+              <li className="flex items-center justify-between">
+                <span className="text-slate-600">Korrekturen</span>
+                <span className={`font-mono ${billing.adjustmentTotal < 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                  {eur(billing.adjustmentTotal)}
+                </span>
               </li>
             )}
             <li className="flex items-center justify-between border-t border-slate-200 pt-1.5 mt-1.5">
