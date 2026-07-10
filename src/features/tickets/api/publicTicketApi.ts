@@ -74,7 +74,9 @@ function rowToPublicTicket(r: any): PublicTicket {
     title: r.title,
     description: r.description,
     kind: r.kind,
-    status: r.status,
+    // 'review' (Prüfung) is an internal QA step — the customer just sees
+    // it as still "in Bearbeitung".
+    status: r.status === 'review' ? 'in_progress' : r.status,
     customerName: r.customer_name,
     closedAt: r.closed_at,
     resolutionNote: r.resolution_note,

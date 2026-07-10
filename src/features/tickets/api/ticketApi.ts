@@ -534,14 +534,20 @@ export async function setTicketStatus(
       ? STATUS_LABEL_DE[previousStatus as TicketStatus] ?? previousStatus
       : null;
     const nextLabel = STATUS_LABEL_DE[status] ?? status;
+    // 'review' (Prüfung) is an internal QA step: record it as a 'system'
+    // note (hidden from the customer portal by RLS) and don't notify the
+    // customer. Every other transition stays customer-visible.
+    const internalOnly = status === 'review';
     void fireAuditComment({
       ticketId: id,
-      kind: 'status_change',
+      kind: internalOnly ? 'system' : 'status_change',
       body: prevLabel ? `Status: ${prevLabel} → ${nextLabel}` : `Status: ${nextLabel}`,
       metadata: { previousStatus, newStatus: status },
       actorId,
     });
-    if (status === 'closed') {
+    if (internalOnly) {
+      // no customer/assignee fan-out for the internal review step
+    } else if (status === 'closed') {
       fireNotify({ event: 'ticket_closed', ticketId: id, triggeredBy: actorId });
     } else {
       fireNotify({

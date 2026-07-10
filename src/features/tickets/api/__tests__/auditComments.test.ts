@@ -130,6 +130,25 @@ describe('setTicketStatus — audit comment', () => {
     const payload = expectInsertOn([commentChain], 'ticket_comments', (p) => p.kind === 'status_change');
     expect(payload.created_by).toBe('emp-z');
   });
+
+  it('records a review transition as internal (system kind, no notification)', async () => {
+    const prevChain = makeChain('tickets', { data: { status: 'in_progress' }, error: null });
+    const updateChain = makeChain('tickets', { data: { ...TICKET_ROW, status: 'review' }, error: null });
+    const commentChain = makeChain('ticket_comments', { data: null, error: null });
+    fromMock
+      .mockImplementationOnce(() => prevChain)
+      .mockImplementationOnce(() => updateChain)
+      .mockImplementationOnce(() => commentChain);
+
+    await setTicketStatus('t-1', 'review', { actorId: 'emp-a' });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Internal 'system' audit note, hidden from the customer portal by RLS.
+    expectInsertOn([commentChain], 'ticket_comments', (p) => p.kind === 'system');
+    // And no customer/assignee fan-out for the internal step.
+    expect(invokeMock.mock.calls.find((c) => c[0] === 'notify-ticket-event')).toBeUndefined();
+  });
 });
 
 describe('updateTicket — assignment audit comment', () => {
