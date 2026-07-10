@@ -19,6 +19,7 @@ import {
   type PublicTicketView,
   type PublicTimelineEntry,
 } from '../api/publicTicketApi';
+import PublicSignedRepairOrderModal from '../components/PublicSignedRepairOrderModal';
 
 interface CustomerTicketPageProps {
   shareCode: string;
@@ -101,6 +102,8 @@ export default function CustomerTicketPage({ shareCode }: CustomerTicketPageProp
   const [view, setView] = useState<PublicTicketView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // repair order id whose signed document is open in the viewer modal.
+  const [viewDocId, setViewDocId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
@@ -243,7 +246,11 @@ export default function CustomerTicketPage({ shareCode }: CustomerTicketPageProp
           </div>
           <ol className="space-y-3">
             {timeline.map((item, i) => (
-              <TimelineRow key={`${item.kind}-${i}-${item.ts}`} item={item} />
+              <TimelineRow
+                key={`${item.kind}-${i}-${item.ts}`}
+                item={item}
+                onViewDoc={setViewDocId}
+              />
             ))}
           </ol>
         </section>
@@ -297,13 +304,27 @@ export default function CustomerTicketPage({ shareCode }: CustomerTicketPageProp
           </div>
         </footer>
       </main>
+
+      {viewDocId && (
+        <PublicSignedRepairOrderModal
+          shareCode={shareCode}
+          repairOrderId={viewDocId}
+          onClose={() => setViewDocId(null)}
+        />
+      )}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────
 
-function TimelineRow({ item }: { item: TimelineItem }) {
+function TimelineRow({
+  item,
+  onViewDoc,
+}: {
+  item: TimelineItem;
+  onViewDoc: (repairOrderId: string) => void;
+}) {
   if (item.kind === 'created') {
     const t = item.payload as PublicTicket;
     return (
@@ -360,6 +381,8 @@ function TimelineRow({ item }: { item: TimelineItem }) {
   }
   if (item.kind === 'milestone') {
     const c = item.payload as PublicTimelineEntry;
+    const meta = (c.metadata ?? {}) as { repairOrderId?: string; signed?: boolean };
+    const canView = !!meta.signed && !!meta.repairOrderId;
     return (
       <li className="flex items-start gap-2.5">
         <div className="flex-shrink-0 w-6 h-6 rounded-full bg-red-50 flex items-center justify-center mt-0.5">
@@ -368,6 +391,15 @@ function TimelineRow({ item }: { item: TimelineItem }) {
         <div className="min-w-0 flex-1">
           {c.body && <div className="text-sm text-slate-800">{c.body}</div>}
           <div className="text-xs text-slate-400 mt-0.5">{fmtDateTimeShort(c.createdAt)}</div>
+          {canView && (
+            <button
+              type="button"
+              onClick={() => onViewDoc(meta.repairOrderId!)}
+              className="mt-1 text-xs font-medium text-red-600 hover:underline"
+            >
+              Beleg ansehen ›
+            </button>
+          )}
         </div>
       </li>
     );

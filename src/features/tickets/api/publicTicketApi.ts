@@ -9,6 +9,8 @@
 // is the primary boundary.
 
 import { supabase } from '../../../lib/supabase';
+import { getRepairOrder, listServiceRates, listTravelZones } from './ticketApi';
+import { calcRepairOrderBilling, VAT_PERCENT } from '../lib/billing';
 
 function requireSupabase(): NonNullable<typeof supabase> {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -147,6 +149,98 @@ export async function getPublicTicketView(shareCode: string): Promise<PublicTick
     ticket,
     appointments: (apptRows ?? []).map(rowToPublicAppointment),
     timeline: (commentRows ?? []).map(rowToTimelineEntry),
+  };
+}
+
+// A single position on the signed document, stripped of internal
+// attribution (no employee id/name).
+export interface PublicSignedPosition {
+  kind: string;
+  label: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+}
+
+export interface PublicSignedRepairOrder {
+  seqNumber: number;
+  performedAt: string;
+  ticketNumber: string;
+  customerName: string | null;
+  workDescription: string | null;
+  signedByName: string | null;
+  signedAt: string | null;
+  signatureData: string | null;
+  positions: PublicSignedPosition[];
+  subtotalNet: number;
+  vatPercent: number;
+  vatAmount: number;
+  grossTotal: number;
+}
+
+// The signed Reparaturschein exactly as the customer confirmed it —
+// gated by RLS (anon reads only SIGNED orders of a shareable ticket) and
+// re-verified here against the share_code + signed status.
+export async function getPublicSignedRepairOrder(
+  shareCode: string,
+  repairOrderId: string,
+): Promise<PublicSignedRepairOrder | null> {
+  const sb = requireSupabase();
+  const { data: t, error } = await sb
+    .from('tickets')
+    .select('id, ticket_number, customer_name, customer_has_wartungsvertrag')
+    .eq('share_code', shareCode)
+    .maybeSingle();
+  if (error) throw error;
+  if (!t) return null;
+  const ticket = t as {
+    id: string;
+    ticket_number: string;
+    customer_name: string | null;
+    customer_has_wartungsvertrag: boolean;
+  };
+
+  const detail = await getRepairOrder(repairOrderId);
+  if (!detail) return null;
+  const { repairOrder, entries, materials } = detail;
+  // Defence in depth on top of RLS: must belong to this ticket + be signed.
+  if (repairOrder.ticketId !== ticket.id || repairOrder.status !== 'signed') return null;
+
+  const [rates, zones] = await Promise.all([listServiceRates(), listTravelZones()]);
+  const billing = calcRepairOrderBilling({
+    repairOrder,
+    entries,
+    materials,
+    rateByCode: new Map(rates.map((r) => [r.code, r] as const)),
+    zoneByCode: new Map(zones.map((z) => [z.code, z] as const)),
+    customerHasWartungsvertrag: !!ticket.customer_has_wartungsvertrag,
+  });
+
+  const vatAmount = Math.round(billing.subtotal * VAT_PERCENT) / 100;
+  return {
+    seqNumber: repairOrder.seqNumber,
+    performedAt: repairOrder.performedAt,
+    ticketNumber: ticket.ticket_number,
+    customerName: ticket.customer_name,
+    workDescription: repairOrder.workDescription,
+    signedByName: repairOrder.signedByName,
+    signedAt: repairOrder.signedAt,
+    signatureData: repairOrder.signatureData,
+    // Strip employee attribution — customers see the work + amounts, not
+    // which technician logged each line.
+    positions: billing.positions.map((p) => ({
+      kind: p.kind,
+      label: p.label,
+      quantity: p.quantity,
+      unit: p.unit,
+      unitPrice: p.unitPrice,
+      total: p.total,
+    })),
+    subtotalNet: billing.subtotal,
+    vatPercent: VAT_PERCENT,
+    vatAmount,
+    grossTotal: Math.round((billing.subtotal + vatAmount) * 100) / 100,
   };
 }
 

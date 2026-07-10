@@ -39,10 +39,24 @@ vi.mock('../../../../lib/supabase', () => ({
   },
 }));
 
-import { addPublicComment, getPublicTicketView } from '../publicTicketApi';
+const getRepairOrderMock = vi.fn<AnyFn>();
+const listServiceRatesMock = vi.fn<AnyFn>();
+const listTravelZonesMock = vi.fn<AnyFn>();
+vi.mock('../ticketApi', () => ({
+  getRepairOrder: (...a: unknown[]) => getRepairOrderMock(...a),
+  listServiceRates: () => listServiceRatesMock(),
+  listTravelZones: () => listTravelZonesMock(),
+}));
+
+import { addPublicComment, getPublicSignedRepairOrder, getPublicTicketView } from '../publicTicketApi';
 
 beforeEach(() => {
   fromMock.mockReset();
+  getRepairOrderMock.mockReset();
+  listServiceRatesMock.mockReset().mockResolvedValue([
+    { id: 1, code: 'PC_NB', label: 'PC/NB', category: 'it', unit: 'hour', rate: 130, tierMinHours: null, requiresWartungsvertrag: null, mesonicArtikelNr: null, activeFrom: '2026-01-01', activeTo: null },
+  ]);
+  listTravelZonesMock.mockReset().mockResolvedValue([]);
   invokeMock.mockReset().mockResolvedValue({ data: { success: true }, error: null });
 });
 
@@ -186,5 +200,73 @@ describe('addPublicComment', () => {
   it('rejects empty bodies before hitting the network', async () => {
     await expect(addPublicComment('sc-1', '   ')).rejects.toThrow('darf nicht leer sein');
     expect(fromMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('getPublicSignedRepairOrder', () => {
+  const TICKET = {
+    id: 't-1',
+    ticket_number: '26-0000001',
+    customer_name: 'Müller GmbH',
+    customer_has_wartungsvertrag: false,
+  };
+
+  function signedDetail(over: Record<string, unknown> = {}) {
+    return {
+      repairOrder: {
+        ticketId: 't-1',
+        status: 'signed',
+        seqNumber: 1,
+        performedAt: '2026-07-08',
+        workDescription: 'Drucker instand gesetzt',
+        signedByName: 'Max Mustermann',
+        signedAt: '2026-07-08T10:00:00Z',
+        signatureData: 'data:image/png;base64,abc',
+        ...over,
+      },
+      entries: [
+        {
+          id: 'e1', repairOrderId: 'ro-1', employeeId: 'emp-a', serviceRateCode: 'PC_NB',
+          workMinutes: 60, travelMode: 'none', travelZoneCode: null, travelKm: null,
+          travelWegzeitMinutes: 0, note: null, createdAt: '', _employeeName: 'Anna',
+        },
+      ],
+      materials: [],
+    };
+  }
+
+  it('returns the sanitised signed document with amounts', async () => {
+    fromMock.mockReturnValue(makeChain({ data: TICKET, error: null }));
+    getRepairOrderMock.mockResolvedValue(signedDetail());
+
+    const doc = await getPublicSignedRepairOrder('sc-1', 'ro-1');
+    expect(doc).not.toBeNull();
+    expect(doc!.ticketNumber).toBe('26-0000001');
+    expect(doc!.subtotalNet).toBe(130); // 1h × €130
+    expect(doc!.vatAmount).toBe(26);
+    expect(doc!.grossTotal).toBe(156);
+    expect(doc!.signatureData).toBe('data:image/png;base64,abc');
+    expect(doc!.positions.length).toBeGreaterThan(0);
+    // No internal attribution leaks into the customer view.
+    expect(Object.keys(doc!.positions[0])).not.toContain('employeeName');
+    expect(Object.keys(doc!.positions[0])).not.toContain('employeeId');
+  });
+
+  it('returns null for a repair order that is not signed', async () => {
+    fromMock.mockReturnValue(makeChain({ data: TICKET, error: null }));
+    getRepairOrderMock.mockResolvedValue(signedDetail({ status: 'draft' }));
+    expect(await getPublicSignedRepairOrder('sc-1', 'ro-1')).toBeNull();
+  });
+
+  it('returns null when the repair order belongs to a different ticket', async () => {
+    fromMock.mockReturnValue(makeChain({ data: TICKET, error: null }));
+    getRepairOrderMock.mockResolvedValue(signedDetail({ ticketId: 't-OTHER' }));
+    expect(await getPublicSignedRepairOrder('sc-1', 'ro-1')).toBeNull();
+  });
+
+  it('returns null when the share code matches no ticket', async () => {
+    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+    expect(await getPublicSignedRepairOrder('bad', 'ro-1')).toBeNull();
+    expect(getRepairOrderMock).not.toHaveBeenCalled();
   });
 });
