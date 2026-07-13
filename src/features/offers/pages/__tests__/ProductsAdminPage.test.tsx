@@ -27,7 +27,7 @@ function makeProduct(over: Partial<productApi.Product>): productApi.Product {
 const PRODUCTS: productApi.Product[] = [
   makeProduct({ id: 'p1', name: 'Mobile Kassa', catalog: 'BESSA', category: 'Kassa – Mobil', sort: 0 }),
   makeProduct({ id: 'p2', name: 'Handel Kassa', catalog: 'BESSA', category: 'Kassa – Handel', sort: 1 }),
-  makeProduct({ id: 'p3', name: 'Ohne Kategorie', catalog: 'BESSA', category: null, sort: 2 }),
+  makeProduct({ id: 'p3', name: 'Freies Produkt', catalog: 'BESSA', category: null, sort: 2 }),
   makeProduct({ id: 'p4', name: 'Anderer Katalog', catalog: 'MELZER', category: 'Melzer – Basis', sort: 0 }),
 ];
 
@@ -55,7 +55,7 @@ describe('ProductsAdminPage — Kategorie picker', () => {
   });
 
   it('offers existing categories of the same catalog as pickable chips', async () => {
-    await openEditor('Ohne Kategorie');
+    await openEditor('Freies Produkt');
     // Chips for the other BESSA categories, not the MELZER one.
     expect(screen.getByRole('button', { name: 'Kassa – Mobil' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Kassa – Handel' })).toBeInTheDocument();
@@ -63,7 +63,7 @@ describe('ProductsAdminPage — Kategorie picker', () => {
   });
 
   it('clicking a chip fills the category input', async () => {
-    await openEditor('Ohne Kategorie');
+    await openEditor('Freies Produkt');
     const input = screen.getByPlaceholderText('z. B. Kassa – Mobil') as HTMLInputElement;
     expect(input.value).toBe('');
     fireEvent.click(screen.getByRole('button', { name: 'Kassa – Mobil' }));
@@ -71,7 +71,7 @@ describe('ProductsAdminPage — Kategorie picker', () => {
   });
 
   it('saves a newly typed category', async () => {
-    await openEditor('Ohne Kategorie');
+    await openEditor('Freies Produkt');
     const input = screen.getByPlaceholderText('z. B. Kassa – Mobil');
     fireEvent.change(input, { target: { value: 'Kassa – Gastro' } });
     fireEvent.click(screen.getByRole('button', { name: /speichern/i }));
@@ -81,6 +81,24 @@ describe('ProductsAdminPage — Kategorie picker', () => {
         expect.objectContaining({ category: 'Kassa – Gastro' }),
       ),
     );
+  });
+});
+
+describe('ProductsAdminPage — category grouping', () => {
+  it('groups products under category headers within a catalog, like the builder', async () => {
+    vi.mocked(productApi.listProductsAdmin).mockResolvedValue([
+      makeProduct({ id: 'a', name: 'Mobil A', catalog: 'BESSA', category: 'Kassa – Mobil', sort: 0 }),
+      makeProduct({ id: 'b', name: 'Handel B', catalog: 'BESSA', category: 'Kassa – Handel', sort: 1 }),
+      makeProduct({ id: 'c', name: 'Mobil C', catalog: 'BESSA', category: 'Kassa – Mobil', sort: 2 }),
+    ]);
+    render(<ProductsAdminPage />);
+    await screen.findByText('Mobil A');
+    // Category header appears once per distinct category.
+    expect(screen.getAllByRole('heading', { name: 'Kassa – Mobil' })).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { name: 'Kassa – Handel' })).toHaveLength(1);
+    // Category order follows first appearance in sort order (Mobil before Handel).
+    const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+    expect(headings).toEqual(['Kassa – Mobil', 'Kassa – Handel']);
   });
 });
 

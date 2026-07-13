@@ -43,6 +43,22 @@ const num = (s: string): number | undefined => {
   return Number.isFinite(n) ? n : undefined;
 };
 
+// Group a catalog's (already sort-ordered) products by category, preserving
+// first-appearance order — the same grouping the offer builder applies.
+function groupByCategory(items: Product[]): Array<{ key: string; label: string; items: Product[] }> {
+  const groups: Array<{ key: string; label: string; items: Product[] }> = [];
+  const index = new Map<string, number>();
+  for (const p of items) {
+    const key = p.category || '';
+    if (!index.has(key)) {
+      index.set(key, groups.length);
+      groups.push({ key, label: p.category || 'Ohne Kategorie', items: [] });
+    }
+    groups[index.get(key)!].items.push(p);
+  }
+  return groups;
+}
+
 export default function ProductsAdminPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,22 +67,49 @@ export default function ProductsAdminPage() {
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  // Reorder a catalog's products and persist the new `sort` for the ones
-  // that moved. Disabled while searching (the list is filtered then).
-  function handleReorder(items: Product[], event: DragEndEvent) {
+  // Reorder products WITHIN a category and persist. The offer builder groups
+  // products by category (TabContent → groupBy('cat')), so we keep sort values
+  // category-contiguous: reorder only within the dragged item's category, then
+  // renumber the whole catalog category-by-category. That way the flat `sort`
+  // and the builder's grouped view always agree. Disabled while searching.
+  function handleReorder(catalog: string, event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const ids = items.map((p) => p.id);
-    const oldI = ids.indexOf(String(active.id));
-    const newI = ids.indexOf(String(over.id));
-    if (oldI < 0 || newI < 0) return;
-    const reordered = arrayMove(items, oldI, newI);
-    const sortById = new Map(reordered.map((p, i) => [p.id, i]));
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    const catProducts = products
+      .filter((p) => p.catalog === catalog)
+      .sort((a, b) => a.sort - b.sort);
+
+    // Group by category, preserving first-appearance order (mirrors the builder).
+    const groups: Product[][] = [];
+    const groupIndex = new Map<string, number>();
+    for (const p of catProducts) {
+      const key = p.category || '';
+      if (!groupIndex.has(key)) {
+        groupIndex.set(key, groups.length);
+        groups.push([]);
+      }
+      groups[groupIndex.get(key)!].push(p);
+    }
+
+    // Reorder only within the group that holds the dragged item.
+    const gi = groups.findIndex((g) => g.some((p) => p.id === activeId));
+    if (gi < 0) return;
+    const ids = groups[gi].map((p) => p.id);
+    const oldI = ids.indexOf(activeId);
+    const newI = ids.indexOf(overId);
+    if (oldI < 0 || newI < 0) return; // drop landed outside this category
+    groups[gi] = arrayMove(groups[gi], oldI, newI);
+
+    // Renumber the whole catalog, categories staying contiguous.
+    const flat = groups.flat();
+    const sortById = new Map(flat.map((p, i) => [p.id, i]));
     setProducts((prev) =>
       prev.map((p) => (sortById.has(p.id) ? { ...p, sort: sortById.get(p.id)! } : p)),
     );
-    // Persist only the products whose sort actually changed.
-    reordered.forEach((p, i) => {
+    flat.forEach((p, i) => {
       if (p.sort !== i) updateProduct(p.id, { sort: i }).catch(() => { /* best-effort */ });
     });
   }
@@ -173,25 +216,35 @@ export default function ProductsAdminPage() {
         ) : (
           Array.from(byCatalog.entries()).map(([catalog, items]) => (
             <section key={catalog} className="mb-5">
-              <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex items-center gap-2 mb-2">
                 <h2 className="text-sm font-semibold text-slate-700">{catalog}</h2>
                 <span className="text-xs text-slate-400">{items.length}</span>
               </div>
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleReorder(items, e)}>
-                <SortableContext items={items.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-                  <ul className="space-y-1">
-                    {items.map((p) => (
-                      <SortableProductRow
-                        key={p.id}
-                        product={p}
-                        draggable={!search.trim()}
-                        onToggle={toggleActive}
-                        onEdit={setEditing}
-                      />
-                    ))}
-                  </ul>
-                </SortableContext>
-              </DndContext>
+              <div className="space-y-3">
+                {groupByCategory(items).map((group) => (
+                  <div key={group.key}>
+                    <div className="flex items-center gap-2 mb-1 pl-1">
+                      <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{group.label}</h3>
+                      <span className="text-[10px] text-slate-300">{group.items.length}</span>
+                    </div>
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleReorder(catalog, e)}>
+                      <SortableContext items={group.items.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                        <ul className="space-y-1">
+                          {group.items.map((p) => (
+                            <SortableProductRow
+                              key={p.id}
+                              product={p}
+                              draggable={!search.trim()}
+                              onToggle={toggleActive}
+                              onEdit={setEditing}
+                            />
+                          ))}
+                        </ul>
+                      </SortableContext>
+                    </DndContext>
+                  </div>
+                ))}
+              </div>
             </section>
           ))
         )}
@@ -248,10 +301,7 @@ function SortableProductRow({
         <span className="w-6 flex-shrink-0" />
       )}
       {p.code && <span className="font-mono text-xs text-slate-400 w-12 flex-shrink-0">{p.code}</span>}
-      <span className="min-w-0 flex-1">
-        <span className="font-medium text-slate-800 truncate block">{p.name}</span>
-        {p.category && <span className="text-[11px] text-slate-400 truncate block">{p.category}</span>}
-      </span>
+      <span className="font-medium text-slate-800 truncate flex-1">{p.name}</span>
       <span className="text-slate-600 font-mono text-xs whitespace-nowrap">{priceSummary(p.pricing)}</span>
       <button
         type="button"
