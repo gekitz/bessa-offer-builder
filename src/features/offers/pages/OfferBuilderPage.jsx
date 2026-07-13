@@ -442,6 +442,17 @@ export default function OfferBuilderPage() {
         return { ...c, [id]: { ...cur, qty: nq } };
       });
     },
+    // Set an exact quantity (e.g. fractional hours like 3.5). Keeps the line
+    // at qty 0 rather than removing it, so the input doesn't unmount mid-typing.
+    onSetQty: (id, value) => {
+      setCart(c => {
+        const cur = c[id];
+        if (!cur) return c;
+        let nq = Number(value);
+        if (!Number.isFinite(nq) || nq < 0) nq = 0;
+        return { ...c, [id]: { ...cur, qty: nq } };
+      });
+    },
     onDiscountQty: (id, d) => {
       setCart(c => {
         const cur = c[id];

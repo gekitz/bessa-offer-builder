@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Minus, Plus, X } from 'lucide-react';
 import {
   availableTiers,
@@ -11,7 +12,7 @@ import {
 import { TIER_SHORT, TKEY_REV } from '../../../data/tiers';
 import { fmt } from '../../../lib/format';
 
-export default function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onDiscountQty, onTier, onMode }) {
+export default function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, onQty, onSetQty, onDiscountQty, onTier, onMode }) {
   const inCart = !!cartItem;
   const tier = cartItem?.tier || bestTier(item, globalTier);
   const mode = cartItem?.mode || 'rent';
@@ -23,6 +24,15 @@ export default function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, 
   const fullQty = cartItem?.qty || 0;
   const discQty = cartItem?.discountQty || 0;
   const lineTotal = (p * fullQty) + (dp * discQty);
+  const isHourly = item.t === 'h';
+
+  // Editable text for hourly items so fractional hours (3.5) can be typed.
+  // Kept local while focused; re-synced from the cart when not editing.
+  const [hoursText, setHoursText] = useState(String(fullQty));
+  const [editingHours, setEditingHours] = useState(false);
+  useEffect(() => {
+    if (!editingHours) setHoursText(String(fullQty));
+  }, [fullQty, editingHours]);
 
   if (p === null && !inCart) return null;
 
@@ -88,18 +98,36 @@ export default function ItemCard({ item, cartItem, globalTier, onAdd, onRemove, 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1">
               {hasDiscountOption && <span className="text-slate-500 mr-1" style={{ fontSize: 11, minWidth: 70 }}>Voller Preis:</span>}
-              <button onClick={() => onQty(item.id, -1)}
+              <button onClick={() => (isHourly ? onSetQty(item.id, Math.max(0, fullQty - 0.5)) : onQty(item.id, -1))}
                 className="rounded-full bg-slate-200 flex items-center justify-center hover:bg-slate-300 active:scale-95 transition-transform"
                 style={{ width: 32, height: 32 }}>
                 <Minus size={14} />
               </button>
-              <span className="font-bold text-slate-800 text-center" style={{ width: 28, fontSize: 14 }}>{fullQty}</span>
-              <button onClick={() => onQty(item.id, 1)}
+              {isHourly ? (
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={hoursText}
+                  onFocus={() => setEditingHours(true)}
+                  onChange={(e) => {
+                    setHoursText(e.target.value);
+                    const n = parseFloat(e.target.value.replace(',', '.'));
+                    onSetQty(item.id, Number.isFinite(n) && n >= 0 ? n : 0);
+                  }}
+                  onBlur={() => setEditingHours(false)}
+                  className="font-bold text-slate-800 text-center rounded-lg border border-slate-300 focus:border-red-400 focus:outline-none"
+                  style={{ width: 52, height: 32, fontSize: 14 }}
+                  aria-label="Stunden"
+                />
+              ) : (
+                <span className="font-bold text-slate-800 text-center" style={{ width: 28, fontSize: 14 }}>{fullQty}</span>
+              )}
+              <button onClick={() => (isHourly ? onSetQty(item.id, fullQty + 0.5) : onQty(item.id, 1))}
                 className="rounded-full bg-slate-200 flex items-center justify-center hover:bg-slate-300 active:scale-95 transition-transform"
                 style={{ width: 32, height: 32 }}>
                 <Plus size={14} />
               </button>
-              {item.t === 'h' && <span className="text-slate-400 ml-1" style={{ fontSize: 11 }}>Stunden</span>}
+              {isHourly && <span className="text-slate-400 ml-1" style={{ fontSize: 11 }}>Stunden</span>}
             </div>
             {!hasDiscountOption && (
               <span className="font-bold text-red-700" style={{ fontSize: 14 }}>
