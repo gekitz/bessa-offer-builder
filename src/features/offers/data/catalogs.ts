@@ -252,7 +252,7 @@ export const KIOSK: Item[] = [
 
 export const DIENSTLEISTUNGEN: Item[] = [
   { id:'00caa501-4266-4459-bbf6-38074fa7a00d', name:'Fiskalisierung', price:190, t:'o' },
-  { id:'b01429e1-672e-44ae-ae79-1d08c4f7f918', name:'Arbeitszeit', price:118, t:'o', info:'pro Stunde' },
+  { id:'b01429e1-672e-44ae-ae79-1d08c4f7f918', name:'Arbeitszeit', price:118, t:'h', info:'pro Stunde' },
 ];
 
 export const ORDERMAN: Item[] = [
