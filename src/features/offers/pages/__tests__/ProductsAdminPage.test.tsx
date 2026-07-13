@@ -1,0 +1,83 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import ProductsAdminPage from '../ProductsAdminPage';
+import * as productApi from '../../api/productApi';
+
+vi.mock('../../api/productApi');
+
+function makeProduct(over: Partial<productApi.Product>): productApi.Product {
+  return {
+    id: over.id ?? crypto.randomUUID(),
+    code: null,
+    name: 'Produkt',
+    catalog: 'BESSA',
+    category: null,
+    kind: 'm',
+    note: null,
+    info: null,
+    pricing: {},
+    attrs: {},
+    autoAdd: null,
+    active: true,
+    sort: 0,
+    ...over,
+  };
+}
+
+const PRODUCTS: productApi.Product[] = [
+  makeProduct({ id: 'p1', name: 'Mobile Kassa', catalog: 'BESSA', category: 'Kassa – Mobil', sort: 0 }),
+  makeProduct({ id: 'p2', name: 'Handel Kassa', catalog: 'BESSA', category: 'Kassa – Handel', sort: 1 }),
+  makeProduct({ id: 'p3', name: 'Ohne Kategorie', catalog: 'BESSA', category: null, sort: 2 }),
+  makeProduct({ id: 'p4', name: 'Anderer Katalog', catalog: 'MELZER', category: 'Melzer – Basis', sort: 0 }),
+];
+
+beforeEach(() => {
+  vi.mocked(productApi.listProductsAdmin).mockResolvedValue(PRODUCTS);
+  vi.mocked(productApi.updateProduct).mockImplementation(async (id, patch) =>
+    makeProduct({ ...PRODUCTS.find((p) => p.id === id)!, ...patch }),
+  );
+});
+
+async function openEditor(name: string) {
+  render(<ProductsAdminPage />);
+  const row = (await screen.findByText(name)).closest('li') as HTMLElement;
+  fireEvent.click(within(row).getByLabelText('Bearbeiten'));
+  return screen.getByRole('heading', { name: 'Produkt bearbeiten' }).closest('div') as HTMLElement;
+}
+
+describe('ProductsAdminPage — Kategorie picker', () => {
+  it('shows each product’s category in the list', async () => {
+    render(<ProductsAdminPage />);
+    expect(await screen.findByText('Kassa – Mobil')).toBeInTheDocument();
+    expect(screen.getByText('Kassa – Handel')).toBeInTheDocument();
+  });
+
+  it('offers existing categories of the same catalog as pickable chips', async () => {
+    await openEditor('Ohne Kategorie');
+    // Chips for the other BESSA categories, not the MELZER one.
+    expect(screen.getByRole('button', { name: 'Kassa – Mobil' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kassa – Handel' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Melzer – Basis' })).not.toBeInTheDocument();
+  });
+
+  it('clicking a chip fills the category input', async () => {
+    await openEditor('Ohne Kategorie');
+    const input = screen.getByPlaceholderText('z. B. Kassa – Mobil') as HTMLInputElement;
+    expect(input.value).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'Kassa – Mobil' }));
+    expect(input.value).toBe('Kassa – Mobil');
+  });
+
+  it('saves a newly typed category', async () => {
+    await openEditor('Ohne Kategorie');
+    const input = screen.getByPlaceholderText('z. B. Kassa – Mobil');
+    fireEvent.change(input, { target: { value: 'Kassa – Gastro' } });
+    fireEvent.click(screen.getByRole('button', { name: /speichern/i }));
+    await waitFor(() =>
+      expect(productApi.updateProduct).toHaveBeenCalledWith(
+        'p3',
+        expect.objectContaining({ category: 'Kassa – Gastro' }),
+      ),
+    );
+  });
+});

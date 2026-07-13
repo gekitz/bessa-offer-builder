@@ -191,6 +191,7 @@ export default function ProductsAdminPage() {
       {editing && (
         <ProductEditModal
           product={editing === 'new' ? null : editing}
+          allProducts={products}
           onClose={() => setEditing(null)}
           onSaved={onSaved}
         />
@@ -237,7 +238,10 @@ function SortableProductRow({
         <span className="w-6 flex-shrink-0" />
       )}
       {p.code && <span className="font-mono text-xs text-slate-400 w-12 flex-shrink-0">{p.code}</span>}
-      <span className="font-medium text-slate-800 truncate flex-1">{p.name}</span>
+      <span className="min-w-0 flex-1">
+        <span className="font-medium text-slate-800 truncate block">{p.name}</span>
+        {p.category && <span className="text-[11px] text-slate-400 truncate block">{p.category}</span>}
+      </span>
       <span className="text-slate-600 font-mono text-xs whitespace-nowrap">{priceSummary(p.pricing)}</span>
       <button
         type="button"
@@ -261,10 +265,12 @@ function SortableProductRow({
 
 function ProductEditModal({
   product,
+  allProducts,
   onClose,
   onSaved,
 }: {
   product: Product | null;
+  allProducts: Product[];
   onClose: () => void;
   onSaved: (p: Product, isNew: boolean) => void;
 }) {
@@ -273,6 +279,14 @@ function ProductEditModal({
   const [code, setCode] = useState(product?.code ?? '');
   const [catalog, setCatalog] = useState(product?.catalog ?? 'BESSA');
   const [category, setCategory] = useState(product?.category ?? '');
+  // Existing categories in the selected catalog — pick to reuse, or type a new one.
+  const existingCategories = useMemo(() => {
+    const set = new Set<string>();
+    allProducts.forEach((p) => {
+      if (p.catalog === catalog && p.category) set.add(p.category);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'de'));
+  }, [allProducts, catalog]);
   const [kind, setKind] = useState(product?.kind ?? 'm');
   const [note, setNote] = useState(product?.note ?? '');
   const [info, setInfo] = useState(product?.info ?? '');
@@ -390,9 +404,35 @@ function ProductEditModal({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Kategorie</label>
-              <input value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+              <input
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="z. B. Kassa – Mobil"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+              />
             </div>
           </div>
+          {existingCategories.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {existingCategories.map((c) => {
+                const active = c === category.trim();
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCategory(c)}
+                    className={`px-2 py-0.5 rounded-full text-[11px] border transition-colors ${
+                      active
+                        ? 'bg-slate-800 text-white border-slate-800'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           <div>
             <div className="flex items-center justify-between mb-1">
