@@ -32,10 +32,12 @@ const PRODUCTS: productApi.Product[] = [
 ];
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.mocked(productApi.listProductsAdmin).mockResolvedValue(PRODUCTS);
   vi.mocked(productApi.updateProduct).mockImplementation(async (id, patch) =>
     makeProduct({ ...PRODUCTS.find((p) => p.id === id)!, ...patch }),
   );
+  vi.mocked(productApi.deleteProduct).mockResolvedValue(undefined);
 });
 
 async function openEditor(name: string) {
@@ -79,5 +81,39 @@ describe('ProductsAdminPage — Kategorie picker', () => {
         expect.objectContaining({ category: 'Kassa – Gastro' }),
       ),
     );
+  });
+});
+
+describe('ProductsAdminPage — delete', () => {
+  it('requires confirmation before deleting', async () => {
+    await openEditor('Mobile Kassa');
+    // First click only reveals the confirmation, does not delete.
+    fireEvent.click(screen.getByRole('button', { name: /^löschen$/i }));
+    expect(productApi.deleteProduct).not.toHaveBeenCalled();
+    expect(screen.getByText(/wirklich endgültig löschen/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /ja, löschen/i }));
+    await waitFor(() => expect(productApi.deleteProduct).toHaveBeenCalledWith('p1'));
+  });
+
+  it('can cancel the delete confirmation', async () => {
+    await openEditor('Mobile Kassa');
+    fireEvent.click(screen.getByRole('button', { name: /^löschen$/i }));
+    fireEvent.click(within(screen.getByText(/wirklich endgültig löschen/i).closest('div')!).getByRole('button', { name: /abbrechen/i }));
+    expect(screen.queryByText(/wirklich endgültig löschen/i)).not.toBeInTheDocument();
+    expect(productApi.deleteProduct).not.toHaveBeenCalled();
+  });
+
+  it('removes the product from the list after deletion', async () => {
+    await openEditor('Mobile Kassa');
+    fireEvent.click(screen.getByRole('button', { name: /^löschen$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /ja, löschen/i }));
+    await waitFor(() => expect(screen.queryByText('Mobile Kassa')).not.toBeInTheDocument());
+  });
+
+  it('shows no delete button when adding a new product', async () => {
+    render(<ProductsAdminPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /neues produkt/i }));
+    expect(screen.queryByRole('button', { name: /^löschen$/i })).not.toBeInTheDocument();
   });
 });

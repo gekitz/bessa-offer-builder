@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, GripVertical, Loader2, Package, Pencil, Plus, Save, Search, X } from 'lucide-react';
+import { AlertCircle, GripVertical, Loader2, Package, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import Select from '../../../components/Select';
 import {
   createProduct,
+  deleteProduct,
   listProductsAdmin,
   updateProduct,
   type Product,
@@ -120,6 +121,11 @@ export default function ProductsAdminPage() {
     setEditing(null);
   }
 
+  function onDeleted(id: string) {
+    setProducts((prev) => prev.filter((x) => x.id !== id));
+    setEditing(null);
+  }
+
   return (
     <div className="flex-1 overflow-auto px-4 py-4 md:px-8 md:py-6">
       <div className="max-w-4xl mx-auto">
@@ -194,6 +200,7 @@ export default function ProductsAdminPage() {
           allProducts={products}
           onClose={() => setEditing(null)}
           onSaved={onSaved}
+          onDeleted={onDeleted}
         />
       )}
     </div>
@@ -268,13 +275,17 @@ function ProductEditModal({
   allProducts,
   onClose,
   onSaved,
+  onDeleted,
 }: {
   product: Product | null;
   allProducts: Product[];
   onClose: () => void;
   onSaved: (p: Product, isNew: boolean) => void;
+  onDeleted: (id: string) => void;
 }) {
   const isNew = !product;
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [name, setName] = useState(product?.name ?? '');
   const [code, setCode] = useState(product?.code ?? '');
   const [catalog, setCatalog] = useState(product?.catalog ?? 'BESSA');
@@ -372,6 +383,19 @@ function ProductEditModal({
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!product) return;
+    setDeleting(true);
+    setErr(null);
+    try {
+      await deleteProduct(product.id);
+      onDeleted(product.id);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+      setDeleting(false);
     }
   }
 
@@ -515,13 +539,46 @@ function ProductEditModal({
             <input value={info} onChange={(e) => setInfo(e.target.value)} placeholder="optional" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
           </div>
 
+          {!isNew && confirmDelete && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+              <p className="font-medium mb-2">Dieses Produkt wirklich endgültig löschen?</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  Ja, löschen
+                </button>
+                <button type="button" onClick={() => setConfirmDelete(false)} disabled={deleting} className="px-3 py-1.5 rounded-lg text-sm text-slate-600 hover:bg-slate-100">Abbrechen</button>
+              </div>
+            </div>
+          )}
+
           {err && <div className="text-sm text-red-600">{err}</div>}
-          <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={onClose} disabled={saving} className="px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-100">Abbrechen</button>
-            <button type="button" onClick={submit} disabled={saving} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium hover:bg-slate-900 disabled:opacity-50">
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {isNew ? 'Anlegen' : 'Speichern'}
-            </button>
+          <div className="flex items-center justify-between gap-2 pt-1">
+            {!isNew ? (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={saving || deleting || confirmDelete}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 disabled:opacity-40"
+              >
+                <Trash2 size={14} />
+                Löschen
+              </button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <button type="button" onClick={onClose} disabled={saving || deleting} className="px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-100">Abbrechen</button>
+              <button type="button" onClick={submit} disabled={saving || deleting} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium hover:bg-slate-900 disabled:opacity-50">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                {isNew ? 'Anlegen' : 'Speichern'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

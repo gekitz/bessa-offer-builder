@@ -101,6 +101,12 @@ export async function updateProduct(
   return rowToProduct(data);
 }
 
+export async function deleteProduct(id: string): Promise<void> {
+  const sb = requireSb();
+  const { error } = await sb.from('products').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 export async function createProduct(input: ProductInput): Promise<Product> {
   const sb = requireSb();
   const { data, error } = await sb
