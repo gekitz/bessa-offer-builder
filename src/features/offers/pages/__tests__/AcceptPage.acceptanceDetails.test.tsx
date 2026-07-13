@@ -42,4 +42,21 @@ describe('AcceptPage acceptance details', () => {
     expect(await screen.findByText('Angebot angenommen')).toBeInTheDocument();
     expect(screen.getByText('ZAHLUNGSPLAN')).toBeInTheDocument();
   });
+
+  it('hides Stripe payment-plan and billing sections for signature-only acceptances', async () => {
+    getOfferByShareCode.mockResolvedValue({
+      ...acceptedOffer,
+      payment_enabled: false,
+      plan_chosen: null,
+    });
+
+    render(<AcceptPage shareCode="abc123" />);
+
+    // Confirmation still shows...
+    expect(await screen.findByText('Angebot angenommen')).toBeInTheDocument();
+    // ...but the Stripe-only plan/billing blocks must not leak.
+    expect(screen.queryByText('ZAHLUNGSPLAN')).not.toBeInTheDocument();
+    expect(screen.queryByText('ABRECHNUNG')).not.toBeInTheDocument();
+    expect(screen.queryByText('Keine Details verfügbar')).not.toBeInTheDocument();
+  });
 });

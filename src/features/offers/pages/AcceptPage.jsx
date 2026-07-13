@@ -107,56 +107,62 @@ function AcceptanceDetails({ offer }) {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 p-5">
-          <div className="flex items-baseline justify-between mb-3">
-            <div className="font-bold text-slate-700" style={{ fontSize: 13 }}>ZAHLUNGSPLAN</div>
-            <div className="text-sm font-semibold text-slate-800">{planName}</div>
-          </div>
-          <div className="space-y-2 text-sm bg-slate-50 rounded-lg p-3">
-            {rows.length === 0 ? (
-              <div className="text-slate-500 text-center py-2">Keine Details verfügbar</div>
-            ) : rows.map((r, i) => (
-              <div key={i} className="flex justify-between">
-                <span className="text-slate-600">{r.label}</span>
-                <span className="font-semibold text-slate-800 whitespace-nowrap">€ {fmt(r.value)}{r.per}</span>
+        {/* Payment plan / billing schedule only apply to Stripe-paid offers.
+            Signature-only acceptances have no plan and nothing is debited. */}
+        {offer.payment_enabled && (
+          <>
+            <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 p-5">
+              <div className="flex items-baseline justify-between mb-3">
+                <div className="font-bold text-slate-700" style={{ fontSize: 13 }}>ZAHLUNGSPLAN</div>
+                <div className="text-sm font-semibold text-slate-800">{planName}</div>
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="space-y-2 text-sm bg-slate-50 rounded-lg p-3">
+                {rows.length === 0 ? (
+                  <div className="text-slate-500 text-center py-2">Keine Details verfügbar</div>
+                ) : rows.map((r, i) => (
+                  <div key={i} className="flex justify-between">
+                    <span className="text-slate-600">{r.label}</span>
+                    <span className="font-semibold text-slate-800 whitespace-nowrap">€ {fmt(r.value)}{r.per}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-        <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 p-5">
-          <div className="font-bold text-slate-700 mb-3" style={{ fontSize: 13 }}>ABRECHNUNG</div>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-600">Leistungsbeginn / erste Abbuchung</span>
-              <span className="font-medium text-slate-800">{formattedStart}</span>
+            <div className="bg-white rounded-xl border-2 border-slate-200 mb-4 p-5">
+              <div className="font-bold text-slate-700 mb-3" style={{ fontSize: 13 }}>ABRECHNUNG</div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Leistungsbeginn / erste Abbuchung</span>
+                  <span className="font-medium text-slate-800">{formattedStart}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Laufzeit</span>
+                  <span className="font-medium text-slate-800">
+                    {plan === 'miete' ? `${tierMonths} Monate` : isOpenEnded ? 'Unbefristet' : `${tierMonths} Monate`}
+                  </span>
+                </div>
+                {formattedEnd && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Vertragsende</span>
+                    <span className="font-medium text-slate-800">{formattedEnd}</span>
+                  </div>
+                )}
+                {monthlyBrutto > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Folge-Abbuchungen Monatsgebühr</span>
+                    <span className="font-medium text-slate-800">jeweils zum {startDate.getDate()}.</span>
+                  </div>
+                )}
+                {yearlyBrutto > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Wartung-Verrechnung</span>
+                    <span className="font-medium text-slate-800">jährlich ab {formattedStart}</span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-600">Laufzeit</span>
-              <span className="font-medium text-slate-800">
-                {plan === 'miete' ? `${tierMonths} Monate` : isOpenEnded ? 'Unbefristet' : `${tierMonths} Monate`}
-              </span>
-            </div>
-            {formattedEnd && (
-              <div className="flex justify-between">
-                <span className="text-slate-600">Vertragsende</span>
-                <span className="font-medium text-slate-800">{formattedEnd}</span>
-              </div>
-            )}
-            {monthlyBrutto > 0 && (
-              <div className="flex justify-between">
-                <span className="text-slate-600">Folge-Abbuchungen Monatsgebühr</span>
-                <span className="font-medium text-slate-800">jeweils zum {startDate.getDate()}.</span>
-              </div>
-            )}
-            {yearlyBrutto > 0 && (
-              <div className="flex justify-between">
-                <span className="text-slate-600">Wartung-Verrechnung</span>
-                <span className="font-medium text-slate-800">jährlich ab {formattedStart}</span>
-              </div>
-            )}
-          </div>
-        </div>
+          </>
+        )}
 
         <div className="bg-white rounded-xl border border-slate-200 p-4 text-sm text-slate-600 text-center">
           Bei Fragen melden Sie sich bitte bei Ihrem Ansprechpartner.
