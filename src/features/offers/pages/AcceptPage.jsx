@@ -7,6 +7,7 @@ import SignaturePad from '../components/SignaturePad';
 import { ALL } from '../data/catalogs';
 import { computeAcceptTotals } from '../../../lib/acceptTotals';
 import { fmt } from '../../../lib/format';
+import { TIER_MONTHS } from '../../../data/tiers';
 
 function AcceptPlanCard({ title, subtitle, rows, cta, onSelect, loading, disabled, highlight }) {
   return (
