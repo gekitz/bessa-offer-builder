@@ -104,6 +104,9 @@ export default function ProductsAdminPage() {
       arr.push(p);
       m.set(p.catalog, arr);
     }
+    // Render in `sort` order so drag-reordering (which patches sort) is
+    // reflected immediately, not only after a reload.
+    for (const arr of m.values()) arr.sort((a, b) => a.sort - b.sort);
     return m;
   }, [filtered]);
 

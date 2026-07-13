@@ -84,6 +84,21 @@ describe('ProductsAdminPage — Kategorie picker', () => {
   });
 });
 
+describe('ProductsAdminPage — ordering', () => {
+  it('renders each catalog’s products in sort order, not array order', async () => {
+    // Returned out of sort order on purpose (sort: 2, 0, 1 within BESSA).
+    vi.mocked(productApi.listProductsAdmin).mockResolvedValue([
+      makeProduct({ id: 'a', name: 'Third', catalog: 'BESSA', sort: 2 }),
+      makeProduct({ id: 'b', name: 'First', catalog: 'BESSA', sort: 0 }),
+      makeProduct({ id: 'c', name: 'Second', catalog: 'BESSA', sort: 1 }),
+    ]);
+    render(<ProductsAdminPage />);
+    await screen.findByText('First');
+    const names = screen.getAllByTestId('product-row').map((row) => within(row).getByText(/First|Second|Third/).textContent);
+    expect(names).toEqual(['First', 'Second', 'Third']);
+  });
+});
+
 describe('ProductsAdminPage — delete', () => {
   it('requires confirmation before deleting', async () => {
     await openEditor('Mobile Kassa');
