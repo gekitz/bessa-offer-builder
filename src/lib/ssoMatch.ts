@@ -1,19 +1,53 @@
-// Microsoft-SSO -> employee/team matching. Internal email conventions
-// at @kitz.co.at use two formats:
-//   * Authoritative records (employees.email):
-//       <first_initial>.<lastname>@kitz.co.at      e.g. "g.kitz"
-//   * SSO logins:
-//       <last_initial><first_initial>@kitz.co.at   e.g. "kg"
+// Microsoft-SSO -> employee/team matching. Internal @kitz.co.at logins
+// don't follow a single convention, and we can't be sure which form
+// Azure/Microsoft emits as the token's email claim:
+//   * short form   <last_initial><first_initial>@   e.g. "kg"  (Georg Kitz)
+//   * f.lastname   <first_initial>.<lastname>@       e.g. "g.kitz"
+//   * firstname.lastname@                            e.g. "georg.kitz"
+//   * irregular real mailboxes                       e.g. "kma" (Marcel Klein)
 //
-// findIdBySsoEmail() takes the SSO email and a list of candidate
-// records (each with an id + email) and returns the matching id, or
-// null when nothing fits. Candidates can be team members, employee
-// rows, or anything else with the right shape — this keeps the
-// helper agnostic of the domain entity.
+// Rather than depend on the stored email being in one particular form,
+// findIdBySsoEmail() derives *every* legitimate local-part for a
+// candidate from BOTH their stored email and their display name, then
+// matches the SSO email's local-part against any of them (within the
+// same domain). So whichever form MS sends — and whatever single form we
+// happen to store in employees.email — the signed-in user still resolves.
+//
+// Candidates carry an id + email (+ optional name). Passing the name is
+// what unlocks matching when the stored email is a short/irregular form.
 
 export interface IdEmailLike {
   id: string;
   email?: string | null;
+  name?: string | null;
+}
+
+// All local-parts (before the @) that could legitimately identify this
+// candidate, given their stored email local-part and display name.
+function candidateLocals(emailLocal: string, name: string | null | undefined): string[] {
+  const out = new Set<string>();
+
+  // The stored address itself (covers irregular real mailboxes like 'kma').
+  out.add(emailLocal);
+  // f.lastname stored -> derive the short SSO form (g.kitz -> kg).
+  if (emailLocal.includes('.')) {
+    const [a, b] = emailLocal.split('.');
+    if (a && b) out.add(`${b[0]}${a[0]}`);
+  }
+
+  // Forms derivable from the display name ("Georg Kitz").
+  const parts = (name ?? '').trim().toLowerCase().split(/\s+/);
+  if (parts.length >= 2) {
+    const first = parts[0];
+    const last = parts[parts.length - 1];
+    if (first && last) {
+      out.add(`${first[0]}.${last}`); // g.kitz
+      out.add(`${first}.${last}`);    // georg.kitz
+      out.add(`${last[0]}${first[0]}`); // kg
+    }
+  }
+
+  return [...out];
 }
 
 export function findIdBySsoEmail<T extends IdEmailLike>(
@@ -21,27 +55,18 @@ export function findIdBySsoEmail<T extends IdEmailLike>(
   candidates: readonly T[],
 ): string | null {
   if (!ssoEmail) return null;
-  const sso = ssoEmail.toLowerCase();
-
-  // 1. Exact match.
-  const exact = candidates.find((c) => c.email?.toLowerCase() === sso);
-  if (exact) return exact.id;
-
-  // 2. Heuristic: derive the SSO variant from each candidate's
-  // canonical "f.lastname" email and compare to the SSO local part.
+  const sso = ssoEmail.trim().toLowerCase();
   const [ssoLocal, ssoDomain] = sso.split('@');
   if (!ssoLocal || !ssoDomain) return null;
 
-  const derived = candidates.find((c) => {
-    if (!c.email) return false;
-    const [local, domain] = c.email.toLowerCase().split('@');
-    if (!local || domain !== ssoDomain) return false;
-    const dotIdx = local.indexOf('.');
-    if (dotIdx < 1) return false;
-    const firstInitial = local.charAt(0);             // 'g'
-    const lastName = local.substring(dotIdx + 1);     // 'kitz'
-    const ssoVariant = lastName.charAt(0) + firstInitial; // 'kg'
-    return ssoLocal === ssoVariant;
-  });
-  return derived?.id ?? null;
+  for (const c of candidates) {
+    const email = c.email?.trim().toLowerCase();
+    if (!email) continue;
+    const [emailLocal, emailDomain] = email.split('@');
+    // Only ever match within the same domain — 'kg@example.com' must not
+    // resolve to a kitz.co.at employee.
+    if (!emailLocal || emailDomain !== ssoDomain) continue;
+    if (candidateLocals(emailLocal, c.name).includes(ssoLocal)) return c.id;
+  }
+  return null;
 }

@@ -29,7 +29,7 @@ export function useApproverPendingCount(): number {
       try {
         const employees = await listEmployees({ activeOnly: true });
         if (cancelled) return;
-        const myId = findIdBySsoEmail(email, employees.map((e) => ({ id: e.id, email: e.email })));
+        const myId = findIdBySsoEmail(email, employees.map((e) => ({ id: e.id, email: e.email, name: e.name })));
         const me = employees.find((e) => e.id === myId);
         if (!isApprover(me)) return;
         const pending = await listLeaveRequests({ status: 'pending' });
@@ -55,7 +55,7 @@ export function useApproverPendingCount(): number {
         try {
           const employees = await listEmployees({ activeOnly: true });
           if (cancelled) return;
-          const myId = findIdBySsoEmail(email, employees.map((e) => ({ id: e.id, email: e.email })));
+          const myId = findIdBySsoEmail(email, employees.map((e) => ({ id: e.id, email: e.email, name: e.name })));
           const me = employees.find((e) => e.id === myId);
           if (!isApprover(me)) return;
           const pending = await listLeaveRequests({ status: 'pending' });

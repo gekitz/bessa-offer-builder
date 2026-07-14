@@ -61,9 +61,41 @@ describe('findIdBySsoEmail', () => {
 
   it('skips candidates whose canonical email has no dot in the local part', () => {
     const team = [
-      { id: 'noformat', email: 'gkitz@kitz.co.at' },     // no dot
+      { id: 'noformat', email: 'gkitz@kitz.co.at' },     // no dot, no name
       { id: 'emptyfirst', email: '.lastonly@kitz.co.at' }, // dot at index 0
     ];
     expect(findIdBySsoEmail('kg@kitz.co.at', team)).toBeNull();
+  });
+
+  // The real employees table stores the short/irregular mailbox address
+  // (e.g. 'kg@', 'kma@'), while Microsoft SSO may hand us the f.lastname
+  // form. Passing the name lets us resolve either direction.
+  describe('with name (employees-table shape: short email stored)', () => {
+    const EMPLOYEES = [
+      { id: 'gkitz', email: 'kg@kitz.co.at', name: 'Georg Kitz' },
+      { id: 'hbauer', email: 'bh@kitz.co.at', name: 'Helmut Bauer' },
+      // Irregular real mailbox that no short-form rule would generate.
+      { id: 'mklein', email: 'kma@kitz.co.at', name: 'Marcel Klein' },
+    ];
+
+    it('matches when SSO sends the short/real form (exact)', () => {
+      expect(findIdBySsoEmail('kg@kitz.co.at', EMPLOYEES)).toBe('gkitz');
+      expect(findIdBySsoEmail('kma@kitz.co.at', EMPLOYEES)).toBe('mklein');
+    });
+
+    it('matches when SSO sends the f.lastname form (name-derived)', () => {
+      expect(findIdBySsoEmail('g.kitz@kitz.co.at', EMPLOYEES)).toBe('gkitz');
+      expect(findIdBySsoEmail('h.bauer@kitz.co.at', EMPLOYEES)).toBe('hbauer');
+      expect(findIdBySsoEmail('m.klein@kitz.co.at', EMPLOYEES)).toBe('mklein');
+    });
+
+    it('matches when SSO sends the firstname.lastname form', () => {
+      expect(findIdBySsoEmail('georg.kitz@kitz.co.at', EMPLOYEES)).toBe('gkitz');
+      expect(findIdBySsoEmail('marcel.klein@kitz.co.at', EMPLOYEES)).toBe('mklein');
+    });
+
+    it('still respects the domain even with name-derived forms', () => {
+      expect(findIdBySsoEmail('g.kitz@example.com', EMPLOYEES)).toBeNull();
+    });
   });
 });

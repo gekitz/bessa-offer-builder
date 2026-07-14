@@ -77,7 +77,7 @@ export default function TicketsPage() {
       try {
         const emps = await listEmployees({ activeOnly: true });
         if (cancelled) return;
-        const myId = findIdBySsoEmail(email, emps.map((e) => ({ id: e.id, email: e.email })));
+        const myId = findIdBySsoEmail(email, emps.map((e) => ({ id: e.id, email: e.email, name: e.name })));
         if (myId) setCurrentEmployeeId(myId);
       } catch {
         /* badge / defaults stay null */

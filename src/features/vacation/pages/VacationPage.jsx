@@ -44,7 +44,7 @@ export default function VacationPage() {
   // handles both the canonical f.lastname@ and the SSO lastfirst@ forms.
   const currentEmail = profile?.microsoft_email || user?.email || '';
   const currentEmployee = useMemo(() => {
-    const id = findIdBySsoEmail(currentEmail, employees.map((e) => ({ id: e.id, email: e.email })));
+    const id = findIdBySsoEmail(currentEmail, employees.map((e) => ({ id: e.id, email: e.email, name: e.name })));
     return employees.find((e) => e.id === id) ?? null;
   }, [currentEmail, employees]);
   const userIsApprover = isApprover(currentEmployee);

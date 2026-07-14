@@ -23,7 +23,7 @@ export function useMyTicketCount(): number {
       try {
         const employees = await listEmployees({ activeOnly: true });
         if (cancelled) return;
-        const myId = findIdBySsoEmail(email, employees.map((e) => ({ id: e.id, email: e.email })));
+        const myId = findIdBySsoEmail(email, employees.map((e) => ({ id: e.id, email: e.email, name: e.name })));
         if (!myId) return;
         const me = employees.find((e) => e.id === myId);
         if (!me) return;
