@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // queries behave (the builder is itself a thenable).
 function makeChain(response: { data: unknown; error: unknown }) {
   const builder: Record<string, unknown> = {};
-  const passthrough = ['select', 'insert', 'update', 'delete', 'eq', 'order', 'gte', 'lte'];
+  const passthrough = ['select', 'insert', 'update', 'delete', 'eq', 'order', 'gte', 'lte', 'not'];
   for (const m of passthrough) builder[m] = vi.fn(() => builder);
   builder.single = vi.fn(() => Promise.resolve(response));
   builder.then = (resolve: (v: unknown) => void) => Promise.resolve(response).then(resolve);
@@ -32,6 +32,7 @@ vi.mock('../supabase', () => ({
 import {
   saveOffer,
   listOffers,
+  listOfferCreators,
   getOffer,
   deleteOffer,
   updateOfferStage,
@@ -180,6 +181,33 @@ describe('listOffers', () => {
     await listOffers();
 
     expect(chain.select.mock.calls[0][0]).toContain('offer_type');
+  });
+});
+
+describe('listOfferCreators', () => {
+  it('queries curated active employees and maps them to the creator shape', async () => {
+    const rows = [
+      { team_slug: 'gkitz', name: 'Georg Kitz', email: 'g.kitz@kitz.co.at', phone: '+43 1', job_title: 'Geschäftsführung', standorte: { name: 'Klagenfurt' } },
+      { team_slug: 'mklein', name: 'Marcel Klein', email: 'km@kitz.co.at', phone: null, job_title: 'Support', standorte: null },
+    ];
+    const chain = makeChain({ data: rows, error: null });
+    fromMock.mockReturnValue(chain);
+
+    const result = await listOfferCreators();
+
+    expect(fromMock).toHaveBeenCalledWith('employees');
+    // Only the curated set (team_slug present) and only active rows.
+    expect(chain.not).toHaveBeenCalledWith('team_slug', 'is', null);
+    expect(chain.eq).toHaveBeenCalledWith('active', true);
+    expect(result).toEqual([
+      { id: 'gkitz', name: 'Georg Kitz', role: 'Geschäftsführung', phone: '+43 1', email: 'g.kitz@kitz.co.at', location: 'Klagenfurt' },
+      { id: 'mklein', name: 'Marcel Klein', role: 'Support', phone: '', email: 'km@kitz.co.at', location: '' },
+    ]);
+  });
+
+  it('throws when supabase returns an error', async () => {
+    fromMock.mockReturnValue(makeChain({ data: null, error: new Error('rls denied') }));
+    await expect(listOfferCreators()).rejects.toThrow('rls denied');
   });
 });
 

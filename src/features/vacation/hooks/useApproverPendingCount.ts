@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
-import { TEAM } from '../../offers/data/catalogs';
 import { listEmployees, listLeaveRequests } from '../api/vacationApi';
 import { isApprover } from '../lib/permissions';
 
@@ -28,11 +27,10 @@ export function useApproverPendingCount(): number {
     if (!email) return;
     (async () => {
       try {
-        const teamId = findIdBySsoEmail(email, TEAM);
-        if (!teamId) return;
         const employees = await listEmployees({ activeOnly: true });
         if (cancelled) return;
-        const me = employees.find((e) => e.code === teamId);
+        const myId = findIdBySsoEmail(email, employees.map((e) => ({ id: e.id, email: e.email })));
+        const me = employees.find((e) => e.id === myId);
         if (!isApprover(me)) return;
         const pending = await listLeaveRequests({ status: 'pending' });
         if (cancelled) return;
@@ -55,11 +53,10 @@ export function useApproverPendingCount(): number {
       let cancelled = false;
       (async () => {
         try {
-          const teamId = findIdBySsoEmail(email, TEAM);
-          if (!teamId) return;
           const employees = await listEmployees({ activeOnly: true });
           if (cancelled) return;
-          const me = employees.find((e) => e.code === teamId);
+          const myId = findIdBySsoEmail(email, employees.map((e) => ({ id: e.id, email: e.email })));
+          const me = employees.find((e) => e.id === myId);
           if (!isApprover(me)) return;
           const pending = await listLeaveRequests({ status: 'pending' });
           if (cancelled) return;

@@ -3,7 +3,6 @@ import { AlertCircle, ChevronDown, ChevronRight, LayoutGrid, List, Loader2, Plus
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
-import { TEAM } from '../../offers/data/catalogs';
 import { listAbteilungen, listEmployees, type Abteilung } from '../../vacation/api/vacationApi';
 import { listTickets, listTicketCounts, setTicketStatus, updateTicket } from '../api/ticketApi';
 import TicketBoard from '../components/TicketBoard';
@@ -76,12 +75,10 @@ export default function TicketsPage() {
     if (!email) return;
     (async () => {
       try {
-        const teamId = findIdBySsoEmail(email, TEAM);
-        if (!teamId) return;
         const emps = await listEmployees({ activeOnly: true });
         if (cancelled) return;
-        const me = emps.find((e) => e.code === teamId);
-        if (me) setCurrentEmployeeId(me.id);
+        const myId = findIdBySsoEmail(email, emps.map((e) => ({ id: e.id, email: e.email })));
+        if (myId) setCurrentEmployeeId(myId);
       } catch {
         /* badge / defaults stay null */
       }

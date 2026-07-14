@@ -24,6 +24,7 @@ import {
   signOffer,
   listActivities,
   getEmailEvents,
+  listOfferCreators,
 } from '../../../lib/offerApi';
 import { supabase } from '../../../lib/supabase';
 import { generateAcceptQr } from '../../../lib/qr';
@@ -57,7 +58,6 @@ import {
   SHARP,
   SHARP_ZUBEHOR,
   BROTHER,
-  TEAM,
   ALL,
   isCustomItem,
 } from '../data/catalogs';
@@ -216,6 +216,10 @@ export default function OfferBuilderPage() {
   const [cart, setCart] = useState({});
   const [customer, setCustomer] = useState({ name: '', company: '', email: '', phone: '', address: '' });
   const [creator, setCreator] = useState('');
+  // Offer creators (sales reps), loaded from the employees table — the
+  // single source of truth. Shape matches the old TEAM catalog so the
+  // Select and PDF consume it unchanged. Empty until the fetch resolves.
+  const [creators, setCreators] = useState([]);
   const [notes, setNotes] = useState('');
   // Internal briefing — what the customer actually asked for. Never
   // rendered in the PDF, never sent to the customer. Surfaced to
@@ -244,19 +248,31 @@ export default function OfferBuilderPage() {
   const [showEmailPreview, setShowEmailPreview] = useState(false);
   const [cartOrder, setCartOrder] = useState([]);
 
+  // Load the curated offer creators from the employees table once.
+  useEffect(() => {
+    let cancelled = false;
+    listOfferCreators()
+      .then((list) => { if (!cancelled) setCreators(list); })
+      .catch((e) => console.warn('listOfferCreators failed:', e));
+    return () => { cancelled = true; };
+  }, []);
+
+  // Resolve the full creator record (name/role/phone/email) for a slug.
+  const creatorFor = (id) => creators.find((t) => t.id === id) || null;
+
   // Auto-select creator from the logged-in user. Email matching
   // logic lives in lib/ssoMatch (tested in isolation). Falls back to
   // user.email when the profile row's microsoft_email is missing.
   function ssoCreatorId() {
     const email = profile?.microsoft_email || user?.email;
-    return email ? findIdBySsoEmail(email, TEAM) : null;
+    return email ? findIdBySsoEmail(email, creators) : null;
   }
   useEffect(() => {
-    if (!creator) {
+    if (!creator && creators.length) {
       const id = ssoCreatorId();
       if (id) setCreator(id);
     }
-  }, [profile, user, creator]);
+  }, [profile, user, creator, creators]);
 
   // Filter out cart items whose IDs no longer exist in ALL (e.g. old offers with removed products)
   function sanitizeCart(rawCart, rawOrder) {
@@ -668,7 +684,7 @@ export default function OfferBuilderPage() {
       const wartungItems = buildWartungItems(validEntries);
       const autoTerms = computeAutoTerms(cart);
 
-      const creatorInfo = TEAM.find(t => t.id === creator) || null;
+      const creatorInfo = creatorFor(creator);
 
       // Ensure the offer is saved and has a share_code so the QR accept URL works
       let effectiveShareCode = shareCode;
@@ -769,7 +785,7 @@ export default function OfferBuilderPage() {
     if (!creator) { alert('Bitte wähle einen Ersteller aus.'); return; }
 
     try {
-      const creatorInfo = TEAM.find(t => t.id === creator);
+      const creatorInfo = creatorFor(creator);
       const result = await saveOffer({
         id: currentOfferId,
         customer,
@@ -816,7 +832,7 @@ export default function OfferBuilderPage() {
   async function handleSave() {
     if (!supabase) { alert('Supabase nicht konfiguriert'); return; }
     if (!creator) { alert('Bitte wähle einen Ersteller aus.'); return; }
-    const creatorInfo = TEAM.find(t => t.id === creator);
+    const creatorInfo = creatorFor(creator);
     setSaving(true);
     try {
       const result = await saveOffer({
@@ -863,7 +879,7 @@ export default function OfferBuilderPage() {
 
   async function handleSend(emailText) {
     // Always save before sending to ensure DB has latest data (email, etc.)
-    const creatorInfoForSave = TEAM.find(t => t.id === creator);
+    const creatorInfoForSave = creatorFor(creator);
     setSaving(true);
     let offerId;
     try {
@@ -903,7 +919,7 @@ export default function OfferBuilderPage() {
 
     setSending(true);
     try {
-      const creatorInfo = TEAM.find(t => t.id === creator);
+      const creatorInfo = creatorFor(creator);
       const validSendEntries = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
       const { monthlyItems, onceItems } = buildLineItems(validSendEntries, ALL);
 
@@ -948,7 +964,7 @@ export default function OfferBuilderPage() {
   }
 
   async function handleSign(signatures) {
-    const creatorInfo = TEAM.find(t => t.id === creator) || null;
+    const creatorInfo = creatorFor(creator);
     const validSignEntries = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
     const { monthlyItems, onceItems } = buildLineItems(validSignEntries, ALL);
 
@@ -1294,7 +1310,7 @@ export default function OfferBuilderPage() {
                 {builderTab === 'angebot' && (
                   <>
                     <OfferView
-                      cart={cart} copierOffer={copierOffer} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} notes={notes} setNotes={setNotes} briefing={briefing} setBriefing={setBriefing}
+                      cart={cart} copierOffer={copierOffer} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} creators={creators} notes={notes} setNotes={setNotes} briefing={briefing} setBriefing={setBriefing}
                       totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
                       rabattActive={rabattActive} setRabattActive={setRabattActive} skontoActive={skontoActive} setSkontoActive={setSkontoActive}
                       serviceStartDate={serviceStartDate} setServiceStartDate={setServiceStartDate}
@@ -1307,7 +1323,7 @@ export default function OfferBuilderPage() {
                     {showEmailPreview && (
                       <EmailPreviewModal
                         customer={customer}
-                        creator={TEAM.find(t => t.id === creator)}
+                        creator={creatorFor(creator)}
                         totals={persistTotals}
                         sending={sending}
                         onSend={handleSend}

@@ -3,9 +3,16 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import OfferView from '../OfferView';
-import { TEAM } from '../../data/catalogs';
+
+// Stand-in for the employees-backed creator list (listOfferCreators shape).
+const CREATORS = [
+  { id: 'gkitz', name: 'Georg Kitz', role: 'Geschäftsführung', phone: '', email: 'g.kitz@kitz.co.at', location: 'Klagenfurt' },
+  { id: 'hbauer', name: 'Helmut Bauer', role: 'Verkauf', phone: '', email: 'h.bauer@kitz.co.at', location: 'Wolfsberg' },
+  { id: 'dscharf', name: 'Daniel Scharf', role: 'Verkauf', phone: '', email: 'd.scharf@kitz.co.at', location: 'Wolfsberg' },
+];
 
 const noopProps = {
+  creators: CREATORS,
   cart: {},
   customer: { name: '', company: '', email: '', phone: '', address: '' },
   setCustomer: () => {},
@@ -55,8 +62,8 @@ describe('OfferView Ersteller dropdown', () => {
     expect(trigger).toHaveTextContent('Georg Kitz');
 
     await userEvent.click(trigger);
-    // Every TEAM member must be selectable.
-    for (const member of TEAM) {
+    // Every provided creator must be selectable.
+    for (const member of CREATORS) {
       expect(screen.getByRole('option', { name: new RegExp(member.name, 'i') })).toBeInTheDocument();
     }
 

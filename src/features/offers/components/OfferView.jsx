@@ -38,7 +38,7 @@ import SortableOfferRow from './SortableOfferRow';
 import EditItemModal from './modals/EditItemModal';
 import LeasingConditionsModal from './modals/LeasingConditionsModal';
 import { TIER_LABEL } from '../../../data/tiers';
-import { ALL, TEAM, isCustomItem } from '../data/catalogs';
+import { ALL, isCustomItem } from '../data/catalogs';
 import { computeAutoTerms } from '../../../data/autoTermRules';
 import {
   isMonthly,
@@ -59,6 +59,7 @@ export default function OfferView({
   setCustomer,
   creator,
   setCreator,
+  creators = [],
   notes,
   setNotes,
   briefing,
@@ -226,10 +227,10 @@ export default function OfferView({
             onChange={setCreator}
             placeholder="Angebot erstellt von…"
             ariaLabel="Ersteller"
-            options={TEAM.map((t) => ({
+            options={creators.map((t) => ({
               value: t.id,
               label: t.name,
-              hint: `${t.role} · ${t.location}`,
+              hint: [t.role, t.location].filter(Boolean).join(' · '),
             }))}
           />
         </div>

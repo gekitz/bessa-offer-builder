@@ -59,6 +59,33 @@ export async function saveOffer({ id, customer, creator, creatorName, creatorEma
   }
 }
 
+// List the curated set of offer creators (sales reps) from the employees
+// table — the single source of truth for rep name/email/phone/role. The
+// curated subset is marked by a non-null team_slug (the legacy TEAM id,
+// which is also what offers.creator_id stores). Returns the same shape the
+// old TEAM catalog exposed so the offer builder + PDF need no changes:
+//   { id, name, role, phone, email, location }
+export async function listOfferCreators() {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+
+  const { data, error } = await supabase
+    .from('employees')
+    .select('team_slug, name, email, phone, job_title, standorte(name)')
+    .not('team_slug', 'is', null)
+    .eq('active', true)
+    .order('name');
+  if (error) throw error;
+
+  return (data ?? []).map((row) => ({
+    id: row.team_slug,
+    name: row.name,
+    role: row.job_title || '',
+    phone: row.phone || '',
+    email: row.email || '',
+    location: row.standorte?.name || '',
+  }));
+}
+
 // List all offers, newest first
 export async function listOffers() {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');

@@ -37,26 +37,25 @@ import VacationPage from '../VacationPage';
 import type { Employee, RuleContext } from '../../types';
 
 const stefan: Employee = {
-  id: 'sbauer-id', code: 'sbauer', name: 'Stefan Bauer',
+  id: 'sbauer-id', code: 'sbauer', name: 'Stefan Bauer', email: 's.bauer@kitz.co.at',
   standortId: 2, weeklyHours: 38.5, employmentType: 'fulltime', active: true,
 };
 const mario: Employee = {
-  id: 'mgraf-id', code: 'mgraf', name: 'Mario Graf',
+  id: 'mgraf-id', code: 'mgraf', name: 'Mario Graf', email: 'm.graf@kitz.co.at',
   standortId: 2, weeklyHours: 38.5, employmentType: 'fulltime', active: true,
 };
 const georg: Employee = {
-  id: 'gkitz-id', code: 'gkitz', name: 'Georg Kitz',
+  id: 'gkitz-id', code: 'gkitz', name: 'Georg Kitz', email: 'g.kitz@kitz.co.at',
   standortId: 1, weeklyHours: 38.5, employmentType: 'fulltime', active: true,
 };
 const marc: Employee = {
-  id: 'mmaier-id', code: 'mmaier', name: 'Marc Maier',
+  id: 'mmaier-id', code: 'mmaier', name: 'Marc Maier', email: 'm.maier@kitz.co.at',
   standortId: 2, weeklyHours: 38.5, employmentType: 'apprentice', active: true,
 };
-// Helmut Bauer is in the offers TEAM array (id 'hbauer', email
-// 'h.bauer@kitz.co.at') and is not an approver — useful for tests
-// covering non-approver SSO behaviour.
+// Helmut Bauer (email 'h.bauer@kitz.co.at', SSO form 'bh@') is not an
+// approver — useful for tests covering non-approver SSO behaviour.
 const helmut: Employee = {
-  id: 'hbauer-id', code: 'hbauer', name: 'Helmut Bauer',
+  id: 'hbauer-id', code: 'hbauer', name: 'Helmut Bauer', email: 'h.bauer@kitz.co.at',
   standortId: 2, weeklyHours: 38.5, employmentType: 'fulltime', active: true,
 };
 
@@ -182,9 +181,8 @@ describe('VacationPage', () => {
   });
 
   it('pre-fills the form with the SSO-matched employee when the page-level button is clicked', async () => {
-    // 'kg@kitz.co.at' is the SSO format for Georg Kitz (g.kitz). The TEAM
-    // array in catalogs.ts maps it to id='gkitz', and the employees
-    // seed uses 'gkitz' as the code, so the page resolves it to Georg.
+    // 'kg@kitz.co.at' is the SSO format for Georg Kitz — findIdBySsoEmail
+    // matches it directly against the employee's email 'g.kitz@kitz.co.at'.
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
     const u = userEvent.setup();
     render(<VacationPage />);
@@ -289,9 +287,8 @@ describe('VacationPage', () => {
   });
 
   it('hides Genehmigen/Ablehnen for non-approver SSO users', async () => {
-    // The non-approver here is Helmut Bauer ('hbauer'). His TEAM
-    // email is 'h.bauer@kitz.co.at', SSO format = 'bh' + first
-    // initial -> 'bh@kitz.co.at'.
+    // The non-approver here is Helmut Bauer. His email is
+    // 'h.bauer@kitz.co.at', SSO format 'bh@kitz.co.at'.
     // We list the request under helmut so it survives the default
     // "Nur meine" filter that non-approvers get.
     listLeaveRequestsMock.mockResolvedValue([

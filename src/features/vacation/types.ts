@@ -24,6 +24,10 @@ export interface Employee {
   id: string;
   code: string;
   name: string;
+  // Canonical / SSO email. Used to match the signed-in Microsoft user
+  // to their employee row (see lib/ssoMatch). Optional so existing test
+  // fixtures constructing Employee literals need no change.
+  email?: string | null;
   standortId: number;
   hireDate?: IsoDate;
   weeklyHours: number;

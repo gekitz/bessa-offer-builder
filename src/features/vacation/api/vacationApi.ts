@@ -122,6 +122,7 @@ function rowToEmployee(row: any): Employee {
     id: row.id,
     code: row.code,
     name: row.name,
+    email: row.email ?? null,
     standortId: row.standort_id,
     hireDate: row.hire_date ?? undefined,
     weeklyHours: Number(row.weekly_hours),
@@ -131,7 +132,7 @@ function rowToEmployee(row: any): Employee {
   };
 }
 
-const EMPLOYEE_COLUMNS = 'id, code, name, standort_id, hire_date, weekly_hours, employment_type, active, tags';
+const EMPLOYEE_COLUMNS = 'id, code, name, email, standort_id, hire_date, weekly_hours, employment_type, active, tags';
 
 export async function listEmployees(opts: { activeOnly?: boolean } = {}): Promise<Employee[]> {
   const sb = requireSupabase();

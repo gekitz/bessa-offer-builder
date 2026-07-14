@@ -19,11 +19,11 @@ import { useApproverPendingCount } from '../useApproverPendingCount';
 import type { Employee } from '../../types';
 
 const georg: Employee = {
-  id: 'gkitz-id', code: 'gkitz', name: 'Georg Kitz',
+  id: 'gkitz-id', code: 'gkitz', name: 'Georg Kitz', email: 'g.kitz@kitz.co.at',
   standortId: 1, weeklyHours: 38.5, employmentType: 'fulltime', active: true,
 };
 const helmut: Employee = {
-  id: 'hbauer-id', code: 'hbauer', name: 'Helmut Bauer',
+  id: 'hbauer-id', code: 'hbauer', name: 'Helmut Bauer', email: 'h.bauer@kitz.co.at',
   standortId: 2, weeklyHours: 38.5, employmentType: 'fulltime', active: true,
 };
 
@@ -82,13 +82,13 @@ describe('useApproverPendingCount', () => {
     expect(seen[seen.length - 1]).toBe(0);
   });
 
-  it('returns 0 when SSO matches no team member', async () => {
+  it('returns 0 when SSO matches no employee', async () => {
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'unknown@kitz.co.at' }, user: null });
     const seen: number[] = [];
     render(<HookHarness onCount={(n) => seen.push(n)} />);
-    // Brief microtask to settle async code.
-    await new Promise((r) => setTimeout(r, 10));
+    // Employees are loaded first, then matched — no match means no request query.
+    await waitFor(() => expect(listEmployeesMock).toHaveBeenCalled());
     expect(seen[seen.length - 1]).toBe(0);
-    expect(listEmployeesMock).not.toHaveBeenCalled();
+    expect(listLeaveRequestsMock).not.toHaveBeenCalled();
   });
 });

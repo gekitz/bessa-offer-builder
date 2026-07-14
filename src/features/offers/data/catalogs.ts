@@ -1,14 +1,5 @@
 import type { Item, Catalog } from '../../../lib/pricing';
 
-export interface TeamMember {
-  id: string;
-  name: string;
-  role: string;
-  phone: string;
-  email: string;
-  location: string;
-}
-
 export const COMPANY_DEFAULT = {
   name: 'KITZ Computer + Office GmbH',
   address1: 'Rosentaler Straße 1, A-9020 Klagenfurt',
@@ -374,19 +365,6 @@ export const BROTHER: Item[] = [
   // Laserdrucker Mono
   { id:'brother-hl-l5210dn', name:'Brother HL-L5210DN', cat:'Laserdrucker Mono', price:350, t:'o', info:'Nur Firmenkunden', description:'Mono-Laserdrucker A4, bis 48 S./Min., Duplexdruck, Gigabit-LAN.' },
   { id:'brother-hl-l6210dw', name:'Brother HL-L6210DW', cat:'Laserdrucker Mono', price:410, t:'o', info:'Nur Firmenkunden', description:'Mono-Laserdrucker A4, bis 50 S./Min., Duplexdruck, LAN/WLAN, für hohe Druckvolumen.' },
-];
-
-export const TEAM: TeamMember[] = [
-  { id:'gkitz', name:'Georg Kitz', role:'Geschäftsführung', phone:'+43 463 504454 77', email:'g.kitz@kitz.co.at', location:'Klagenfurt' },
-  { id:'hbauer', name:'Helmut Bauer', role:'Verkauf', phone:'+43 4352 4176 21', email:'h.bauer@kitz.co.at', location:'Wolfsberg' },
-  { id:'dscharf', name:'Daniel Scharf', role:'Verkauf', phone:'+43 4352 4176 22', email:'d.scharf@kitz.co.at', location:'Wolfsberg' },
-  { id:'anowak', name:'Andreas Nowak', role:'Verkauf', phone:'+43 463 504454 82', email:'a.nowak@kitz.co.at', location:'Klagenfurt' },
-  { id:'thuber', name:'Toni Huber', role:'Kassensystemberater', phone:'+43 664 886 033 14', email:'t.huber@kitz.co.at', location:'Klagenfurt' },
-  { id:'hscheiber', name:'Heribert Scheiber', role:'Software Support', phone:'+43 4352 4176 43', email:'h.scheiber@kitz.co.at', location:'Wolfsberg' },
-  { id:'mklein', name:'Marcel Klein', role:'Support', phone:'+43 463 504454 73', email:'m.klein@kitz.co.at', location:'Klagenfurt' },
-  { id:'hrussnig', name:'Heimo Russnig', role:'EDV / Technik', phone:'+43 463 504454 71', email:'h.russnig@kitz.co.at', location:'Klagenfurt' },
-  { id:'coberlerchner', name:'Christian Oberlerchner', role:'Technik', phone:'+43 4352 4176 38', email:'c.oberlerchner@kitz.co.at', location:'Wolfsberg' },
-  { id:'hkitz', name:'Herbert Kitz', role:'Geschäftsführer', phone:'+43 4352 4176 15', email:'h.kitz@kitz.co.at', location:'Wolfsberg' },
 ];
 
 // Combined catalog lookup. Custom user-added items are not present here.

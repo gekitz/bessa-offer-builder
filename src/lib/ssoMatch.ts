@@ -1,6 +1,6 @@
 // Microsoft-SSO -> employee/team matching. Internal email conventions
 // at @kitz.co.at use two formats:
-//   * Authoritative records (TEAM array, future employees.email):
+//   * Authoritative records (employees.email):
 //       <first_initial>.<lastname>@kitz.co.at      e.g. "g.kitz"
 //   * SSO logins:
 //       <last_initial><first_initial>@kitz.co.at   e.g. "kg"

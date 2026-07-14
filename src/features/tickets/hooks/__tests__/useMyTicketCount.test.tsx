@@ -26,7 +26,7 @@ function HookHarness({ onCount }: { onCount: (n: number) => void }) {
 }
 
 const georg = {
-  id: 'gkitz-id', code: 'gkitz', name: 'Georg Kitz',
+  id: 'gkitz-id', code: 'gkitz', name: 'Georg Kitz', email: 'g.kitz@kitz.co.at',
   standortId: 1, weeklyHours: 38.5, employmentType: 'fulltime' as const, active: true,
 };
 
@@ -45,11 +45,13 @@ describe('useMyTicketCount', () => {
     expect(listTicketsMock).not.toHaveBeenCalled();
   });
 
-  it('returns 0 when the SSO email does not match any TEAM entry', async () => {
+  it('returns 0 when the SSO email does not match any employee', async () => {
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'unknown@kitz.co.at' }, user: null });
     const seen: number[] = [];
     render(<HookHarness onCount={(n) => seen.push(n)} />);
-    await waitFor(() => expect(listEmployeesMock).not.toHaveBeenCalled());
+    // Employees are loaded first, then matched — no match means no ticket query.
+    await waitFor(() => expect(listEmployeesMock).toHaveBeenCalled());
+    expect(listTicketsMock).not.toHaveBeenCalled();
     expect(seen[seen.length - 1]).toBe(0);
   });
 

@@ -16,7 +16,6 @@ import {
   SHARP,
   SHARP_ZUBEHOR,
   BROTHER,
-  TEAM,
   ALL,
   CATALOG_IDS,
   isCustomItem,
@@ -56,11 +55,6 @@ describe('catalogs', () => {
       }
     }
     expect(seen.size).toBeGreaterThan(0);
-  });
-
-  it('every team member id is unique', () => {
-    const ids = TEAM.map((m) => m.id);
-    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('ALL contains every product (count matches sum of catalogs)', () => {

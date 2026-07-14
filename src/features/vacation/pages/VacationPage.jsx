@@ -11,7 +11,6 @@ import ShiftAdminPanel from '../../shifts/components/ShiftAdminPanel';
 import MyShiftsPanel from '../../shifts/components/MyShiftsPanel';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
-import { TEAM } from '../../offers/data/catalogs';
 import { isApprover } from '../lib/permissions';
 
 // Urlaubsplaner landing page. Shows the team grouped by Standort and
@@ -40,16 +39,13 @@ export default function VacationPage() {
   // when nothing is open.
   const [expandedEmployeeId, setExpandedEmployeeId] = useState(null);
 
-  // Match the logged-in SSO user to one of our employees. The TEAM
-  // array's `id` field happens to equal employees.code (both 'gkitz',
-  // 'hbauer', etc.), so we go SSO email -> TEAM id -> employees row
-  // by code. Once employees.email is populated by HR we can match
-  // employees directly.
+  // Match the logged-in SSO user to their employee row directly by
+  // email (employees is the single source of truth). findIdBySsoEmail
+  // handles both the canonical f.lastname@ and the SSO lastfirst@ forms.
   const currentEmail = profile?.microsoft_email || user?.email || '';
   const currentEmployee = useMemo(() => {
-    const teamId = findIdBySsoEmail(currentEmail, TEAM);
-    if (!teamId) return null;
-    return employees.find((e) => e.code === teamId) ?? null;
+    const id = findIdBySsoEmail(currentEmail, employees.map((e) => ({ id: e.id, email: e.email })));
+    return employees.find((e) => e.id === id) ?? null;
   }, [currentEmail, employees]);
   const userIsApprover = isApprover(currentEmployee);
 

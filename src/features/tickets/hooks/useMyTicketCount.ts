@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
-import { TEAM } from '../../offers/data/catalogs';
 import { listEmployees } from '../../vacation/api/vacationApi';
 import { listTickets } from '../api/ticketApi';
 
@@ -22,11 +21,11 @@ export function useMyTicketCount(): number {
     if (!email) return;
     (async () => {
       try {
-        const teamId = findIdBySsoEmail(email, TEAM);
-        if (!teamId) return;
         const employees = await listEmployees({ activeOnly: true });
         if (cancelled) return;
-        const me = employees.find((e) => e.code === teamId);
+        const myId = findIdBySsoEmail(email, employees.map((e) => ({ id: e.id, email: e.email })));
+        if (!myId) return;
+        const me = employees.find((e) => e.id === myId);
         if (!me) return;
         const tickets = await listTickets({
           status: ['open', 'in_progress'],
