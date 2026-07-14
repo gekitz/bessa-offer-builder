@@ -37,6 +37,7 @@ interface OfferRow {
   share_code: string | null;
   customer_name: string | null;
   customer_company: string | null;
+  creator_id: string | null;
   creator_email: string | null;
   creator_name: string | null;
   total_monthly: number | null;
@@ -154,13 +155,30 @@ serve(async (req: Request) => {
 
     const { data: offer, error: offerErr } = await supabase
       .from('offers')
-      .select('id, share_code, customer_name, customer_company, creator_email, creator_name, total_monthly, total_once, total_period, payment_status, signed_at, accepted_at')
+      .select('id, share_code, customer_name, customer_company, creator_id, creator_email, creator_name, total_monthly, total_once, total_period, payment_status, signed_at, accepted_at')
       .eq('id', offerId)
       .single<OfferRow>();
 
     if (offerErr || !offer) {
       return jsonResponse({ error: 'Offer not found', details: offerErr?.message }, 404);
     }
+
+    // Resolve the creator from the employees table — the single source of
+    // truth for staff email + push. Linked by TEAM slug (offers.creator_id
+    // → employees.team_slug), which is immune to the email drift between
+    // the hardcoded TEAM catalog and the DB. The offer's snapshotted
+    // creator_email is only a fallback for rows with no linked employee.
+    let employee: { id: string; email: string | null } | null = null;
+    if (offer.creator_id) {
+      const { data } = await supabase
+        .from('employees')
+        .select('id, email')
+        .eq('team_slug', offer.creator_id)
+        .maybeSingle<{ id: string; email: string | null }>();
+      employee = data ?? null;
+    }
+    const recipientEmail = employee?.email || offer.creator_email;
+    const employeeId = employee?.id || null;
 
     // Defensive: only notify for genuinely accepted offers. The trigger
     // already guards on the acceptance transition, but this keeps the
@@ -175,7 +193,7 @@ serve(async (req: Request) => {
 
     // ── Email to the creator ────────────────────────────────────────
     let emailResult: unknown = 'skipped';
-    if (offer.creator_email) {
+    if (recipientEmail) {
       const totalsRows: string[] = [];
       if (offer.total_monthly) totalsRows.push(`Monatlich: <strong>${fmtEur(offer.total_monthly)}</strong>`);
       if (offer.total_period) totalsRows.push(`Laufzeitsumme: <strong>${fmtEur(offer.total_period)}</strong>`);
@@ -209,7 +227,7 @@ serve(async (req: Request) => {
         },
         body: JSON.stringify({
           from: fromAddr,
-          to: [offer.creator_email],
+          to: [recipientEmail],
           subject: `✅ Angebot angenommen: ${who}`,
           html,
         }),
@@ -220,27 +238,20 @@ serve(async (req: Request) => {
     }
 
     // ── Web push to the creator's devices ───────────────────────────
-    // Map creator_email → employees.id, then fan out via send-push.
+    // Fan out to the linked employee's subscriptions via send-push.
     let pushResult: unknown = 'skipped';
-    if (offer.creator_email) {
-      const { data: emp } = await supabase
-        .from('employees')
-        .select('id')
-        .ilike('email', offer.creator_email)
-        .maybeSingle<{ id: string }>();
-      if (emp?.id) {
-        pushResult = (await sendPush({
-          supabaseUrl,
-          serviceKey,
-          employeeIds: [emp.id],
-          title: 'Angebot angenommen 🎉',
-          body: `${who} hat dein Angebot ${paid ? 'per Zahlung' : 'durch Unterschrift'} angenommen.`,
-          url: link ? `/?offer=${encodeURIComponent(offer.id)}` : '/',
-          tag: `offer-accepted-${offer.id}`,
-        })).result ?? 'sent';
-      } else {
-        pushResult = 'no matching employee';
-      }
+    if (employeeId) {
+      pushResult = (await sendPush({
+        supabaseUrl,
+        serviceKey,
+        employeeIds: [employeeId],
+        title: 'Angebot angenommen 🎉',
+        body: `${who} hat dein Angebot ${paid ? 'per Zahlung' : 'durch Unterschrift'} angenommen.`,
+        url: link ? `/?offer=${encodeURIComponent(offer.id)}` : '/',
+        tag: `offer-accepted-${offer.id}`,
+      })).result ?? 'sent';
+    } else {
+      pushResult = 'no linked employee';
     }
 
     return jsonResponse({ ok: true, email: emailResult, push: pushResult });
