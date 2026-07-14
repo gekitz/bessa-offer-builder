@@ -42,6 +42,17 @@ describe('computeTotals', () => {
     expect(t.monthly).toBe(30);
   });
 
+  it('excludes optional add-ons from every total', () => {
+    const cart: Cart = {
+      kassa: { qty: 1, tier: '12mo' },
+      install: { qty: 1, optional: true },                // optional one-time
+      webkassa: { qty: 1, tier: '12mo', optional: true }, // optional monthly
+    };
+    const t = computeTotals(cart, catalog);
+    expect(t.monthly).toBe(30); // only kassa counts
+    expect(t.once).toBe(0);     // install excluded
+  });
+
   it('sums monthly items with their tier and reflects the longest period in maxMonths', () => {
     const cart: Cart = {
       kassa: { qty: 2, tier: '12mo' },

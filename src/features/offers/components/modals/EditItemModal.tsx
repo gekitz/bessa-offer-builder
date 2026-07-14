@@ -15,6 +15,8 @@ export interface EditItemSave {
   optionGroup?: string;
   /** Whether this item is the recommended (counted) member of its group. */
   optionSelected?: boolean;
+  /** Optional add-on: listed in the offer but not counted in the total. */
+  optional?: boolean;
 }
 
 interface EditItemModalProps {
@@ -47,6 +49,7 @@ export default function EditItemModal({ item, cartItem, monthly, availableGroups
   const [groupChoice, setGroupChoice] = useState(cartItem.optionGroup || '');
   const [newGroupName, setNewGroupName] = useState('');
   const [optionSelected, setOptionSelected] = useState(cartItem.optionSelected ?? false);
+  const [optional, setOptional] = useState(cartItem.optional ?? false);
   const resolvedGroup = groupChoice === NEW_GROUP ? newGroupName.trim() : groupChoice;
   const totalQty = qty + discountQty;
 
@@ -70,6 +73,7 @@ export default function EditItemModal({ item, cartItem, monthly, availableGroups
     }
     result.optionGroup = resolvedGroup;
     result.optionSelected = resolvedGroup ? optionSelected : false;
+    result.optional = optional;
     onSave(result);
   }
 
@@ -156,6 +160,16 @@ export default function EditItemModal({ item, cartItem, monthly, availableGroups
             )}
           </div>
           )}
+          <div className="border-t border-slate-100 pt-4">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={optional} onChange={e => setOptional(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500" />
+              <span className="text-sm font-medium text-slate-700">Optionale Position</span>
+            </label>
+            <p className="text-xs text-slate-400 mt-1">
+              Wird im Angebot gelistet, aber nicht zur Summe gezählt (Aufpreis, den der Kunde später hinzufügen kann).
+            </p>
+          </div>
           <button type="submit"
             className={`w-full flex items-center justify-center gap-2 rounded-xl font-semibold py-3 active:scale-[0.98] transition-all ${totalQty < 1 ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-red-600 text-white hover:bg-red-700'}`}
             style={{ fontSize: 14 }}>

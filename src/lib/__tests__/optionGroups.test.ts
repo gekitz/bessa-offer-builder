@@ -39,6 +39,15 @@ describe('countedIds', () => {
     };
     expect(countedIds(cart)).toEqual(new Set(['sw', 'b', 'x']));
   });
+
+  it('never counts optional add-ons, grouped or not', () => {
+    const cart = {
+      sw: {},
+      opt: { optional: true },
+      selOpt: { optionGroup: 'pc', optionSelected: true, optional: true },
+    };
+    expect(countedIds(cart)).toEqual(new Set(['sw']));
+  });
 });
 
 describe('listGroups', () => {

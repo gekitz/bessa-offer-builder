@@ -11,6 +11,9 @@ export interface OptionCartItem {
   /** True on the recommended member counted in the total. Maintained so that
    *  exactly one member per group is selected (see normalizeGroups). */
   optionSelected?: boolean;
+  /** Optional add-on: still listed in the offer but never counted in the
+   *  total (the customer may add it later). Independent of option groups. */
+  optional?: boolean;
 }
 
 type OptionCart<T extends OptionCartItem> = Record<string, T>;
@@ -36,12 +39,13 @@ export function selectedByGroup<T extends OptionCartItem>(cart: OptionCart<T>): 
 
 /**
  * Ids whose price counts toward the total: every ungrouped item, plus the
- * single counted member of each option group.
+ * single counted member of each option group. Optional add-ons never count.
  */
 export function countedIds<T extends OptionCartItem>(cart: OptionCart<T>): Set<string> {
   const sel = selectedByGroup(cart);
   const counted = new Set<string>();
   for (const [id, c] of Object.entries(cart)) {
+    if (c.optional) continue;
     if (!c.optionGroup) counted.add(id);
     else if (sel[c.optionGroup] === id) counted.add(id);
   }

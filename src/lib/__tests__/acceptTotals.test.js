@@ -34,6 +34,21 @@ describe('computeAcceptTotals', () => {
     expect(t.monthly).toBe(50); // custom item counted, ghost ignored
   });
 
+  it('never charges for optional add-ons', () => {
+    const offerData = {
+      cart: {
+        mon: { qty: 1, tier: 'y' },              // 100/mo counted
+        hw: { qty: 1, optional: true },          // optional once → not charged
+        extra: { qty: 1, tier: 'y', optional: true }, // optional monthly → not charged
+      },
+      customItems: { extra: { id: 'extra', name: 'Extra', t: 'm', p: { y: 999 } } },
+    };
+    const t = computeAcceptTotals(offerData, CATALOG);
+    expect(t.monthly).toBe(100); // only mon
+    expect(t.once).toBe(0);      // hw excluded
+    expect(t.yearly).toBe(0);    // hw's service excluded too
+  });
+
   it('returns zeros for an empty cart', () => {
     expect(computeAcceptTotals({ cart: {} }, CATALOG)).toEqual({
       monthly: 0, once: 0, yearly: 0, periodTotal: 0, maxMonths: 12,

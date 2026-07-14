@@ -145,6 +145,11 @@ function TableRow({ item, index, isMonthly }) {
       ? 'gleicher Preis'
       : `${delta > 0 ? '+' : '-'}${fmt(Math.abs(delta))}${isMonthly ? '/Mo' : ''}`;
 
+  // Optional add-on: a real, fully-listed line (qty + code shown) whose price
+  // is displayed for reference but is NOT part of the offer total.
+  const isOptional = item.optional === true;
+  const muted = isAlternative || isOptional;
+
   // Build quantity display
   let qtyDisplay = String(totalQty);
   if (hasDiscountQty && item.qty > 0) {
@@ -162,8 +167,8 @@ function TableRow({ item, index, isMonthly }) {
       <Text style={[styles.cellText, styles.colQty]}>{isAlternative ? '' : qtyDisplay}</Text>
       <Text style={[styles.cellCode, styles.colCode]}>{isAlternative ? '' : item.code || '-'}</Text>
       <View style={styles.colName}>
-        <Text style={isAlternative ? styles.cellTextAlt : styles.cellText}>
-          {isAlternative ? 'Alternativ: ' : ''}
+        <Text style={muted ? styles.cellTextAlt : styles.cellText}>
+          {isAlternative ? 'Alternativ: ' : isOptional ? 'Optional: ' : ''}
           {item.name}
           {hourLabel ? ` ${hourLabel}` : ''}
         </Text>
@@ -185,10 +190,14 @@ function TableRow({ item, index, isMonthly }) {
         )}
       </View>
       <Text style={[styles.cellText, styles.colTier]}>
-        {isAlternative ? 'statt empf.' : tierLabel || modeLabel || '-'}
+        {isAlternative ? 'statt empf.' : isOptional ? 'optional' : tierLabel || modeLabel || '-'}
       </Text>
-      <Text style={[isAlternative ? styles.cellPriceAlt : styles.cellPrice, styles.colPrice]}>
-        {isAlternative ? deltaText : `${fmt(item.lineTotal)}${isMonthly ? '/Mo' : ''}`}
+      <Text style={[muted ? styles.cellPriceAlt : styles.cellPrice, styles.colPrice]}>
+        {isAlternative
+          ? deltaText
+          : isOptional
+          ? `${fmt(item.lineTotal)}${isMonthly ? '/Mo' : ''} (opt.)`
+          : `${fmt(item.lineTotal)}${isMonthly ? '/Mo' : ''}`}
       </Text>
     </View>
   );

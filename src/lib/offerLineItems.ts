@@ -42,6 +42,8 @@ export interface OfferLineItem {
   /** Price difference vs the selected member of the same group (alternatives
    *  only; 0 for the selected member, undefined when ungrouped). */
   optionDelta?: number;
+  /** Optional add-on: listed but not counted in the offer total. */
+  optional?: boolean;
 }
 
 export type CartEntry = [string, CartItem];
@@ -82,6 +84,7 @@ export function decorateLineItems(entries: CartEntry[], catalog: Catalog): Offer
         lineTotal,
         monthly: isMonthly(item, c.mode),
         optionGroup: c.optionGroup,
+        optional: c.optional,
       };
     });
 

@@ -18,6 +18,8 @@ export function computeAcceptTotals(offerData, catalog) {
   Object.entries(cart).forEach(([id, c]) => {
     const item = catalog[id] || customItems[id];
     if (!item) return;
+    // Optional add-ons are listed on the offer but never charged.
+    if (c.optional) return;
     const p = price(item, c.tier, c.mode, c.priceOverride);
     const dp = discountedPrice(item, c.tier, c.mode, c.priceOverride);
     if (p === null) return;

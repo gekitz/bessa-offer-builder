@@ -37,6 +37,21 @@ describe('decorateLineItems', () => {
     expect(byId.pcB.optionDelta).toBe(300); // 1299 - 999
   });
 
+  it('carries the optional flag through and keeps it out of the total', () => {
+    const optCart = {
+      sw: { qty: 1, discountQty: 0 },
+      pcA: { qty: 1, discountQty: 0, optional: true },
+    };
+    const rows = decorateLineItems(Object.entries(optCart), CATALOG);
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+    expect(byId.pcA.optional).toBe(true);
+    expect(byId.sw.optional).toBeUndefined();
+    // The optional line is still built (listed) with its own lineTotal…
+    expect(byId.pcA.lineTotal).toBe(999);
+    // …but computeTotals ignores it.
+    expect(computeTotals(optCart, CATALOG).once).toBe(450);
+  });
+
   it('computes a negative delta when the alternative is cheaper than the recommended one', () => {
     const cheaperFirst = {
       pcA: { qty: 1, discountQty: 0, optionGroup: 'pc', optionSelected: false },

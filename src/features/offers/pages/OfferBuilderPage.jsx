@@ -494,10 +494,13 @@ export default function OfferBuilderPage() {
     onCopierField: (id, patch) => setCart(c => c[id] ? { ...c, [id]: { ...c[id], ...patch } } : c),
   };
 
-  function handleEditItem(id, { qty, discountQty, price: newPrice, description, optionGroup, optionSelected }) {
+  function handleEditItem(id, { qty, discountQty, price: newPrice, description, optionGroup, optionSelected, optional }) {
     setCart(c => {
       if (!c[id]) return c;
       const next = { ...c[id], qty, discountQty };
+      // Optional add-on flag: listed but excluded from the total (countedIds).
+      if (optional) next.optional = true;
+      else delete next.optional;
       // Store the price as a per-line override on the cart item (so it
       // persists with the offer), rather than mutating the shared catalog.
       // If the price equals the catalog default, drop the override.
@@ -612,7 +615,8 @@ export default function OfferBuilderPage() {
         const p = price(item, c.tier, c.mode, c.priceOverride);
         const tierStr = c.tier ? ` (${TIER_LABEL_OFFER[c.tier]})` : '';
         const modeStr = c.mode === 'rent' && item.t === 'term' ? ' [Miete]' : '';
-        lines.push(`  ${i + 1}. ${c.qty}x ${item.code ? item.code + ' ' : ''}${item.name}${tierStr}${modeStr}`);
+        const optStr = c.optional ? ' [OPTIONAL - nicht in Summe]' : '';
+        lines.push(`  ${i + 1}. ${c.qty}x ${item.code ? item.code + ' ' : ''}${item.name}${tierStr}${modeStr}${optStr}`);
         lines.push(`     = EUR ${fmt(p * c.qty)}/Monat`);
       });
       lines.push('');
@@ -631,7 +635,8 @@ export default function OfferBuilderPage() {
         const p = price(item, c.tier, c.mode, c.priceOverride);
         const modeStr = c.mode === 'buy' ? ' [Kauf]' : '';
         const hourStr = item.t === 'h' ? ` (${c.qty} Std.)` : '';
-        lines.push(`  ${i + 1}. ${c.qty}x ${item.code ? item.code + ' ' : ''}${item.name}${modeStr}${hourStr}`);
+        const optStr = c.optional ? ' [OPTIONAL - nicht in Summe]' : '';
+        lines.push(`  ${i + 1}. ${c.qty}x ${item.code ? item.code + ' ' : ''}${item.name}${modeStr}${hourStr}${optStr}`);
         lines.push(`     = EUR ${fmt(p * c.qty)}`);
       });
       lines.push('');

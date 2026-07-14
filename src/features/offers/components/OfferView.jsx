@@ -150,24 +150,33 @@ export default function OfferView({
   const discount = computeDiscounts(periodNetto, { rabattActive, skontoActive });
   const periodBrutto = discount.brutto;
 
-  // Option-group chips shown next to a line item.
+  // Chips shown next to a line item: option-group membership and/or the
+  // "optional add-on" marker.
   function groupTag(d) {
-    if (!d?.optionGroup) return null;
+    if (!d?.optionGroup && !d?.optional) return null;
     const isCounted = d.optionSelected !== false;
     return (
       <>
-        <span className="text-xs text-slate-500 bg-slate-100 rounded-full px-1.5 ml-2 whitespace-nowrap">Wahl: {d.optionGroup}</span>
-        {isCounted ? (
-          <span className="text-xs text-emerald-700 bg-emerald-50 rounded-full px-1.5 ml-1 whitespace-nowrap">empfohlen</span>
-        ) : (
-          <span className="text-xs text-amber-700 bg-amber-50 rounded-full px-1.5 ml-1 whitespace-nowrap">Alternative</span>
+        {d.optionGroup && (
+          <>
+            <span className="text-xs text-slate-500 bg-slate-100 rounded-full px-1.5 ml-2 whitespace-nowrap">Wahl: {d.optionGroup}</span>
+            {isCounted ? (
+              <span className="text-xs text-emerald-700 bg-emerald-50 rounded-full px-1.5 ml-1 whitespace-nowrap">empfohlen</span>
+            ) : (
+              <span className="text-xs text-amber-700 bg-amber-50 rounded-full px-1.5 ml-1 whitespace-nowrap">Alternative</span>
+            )}
+          </>
+        )}
+        {d.optional && (
+          <span className="text-xs text-sky-700 bg-sky-50 rounded-full px-1.5 ml-2 whitespace-nowrap">Optional</span>
         )}
       </>
     );
   }
 
   // Price cell: counted lines show their amount; alternatives show only the
-  // price difference vs the recommended option (and are muted, not summed).
+  // price difference vs the recommended option; optional add-ons show their
+  // own price muted with an "opt." marker. Alternatives + optional aren't summed.
   function priceCell(d, lineTotal, monthly) {
     const isAlt = d?.optionGroup && d.optionSelected === false;
     if (isAlt) {
@@ -176,6 +185,9 @@ export default function OfferView({
         ? 'gleicher Preis'
         : `${delta > 0 ? '+' : '−'}€ ${fmt(Math.abs(delta))}${monthly ? '/Mo' : ''}`;
       return <span className="text-sm italic text-slate-400 whitespace-nowrap">{label}</span>;
+    }
+    if (d?.optional) {
+      return <span className="text-sm italic text-slate-400 whitespace-nowrap">€ {fmt(lineTotal)}{monthly ? '/Mo' : ''} (opt.)</span>;
     }
     return <span className="font-semibold text-slate-800 text-sm whitespace-nowrap">€ {fmt(lineTotal)}{monthly ? '/Mo' : ''}</span>;
   }
