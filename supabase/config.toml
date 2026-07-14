@@ -13,3 +13,10 @@ verify_jwt = false
 # email.bounced was being dropped at the gateway with 401).
 [functions.resend-webhook]
 verify_jwt = false
+
+# Fired by an AFTER UPDATE trigger on `offers` via pg_net when an offer
+# is accepted (see 20260714130000_notify_offer_accepted.sql). The trigger
+# presents CRON_SECRET as a Bearer token, which the function verifies —
+# gateway-level JWT enforcement would reject the pg_net call.
+[functions.notify-offer-accepted]
+verify_jwt = false
