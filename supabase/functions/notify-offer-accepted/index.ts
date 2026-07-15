@@ -189,7 +189,14 @@ serve(async (req: Request) => {
 
     const who = offer.customer_company || offer.customer_name || 'Ein Kunde';
     const paid = offer.payment_status === 'active';
-    const link = appBaseUrl ? `${appBaseUrl}/?offer=${encodeURIComponent(offer.id)}` : null;
+    // Deep link into the builder. Prefer the share_code loader (?s=<code>),
+    // the established way to open an offer — an accepted offer always has one
+    // (acceptance goes through ?a=<share_code>). Fall back to ?offer=<id> only
+    // if share_code is somehow missing (the app handles both).
+    const relPath = offer.share_code
+      ? `/?s=${encodeURIComponent(offer.share_code)}`
+      : `/?offer=${encodeURIComponent(offer.id)}`;
+    const link = appBaseUrl ? `${appBaseUrl}${relPath}` : null;
 
     // ── Email to the creator ────────────────────────────────────────
     let emailResult: unknown = 'skipped';
@@ -247,7 +254,7 @@ serve(async (req: Request) => {
         employeeIds: [employeeId],
         title: 'Angebot angenommen 🎉',
         body: `${who} hat dein Angebot ${paid ? 'per Zahlung' : 'durch Unterschrift'} angenommen.`,
-        url: link ? `/?offer=${encodeURIComponent(offer.id)}` : '/',
+        url: relPath,
         tag: `offer-accepted-${offer.id}`,
       })).result ?? 'sent';
     } else {

@@ -14,6 +14,7 @@ import {
 import { generateOfferPdfBlob } from '../../../pdf/generateOfferPdf';
 import { lazyWithReload } from '../../../lib/lazyWithReload';
 import { getOfferFromURL } from '../../../lib/urlState';
+import { offerIdFromDeepLink } from '../../../lib/offerDeepLink';
 import {
   saveOffer,
   getOffer,
@@ -379,6 +380,19 @@ export default function OfferBuilderPage() {
       });
       return;
     }
+    // Deep link to a saved offer by id: /?offer=<uuid> — used by the
+    // offer-accepted notification (notify-offer-accepted edge function).
+    // offerIdFromDeepLink distinguishes a bare UUID from the legacy
+    // base64-encoded ?offer= blob below, and skips when an action param owns
+    // the offer id (e.g. ?action=send-followup&offer=<id>, its own effect).
+    const deepLinkId = offerIdFromDeepLink(params);
+    if (deepLinkId) {
+      handleLoadOffer(deepLinkId).finally(() => {
+        window.history.replaceState({}, '', window.location.pathname);
+      });
+      return;
+    }
+
     // Backwards compatibility: load from ?offer= encoded param
     const savedOffer = getOfferFromURL();
     if (savedOffer) {
@@ -744,6 +758,7 @@ export default function OfferBuilderPage() {
         acceptQrDataUrl,
         serviceStartDate,
         copierOffer,
+        isRental: offerType === 'rental',
       });
       const blob = new Blob([pdfBlob], { type: 'application/pdf' });
 
@@ -944,6 +959,7 @@ export default function OfferBuilderPage() {
         totals, notes, raten, rabattActive, skontoActive,
         showFinancing: finanzOpen, creator: creatorInfo,
         mandatsRef, acceptQrDataUrl, serviceStartDate, copierOffer,
+        isRental: offerType === 'rental',
       });
 
       const buffer = await pdfBlob.arrayBuffer();
@@ -982,6 +998,7 @@ export default function OfferBuilderPage() {
       totals, notes, raten,
       showFinancing: finanzOpen, creator: creatorInfo,
       mandatsRef, signatures, acceptQrDataUrl, serviceStartDate, copierOffer,
+      isRental: offerType === 'rental',
     });
     const blob = new Blob([pdfBlob], { type: 'application/pdf' });
 
@@ -1324,6 +1341,7 @@ export default function OfferBuilderPage() {
                       onSave={handleSave} onSend={openEmailPreview} saving={saving} sending={sending} saveSuccess={saveSuccess} currentOfferId={currentOfferId}
                       onSign={() => setShowSignModal(true)} onAddCustom={() => setShowCustomModal(true)}
                       cartOrder={cartOrder} onReorder={setCartOrder} onRemoveItem={handlers.onRemove} onEditItem={handleEditItem} onCopierField={handlers.onCopierField}
+                      isRental={offerType === 'rental'}
                     />
                     {showEmailPreview && (
                       <EmailPreviewModal

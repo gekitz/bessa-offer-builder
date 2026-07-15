@@ -627,6 +627,7 @@ export default function OfferPdfDocument({
   acceptQrDataUrl = null,
   serviceStartDate = null,
   copierOffer = null,
+  isRental = false,
 }) {
   const date = new Date().toLocaleDateString('de-AT');
   const signedAt = signatures ? new Date().toLocaleDateString('de-AT') : null;
@@ -715,8 +716,11 @@ export default function OfferPdfDocument({
           </View>
         )}
 
-        {/* Period Total Summary */}
-        {!isCopier && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
+        {/* Period Total Summary — dropped for rentals: a Leihstellung is a
+            single one-off charge, so the "Kosten im ersten Jahr" breakdown is
+            meaningless. The net/USt/brutto total already prints under the
+            once-items table. */}
+        {!isCopier && !isRental && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
           <PeriodSummary
             periodTotal={totals.periodTotal}
             periodMonthly={totals.periodMonthly}

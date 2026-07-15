@@ -98,6 +98,7 @@ export default function OfferView({
   onRemoveItem,
   onEditItem,
   onCopierField,
+  isRental = false,
 }) {
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // { id, item, cartItem, monthly }
@@ -450,8 +451,11 @@ export default function OfferView({
         </div>
       )}
 
-      {/* Yearly summary */}
-      {!isCopier && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
+      {/* Yearly summary — dropped for rentals: a Leihstellung is a single
+          one-off charge, so the "Kosten im ersten Jahr (monatlich × Laufzeit
+          + einmalig)" framing is meaningless. The net/USt/brutto total is
+          already shown in the EINMALIGE KOSTEN box above. */}
+      {!isCopier && !isRental && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0) && (
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl mb-4 text-white overflow-hidden">
           <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-2">
             <span className="font-bold" style={{ fontSize: 13 }}>GESAMTÜBERSICHT</span>
