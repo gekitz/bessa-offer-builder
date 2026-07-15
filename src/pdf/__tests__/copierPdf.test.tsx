@@ -61,4 +61,27 @@ describe('OfferPdfDocument — Sharp/copier branch', () => {
     });
     expect(size).toBeGreaterThan(1000);
   }, 20000);
+
+  // Exercises the new monthly (Monatlich + Jährlich) and once (Einzelpreis +
+  // Preis) column layouts including the alternative and optional branches, so a
+  // regression that emits a bare string child or a bad style would throw here.
+  it('renders monthly + once tables with alternative and optional lines', async () => {
+    const totals = computeTotals({}, ALL);
+    const size = await renderSize({
+      customer,
+      monthlyItems: [
+        { id: 'm1', qty: 2, discountQty: 0, code: '100', name: 'Mobile Kassa', type: 'm', tier: '12mo', unitPrice: 19, discountPrice: 19, hasDiscount: false, lineTotal: 38, monthly: true },
+        { id: 'm2', qty: 1, discountQty: 0, code: '101', name: 'Alternativ-Kassa', type: 'm', tier: '6mo', unitPrice: 29, discountPrice: 29, hasDiscount: false, lineTotal: 29, monthly: true, optionGroup: 'g', optionSelected: false, optionDelta: 10 },
+        { id: 'm3', qty: 1, discountQty: 0, code: '102', name: 'Optionaler Bon-Drucker', type: 'm', tier: '12mo', unitPrice: 5, discountPrice: 5, hasDiscount: false, lineTotal: 5, monthly: true, optional: true },
+      ],
+      onceItems: [
+        { id: 'o1', qty: 3, discountQty: 0, code: '200', name: 'Einrichtung', type: 's', unitPrice: 100, discountPrice: 100, hasDiscount: false, lineTotal: 300, monthly: false },
+        { id: 'o2', qty: 1, discountQty: 0, code: '201', name: 'Optionale Schulung', type: 'h', unitPrice: 90, discountPrice: 90, hasDiscount: false, lineTotal: 90, monthly: false, optional: true },
+      ],
+      wartungItems: [], autoTerms: [],
+      totals: { ...totals, monthly: 38, once: 300, periodMonthly: 456, periodTotal: 756, maxMonths: 12 },
+      notes: '', raten: 12,
+    });
+    expect(size).toBeGreaterThan(1000);
+  }, 20000);
 });

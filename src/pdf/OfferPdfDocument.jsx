@@ -8,7 +8,7 @@ import {
 } from '@react-pdf/renderer';
 import { styles, COLORS } from './pdfStyles';
 import kitzLogo from '/kitz-logo.png';
-import { TIER_LABEL_OFFER } from '../data/tiers';
+import { TIER_LABEL, TIER_MONTHS } from '../data/tiers';
 import { computeDiscounts, SKONTO_DAYS } from '../lib/discounts';
 
 // Format number to German locale
@@ -91,113 +91,189 @@ function PdfFooter() {
   );
 }
 
-// Table header component
-function TableHeader() {
+// Section title bar: coloured band with a left label and an optional
+// right-aligned note (e.g. the offer's Laufzeit for the running-costs table).
+function SectionTitle({ accent, note, children }) {
   return (
-    <View style={styles.tableHeader}>
-      <Text style={[styles.headerText, styles.colQty]}>Menge</Text>
-      <Text style={[styles.headerText, styles.colCode]}>Code</Text>
-      <Text style={[styles.headerText, styles.colName]}>Bezeichnung</Text>
-      <Text style={[styles.headerText, styles.colTier]}>Laufzeit</Text>
-      <Text style={[styles.headerText, styles.colPrice]}>Preis</Text>
+    <View style={[styles.sectionTitleBar, accent]}>
+      <Text style={styles.sectionTitleText}>{children}</Text>
+      {note ? <Text style={styles.sectionTitleNote}>{note}</Text> : null}
     </View>
   );
 }
 
-// Wartung row component (per-year service fee for Melzer items)
+// Running costs table header (Bezeichnung · Menge · Einzelpreis · Monatlich · Jährlich)
+function MonthlyTableHeader() {
+  return (
+    <View style={styles.tableHeader}>
+      <Text style={[styles.headerText, styles.mColName]}>Bezeichnung</Text>
+      <Text style={[styles.headerText, styles.mColQty]}>Menge</Text>
+      <Text style={[styles.headerText, styles.mColUnit]}>Einzelpreis</Text>
+      <Text style={[styles.headerText, styles.mColMonthly]}>Monatlich</Text>
+      <Text style={[styles.headerText, styles.mColYearly]}>Jährlich</Text>
+    </View>
+  );
+}
+
+// One-time costs table header (Menge · Bezeichnung · Einzelpreis · Preis)
+function OnceTableHeader() {
+  return (
+    <View style={styles.tableHeader}>
+      <Text style={[styles.headerText, styles.oColName]}>Bezeichnung</Text>
+      <Text style={[styles.headerText, styles.oColQty]}>Menge</Text>
+      <Text style={[styles.headerText, styles.oColUnit]}>Einzelpreis</Text>
+      <Text style={[styles.headerText, styles.oColPrice]}>Preis</Text>
+    </View>
+  );
+}
+
+// Wartung table header (Bezeichnung · Menge · Laufzeit · Preis)
+function WartungTableHeader() {
+  return (
+    <View style={styles.tableHeader}>
+      <Text style={[styles.headerText, styles.wColName]}>Bezeichnung</Text>
+      <Text style={[styles.headerText, styles.wColQty]}>Menge</Text>
+      <Text style={[styles.headerText, styles.wColTier]}>Laufzeit</Text>
+      <Text style={[styles.headerText, styles.wColPrice]}>Preis</Text>
+    </View>
+  );
+}
+
+// Wartung row component (per-year service fee for Melzer items) — same data as
+// before, just reordered (Menge after Bezeichnung) with the Code column dropped.
 function WartungRow({ item, index }) {
   const isAlt = index % 2 === 1;
   const totalQty = (item.qty || 0) + (item.discountQty || 0);
   return (
     <View style={[styles.tableRow, isAlt && styles.tableRowAlt]} wrap={false}>
-      <Text style={[styles.cellText, styles.colQty]}>{totalQty}</Text>
-      <Text style={[styles.cellCode, styles.colCode]}>{item.code || '-'}</Text>
-      <View style={styles.colName}>
+      <View style={styles.wColName}>
         <Text style={styles.cellText}>{item.name}</Text>
         <Text style={styles.cellInfo}>{item.servicePercent}% Wartung (UVP)</Text>
       </View>
-      <Text style={[styles.cellText, styles.colTier]}>pro Jahr</Text>
-      <Text style={[styles.cellPrice, styles.colPrice]}>{fmt(item.wartungLine)}</Text>
+      <Text style={[styles.cellText, styles.wColQty]}>{totalQty}</Text>
+      <Text style={[styles.cellText, styles.wColTier]}>pro Jahr</Text>
+      <Text style={[styles.cellPrice, styles.wColPrice]}>{fmt(item.wartungLine)}</Text>
     </View>
   );
 }
 
-// Table row component
-function TableRow({ item, index, isMonthly }) {
-  const isAlt = index % 2 === 1;
-  const tierLabel = item.tier ? TIER_LABEL_OFFER[item.tier] : '';
-  const modeLabel =
-    item.mode === 'rent' && item.type === 'term'
-      ? 'Miete'
-      : item.mode === 'buy'
-      ? 'Kauf'
-      : '';
+// Shared name-cell contents (label prefix, info, spec bullets, discount notes).
+function ItemNameCell({ item, isAlternative, isOptional, muted }) {
   const hourLabel = item.type === 'h' ? `(${item.qty} Std.)` : '';
   const hasDiscountQty = item.discountQty > 0;
-  const totalQty = (item.qty || 0) + (item.discountQty || 0);
-
-  // Option groups: a member that isn't the selected/recommended one renders as
-  // an indented alternative showing only the price difference (Mehr-/Minderpreis).
-  const isAlternative = item.optionSelected === false;
-  const delta = item.optionDelta || 0;
-  const deltaText =
-    delta === 0
-      ? 'gleicher Preis'
-      : `${delta > 0 ? '+' : '-'}${fmt(Math.abs(delta))}${isMonthly ? '/Mo' : ''}`;
-
-  // Optional add-on: a real, fully-listed line (qty + code shown) whose price
-  // is displayed for reference but is NOT part of the offer total.
-  const isOptional = item.optional === true;
-  const muted = isAlternative || isOptional;
-
-  // Build quantity display
-  let qtyDisplay = String(totalQty);
-  if (hasDiscountQty && item.qty > 0) {
-    qtyDisplay = `${item.qty}+${item.discountQty}`;
-  } else if (hasDiscountQty && item.qty === 0) {
-    qtyDisplay = String(item.discountQty);
-  }
-
   const specLines = item.description
     ? item.description.split('\n').map((l) => l.trim()).filter((l) => l.length > 0)
     : [];
+  return (
+    <>
+      <Text style={muted ? styles.cellTextAlt : styles.cellText}>
+        {isAlternative ? 'Alternativ: ' : isOptional ? 'Optional: ' : ''}
+        {item.name}
+        {hourLabel ? ` ${hourLabel}` : ''}
+      </Text>
+      {item.info && <Text style={styles.cellInfo}>{item.info}</Text>}
+      {specLines.map((line, i) => (
+        <Text key={i} style={styles.cellSpec}>• {line}</Text>
+      ))}
+      {hasDiscountQty && item.qty > 0 && (
+        <Text style={styles.cellDiscount}>
+          ({item.qty}x €{fmt(item.unitPrice)} + {item.discountQty}x €{fmt(item.discountPrice)} {item.discountLabel})
+        </Text>
+      )}
+      {hasDiscountQty && item.qty === 0 && (
+        <Text style={styles.cellDiscount}>
+          ({item.discountLabel}: €{fmt(item.discountPrice)})
+        </Text>
+      )}
+    </>
+  );
+}
+
+// Build the "3" / "2+1" quantity display string.
+function qtyLabel(item) {
+  const totalQty = (item.qty || 0) + (item.discountQty || 0);
+  if (item.discountQty > 0 && item.qty > 0) return `${item.qty}+${item.discountQty}`;
+  if (item.discountQty > 0 && item.qty === 0) return String(item.discountQty);
+  return String(totalQty);
+}
+
+// Running costs row — shows the per-unit monthly price (Einzelpreis), the
+// monthly line total and the yearly figure (monthly × Laufzeit-Monate). When
+// the offer mixes Laufzeiten, each line prints its own Laufzeit as a sub-label
+// (showTier) since it no longer lives in a column.
+function MonthlyTableRow({ item, index, showTier }) {
+  const isAlt = index % 2 === 1;
+  const tierLabel = item.tier ? TIER_LABEL[item.tier] : '';
+  const months = item.tier ? TIER_MONTHS[item.tier] : 0;
+  const isAlternative = item.optionSelected === false;
+  const isOptional = item.optional === true;
+  const muted = isAlternative || isOptional;
+
+  const delta = item.optionDelta || 0;
+  const monthlyDelta =
+    delta === 0 ? 'gleicher Preis' : `${delta > 0 ? '+' : '-'}${fmt(Math.abs(delta))}`;
+
+  const yearly = item.lineTotal * months;
+  const yearlyDelta = delta * months;
 
   return (
     <View style={[styles.tableRow, isAlt && styles.tableRowAlt]} wrap={false}>
-      <Text style={[styles.cellText, styles.colQty]}>{isAlternative ? '' : qtyDisplay}</Text>
-      <Text style={[styles.cellCode, styles.colCode]}>{isAlternative ? '' : item.code || '-'}</Text>
-      <View style={styles.colName}>
-        <Text style={muted ? styles.cellTextAlt : styles.cellText}>
-          {isAlternative ? 'Alternativ: ' : isOptional ? 'Optional: ' : ''}
-          {item.name}
-          {hourLabel ? ` ${hourLabel}` : ''}
-        </Text>
-        {item.info && (
-          <Text style={styles.cellInfo}>{item.info}</Text>
-        )}
-        {specLines.map((line, i) => (
-          <Text key={i} style={styles.cellSpec}>• {line}</Text>
-        ))}
-        {hasDiscountQty && item.qty > 0 && (
-          <Text style={styles.cellDiscount}>
-            ({item.qty}x €{fmt(item.unitPrice)} + {item.discountQty}x €{fmt(item.discountPrice)} {item.discountLabel})
-          </Text>
-        )}
-        {hasDiscountQty && item.qty === 0 && (
-          <Text style={styles.cellDiscount}>
-            ({item.discountLabel}: €{fmt(item.discountPrice)})
-          </Text>
+      <View style={styles.mColName}>
+        <ItemNameCell item={item} isAlternative={isAlternative} isOptional={isOptional} muted={muted} />
+        {showTier && tierLabel && (
+          <Text style={styles.cellInfo}>Laufzeit: {tierLabel}</Text>
         )}
       </View>
-      <Text style={[styles.cellText, styles.colTier]}>
-        {isAlternative ? 'statt empf.' : isOptional ? 'optional' : tierLabel || modeLabel || '-'}
+      <Text style={[styles.cellText, styles.mColQty]}>{isAlternative ? '' : qtyLabel(item)}</Text>
+      <Text style={[styles.cellText, styles.mColUnit]}>
+        {isAlternative || item.unitPrice == null ? '' : fmt(item.unitPrice)}
       </Text>
-      <Text style={[muted ? styles.cellPriceAlt : styles.cellPrice, styles.colPrice]}>
+      <Text style={[muted ? styles.cellPriceAlt : styles.cellPrice, styles.mColMonthly]}>
+        {isAlternative
+          ? monthlyDelta
+          : isOptional
+          ? `${fmt(item.lineTotal)} (opt.)`
+          : fmt(item.lineTotal)}
+      </Text>
+      <Text style={[muted ? styles.cellPriceAlt : styles.cellPrice, styles.mColYearly]}>
+        {isAlternative
+          ? delta === 0
+            ? '—'
+            : `${yearlyDelta > 0 ? '+' : '-'}${fmt(Math.abs(yearlyDelta))}`
+          : isOptional
+          ? `${fmt(yearly)} (opt.)`
+          : fmt(yearly)}
+      </Text>
+    </View>
+  );
+}
+
+// One-time costs row — shows unit price (Einzelpreis) and the line total.
+function OnceTableRow({ item, index }) {
+  const isAlt = index % 2 === 1;
+  const isAlternative = item.optionSelected === false;
+  const isOptional = item.optional === true;
+  const muted = isAlternative || isOptional;
+
+  const delta = item.optionDelta || 0;
+  const deltaText =
+    delta === 0 ? 'gleicher Preis' : `${delta > 0 ? '+' : '-'}${fmt(Math.abs(delta))}`;
+
+  return (
+    <View style={[styles.tableRow, isAlt && styles.tableRowAlt]} wrap={false}>
+      <View style={styles.oColName}>
+        <ItemNameCell item={item} isAlternative={isAlternative} isOptional={isOptional} muted={muted} />
+      </View>
+      <Text style={[styles.cellText, styles.oColQty]}>{isAlternative ? '' : qtyLabel(item)}</Text>
+      <Text style={[styles.cellText, styles.oColUnit]}>
+        {isAlternative || item.unitPrice == null ? '' : fmt(item.unitPrice)}
+      </Text>
+      <Text style={[muted ? styles.cellPriceAlt : styles.cellPrice, styles.oColPrice]}>
         {isAlternative
           ? deltaText
           : isOptional
-          ? `${fmt(item.lineTotal)}${isMonthly ? '/Mo' : ''} (opt.)`
-          : `${fmt(item.lineTotal)}${isMonthly ? '/Mo' : ''}`}
+          ? `${fmt(item.lineTotal)} (opt.)`
+          : fmt(item.lineTotal)}
       </Text>
     </View>
   );
@@ -638,6 +714,20 @@ export default function OfferPdfDocument({
   // Grenke leasing + maintenance rates) instead of the PoS monthly/once tables.
   const isCopier = !!copierOffer?.isCopierOffer;
 
+  // Running-costs Laufzeit lives in the section header when every counted line
+  // shares one tier; otherwise it's "gemischt" and each row prints its own.
+  const runningTiers = [
+    ...new Set(
+      monthlyItems
+        .filter((i) => i.optionSelected !== false)
+        .map((i) => i.tier)
+        .filter(Boolean),
+    ),
+  ];
+  const uniformTier = runningTiers.length === 1 ? runningTiers[0] : null;
+  const mixedTiers = runningTiers.length > 1;
+  const laufzeitNote = `Laufzeit: ${uniformTier ? TIER_LABEL[uniformTier] : 'gemischt'}`;
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -677,12 +767,12 @@ export default function OfferPdfDocument({
         {/* Monthly Costs Table */}
         {!isCopier && monthlyItems.length > 0 && (
           <View style={styles.table}>
-            <Text style={[styles.sectionTitle, styles.sectionTitleMonthly]}>
-              MONATLICHE KOSTEN
-            </Text>
-            <TableHeader />
+            <SectionTitle accent={styles.sectionTitleMonthly} note={laufzeitNote}>
+              LAUFENDE KOSTEN
+            </SectionTitle>
+            <MonthlyTableHeader />
             {monthlyItems.map((item, idx) => (
-              <TableRow key={item.id} item={item} index={idx} isMonthly={true} />
+              <MonthlyTableRow key={item.id} item={item} index={idx} showTier={mixedTiers} />
             ))}
             <TotalsBox netto={totals.monthly} isMonthly={true} />
           </View>
@@ -694,9 +784,9 @@ export default function OfferPdfDocument({
             <Text style={[styles.sectionTitle, styles.sectionTitleOnce]}>
               EINMALIGE KOSTEN
             </Text>
-            <TableHeader />
+            <OnceTableHeader />
             {onceItems.map((item, idx) => (
-              <TableRow key={item.id} item={item} index={idx} isMonthly={false} />
+              <OnceTableRow key={item.id} item={item} index={idx} />
             ))}
             <TotalsBox netto={totals.once} isMonthly={false} />
           </View>
@@ -708,7 +798,7 @@ export default function OfferPdfDocument({
             <Text style={[styles.sectionTitle, styles.sectionTitleOnce]}>
               WARTUNG PRO JAHR
             </Text>
-            <TableHeader />
+            <WartungTableHeader />
             {wartungItems.map((item, idx) => (
               <WartungRow key={`w-${item.id}`} item={item} index={idx} />
             ))}

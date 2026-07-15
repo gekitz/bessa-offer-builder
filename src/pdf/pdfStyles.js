@@ -133,6 +133,24 @@ export const styles = StyleSheet.create({
   sectionTitleOnce: {
     backgroundColor: COLORS.amber,
   },
+  // Section title as a row (left label + optional right-aligned note, e.g. Laufzeit)
+  sectionTitleBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '8 12',
+    marginTop: 15,
+  },
+  sectionTitleText: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: COLORS.white,
+  },
+  sectionTitleNote: {
+    fontSize: 9,
+    fontWeight: 600,
+    color: COLORS.white,
+  },
 
   // Table
   table: {
@@ -164,6 +182,25 @@ export const styles = StyleSheet.create({
   colName: { width: '42%' },
   colTier: { width: '20%' },
   colPrice: { width: '20%', textAlign: 'right' },
+
+  // Running costs table columns (Bezeichnung · Menge · Einzelpreis · Monatlich · Jährlich)
+  mColName: { width: '38%' },
+  mColQty: { width: '8%', textAlign: 'center' },
+  mColUnit: { width: '18%', textAlign: 'right' },
+  mColMonthly: { width: '18%', textAlign: 'right' },
+  mColYearly: { width: '18%', textAlign: 'right' },
+
+  // One-time costs table columns (Menge · Bezeichnung · Einzelpreis · Preis)
+  oColQty: { width: '8%', textAlign: 'center' },
+  oColName: { width: '52%' },
+  oColUnit: { width: '20%', textAlign: 'right' },
+  oColPrice: { width: '20%', textAlign: 'right' },
+
+  // Wartung pro Jahr table columns (Bezeichnung · Menge · Laufzeit · Preis)
+  wColName: { width: '52%' },
+  wColQty: { width: '8%', textAlign: 'center' },
+  wColTier: { width: '20%' },
+  wColPrice: { width: '20%', textAlign: 'right' },
 
   headerText: {
     fontSize: 8,
