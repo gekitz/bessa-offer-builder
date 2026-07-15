@@ -124,7 +124,10 @@ const RENTAL_TABS = [
 // The product tabs depend on the offer type. PoS keeps the existing tabs;
 // Sharp shows the copier devices + accessories; Brother shows its printers;
 // Rental (Leihstellung) shows the rental calculator.
-function builderTabsFor(offerType) {
+function builderTabsFor(offerType, locked = false) {
+  // A locked (accepted/signed) offer is read-only: hide the product tabs so
+  // the rep can't add/remove items, leaving only the Angebot review surface.
+  if (locked) return [{ id: 'angebot', label: 'Angebot' }];
   if (offerType === 'sharp') return SHARP_TABS;
   if (offerType === 'brother') return BROTHER_TABS;
   if (offerType === 'rental') return RENTAL_TABS;
@@ -241,6 +244,12 @@ export default function OfferBuilderPage() {
   const [serviceStartDate, setServiceStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [currentOfferId, setCurrentOfferId] = useState(null);
   const [shareCode, setShareCodeState] = useState(null);
+  // An accepted/signed offer is a finalized contract — it opens read-only.
+  // offerLocked gates every cart mutation and the Save/Send/Sign actions;
+  // offerLockedAt (accepted_at || signed_at) drives the banner date. To make
+  // changes the rep duplicates it into a fresh, editable offer.
+  const [offerLocked, setOfferLocked] = useState(false);
+  const [offerLockedAt, setOfferLockedAt] = useState(null);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -305,6 +314,7 @@ export default function OfferBuilderPage() {
   }
 
   function handleAddCustomItem({ name, price: p, description }) {
+    if (offerLocked) return;
     const id = crypto.randomUUID();
     ALL[id] = { id, name, price: p, t: 'o', ...(description ? { description } : {}) };
     setCart(c => ({ ...c, [id]: { qty: 1, discountQty: 0 } }));
@@ -373,6 +383,8 @@ export default function OfferBuilderPage() {
         setServiceStartDate(offer.service_start_date || new Date().toISOString().slice(0, 10));
         setCurrentOfferId(offer.id);
         setShareCodeState(offer.share_code);
+        setOfferLocked(!!(offer.signed_at || offer.accepted_at));
+        setOfferLockedAt(offer.accepted_at || offer.signed_at || null);
         setOfferView('builder'); setBuilderTab('angebot');
         window.history.replaceState({}, '', window.location.pathname);
       }).catch(() => {
@@ -434,8 +446,10 @@ export default function OfferBuilderPage() {
     window.history.replaceState({}, '', window.location.pathname);
   }, []);
 
-  // Cart handlers
-  const handlers = {
+  // Cart handlers. When the offer is locked (accepted/signed) every mutator is
+  // replaced with a no-op below, so no edit path — catalog tabs, qty steppers,
+  // line pencils — can alter a finalized offer.
+  const editHandlers = {
     onAdd: (id, tier, mode) => {
       // Data-driven auto-add (e.g. Lagerverwaltung → +10h Arbeitszeit),
       // configured per product via the `autoAdd` field.
@@ -508,7 +522,14 @@ export default function OfferBuilderPage() {
     onCopierField: (id, patch) => setCart(c => c[id] ? { ...c, [id]: { ...c[id], ...patch } } : c),
   };
 
+  // Freeze all edits on a locked offer by swapping every mutator for a no-op.
+  const noop = () => {};
+  const handlers = offerLocked
+    ? Object.fromEntries(Object.keys(editHandlers).map((k) => [k, noop]))
+    : editHandlers;
+
   function handleEditItem(id, { qty, discountQty, price: newPrice, description, optionGroup, optionSelected, optional }) {
+    if (offerLocked) return;
     setCart(c => {
       if (!c[id]) return c;
       const next = { ...c[id], qty, discountQty };
@@ -561,7 +582,7 @@ export default function OfferBuilderPage() {
   // Grenke Bonitätsprüfung), so we never surface the accept link for copier offers.
   const acceptEnabled = billingEnabled && !copierOffer.isCopierOffer;
 
-  const builderTabs = builderTabsFor(offerType);
+  const builderTabs = builderTabsFor(offerType, offerLocked);
 
   const cartCount = Object.keys(cart).length;
 
@@ -850,6 +871,7 @@ export default function OfferBuilderPage() {
   }
 
   async function handleSave() {
+    if (offerLocked) return;
     if (!supabase) { alert('Supabase nicht konfiguriert'); return; }
     if (!creator) { alert('Bitte wähle einen Ersteller aus.'); return; }
     const creatorInfo = creatorFor(creator);
@@ -891,6 +913,7 @@ export default function OfferBuilderPage() {
   }
 
   function openEmailPreview() {
+    if (offerLocked) return;
     if (!supabase) { alert('Supabase nicht konfiguriert'); return; }
     if (!customer.email) { alert('Bitte eine Kunden-E-Mail angeben.'); return; }
     if (!creator) { alert('Bitte einen Ersteller auswählen.'); return; }
@@ -985,6 +1008,7 @@ export default function OfferBuilderPage() {
   }
 
   async function handleSign(signatures) {
+    if (offerLocked) return;
     const creatorInfo = creatorFor(creator);
     const validSignEntries = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
     const { monthlyItems, onceItems } = buildLineItems(validSignEntries, ALL);
@@ -1057,6 +1081,10 @@ export default function OfferBuilderPage() {
       setServiceStartDate(offer.service_start_date || new Date().toISOString().slice(0, 10));
       setCurrentOfferId(duplicate ? null : offer.id);
       setShareCodeState(duplicate ? null : offer.share_code || null);
+      // A duplicate is a brand-new editable offer; the original's acceptance
+      // never carries over. Otherwise lock if the offer is signed/accepted.
+      setOfferLocked(duplicate ? false : !!(offer.signed_at || offer.accepted_at));
+      setOfferLockedAt(duplicate ? null : offer.accepted_at || offer.signed_at || null);
       setOfferView('builder'); setBuilderTab('angebot');
     } catch (err) {
       alert('Fehler beim Laden: ' + err.message);
@@ -1073,6 +1101,8 @@ export default function OfferBuilderPage() {
     setRaten(12);
     setCurrentOfferId(null);
     setShareCodeState(null);
+    setOfferLocked(false);
+    setOfferLockedAt(null);
     setCreator(ssoCreatorId() || '');
     setFinanzOpen(false);
     setRabattActive(false);
@@ -1342,6 +1372,7 @@ export default function OfferBuilderPage() {
                       onSign={() => setShowSignModal(true)} onAddCustom={() => setShowCustomModal(true)}
                       cartOrder={cartOrder} onReorder={setCartOrder} onRemoveItem={handlers.onRemove} onEditItem={handleEditItem} onCopierField={handlers.onCopierField}
                       isRental={offerType === 'rental'}
+                      locked={offerLocked} lockedAt={offerLockedAt} onDuplicate={() => handleLoadOffer(currentOfferId, true)}
                     />
                     {showEmailPreview && (
                       <EmailPreviewModal

@@ -4,8 +4,10 @@ import {
   Check,
   Copy,
   Download,
+  CopyPlus,
   Link,
   Loader2,
+  Lock,
   Pen,
   Pencil,
   Plus,
@@ -99,6 +101,9 @@ export default function OfferView({
   onEditItem,
   onCopierField,
   isRental = false,
+  locked = false,
+  lockedAt = null,
+  onDuplicate = () => {},
 }) {
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // { id, item, cartItem, monthly }
@@ -195,6 +200,31 @@ export default function OfferView({
 
   return (
     <div>
+      {/* Locked banner — an accepted/signed offer is a finalized contract and
+          opens read-only. Editing controls and Save/Send/Sign are hidden; the
+          rep duplicates it into a fresh offer to make changes. */}
+      {locked && (
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-xl mb-4 px-4 py-3 flex items-center justify-between gap-3 no-print">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Lock size={18} className="text-amber-600 flex-shrink-0" />
+            <div className="min-w-0">
+              <div className="font-bold text-amber-800" style={{ fontSize: 13 }}>Angenommenes Angebot</div>
+              <div className="text-amber-700" style={{ fontSize: 12 }}>
+                {lockedAt ? `Angenommen am ${new Date(lockedAt).toLocaleDateString('de-AT')} — ` : ''}
+                schreibgeschützt. Zum Ändern duplizieren.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onDuplicate}
+            className="flex items-center gap-1.5 rounded-lg bg-amber-600 text-white px-3 py-2 font-semibold hover:bg-amber-700 active:scale-[0.98] transition-all flex-shrink-0"
+            style={{ fontSize: 12 }}
+          >
+            <CopyPlus size={14} /> Duplizieren
+          </button>
+        </div>
+      )}
+
       {/* Customer info */}
       <div className="bg-white rounded-xl border-2 border-slate-200 mb-4" style={{ padding: '16px' }}>
         <div className="flex items-center justify-between mb-3">
@@ -299,11 +329,13 @@ export default function OfferView({
       </div>
 
       {/* Add custom item */}
-      <button onClick={onAddCustom}
-        className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 text-slate-500 font-medium py-3 mb-4 hover:border-red-400 hover:text-red-600 hover:bg-red-50 transition-all"
-        style={{ fontSize: 13 }}>
-        <Plus size={16} /> Freie Position
-      </button>
+      {!locked && (
+        <button onClick={onAddCustom}
+          className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 text-slate-500 font-medium py-3 mb-4 hover:border-red-400 hover:text-red-600 hover:bg-red-50 transition-all"
+          style={{ fontSize: 13 }}>
+          <Plus size={16} /> Freie Position
+        </button>
+      )}
 
       {/* Cart empty state */}
       {Object.keys(cart).length === 0 && (
@@ -318,11 +350,11 @@ export default function OfferView({
       {isCopier && (
         <CopierSummary
           copierOffer={copierOffer}
-          onEditLine={(id) => {
+          onEditLine={locked ? undefined : (id) => {
             const item = ALL[id];
             if (item) setEditingItem({ id, item, cartItem: cart[id] || {}, monthly: false });
           }}
-          onEditLeasing={primaryCopierId && onCopierField ? () => setEditingLeasingId(primaryCopierId) : null}
+          onEditLeasing={!locked && primaryCopierId && onCopierField ? () => setEditingLeasingId(primaryCopierId) : null}
         />
       )}
 
@@ -356,8 +388,8 @@ export default function OfferView({
                           {groupTag(d)}
                         </div>
                         {priceCell(d, lineTotal, true)}
-                        <button onClick={() => setEditingItem({ id, item, cartItem: c, monthly: true })} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><Pencil size={13} /></button>
-                        {isCustomItem(id) && <button onClick={() => onRemoveItem(id)} className="ml-1 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
+                        {!locked && <button onClick={() => setEditingItem({ id, item, cartItem: c, monthly: true })} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><Pencil size={13} /></button>}
+                        {!locked && isCustomItem(id) && <button onClick={() => onRemoveItem(id)} className="ml-1 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
                       </div>
                     </SortableOfferRow>
                   );
@@ -403,8 +435,8 @@ export default function OfferView({
                           {groupTag(d)}
                         </div>
                         {priceCell(d, lineTotal, false)}
-                        <button onClick={() => setEditingItem({ id, item, cartItem: c, monthly: false })} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><Pencil size={13} /></button>
-                        {isCustomItem(id) && <button onClick={() => onRemoveItem(id)} className="ml-1 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
+                        {!locked && <button onClick={() => setEditingItem({ id, item, cartItem: c, monthly: false })} className="ml-2 text-slate-400 hover:text-red-500 transition-colors"><Pencil size={13} /></button>}
+                        {!locked && isCustomItem(id) && <button onClick={() => onRemoveItem(id)} className="ml-1 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>}
                       </div>
                     </SortableOfferRow>
                   );
@@ -459,24 +491,26 @@ export default function OfferView({
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl mb-4 text-white overflow-hidden">
           <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-2">
             <span className="font-bold" style={{ fontSize: 13 }}>GESAMTÜBERSICHT</span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setRabattActive(!rabattActive)}
-                className={`px-2.5 py-1 rounded-full font-medium transition-colors ${rabattActive ? 'bg-red-500 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/20'}`}
-                style={{ fontSize: 11 }}
-              >
-                2% Rabatt
-              </button>
-              <button
-                type="button"
-                onClick={() => setSkontoActive(!skontoActive)}
-                className={`px-2.5 py-1 rounded-full font-medium transition-colors ${skontoActive ? 'bg-red-500 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/20'}`}
-                style={{ fontSize: 11 }}
-              >
-                3% Skonto
-              </button>
-            </div>
+            {!locked && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRabattActive(!rabattActive)}
+                  className={`px-2.5 py-1 rounded-full font-medium transition-colors ${rabattActive ? 'bg-red-500 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/20'}`}
+                  style={{ fontSize: 11 }}
+                >
+                  2% Rabatt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSkontoActive(!skontoActive)}
+                  className={`px-2.5 py-1 rounded-full font-medium transition-colors ${skontoActive ? 'bg-red-500 text-white' : 'bg-white/10 text-slate-300 hover:bg-white/20'}`}
+                  style={{ fontSize: 11 }}
+                >
+                  3% Skonto
+                </button>
+              </div>
+            )}
           </div>
           <div className="p-4 space-y-3">
             <div className="flex justify-between items-center pb-3 border-b border-white/10">
@@ -614,8 +648,9 @@ export default function OfferView({
       {/* Actions */}
       {Object.keys(cart).length > 0 && (
         <div className="space-y-2 no-print">
-          {/* Row 1: Save + Send */}
-          {supabase && (
+          {/* Row 1: Save + Send — hidden on a locked (accepted) offer, which
+              must not be re-saved or re-sent. Copy/Link/PDF stay available. */}
+          {supabase && !locked && (
             <div className="flex gap-2">
               <button onClick={onSave} disabled={saving}
                 className={`flex-1 flex items-center justify-center gap-2 rounded-xl font-semibold py-3.5 active:scale-[0.98] transition-all ${saveSuccess ? 'bg-green-100 text-green-700' : 'bg-slate-800 text-white hover:bg-slate-900'} ${saving ? 'opacity-70 cursor-wait' : ''}`}
@@ -632,7 +667,7 @@ export default function OfferView({
             </div>
           )}
           {/* Row 2: Sign */}
-          {supabase && currentOfferId && (
+          {supabase && currentOfferId && !locked && (
             <button onClick={onSign}
               className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white font-semibold py-3.5 hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-lg shadow-emerald-200"
               style={{ fontSize: 14 }}>
