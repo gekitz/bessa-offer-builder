@@ -747,6 +747,9 @@ export default function OfferPdfDocument({
           {customer.name && (
             <Text style={styles.customerDetail}>z.Hd. {customer.name}</Text>
           )}
+          {customer.address && (
+            <Text style={styles.customerDetail}>{customer.address}</Text>
+          )}
           {customer.email && (
             <Text style={styles.customerDetail}>{customer.email}</Text>
           )}
@@ -755,6 +758,7 @@ export default function OfferPdfDocument({
           )}
           {!customer.company &&
             !customer.name &&
+            !customer.address &&
             !customer.email &&
             !customer.phone && (
               <Text style={styles.customerDetail}>-</Text>

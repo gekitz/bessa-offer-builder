@@ -619,6 +619,7 @@ function OfferBuilderPageInner() {
     lines.push('Kunde:');
     if (customer.company) lines.push(customer.company);
     if (customer.name) lines.push(`z.Hd. ${customer.name}`);
+    if (customer.address) lines.push(customer.address);
     if (customer.email) lines.push(customer.email);
     if (customer.phone) lines.push(`Tel: ${customer.phone}`);
     lines.push('');
