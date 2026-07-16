@@ -64,16 +64,28 @@ function rowToItem(r: ProductRow): Item {
 
 let version = 0;
 let hydrated = false;
+// True once the FIRST hydrate attempt has finished — success, failure, or
+// no-supabase. Consumers gate their initial render on this so the hardcoded
+// fallback is never shown: the app waits for the DB (or a definitive failure)
+// before painting, then renders live DB data.
+let settled = false;
+let inFlight: Promise<boolean> | null = null;
 const listeners = new Set<() => void>();
+
+function notify(): void {
+  listeners.forEach((cb) => cb());
+}
 
 export function getCatalogVersion(): number {
   return version;
 }
 
-// Fetch active products and replace the in-memory catalog. Best-effort:
-// on any failure (e.g. anon accept page, offline) the hardcoded fallback
-// stays in place. Returns true if it actually swapped in DB data.
-export async function hydrateCatalog(): Promise<boolean> {
+// Whether the first hydrate attempt has completed (see `settled`).
+export function isCatalogReady(): boolean {
+  return settled;
+}
+
+async function fetchAndSwap(): Promise<boolean> {
   if (!supabase) return false;
   let rows: ProductRow[];
   try {
@@ -117,20 +129,40 @@ export async function hydrateCatalog(): Promise<boolean> {
 
   hydrated = true;
   version += 1;
-  listeners.forEach((cb) => cb());
   return true;
 }
 
-// Hook: hydrate once on mount and re-render when the catalog swaps in.
-export function useHydratedCatalog(): number {
-  const [, setV] = useState(version);
+// Fetch active products and replace the in-memory catalog. Best-effort:
+// on any failure (e.g. anon accept page, offline) the hardcoded fallback
+// stays in place. Concurrent callers share one in-flight request. Always
+// marks the catalog `settled` when done so gated consumers can render.
+// Returns true if it actually swapped in DB data.
+export async function hydrateCatalog(): Promise<boolean> {
+  if (inFlight) return inFlight;
+  inFlight = fetchAndSwap()
+    .then((ok) => {
+      settled = true;
+      notify();
+      return ok;
+    })
+    .finally(() => {
+      inFlight = null;
+    });
+  return inFlight;
+}
+
+// Hook: hydrate once on mount and re-render when the catalog swaps in or the
+// first attempt settles. Returns { version, ready } — gate initial render on
+// `ready` so the hardcoded fallback is never shown in the authenticated app.
+export function useHydratedCatalog(): { version: number; ready: boolean } {
+  const [, tick] = useState(0);
   useEffect(() => {
-    const cb = () => setV(getCatalogVersion());
+    const cb = () => tick((t) => t + 1);
     listeners.add(cb);
     if (!hydrated) void hydrateCatalog();
     return () => {
       listeners.delete(cb);
     };
   }, []);
-  return version;
+  return { version, ready: settled };
 }

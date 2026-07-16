@@ -163,10 +163,23 @@ function buildWartungItems(entries) {
     });
 }
 
+// Gate the builder on the first catalog-hydrate attempt so the hardcoded
+// fallback catalog is never painted: we wait for the DB (or a definitive
+// failure) and then render live DB data. `ready` flips true on success,
+// failure, or when Supabase is unconfigured, so this never hangs.
 export default function OfferBuilderPage() {
-  // Hydrate the product catalog from the DB (falls back to the bundled
-  // catalog); re-renders when the DB catalog swaps in.
-  useHydratedCatalog();
+  const { ready } = useHydratedCatalog();
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+        <Loader2 className="animate-spin text-slate-400" size={32} />
+      </div>
+    );
+  }
+  return <OfferBuilderPageInner />;
+}
+
+function OfferBuilderPageInner() {
   const { profile, user } = useAuth();
   const currentEmail = (profile?.microsoft_email || user?.email || '').toLowerCase();
   const isBillingAdmin = currentEmail === 'kg@kitz.co.at';

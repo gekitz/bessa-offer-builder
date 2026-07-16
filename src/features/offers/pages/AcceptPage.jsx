@@ -4,8 +4,6 @@ import { CheckCircle2, Loader2 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { getOfferByShareCode, acceptOfferWithSignature } from '../../../lib/offerApi';
 import SignaturePad from '../components/SignaturePad';
-import { ALL } from '../data/catalogs';
-import { computeAcceptTotals } from '../../../lib/acceptTotals';
 import { fmt } from '../../../lib/format';
 import { TIER_MONTHS } from '../../../data/tiers';
 
@@ -251,10 +249,11 @@ export default function AcceptPage({ shareCode }) {
   const data = offer.offer_data || {};
   const raten = data.raten || 12;
 
-  // Prefer the snapshot frozen at send time; fall back to live computation
-  // for offers sent before snapshotting existed.
-  const { monthly, once, yearly, periodTotal, maxMonths } =
-    data.acceptSnapshot || computeAcceptTotals(data, ALL);
+  // Totals are frozen into acceptSnapshot at send time (and backfilled for
+  // older offers), so the anonymous accept page never needs the product
+  // catalog. Guard against a (shouldn't-happen) missing snapshot with zeros.
+  const { monthly = 0, once = 0, yearly = 0, periodTotal = 0, maxMonths = 12 } =
+    data.acceptSnapshot || {};
 
   const onceBrutto = once * 1.2;
   const monthlyBrutto = monthly * 1.2;
