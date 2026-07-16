@@ -182,13 +182,13 @@ export const RCH: Item[] = [
 ];
 
 export const HARDWARE: Item[] = [
-  { id:'fdb37b6a-4ad5-4a46-ba8f-53e4a2154ce3', name:'Sunmi D3 Pro', price:1024, t:'o' },
-  { id:'c36c776a-194a-4c32-b758-8ffc09cf991b', name:'Sunmi D3 Mini', price:690, t:'o' },
-  { id:'149f374e-6341-4a33-a1bc-23dff12ad749', name:'Sunmi D3 80mm', price:1049, t:'o' },
-  { id:'9a92555d-b845-4282-ae38-963980fc1479', name:'Sunmi T3 80mm', price:1249, t:'o' },
+  { id:'fdb37b6a-4ad5-4a46-ba8f-53e4a2154ce3', name:'Sunmi D3 Pro', price:1024, t:'o', info:'15,6" Full-HD Display · Android 13 · kein integrierter Drucker · Kundendisplay 10,1" optional · Garantie laut Hersteller' },
+  { id:'c36c776a-194a-4c32-b758-8ffc09cf991b', name:'Sunmi D3 Mini', price:690, t:'o', info:'10,1" HD Display · Android 13 · Bondrucker 80mm integriert (Auto-Cutter) · Kundendisplay 4" IPS Touch · Garantie laut Hersteller' },
+  { id:'149f374e-6341-4a33-a1bc-23dff12ad749', name:'Sunmi D3 80mm', price:1049, t:'o', info:'15,6" Full-HD Display · Android 14 · Bondrucker 80mm integriert · Kundendisplay 10,1" optional · Garantie laut Hersteller' },
+  { id:'9a92555d-b845-4282-ae38-963980fc1479', name:'Sunmi T3 80mm', price:1249, t:'o', info:'15,6" Full-HD Display · Android 13 · Bondrucker 80mm integriert (Auto-Cutter) · kein Kundendisplay · Garantie laut Hersteller' },
   { id:'bbcba755-3fa2-4c21-85e2-9842a1baa541', name:'D3 Pro / D3 80mm / T3 80mm Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
-  { id:'91b8a7fa-5b0c-44a4-a4a7-fd6c6f0b25f6', name:'Sunmi V3H', price:649, t:'o' },
-  { id:'4bc17b56-5e4e-49cf-b4fb-a0e4d295335a', name:'Sunmi L3H', price:599, t:'o' },
+  { id:'91b8a7fa-5b0c-44a4-a4a7-fd6c6f0b25f6', name:'Sunmi V3H', price:649, t:'o', info:'6,75" HD+ Display · Android 13 · Bondrucker 58mm integriert · kein Kundendisplay · Garantie laut Hersteller' },
+  { id:'4bc17b56-5e4e-49cf-b4fb-a0e4d295335a', name:'Sunmi L3H', price:599, t:'o', info:'6,8" HD+ Display · Android 14 · kein integrierter Drucker · kein Kundendisplay · Garantie laut Hersteller' },
   { id:'1a4f3300-edd2-477f-8188-604b8ef8fba3', name:'V3H/L3H/D3 mini Garantieverlängerung', price:90, t:'o', info:'auf 48 Monate' },
   { id:'7ea30866-25d7-4fa2-b970-0fd6911a3de8', name:'Hobex ViA PRO', price:1149, t:'o' },
   { id:'4be8df2f-6293-4a06-b559-d7856c12c1bf', name:'Addminat-Kellnerschloss', price:178, t:'o', info:'inkl 5 Schlüssel' },
@@ -228,15 +228,15 @@ export const KUECHENMONITORE: Item[] = [
 ];
 
 export const KUECHENMONITORE_SUNMI: Item[] = [
-  { id:'5c1b7d35-27b4-4bc1-b44c-fb8a2f1ca153', name:"Flex 3 22''", price:1139, t:'o' },
-  { id:'9105cea7-5ce7-4cab-87ba-12395c184861', name:"Flex 3 27''", price:1749, t:'o' },
+  { id:'5c1b7d35-27b4-4bc1-b44c-fb8a2f1ca153', name:"Flex 3 22''", price:1139, t:'o', info:'22" Full-HD Touchdisplay · Android 13 · kein integrierter Drucker · kein Kundendisplay · Garantie laut Hersteller' },
+  { id:'9105cea7-5ce7-4cab-87ba-12395c184861', name:"Flex 3 27''", price:1749, t:'o', info:'27" Full-HD Touchdisplay · Android 13 · kein integrierter Drucker · kein Kundendisplay · Garantie laut Hersteller' },
   { id:'dcfacd8a-e274-44ae-89f7-ecc03164c439', name:'Flex 3 Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
 ];
 
 // VK = EK × 2
 export const KIOSK: Item[] = [
-  { id:'kiosk-flex-3-27', name:"Flex Kiosk 3 27''", price:1886, t:'o' },
-  { id:'kiosk-flex-3-22', name:"Flex Kiosk 3 22''", price:1716, t:'o' },
+  { id:'kiosk-flex-3-27', name:"Flex Kiosk 3 27''", price:1886, t:'o', info:'27" Full-HD Touchdisplay · Android 13 · kein integrierter Drucker · kein Kundendisplay · Garantie laut Hersteller' },
+  { id:'kiosk-flex-3-22', name:"Flex Kiosk 3 22''", price:1716, t:'o', info:'22" Full-HD Touchdisplay · Android 13 · kein integrierter Drucker · kein Kundendisplay · Garantie laut Hersteller' },
   { id:'kiosk-flex-tisch-stand', name:'Restaurant Tisch Stand für Flex', price:756, t:'o' },
   { id:'kiosk-flex-floor-stand', name:'Restaurant Floor Stand für Flex', price:1071.8, t:'o' },
 ];
