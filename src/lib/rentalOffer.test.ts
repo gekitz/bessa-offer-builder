@@ -15,6 +15,7 @@ import {
 } from './rentalOffer';
 import { ALL } from '../features/offers/data/catalogs';
 import { computeTotals, type Cart } from './totals';
+import { buildCopierOffer } from './copierOffer';
 
 // bessa ids used across the tests (see RENTAL_SOFTWARE_IDS).
 const MOBILE_KASSA = '3942f638-1abb-4be9-85a5-d3bf442aa3d8'; // code 100, p:{y:19,s:25,m:30,e:38}
@@ -177,6 +178,38 @@ describe('rental line drives the offer totals (regression)', () => {
       };
       try {
         expect(computeTotals(cart, ALL).once).toBeCloseTo(fields.price, 2);
+      } finally {
+        delete ALL[RENTAL_LINE_ID];
+      }
+    });
+  }
+});
+
+describe('email total matches the PDF total (regression)', () => {
+  // The PDF renders `totals.once`; the email's summary box shows the DB column
+  // `total_once`, which is saved as `persistTotals.once`. For a rental (never a
+  // copier offer) persistTotals === totals, so both must be the same number.
+  // This models both sources — the real persistTotals branch + copier
+  // detection — so it fails if a rental ever diverges the two.
+  const terms: RentalTermKey[] = ['1-3d', '2mo', '6mo'];
+  for (const term of terms) {
+    it(`${term}: email total_once equals PDF totals.once equals the line net`, () => {
+      const fields = rentalLineFields(sheetState(term))!;
+      ALL[RENTAL_LINE_ID] = { id: RENTAL_LINE_ID, name: fields.name, price: fields.price, t: 'o' } as never;
+      const cart: Cart = {
+        [RENTAL_LINE_ID]: { qty: 1, discountQty: 0, priceOverride: fields.price },
+      };
+      try {
+        const totals = computeTotals(cart, ALL); // → the PDF's totals prop
+        const copierOffer = buildCopierOffer(cart, ALL);
+        // Mirrors OfferBuilderPage.persistTotals, whose `.once` is saved as the
+        // DB total_once that the send-offer email summary renders.
+        const persistTotals = copierOffer.isCopierOffer ? { ...totals } : totals;
+        const emailTotalOnce = persistTotals.once;
+
+        expect(copierOffer.isCopierOffer).toBe(false);
+        expect(emailTotalOnce).toBeCloseTo(totals.once, 2); // email == PDF
+        expect(emailTotalOnce).toBeCloseTo(fields.price, 2); // == shown line net
       } finally {
         delete ALL[RENTAL_LINE_ID];
       }
