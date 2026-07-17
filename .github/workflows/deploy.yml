@@ -1,0 +1,82 @@
+name: Deploy to GitHub Pages
+
+# Builds the Vite SPA and publishes it to the gh-pages branch (served at
+# bessa.kitz.co.at) on every push to main, so production never drifts behind
+# the default branch again. Can also be run manually from the Actions tab.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# peaceiris/actions-gh-pages pushes the build to the gh-pages branch.
+permissions:
+  contents: write
+
+# Never run two deploys at once; let an in-flight deploy finish rather than
+# publishing a half-built site.
+concurrency:
+  group: deploy-github-pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fail loudly if the build-time config is missing, so we never publish an
+      # env-less (broken) bundle over the live site. VITE_PUBLIC_APP_URL is
+      # optional (falls back to window.location.origin).
+      - name: Verify required secrets are set
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
+        run: |
+          missing=0
+          for v in VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY VITE_VAPID_PUBLIC_KEY; do
+            if [ -z "${!v}" ]; then echo "::error::Missing required secret $v"; missing=1; fi
+          done
+          if [ "$missing" = "1" ]; then
+            echo "Add the missing secrets under Settings → Secrets and variables → Actions, then re-run."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Yarn Berry (3.x) is pinned via package.json "packageManager".
+      - name: Enable Corepack
+        run: corepack enable
+
+      # Cache Berry's project-local package cache (.yarn/cache) keyed on the
+      # lockfile so installs are fast without relying on setup-node's yarn cache
+      # (which is finicky with Berry).
+      - name: Cache Yarn packages
+        uses: actions/cache@v4
+        with:
+          path: .yarn/cache
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            yarn-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build
+        run: yarn build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_PUBLIC_APP_URL: ${{ secrets.VITE_PUBLIC_APP_URL }}
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
+
+      # Publishes dist/ to the gh-pages branch. dist/CNAME (from public/CNAME)
+      # keeps the custom domain; .nojekyll is added automatically.
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
