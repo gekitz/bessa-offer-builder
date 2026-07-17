@@ -349,7 +349,28 @@ function OfferBuilderPageInner() {
       return;
     }
     ALL[RENTAL_LINE_ID] = { id: RENTAL_LINE_ID, name: fields.name, price: fields.price, t: 'o', description: fields.description };
-    setCart(c => (c[RENTAL_LINE_ID] ? c : { ...c, [RENTAL_LINE_ID]: { qty: 1, discountQty: 0 } }));
+    // Carry the computed net price on the cart line itself (priceOverride), not
+    // only on the mutable ALL entry. The `totals` memo is keyed on `cart`, so if
+    // the price lived only in ALL it wouldn't recompute when the calculator
+    // changes — the line would show the new price while the summary stayed
+    // frozen at the old one. Keeping it in the cart keeps line + totals in sync.
+    setCart(c => {
+      const existing = c[RENTAL_LINE_ID];
+      const next = {
+        qty: existing?.qty ?? 1,
+        discountQty: existing?.discountQty ?? 0,
+        priceOverride: fields.price,
+      };
+      if (
+        existing &&
+        existing.qty === next.qty &&
+        existing.discountQty === next.discountQty &&
+        existing.priceOverride === next.priceOverride
+      ) {
+        return c;
+      }
+      return { ...c, [RENTAL_LINE_ID]: next };
+    });
     setCartOrder(prev => (prev.includes(RENTAL_LINE_ID) ? prev : [...prev, RENTAL_LINE_ID]));
   }, [rental, offerType]);
 

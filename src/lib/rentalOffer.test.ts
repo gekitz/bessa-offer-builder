@@ -14,6 +14,7 @@ import {
   type RentalTermKey,
 } from './rentalOffer';
 import { ALL } from '../features/offers/data/catalogs';
+import { computeTotals, type Cart } from './totals';
 
 // bessa ids used across the tests (see RENTAL_SOFTWARE_IDS).
 const MOBILE_KASSA = '3942f638-1abb-4be9-85a5-d3bf442aa3d8'; // code 100, p:{y:19,s:25,m:30,e:38}
@@ -156,6 +157,31 @@ describe('rentalLineFields — the single offer line', () => {
       ].join('\n'),
     );
   });
+});
+
+describe('rental line drives the offer totals (regression)', () => {
+  // Bug: the "Leihstellung POS" line showed one price while the EINMALIGE
+  // KOSTEN summary showed another. Cause: the net was stashed only on the
+  // mutable ALL entry, but the totals memo is keyed on `cart`, so it never
+  // recomputed when the calculator changed. The fix carries the net on the
+  // cart line (priceOverride) so line + totals stay in sync. Here we set a
+  // deliberately WRONG price on the ALL entry so the test fails if the totals
+  // ever read it instead of the price carried on the cart line.
+  const terms: RentalTermKey[] = ['1-3d', '2mo', '6mo'];
+  for (const term of terms) {
+    it(`${term}: summary once-total equals the rental line price`, () => {
+      const fields = rentalLineFields(sheetState(term))!;
+      ALL[RENTAL_LINE_ID] = { id: RENTAL_LINE_ID, name: fields.name, price: 999999, t: 'o' } as never;
+      const cart: Cart = {
+        [RENTAL_LINE_ID]: { qty: 1, discountQty: 0, priceOverride: fields.price },
+      };
+      try {
+        expect(computeTotals(cart, ALL).once).toBeCloseTo(fields.price, 2);
+      } finally {
+        delete ALL[RENTAL_LINE_ID];
+      }
+    });
+  }
 });
 
 describe('edge cases', () => {
