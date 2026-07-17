@@ -121,6 +121,47 @@ describe('TicketsPage', () => {
     expect(screen.getByTestId('board-column-in_progress')).toBeInTheDocument();
   });
 
+  it('caps the closed column: loads active statuses in full but closed by a recent window', async () => {
+    const u = userEvent.setup();
+    renderAt();
+    await screen.findByText('Drucker');
+    listTicketsMock.mockClear();
+    await u.click(screen.getByTestId('view-toggle-board'));
+    await waitFor(() => expect(screen.getByTestId('ticket-board')).toBeInTheDocument());
+
+    const filters = listTicketsMock.mock.calls.map(
+      (c) => c[0] as { status?: string[]; closedSince?: string },
+    );
+    // Active statuses are fetched in full (no date cap)...
+    expect(filters).toContainEqual({ status: ['open', 'in_progress', 'waiting', 'review'] });
+    // ...but closed tickets only within a recent window.
+    const closed = filters.find((f) => f.status?.length === 1 && f.status[0] === 'closed');
+    expect(closed?.closedSince).toEqual(expect.any(String));
+  });
+
+  it('links to the full closed list when older closed tickets are hidden from the board', async () => {
+    const u = userEvent.setup();
+    // 3 closed tickets exist overall, but the board loads none recently → all hidden.
+    listTicketCountsMock.mockResolvedValue([
+      { status: 'closed', poolAbteilungId: null },
+      { status: 'closed', poolAbteilungId: null },
+      { status: 'closed', poolAbteilungId: null },
+    ]);
+    renderAt();
+    await screen.findByText('Drucker');
+    await u.click(screen.getByTestId('view-toggle-board'));
+    await waitFor(() => expect(screen.getByTestId('ticket-board')).toBeInTheDocument());
+
+    const link = await screen.findByText(/ältere in der Liste ansehen/);
+    listTicketsMock.mockClear();
+    await u.click(link);
+
+    await waitFor(() => {
+      const filters = listTicketsMock.mock.calls.map((c) => c[0]);
+      expect(filters).toContainEqual({ status: ['closed'] });
+    });
+  });
+
   it('persists view preference to localStorage', async () => {
     const u = userEvent.setup();
     renderAt();

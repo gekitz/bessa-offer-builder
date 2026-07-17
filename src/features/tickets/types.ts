@@ -111,6 +111,7 @@ export interface TicketFilters {
   assignedTo?: string;
   mesonicCustomerId?: string;
   search?: string; // freetext over title/description/customer_name/ticket_number
+  closedSince?: string; // ISO timestamp; keep only tickets with closed_at >= this
 }
 
 // ─────────────────────────────────────────────────────────────────────

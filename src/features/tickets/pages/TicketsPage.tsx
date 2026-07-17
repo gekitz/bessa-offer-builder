@@ -42,6 +42,12 @@ const PRIORITY_BADGE: Record<Ticket['priority'], string> = {
 
 const LS_VIEW_KEY = 'kitz.tickets.view';
 
+// The board is a work-in-progress tool: it always shows every active ticket,
+// but only tickets closed within this window — older ones live in the list
+// view (status = Geschlossen), so the "Geschlossen" column can't grow forever.
+const BOARD_ACTIVE_STATUSES: TicketStatus[] = ['open', 'in_progress', 'waiting', 'review'];
+const BOARD_CLOSED_WINDOW_DAYS = 10;
+
 function loadView(): 'list' | 'board' {
   if (typeof window === 'undefined') return 'list';
   return window.localStorage.getItem(LS_VIEW_KEY) === 'board' ? 'board' : 'list';
@@ -159,9 +165,25 @@ export default function TicketsPage() {
     setLoading(true);
     setError(null);
     try {
-      // Board view shows all statuses so it can group them into columns.
-      const filters = view === 'board' || statusTab === 'all' ? {} : { status: [statusTab] };
-      const data = await listTickets(filters);
+      let data: Ticket[];
+      if (view === 'board') {
+        // Board view groups every active ticket into columns, but caps the
+        // "Geschlossen" column to a recent window so it can't grow unbounded.
+        const cutoff = new Date(
+          Date.now() - BOARD_CLOSED_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+        ).toISOString();
+        const [active, recentClosed] = await Promise.all([
+          listTickets({ status: BOARD_ACTIVE_STATUSES }),
+          listTickets({ status: ['closed'], closedSince: cutoff }),
+        ]);
+        // Dedupe by id defensively (a ticket is only ever in one bucket).
+        const byId = new Map<string, Ticket>();
+        for (const t of [...active, ...recentClosed]) byId.set(t.id, t);
+        data = [...byId.values()];
+      } else {
+        const filters = statusTab === 'all' ? {} : { status: [statusTab] };
+        data = await listTickets(filters);
+      }
       setTickets(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -263,8 +285,23 @@ export default function TicketsPage() {
     return list;
   }, [tickets, search, poolFilter, assigneeFilter, currentEmployeeId]);
 
+  // How many closed tickets the board is hiding (older than the window).
+  // counts covers every ticket regardless of the board's date cap.
+  const hiddenClosedCount = useMemo(() => {
+    if (view !== 'board') return 0;
+    const totalClosed = counts.filter((c) => c.status === 'closed').length;
+    const loadedClosed = tickets.filter((t) => t.status === 'closed').length;
+    return Math.max(0, totalClosed - loadedClosed);
+  }, [view, counts, tickets]);
+
   function openTicket(t: Ticket) {
     navigate(`/tickets/${t.id}`);
+  }
+
+  // Jump to the full list of closed tickets (the board only shows recent ones).
+  function showClosedArchive() {
+    setView('list');
+    setStatusTab('closed');
   }
 
   // Matrix drill-down: focus the list on the chosen pool (+ status).
@@ -439,21 +476,38 @@ export default function TicketsPage() {
             <div className="text-sm text-slate-500">Keine Tickets in dieser Ansicht.</div>
           </div>
         ) : view === 'board' ? (
-          <TicketBoard
-            tickets={filteredTickets}
-            onTicketClick={openTicket}
-            onCardMove={handleCardMove}
-            // Group into per-pool swimlanes only when no single pool is
-            // selected; a specific pool shows as a plain board.
-            swimlanes={
-              poolFilter === 'all'
-                ? [
-                    ...pools.map((p) => ({ id: p.id as number | 'none', name: p.name })),
-                    { id: 'none' as number | 'none', name: 'Ohne Zuordnung' },
-                  ]
-                : undefined
-            }
-          />
+          <>
+            <TicketBoard
+              tickets={filteredTickets}
+              onTicketClick={openTicket}
+              onCardMove={handleCardMove}
+              // Group into per-pool swimlanes only when no single pool is
+              // selected; a specific pool shows as a plain board.
+              swimlanes={
+                poolFilter === 'all'
+                  ? [
+                      ...pools.map((p) => ({ id: p.id as number | 'none', name: p.name })),
+                      { id: 'none' as number | 'none', name: 'Ohne Zuordnung' },
+                    ]
+                  : undefined
+              }
+            />
+            <div className="mt-3 text-xs text-slate-500">
+              Das Board zeigt nur in den letzten {BOARD_CLOSED_WINDOW_DAYS} Tagen geschlossene Tickets.
+              {hiddenClosedCount > 0 && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    onClick={showClosedArchive}
+                    className="font-medium text-red-600 hover:text-red-700 underline underline-offset-2"
+                  >
+                    {hiddenClosedCount} ältere in der Liste ansehen
+                  </button>
+                </>
+              )}
+            </div>
+          </>
         ) : (
           <ul className="space-y-2">
             {filteredTickets.map((t) => {

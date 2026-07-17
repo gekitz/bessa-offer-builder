@@ -380,6 +380,7 @@ export async function listTickets(filters: TicketFilters = {}): Promise<Ticket[]
   if (filters.poolAbteilungId != null) q = q.eq('pool_abteilung_id', filters.poolAbteilungId);
   if (filters.assignedTo) q = q.eq('assigned_to', filters.assignedTo);
   if (filters.mesonicCustomerId) q = q.eq('mesonic_customer_id', filters.mesonicCustomerId);
+  if (filters.closedSince) q = q.gte('closed_at', filters.closedSince);
   if (filters.search) {
     const term = filters.search.replace(/[%_]/g, '\\$&');
     q = q.or(
