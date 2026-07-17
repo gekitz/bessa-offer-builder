@@ -230,7 +230,12 @@ serve(async (req: Request) => {
     }
 
     const t = ticket as TicketRow;
+    // Customer-facing portal link (share_code). Only ever sent to the customer.
     const shareUrl = `${publicBase}/?t=${encodeURIComponent(t.share_code)}`;
+    // Internal workspace deep-link. Staff get THIS, never the portal — the
+    // portal's comment box posts as the customer (is_external=true), so a
+    // staff member replying there would be misattributed.
+    const internalUrl = `${publicBase}/#/tickets/${t.id}`;
 
     // Resolve event-specific data
     let appointment: AppointmentRow | null = null;
@@ -454,9 +459,9 @@ serve(async (req: Request) => {
         heading: internalSubject,
         accent,
         bodyHtml: internalBodyHtml,
-        // Internal link should also work — same share_code is fine
-        // since the staff member also has access via the auth path.
-        footerLink: { href: shareUrl, label: 'Ticket öffnen' },
+        // Deep-link into the internal workspace, NOT the public portal — so
+        // staff never comment through the customer-facing box.
+        footerLink: { href: internalUrl, label: 'Ticket öffnen' },
       });
       const r = await sendResend({ apiKey: resendApiKey, to: assigneeEmail, subject: internalSubject, html });
       sent.internal = r.ok ? r.id ?? 'ok' : { skipped: 'resend failed' };
@@ -492,8 +497,8 @@ serve(async (req: Request) => {
       })();
 
       // Deep-link into the workspace SPA, not the public portal —
-      // staff have the internal view available behind auth.
-      const internalUrl = `${publicBase}/#/tickets/${t.id}`;
+      // staff have the internal view available behind auth (internalUrl
+      // defined once above, shared with the internal email).
       const r = await sendPush({
         supabaseUrl,
         serviceKey,
