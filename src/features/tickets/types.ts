@@ -322,6 +322,9 @@ export interface TicketComment {
   // External = posted by the customer through the public share-link
   // portal. Internal staff comments are isExternal=false.
   isExternal: boolean;
+  // Internal-only = a staff comment hidden from the customer portal.
+  // Distinct from isExternal (who posted it) — this is who may read it.
+  isInternal: boolean;
   createdAt: string;
   // Populated by join
   _authorName?: string;

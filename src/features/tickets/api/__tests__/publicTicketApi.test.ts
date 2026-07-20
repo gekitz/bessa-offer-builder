@@ -135,6 +135,32 @@ describe('getPublicTicketView', () => {
     expect(inCall!.args[1]).toEqual(['comment', 'status_change', 'milestone']);
   });
 
+  it('excludes internal-only comments from the customer timeline', async () => {
+    const ticketChain = makeChain({
+      data: {
+        id: 't-1', share_code: 'sc-1', ticket_number: '26-0000001',
+        title: 'X', description: null, kind: 'support', status: 'open',
+        customer_name: null, closed_at: null, resolution_note: null,
+        created_at: '',
+      },
+      error: null,
+    });
+    const apptChain = makeChain({ data: [], error: null });
+    const commentChain = makeChain({ data: [], error: null });
+    fromMock
+      .mockImplementationOnce(() => ticketChain)
+      .mockImplementationOnce(() => apptChain)
+      .mockImplementationOnce(() => commentChain);
+
+    await getPublicTicketView('sc-1');
+
+    // Defense-in-depth alongside RLS: staff comments flagged is_internal
+    // must never reach the portal projection.
+    const eqCall = commentChain._calls.find((c) => c.method === 'eq' && c.args[0] === 'is_internal');
+    expect(eqCall).toBeDefined();
+    expect(eqCall!.args[1]).toBe(false);
+  });
+
   it('exposes only public appointment fields (no internal standort/notes/created_by)', async () => {
     const ticketChain = makeChain({
       data: {

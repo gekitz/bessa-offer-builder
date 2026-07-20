@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, Loader2, MessageSquare, Send, User } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff, Loader2, MessageSquare, Send, User } from 'lucide-react';
 import { addComment, listComments } from '../api/ticketApi';
 import type { TicketComment } from '../types';
 
@@ -35,6 +35,7 @@ export default function TicketComments({ ticketId, currentEmployeeId = null }: T
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [isInternal, setIsInternal] = useState(true);
   const [posting, setPosting] = useState(false);
 
   const reload = useCallback(async () => {
@@ -60,9 +61,13 @@ export default function TicketComments({ ticketId, currentEmployeeId = null }: T
     setPosting(true);
     setError(null);
     try {
-      const c = await addComment(ticketId, draft.trim(), { createdBy: currentEmployeeId ?? undefined });
+      const c = await addComment(ticketId, draft.trim(), {
+        createdBy: currentEmployeeId ?? undefined,
+        isInternal,
+      });
       setComments((prev) => [...prev, c]);
       setDraft('');
+      setIsInternal(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -114,6 +119,19 @@ export default function TicketComments({ ticketId, currentEmployeeId = null }: T
                     {SYSTEM_KIND_LABEL[c.kind]}
                   </span>
                 )}
+                {!c.isExternal && c.kind === 'comment' && (
+                  c.isInternal ? (
+                    <span className="inline-flex items-center gap-1 rounded bg-amber-100 text-amber-800 px-1.5 py-0.5 text-[10px] font-medium">
+                      <EyeOff size={10} />
+                      Intern
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded bg-emerald-100 text-emerald-800 px-1.5 py-0.5 text-[10px] font-medium">
+                      <Eye size={10} />
+                      Kunde sieht
+                    </span>
+                  )
+                )}
                 <span className="text-slate-400">{relTime(c.createdAt)}</span>
               </div>
               {c.body && <div className="text-slate-700 whitespace-pre-wrap">{c.body}</div>}
@@ -130,23 +148,55 @@ export default function TicketComments({ ticketId, currentEmployeeId = null }: T
       )}
 
       {/* Composer */}
-      <form onSubmit={handlePost} className="flex gap-2">
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Kommentar hinzufügen…"
-          rows={2}
-          className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30 resize-y"
-          disabled={posting}
-        />
-        <button
-          type="submit"
-          disabled={posting || !draft.trim()}
-          className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium hover:bg-slate-900 disabled:opacity-50 self-start"
+      <form onSubmit={handlePost} className="space-y-2">
+        <div className="flex gap-2">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Kommentar hinzufügen…"
+            rows={2}
+            className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30 resize-y"
+            disabled={posting}
+          />
+          <button
+            type="submit"
+            disabled={posting || !draft.trim()}
+            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium hover:bg-slate-900 disabled:opacity-50 self-start"
+          >
+            {posting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+            Senden
+          </button>
+        </div>
+        {/* Visibility toggle — Intern (default) hides the comment from the
+            customer portal; Extern makes it visible as "Anmerkung KITZ". */}
+        <div
+          className="inline-flex rounded-lg border border-slate-200 p-0.5 text-xs font-medium"
+          role="group"
+          aria-label="Sichtbarkeit"
         >
-          {posting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-          Senden
-        </button>
+          <button
+            type="button"
+            onClick={() => setIsInternal(true)}
+            aria-pressed={isInternal}
+            className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 transition-colors ${
+              isInternal ? 'bg-amber-100 text-amber-800' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <EyeOff size={12} />
+            Intern
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsInternal(false)}
+            aria-pressed={!isInternal}
+            className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 transition-colors ${
+              !isInternal ? 'bg-emerald-100 text-emerald-800' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Eye size={12} />
+            Extern · Kunde sieht
+          </button>
+        </div>
       </form>
     </div>
   );

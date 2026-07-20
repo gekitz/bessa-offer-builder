@@ -318,6 +318,7 @@ function rowToComment(r: any): TicketComment {
     metadata: r.metadata,
     createdBy: r.created_by,
     isExternal: !!r.is_external,
+    isInternal: !!r.is_internal,
     createdAt: r.created_at,
     _authorName: r.employees?.name,
   };
@@ -983,7 +984,7 @@ export async function removeRepairOrderAdjustment(id: string): Promise<void> {
 // Comments
 // ─────────────────────────────────────────────────────────────────────
 
-const COMMENT_COLS = 'id, ticket_id, kind, body, metadata, created_by, created_at, is_external';
+const COMMENT_COLS = 'id, ticket_id, kind, body, metadata, created_by, created_at, is_external, is_internal';
 
 export async function listComments(ticketId: string): Promise<TicketComment[]> {
   const sb = requireSupabase();
@@ -999,7 +1000,7 @@ export async function listComments(ticketId: string): Promise<TicketComment[]> {
 export async function addComment(
   ticketId: string,
   body: string,
-  opts: { createdBy?: string } = {},
+  opts: { createdBy?: string; isInternal?: boolean } = {},
 ): Promise<TicketComment> {
   const sb = requireSupabase();
   const { data, error } = await sb
@@ -1009,6 +1010,9 @@ export async function addComment(
       kind: 'comment',
       body,
       created_by: opts.createdBy ?? null,
+      // New staff comments are internal by default — customer visibility
+      // is opt-in via the Intern/Extern toggle in the composer.
+      is_internal: opts.isInternal ?? true,
     })
     .select(COMMENT_COLS)
     .single();

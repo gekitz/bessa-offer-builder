@@ -142,6 +142,7 @@ export async function getPublicTicketView(shareCode: string): Promise<PublicTick
       .select(COMMENT_COLS)
       .eq('ticket_id', ticket.id)
       .in('kind', ['comment', 'status_change', 'milestone'])
+      .eq('is_internal', false)
       .order('created_at'),
   ]);
   if (e2) throw e2;
