@@ -20,3 +20,10 @@ verify_jwt = false
 # gateway-level JWT enforcement would reject the pg_net call.
 [functions.notify-offer-accepted]
 verify_jwt = false
+
+# Proxy to the Mesonic WinLine MDP WebService. Only logged-in staff may
+# reach it, so gateway-level JWT enforcement stays ON (the function also
+# re-verifies the token via verifyAuth). This block is explicit for clarity;
+# omitting it would default to the same verify_jwt = true.
+[functions.mesonic-proxy]
+verify_jwt = true
