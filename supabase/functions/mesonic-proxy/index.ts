@@ -145,6 +145,20 @@ async function mesonicExport(params: {
   return text;
 }
 
+// ─── Wrap an import record in the MESOWebService envelope ───
+// The import XSD's root element is <MESOWebService TemplateType Template>
+// containing the record element(s). The export RESPONSE uses the same envelope.
+// Callers send just the bare record (e.g. <WebKontenImport>…</WebKontenImport>);
+// WinLine's import parser appears to expect the full document, so we wrap it here
+// unless the caller already supplied the envelope.
+function wrapImportEnvelope(xmlData: string, type: number, template: string): string {
+  if (/<MESOWebService[\s>]/i.test(xmlData)) return xmlData; // already wrapped
+  return `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<MESOWebService TemplateType="${type}" Template="${template}">\n` +
+    `${xmlData}\n` +
+    `</MESOWebService>`;
+}
+
 // ─── Mesonic import (write data) ───
 async function mesonicImport(params: {
   type: number;
@@ -154,6 +168,7 @@ async function mesonicImport(params: {
   option?: number; // Beleg option: 0=new, 1=delivery from order, etc.
 }): Promise<string> {
   const cfg = getMesonicConfig();
+  const body = wrapImportEnvelope(params.xmlData, params.type, params.template);
 
   const doImport = async (session: string) => {
     const queryParams = new URLSearchParams({
@@ -168,7 +183,7 @@ async function mesonicImport(params: {
     }
     const url = `${cfg.url}/ewlservice/import?${queryParams.toString()}`;
     console.log(`[mesonic] import URL: ${url}`);
-    console.log(`[mesonic] import body: ${params.xmlData}`);
+    console.log(`[mesonic] import body: ${body}`);
 
     // Timeout after 30s to avoid Supabase Edge Function 60s hard limit
     const controller = new AbortController();
@@ -177,7 +192,7 @@ async function mesonicImport(params: {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "text/xml; charset=utf-8" },
-        body: params.xmlData,
+        body,
         signal: controller.signal,
       });
       return await res.text();
@@ -452,7 +467,7 @@ serve(async (req: Request) => {
           url: url.replace(session, session.substring(0, 8) + '...'),
           method: 'POST',
           contentType: 'text/xml; charset=utf-8',
-          body: xmlData,
+          body: wrapImportEnvelope(xmlData, type, template),
           note: 'This request was NOT sent to Mesonic. Use action="import" to actually send it.',
         }, null, 2),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
