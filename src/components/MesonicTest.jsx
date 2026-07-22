@@ -80,33 +80,39 @@ const TEST_SECTIONS = [
         label: '13. Import LIVE — validate only, Defaults (ActionCode=0)',
         run: () => validateCustomer(SAMPLE_NEW_CUSTOMER),
       },
+      {
+        // Isolates the '+' Kontonummer: a concrete number skips WinLine's
+        // "assign next free number" logic. Still validate-only (ActionCode=0).
+        label: '14. Import LIVE — validate only, konkrete Kontonummer (ActionCode=0)',
+        run: () => validateCustomer({ ...SAMPLE_NEW_CUSTOMER, Kontonummer: '12345678911' }),
+      },
     ],
   },
   {
     title: 'Artikel (Type 4)',
     tests: [
       {
-        label: '14. Single article (1) — erster Artikel',
+        label: '15. Single article (1) — erster Artikel',
         run: () => mesonicExport(TYPES.ARTICLE, TEMPLATES.ARTICLE_DETAIL, '1'),
       },
       {
-        label: '15. WHERE search — Artikel "bessa"',
+        label: '16. WHERE search — Artikel "bessa"',
         run: () => searchArticles('bessa'),
       },
       {
-        label: '16. Raw XML — erster Artikel',
+        label: '17. Raw XML — erster Artikel',
         run: () => mesonicExportRaw(TYPES.ARTICLE, TEMPLATES.ARTICLE_DETAIL, '1'),
       },
       {
-        label: '17. WHERE search — "Kassa"',
+        label: '18. WHERE search — "Kassa"',
         run: () => searchArticles('Kassa'),
       },
       {
-        label: '18. WHERE search — "Mobil"',
+        label: '19. WHERE search — "Mobil"',
         run: () => searchArticles('Mobil'),
       },
       {
-        label: '19. WHERE search — "Sunmi"',
+        label: '20. WHERE search — "Sunmi"',
         run: () => searchArticles('Sunmi'),
       },
     ],
@@ -115,15 +121,15 @@ const TEST_SECTIONS = [
     title: 'Preise (Type 5)',
     tests: [
       {
-        label: '20. Price export — Artikel 1',
+        label: '21. Price export — Artikel 1',
         run: () => mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, '1'),
       },
       {
-        label: '21. Raw XML — Price Artikel 1',
+        label: '22. Raw XML — Price Artikel 1',
         run: () => mesonicExportRaw(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, '1'),
       },
       {
-        label: '22. Price export — alle Preise',
+        label: '23. Price export — alle Preise',
         run: () => mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, "where T024.C003 <> ''"),
       },
     ],
