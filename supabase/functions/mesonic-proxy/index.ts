@@ -189,10 +189,16 @@ async function mesonicImport(params: {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
     try {
+      // The MDP webservice expects the XML as a form field named `data`
+      // (application/x-www-form-urlencoded) — NOT a raw text/xml body. The
+      // whitepaper drives the import via an HTML <form><textarea name="data">.
+      // Sending a raw body makes the server report "Missing Parameter".
+      const form = new URLSearchParams();
+      form.set("data", body);
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "text/xml; charset=utf-8" },
-        body,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: form.toString(),
         signal: controller.signal,
       });
       return await res.text();
@@ -466,9 +472,10 @@ serve(async (req: Request) => {
           debug: true,
           url: url.replace(session, session.substring(0, 8) + '...'),
           method: 'POST',
-          contentType: 'text/xml; charset=utf-8',
+          contentType: 'application/x-www-form-urlencoded',
+          formField: 'data',
           body: wrapImportEnvelope(xmlData, type, template),
-          note: 'This request was NOT sent to Mesonic. Use action="import" to actually send it.',
+          note: 'Sent as form field `data` (application/x-www-form-urlencoded). This request was NOT sent to Mesonic. Use action="import" to actually send it.',
         }, null, 2),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
