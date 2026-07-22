@@ -1,5 +1,18 @@
 import { useState, useRef } from 'react';
-import { ping, mesonicExport, mesonicExportRaw, mesonicImport, searchArticles, getArticle, TYPES, TEMPLATES } from '../lib/mesonicApi';
+import { ping, mesonicExport, mesonicExportRaw, mesonicImport, searchArticles, getArticle, saveCustomer, validateCustomer, buildKontenImportXml, TYPES, TEMPLATES } from '../lib/mesonicApi';
+
+// Sample new-customer payload — only the fields a salesperson would enter.
+// Kontonummer is omitted on purpose so saveCustomer() defaults it to '+' (new
+// account); the mandatory ERP fields (Kennzeichen, BKZ1, …) come from defaults.
+const SAMPLE_NEW_CUSTOMER = {
+  Name: 'Testfirma Defaults GmbH',
+  Strasse: 'Testgasse 1',
+  Postleitzahl: '9020',
+  Ort: 'Klagenfurt',
+  Land: 'Österreich',
+  'E-Mail': 'info@testfirma.at',
+  Telefon: '+43 463 123456',
+};
 
 // Helper: call proxy with import_debug action (doesn't actually send to Mesonic)
 async function importDebug(type, template, xmlData, actionCode = 1) {
@@ -52,33 +65,48 @@ const TEST_SECTIONS = [
           '<WebKontenImport>\n  <Name>Testfirma Validate GmbH</Name>\n  <Ort>Klagenfurt</Ort>\n  <Strasse>Testgasse 1</Strasse>\n  <Postleitzahl>9020</Postleitzahl>\n</WebKontenImport>',
           { actionCode: 0 }),
       },
+      {
+        // Pure — no network. Shows the exact XML saveCustomer() would send:
+        // '+' Kontonummer, ERP defaults filled in, fields in XSD sequence order.
+        label: '11. XML-Vorschau — Neuer Kunde mit Defaults (kein Request)',
+        run: () => buildKontenImportXml(SAMPLE_NEW_CUSTOMER),
+      },
+      {
+        label: '12. Import DEBUG — Neuer Kunde mit Defaults (Dry Run)',
+        run: () => importDebug(TYPES.CUSTOMER, TEMPLATES.CUSTOMER_IMPORT,
+          buildKontenImportXml(SAMPLE_NEW_CUSTOMER), 1),
+      },
+      {
+        label: '13. Import LIVE — validate only, Defaults (ActionCode=0)',
+        run: () => validateCustomer(SAMPLE_NEW_CUSTOMER),
+      },
     ],
   },
   {
     title: 'Artikel (Type 4)',
     tests: [
       {
-        label: '11. Single article (1) — erster Artikel',
+        label: '14. Single article (1) — erster Artikel',
         run: () => mesonicExport(TYPES.ARTICLE, TEMPLATES.ARTICLE_DETAIL, '1'),
       },
       {
-        label: '12. WHERE search — Artikel "bessa"',
+        label: '15. WHERE search — Artikel "bessa"',
         run: () => searchArticles('bessa'),
       },
       {
-        label: '13. Raw XML — erster Artikel',
+        label: '16. Raw XML — erster Artikel',
         run: () => mesonicExportRaw(TYPES.ARTICLE, TEMPLATES.ARTICLE_DETAIL, '1'),
       },
       {
-        label: '14. WHERE search — "Kassa"',
+        label: '17. WHERE search — "Kassa"',
         run: () => searchArticles('Kassa'),
       },
       {
-        label: '15. WHERE search — "Mobil"',
+        label: '18. WHERE search — "Mobil"',
         run: () => searchArticles('Mobil'),
       },
       {
-        label: '16. WHERE search — "Sunmi"',
+        label: '19. WHERE search — "Sunmi"',
         run: () => searchArticles('Sunmi'),
       },
     ],
@@ -87,15 +115,15 @@ const TEST_SECTIONS = [
     title: 'Preise (Type 5)',
     tests: [
       {
-        label: '17. Price export — Artikel 1',
+        label: '20. Price export — Artikel 1',
         run: () => mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, '1'),
       },
       {
-        label: '18. Raw XML — Price Artikel 1',
+        label: '21. Raw XML — Price Artikel 1',
         run: () => mesonicExportRaw(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, '1'),
       },
       {
-        label: '19. Price export — alle Preise',
+        label: '22. Price export — alle Preise',
         run: () => mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, "where T024.C003 <> ''"),
       },
     ],

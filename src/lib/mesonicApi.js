@@ -182,11 +182,109 @@ export async function getCustomer(customerNumber) {
   return mesonicExport(TYPES.CUSTOMER, TEMPLATES.CUSTOMER_DETAIL, customerNumber);
 }
 
+// ─── WebKontenImport schema (from the endpoint's XSD) ───
+//
+// The XSD declares the fields in an xs:sequence, so ORDER IS ENFORCED —
+// elements must appear in exactly this order or the parser rejects them.
+// The first 9 are mandatory (minOccurs=1); the rest are optional.
+const KONTEN_IMPORT_ORDER = [
+  // ── mandatory ──
+  'Kontonummer',
+  'Kennzeichen',           // xs:integer
+  'Name',
+  'BKZ1',
+  'BKZ1Wechselkonto',
+  'ZahlungskonditionFIBU',
+  'Belegart',
+  'Preisliste',            // xs:integer
+  'ZahlungskonditionFAKT',
+  // ── optional ──
+  'E-Mail',
+  'Vorname',
+  'Nachname',
+  'Telefon',
+  'Strasse',
+  'Postleitzahl',
+  'Ort',
+  'Land',
+  'Mobiltelefonnummer',
+];
+
+const KONTEN_IMPORT_REQUIRED = new Set(KONTEN_IMPORT_ORDER.slice(0, 9));
+
+// Fields the XSD types as xs:integer — sent as bare integers (no padding/decimals).
+const KONTEN_IMPORT_INTEGER = new Set(['Kennzeichen', 'Preisliste']);
+
+// Defaults for the mandatory ERP fields a salesperson never types. Values are
+// the ones that are constant across every account in WebKontenExport. Kontonummer
+// defaults to '+' — the WinLine convention for "assign the next free number" when
+// creating a new account. Editing an existing customer passes a real Kontonummer,
+// which overrides this.
+const KONTEN_IMPORT_DEFAULTS = {
+  Kontonummer: '+',
+  Kennzeichen: '2',
+  BKZ1: '1230',
+  BKZ1Wechselkonto: '1230',
+  ZahlungskonditionFIBU: '3',
+  Belegart: '8',
+  Preisliste: '13',
+  ZahlungskonditionFAKT: '3',
+};
+
+// Map a few common non-canonical field names onto the XSD tag names.
+const KONTEN_IMPORT_ALIASES = {
+  Email: 'E-Mail',
+  EMail: 'E-Mail',
+  Mobiltelefon: 'Mobiltelefonnummer',
+};
+
+/**
+ * Build the <WebKontenImport> XML for one customer record.
+ *
+ * Applies ERP defaults for the mandatory fields, normalises a few common field
+ * aliases, coerces the xs:integer fields to bare integers, and emits the elements
+ * in the exact order the XSD's xs:sequence requires. Optional fields are only
+ * emitted when non-empty. Pure — no network — so it can be inspected and tested.
+ *
+ * @param {Object} fields — key/value pairs; canonical XSD tag names (aliases mapped)
+ * @returns {string} the <WebKontenImport>…</WebKontenImport> fragment
+ */
+export function buildKontenImportXml(fields = {}) {
+  // Normalise aliases, dropping empty values so defaults can fill in.
+  const provided = {};
+  for (const [rawKey, rawVal] of Object.entries(fields)) {
+    if (rawVal === undefined || rawVal === null || String(rawVal).trim() === '') continue;
+    const key = KONTEN_IMPORT_ALIASES[rawKey] || rawKey;
+    provided[key] = rawVal;
+  }
+
+  const merged = { ...KONTEN_IMPORT_DEFAULTS, ...provided };
+
+  const lines = [];
+  for (const key of KONTEN_IMPORT_ORDER) {
+    let val = merged[key];
+    const present = val !== undefined && val !== null && String(val).trim() !== '';
+    if (!present) continue; // optional field absent — skip (required fields have defaults)
+
+    val = String(val).trim();
+    if (KONTEN_IMPORT_INTEGER.has(key)) {
+      // xs:integer — strip anything that isn't a plain integer
+      const n = parseInt(val, 10);
+      if (!Number.isNaN(n)) val = String(n);
+    }
+    lines.push(`  <${key}>${escapeXml(val)}</${key}>`);
+  }
+
+  return `<WebKontenImport>\n${lines.join('\n')}\n</WebKontenImport>`;
+}
+
 /**
  * Create or update a customer in Mesonic.
  *
- * The XML uses the Import template tag as the record wrapper.
- * Field names must match what the template expects (same German names as export).
+ * New customers can omit Kontonummer (defaults to '+' — WinLine assigns the next
+ * free number). Editing passes the real Kontonummer. The mandatory ERP fields
+ * (Kennzeichen, BKZ1, Preisliste, …) default to their standard values unless the
+ * caller overrides them.
  *
  * @param {Object} fields — key/value pairs matching Mesonic field names
  *   e.g. { Name: 'Firma GmbH', Strasse: 'Hauptstr. 1', Postleitzahl: '9020', Ort: 'Klagenfurt', ... }
@@ -195,13 +293,7 @@ export async function getCustomer(customerNumber) {
  * @returns {Promise<Object>} Mesonic import response
  */
 export async function saveCustomer(fields, opts = {}) {
-  // Build XML: <WebKontenImport><Field>value</Field>...</WebKontenImport>
-  const xmlFields = Object.entries(fields)
-    .filter(([, v]) => v !== undefined && v !== null && v !== '')
-    .map(([k, v]) => `  <${k}>${escapeXml(String(v))}</${k}>`)
-    .join('\n');
-
-  const xmlData = `<WebKontenImport>\n${xmlFields}\n</WebKontenImport>`;
+  const xmlData = buildKontenImportXml(fields);
 
   return mesonicImport(TYPES.CUSTOMER, TEMPLATES.CUSTOMER_IMPORT, xmlData, {
     actionCode: opts.actionCode ?? 1,
