@@ -6,22 +6,25 @@ import { saveCustomer, validateCustomer } from '../lib/mesonicApi';
 // Customer Form — Create or edit a Mesonic customer
 // ═══════════════════════════════════════════════════════
 
-// The fields we show in the form. These must match the Mesonic template field names.
-// We use the German names as seen in WebKontenExport responses.
+// The fields we show in the form. Keys are the canonical WebKontenImport /
+// WebKontenExport tag names, so edit-prefill (from an export record) and
+// create both map straight through saveCustomer() → buildKontenImportXml().
+// Fields NOT in the WebKontenImport XSD (Anrede, Fax, Homepage, UID) are
+// intentionally omitted — Mesonic would silently drop them. UID can return
+// once the import template supports it. The mandatory ERP fields (Kennzeichen,
+// BKZ1, Preisliste, …) are filled by buildKontenImportXml defaults, so they're
+// not part of the form.
 const FORM_FIELDS = [
   { key: 'Name', label: 'Firmenname', required: true, placeholder: 'z.B. KITZ Computer + Office GmbH', colSpan: 2 },
-  { key: 'Anrede', label: 'Anrede', placeholder: 'z.B. Firma, Herr, Frau' },
-  { key: 'Ansprechpartner', label: 'Ansprechpartner', placeholder: 'Vor- und Nachname' },
+  { key: 'Vorname', label: 'Vorname (Ansprechpartner)', placeholder: 'z.B. Max' },
+  { key: 'Nachname', label: 'Nachname (Ansprechpartner)', placeholder: 'z.B. Mustermann' },
   { key: 'Strasse', label: 'Straße', placeholder: 'Straße und Hausnummer', colSpan: 2 },
   { key: 'Postleitzahl', label: 'PLZ', placeholder: 'z.B. 9020' },
   { key: 'Ort', label: 'Ort', required: true, placeholder: 'z.B. Klagenfurt' },
   { key: 'Land', label: 'Land', placeholder: 'z.B. Österreich' },
   { key: 'Telefon', label: 'Telefon', placeholder: '+43 ...' },
-  { key: 'Email', label: 'E-Mail', placeholder: 'name@firma.at', type: 'email' },
-  { key: 'Fax', label: 'Fax', placeholder: '+43 ...' },
-  { key: 'Mobiltelefon', label: 'Mobiltelefon', placeholder: '+43 ...' },
-  { key: 'Homepage', label: 'Homepage', placeholder: 'www.firma.at' },
-  { key: 'UID', label: 'UID-Nr.', placeholder: 'ATU12345678' },
+  { key: 'Mobiltelefonnummer', label: 'Mobiltelefon', placeholder: '+43 ...' },
+  { key: 'E-Mail', label: 'E-Mail', placeholder: 'name@firma.at', type: 'email' },
 ];
 
 export default function CustomerForm({ initialData, onSaved, onCancel }) {
