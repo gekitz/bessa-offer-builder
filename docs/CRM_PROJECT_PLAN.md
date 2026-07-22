@@ -65,7 +65,7 @@ Mesonic API Type codes: **1**=Customers, **4**=Articles, **5**=Prices, **7**=Con
 |------|--------|-------|
 | Edge Function: mesonic-proxy | ✅ Done | TypeScript, Deno, --no-verify-jwt |
 | Session management + keepalive + recovery | ✅ Done | 4-min TTL, auto-relogin |
-| EXIM forwarding: export, export_raw, import, ping, import_debug | ✅ Done | 30s timeout on imports |
+| EXIM forwarding: export, export_raw, import, ping, import_debug | ✅ Done | import verified working 2026-07-22 (form-field `data` + envelope + permission) |
 | XML parser → JSON records | ✅ Done | German field names from Mesonic |
 | Frontend client: mesonicApi.js | ✅ Done | Retry on WORKER_LIMIT (3x) |
 | WHERE queries (LIKE with %%) | ✅ Done | Double %% for Mesonic LIKE; Key param built without URLSearchParams encoding |
@@ -73,7 +73,7 @@ Mesonic API Type codes: **1**=Customers, **4**=Articles, **5**=Prices, **7**=Con
 
 **Key learnings:**
 - Mesonic returns German field names (Name, Strasse, Ort), not T055_C003 IDs → flexible field accessor `F.name(record)` pattern
-- Import endpoint `/ewlservice/import` hangs indefinitely → 30s AbortController timeout added → **blocked on Mesonic technician** (WebKontenImport template may not be configured)
+- Import endpoint `/ewlservice/import` — ✅ **WORKING as of 2026-07-22** (Type 1 WebKontenImport, verified with a live create → account 238563). Four things had to line up: (1) POST body must be the full `<MESOWebService TemplateType="1" Template="WebKontenImport">…</MESOWebService>` envelope; (2) the XML must be sent as a **`data` form field** (`application/x-www-form-urlencoded`), NOT a raw `text/xml` body — a raw body returns plain-text "Missing Parameter"; (3) the API user `CRM_API` needs **(2) bearbeiten** permission on the template (read-only → 30s hang); (4) fields must follow the XSD `xs:sequence` order. `Kontonummer=+` auto-assigns the next free number in the debtor range.
 - `WebPreisExport` template does not exist → **needs Mesonic technician to create**
 - Large WHERE result sets (all articles) cause Edge Function timeout → use targeted searches only
 
@@ -278,7 +278,7 @@ New columns on `offers`: `service_start_date`, `plan_chosen` (standard/ratenzahl
 
 | Blocker | Waiting on | Impact |
 |---------|-----------|--------|
-| Mesonic Import endpoint hangs | Heri (sh@kitz.co.at) | Blocks: customer create, Beleg creation |
+| ~~Mesonic Import endpoint hangs~~ | ✅ Resolved 2026-07-22 | Customer create works; Beleg import still to be verified (Type 30) |
 | WebPreisExport template missing | Heri | Blocks: article pricing from Mesonic |
 | bessa articles not in Mesonic | Internal data entry | Blocks: replacing hardcoded product arrays |
 

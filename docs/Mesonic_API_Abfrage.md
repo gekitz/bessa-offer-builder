@@ -175,3 +175,62 @@ Diese Key-Formate müssen im **Exportparameter** der jeweiligen Vorlage (WebKont
 ## 7. Frage an Mesonic
 
 Muss in den Vorlagen der **Exportparameter** konfiguriert/erweitert werden, damit WHERE-Abfragen und Wildcards funktionieren? Aktuell gibt jede Abfrage außer einzelnen Schlüsseln (z.B. `Key=29385`) den Fehler **000161** ("Kein Datensatz für den Export vorhanden") zurück.
+
+## 8. Import (Daten schreiben) — funktioniert seit 22.07.2026
+
+Beispiel: neuen Kunden anlegen (Type 1, `WebKontenImport`). Verifiziert mit einem echten Create → Konto **238563**.
+
+**Request:**
+```
+POST https://mesonic.kitz.co.at/ewlservice/import
+    ?Session={SESSION_ID}
+    &Type=1
+    &Vorlage=WebKontenImport
+    &ActionCode=1        (0 = nur validieren, 1 = validieren + schreiben)
+    &Format=1
+```
+
+**Wichtig — vier Dinge müssen stimmen:**
+
+1. **Body als Formularfeld `data`**, `Content-Type: application/x-www-form-urlencoded` — NICHT als roher `text/xml`-Body. Ein roher Body liefert den Klartext-Fehler `Error! Missing Parameter` (der Server sucht `data=`). Das Whitepaper treibt den Import über ein HTML-`<form>` mit `<textarea name="data">`.
+2. **Vollständiger Envelope** als Wert von `data`: `<MESOWebService TemplateType="1" Template="WebKontenImport"><WebKontenImport>…</WebKontenImport></MESOWebService>` — nicht nur das nackte `<WebKontenImport>`.
+3. **Berechtigung:** Benutzer `CRM_API` braucht auf der Vorlage `WebKontenImport` mindestens **(2) bearbeiten** (Objekt-Berechtigungen). Nur Leserecht → der Import hängt bis zum Timeout (kein sauberer Fehler).
+4. **Feldreihenfolge** muss der XSD-`xs:sequence` folgen (Kontonummer, Kennzeichen, Name, BKZ1, BKZ1Wechselkonto, ZahlungskonditionFIBU, Belegart, Preisliste, ZahlungskonditionFAKT, dann optionale Felder).
+
+`Kontonummer=+` vergibt automatisch die nächste freie Nummer im Debitorenbereich (passend zum `Kennzeichen`). Eine Nummer außerhalb des Bereichs liefert Fehler `010011` ("Die Kontonummer liegt nicht im festgelegten Debitorenbereich!").
+
+**Beispiel-Body (URL-encoded als `data=`):**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<MESOWebService TemplateType="1" Template="WebKontenImport">
+  <WebKontenImport>
+    <Kontonummer>+</Kontonummer>
+    <Kennzeichen>2</Kennzeichen>
+    <Name>Testfirma GmbH</Name>
+    <BKZ1>1230</BKZ1>
+    <BKZ1Wechselkonto>1230</BKZ1Wechselkonto>
+    <ZahlungskonditionFIBU>3</ZahlungskonditionFIBU>
+    <Belegart>8</Belegart>
+    <Preisliste>13</Preisliste>
+    <ZahlungskonditionFAKT>3</ZahlungskonditionFAKT>
+    <E-Mail>info@testfirma.at</E-Mail>
+    <Strasse>Testgasse 1</Strasse>
+    <Postleitzahl>9020</Postleitzahl>
+    <Ort>Klagenfurt</Ort>
+    <Land>Österreich</Land>
+  </WebKontenImport>
+</MESOWebService>
+```
+
+**Antwort (Erfolg):**
+```xml
+<MESOWebServiceResult>
+  <OverallSuccess>true</OverallSuccess>
+  <ResultDetails>
+    <KeyValue>238563</KeyValue>   <!-- die vergebene Kontonummer -->
+    <Success>true</Success>
+  </ResultDetails>
+</MESOWebServiceResult>
+```
+
+Implementierung: `buildKontenImportXml()` in `src/lib/mesonicApi.js` (Envelope, Reihenfolge, Defaults) + `mesonic-proxy` Edge Function (Formularfeld `data`).
