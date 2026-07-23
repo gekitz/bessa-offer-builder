@@ -185,10 +185,14 @@ describe('listOffers', () => {
 });
 
 describe('listOfferCreators', () => {
-  it('queries curated active employees and maps them to the creator shape', async () => {
+  it('queries all active employees and maps them to the creator shape', async () => {
     const rows = [
-      { team_slug: 'gkitz', name: 'Georg Kitz', email: 'g.kitz@kitz.co.at', phone: '+43 1', job_title: 'Geschäftsführung', standorte: { name: 'Klagenfurt' } },
-      { team_slug: 'mklein', name: 'Marcel Klein', email: 'km@kitz.co.at', phone: null, job_title: 'Support', standorte: null },
+      // Curated rep: id comes from team_slug (matches what old offers store).
+      { team_slug: 'gkitz', code: 'gkitz', name: 'Georg Kitz', email: 'g.kitz@kitz.co.at', phone: '+43 1', job_title: 'Geschäftsführung', standorte: { name: 'Klagenfurt' } },
+      // Curated rep whose team_slug differs from code — team_slug wins.
+      { team_slug: 'thuber', code: 'ahuber', name: 'Anton Huber', email: 'a.huber@kitz.co.at', phone: null, job_title: 'Support', standorte: null },
+      // Non-curated employee: no team_slug, so the id falls back to code.
+      { team_slug: null, code: 'mgraf', name: 'Mario Graf', email: null, phone: null, job_title: null, standorte: { name: 'Villach' } },
     ];
     const chain = makeChain({ data: rows, error: null });
     fromMock.mockReturnValue(chain);
@@ -196,12 +200,13 @@ describe('listOfferCreators', () => {
     const result = await listOfferCreators();
 
     expect(fromMock).toHaveBeenCalledWith('employees');
-    // Only the curated set (team_slug present) and only active rows.
-    expect(chain.not).toHaveBeenCalledWith('team_slug', 'is', null);
+    // All active employees now — no team_slug subset filter.
+    expect(chain.not).not.toHaveBeenCalled();
     expect(chain.eq).toHaveBeenCalledWith('active', true);
     expect(result).toEqual([
       { id: 'gkitz', name: 'Georg Kitz', role: 'Geschäftsführung', phone: '+43 1', email: 'g.kitz@kitz.co.at', location: 'Klagenfurt' },
-      { id: 'mklein', name: 'Marcel Klein', role: 'Support', phone: '', email: 'km@kitz.co.at', location: '' },
+      { id: 'thuber', name: 'Anton Huber', role: 'Support', phone: '', email: 'a.huber@kitz.co.at', location: '' },
+      { id: 'mgraf', name: 'Mario Graf', role: '', phone: '', email: '', location: 'Villach' },
     ]);
   });
 

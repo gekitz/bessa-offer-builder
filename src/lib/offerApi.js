@@ -59,25 +59,28 @@ export async function saveOffer({ id, customer, creator, creatorName, creatorEma
   }
 }
 
-// List the curated set of offer creators (sales reps) from the employees
-// table — the single source of truth for rep name/email/phone/role. The
-// curated subset is marked by a non-null team_slug (the legacy TEAM id,
-// which is also what offers.creator_id stores). Returns the same shape the
-// old TEAM catalog exposed so the offer builder + PDF need no changes:
+// List offer creators from the employees table — the single source of
+// truth for rep name/email/phone/role. Every active employee is eligible
+// to create (and therefore be filtered for) an offer.
+//
+// The id is the employee's team_slug when set, else their unique `code`.
+// This keeps the 10 curated reps on their legacy TEAM slug (what existing
+// offers.creator_id already stores, so old offers still resolve) while
+// giving everyone else a stable id. Returns the same shape the old TEAM
+// catalog exposed so the offer builder + PDF need no changes:
 //   { id, name, role, phone, email, location }
 export async function listOfferCreators() {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   const { data, error } = await supabase
     .from('employees')
-    .select('team_slug, name, email, phone, job_title, standorte(name)')
-    .not('team_slug', 'is', null)
+    .select('team_slug, code, name, email, phone, job_title, standorte(name)')
     .eq('active', true)
     .order('name');
   if (error) throw error;
 
   return (data ?? []).map((row) => ({
-    id: row.team_slug,
+    id: row.team_slug || row.code,
     name: row.name,
     role: row.job_title || '',
     phone: row.phone || '',
