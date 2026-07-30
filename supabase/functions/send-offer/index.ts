@@ -1,6 +1,10 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Same VAT the accept page / Stripe charge use — the email summary must
+// reconcile with both the net PDF quote and the gross debited amounts.
+import { VAT } from '../_shared/planPricing.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -113,6 +117,25 @@ serve(async (req: Request) => {
     const fmtEur = (n: number) =>
       n.toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+    // Netto / 20% USt / Brutto block per cost bucket, mirroring the PDF's
+    // totals box — the customer sees the same gross number again on the
+    // accept page, so nothing "grows" between email and checkout.
+    const summaryBlock = (label: string, net: number, suffix: string) => {
+      const gross = net * VAT;
+      const row = (name: string, value: number, strong = false) => `
+        <div style="display:flex;justify-content:space-between;padding:2px 0;font-size:${strong ? 14 : 13}px;color:${strong ? '#1e293b' : '#64748b'};${strong ? 'font-weight:600;' : ''}">
+          <span>${name}</span>
+          <span>€ ${fmtEur(value)}${suffix}</span>
+        </div>`;
+      return `
+        <div style="padding:8px 0;">
+          <div style="font-weight:600;color:#1e293b;font-size:14px;margin-bottom:4px;">${label}</div>
+          ${row('Netto', net)}
+          ${row('20% USt', gross - net)}
+          ${row('Brutto', gross, true)}
+        </div>`;
+    };
+
     // Use custom text from frontend or fall back to defaults
     const greeting = emailGreeting || `Sehr geehrte/r ${customerName},`;
     const bodyText = emailBody || 'vielen Dank für Ihr Interesse. Anbei erhalten Sie Ihr persönliches Angebot als PDF-Anhang.';
@@ -143,14 +166,8 @@ serve(async (req: Request) => {
       <!-- Summary Box -->
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin:0 0 24px;">
         <div style="font-weight:bold;color:#1e293b;margin-bottom:12px;font-size:15px;">Zusammenfassung</div>
-        ${totalMonthly > 0 ? `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:14px;color:#475569;">
-          <span>Monatliche Kosten (netto)</span>
-          <span style="font-weight:600;color:#1e293b;">€ ${fmtEur(totalMonthly)}/Mo</span>
-        </div>` : ''}
-        ${totalOnce > 0 ? `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:14px;color:#475569;">
-          <span>Einmalige Kosten (netto)</span>
-          <span style="font-weight:600;color:#1e293b;">€ ${fmtEur(totalOnce)}</span>
-        </div>` : ''}
+        ${totalMonthly > 0 ? summaryBlock('Monatliche Kosten', totalMonthly, '/Mo') : ''}
+        ${totalOnce > 0 ? summaryBlock('Einmalige Kosten', totalOnce, '') : ''}
       </div>
 
       ${acceptUrl ? `

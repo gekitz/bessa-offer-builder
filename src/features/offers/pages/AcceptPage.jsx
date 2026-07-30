@@ -5,7 +5,19 @@ import { supabase } from '../../../lib/supabase';
 import { getOfferByShareCode, acceptOfferWithSignature } from '../../../lib/offerApi';
 import SignaturePad from '../components/SignaturePad';
 import { fmt } from '../../../lib/format';
-import { computePlanPricing, planBasisFromOffer } from '../../../lib/planPricing';
+import { VAT, computePlanPricing, planBasisFromOffer } from '../../../lib/planPricing';
+
+// Muted net + USt line under a gross amount, so the customer can reconcile
+// the debited (gross) figure with the net prices quoted in the email/PDF.
+// Deposits (Kaution) are refundable, carry no VAT and get no breakdown.
+function NetTaxLine({ gross }) {
+  const net = gross / VAT;
+  return (
+    <div className="text-xs text-slate-400 font-normal whitespace-nowrap">
+      € {fmt(net)} netto + € {fmt(gross - net)} USt
+    </div>
+  );
+}
 
 function AcceptPlanCard({ title, subtitle, rows, cta, onSelect, loading, disabled, highlight }) {
   return (
@@ -19,7 +31,10 @@ function AcceptPlanCard({ title, subtitle, rows, cta, onSelect, loading, disable
           {rows.map((r, i) => (
             <div key={i} className={`flex justify-between ${r.emphasis ? 'pt-2 border-t border-slate-200 font-semibold text-slate-800' : 'text-slate-700'}`}>
               <span>{r.label}</span>
-              <span className={r.emphasis ? '' : 'font-medium'}>€ {fmt(r.value)}{r.per ? r.per : ''}</span>
+              <div className="text-right">
+                <span className={r.emphasis ? '' : 'font-medium'}>€ {fmt(r.value)}{r.per ? r.per : ''}</span>
+                {!r.taxFree && <NetTaxLine gross={r.value} />}
+              </div>
             </div>
           ))}
         </div>
@@ -75,7 +90,7 @@ function AcceptanceDetails({ offer }) {
       rows.push({ label: 'Wartung', value: yearlyBrutto, per: '/Jahr brutto' });
     }
   } else if (plan === 'miete') {
-    rows.push({ label: 'Kaution (einmalig)', value: pricing.miete.depositBrutto, per: ' brutto' });
+    rows.push({ label: 'Kaution (einmalig)', value: pricing.miete.depositBrutto, per: ' brutto', taxFree: true });
     rows.push({ label: 'Miete monatlich (inkl. 8%)', value: pricing.miete.monthlyBrutto, per: '/Monat brutto' });
   }
 
@@ -109,7 +124,10 @@ function AcceptanceDetails({ offer }) {
                 ) : rows.map((r, i) => (
                   <div key={i} className="flex justify-between">
                     <span className="text-slate-600">{r.label}</span>
-                    <span className="font-semibold text-slate-800 whitespace-nowrap">€ {fmt(r.value)}{r.per}</span>
+                    <div className="text-right">
+                      <span className="font-semibold text-slate-800 whitespace-nowrap">€ {fmt(r.value)}{r.per}</span>
+                      {!r.taxFree && <NetTaxLine gross={r.value} />}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -277,7 +295,7 @@ export default function AcceptPage({ shareCode }) {
   ];
 
   const planC = [
-    { label: 'Kaution (rückzahlbar)', value: pricing.miete.depositBrutto },
+    { label: 'Kaution (rückzahlbar)', value: pricing.miete.depositBrutto, taxFree: true },
     { label: `Miete (${maxMonths} Monate)`, value: pricing.miete.monthlyBrutto, per: '/Mo', emphasis: true },
   ];
 

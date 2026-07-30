@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 import { fmt } from '../../../../lib/format';
-import { computePlanPricing, planBasisFromOffer } from '../../../../lib/planPricing';
+import { VAT, computePlanPricing, planBasisFromOffer } from '../../../../lib/planPricing';
 
 // What the customer sees on the accept page must be, cent for cent, what
 // stripe-complete-acceptance charges. Both sides go through the shared
@@ -56,6 +56,28 @@ describe('AcceptPage plan cards show exactly the charged amounts', () => {
     expect(text).toContain(`€ ${fmt(pricing.standard.onceBrutto)}`);
     expect(text).toContain(`€ ${fmt(pricing.standard.monthlyBrutto)}/Mo`);
     expect(text).toContain(`€ ${fmt(pricing.standard.yearlyBrutto)}/J`);
+  });
+
+  it('every gross amount carries a net + USt breakdown that reconciles with the quoted net', async () => {
+    const { container } = render(<AcceptPage shareCode="abc" />);
+    await screen.findByText('Standard wählen');
+
+    const text = container.textContent ?? '';
+    // gross / VAT restates the snapshot's quoted net values verbatim.
+    const snap = offer.offer_data.acceptSnapshot;
+    expect(text).toContain(`€ ${fmt(snap.monthly)} netto`);
+    expect(text).toContain(`€ ${fmt(snap.once)} netto`);
+    const rate = pricing.ratenzahlung.ratePerMonthBrutto;
+    expect(text).toContain(`€ ${fmt(rate / VAT)} netto + € ${fmt(rate - rate / VAT)} USt`);
+  });
+
+  it('the Kaution (refundable deposit) shows no VAT breakdown', async () => {
+    const { container } = render(<AcceptPage shareCode="abc" />);
+    await screen.findByText('Miete wählen');
+
+    const text = container.textContent ?? '';
+    const depositNet = pricing.miete.depositBrutto / VAT;
+    expect(text).not.toContain(`€ ${fmt(depositNet)} netto`);
   });
 
   it('ratenzahlung card renders the shared financed amounts (incl. Rabatt)', async () => {
