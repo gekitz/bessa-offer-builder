@@ -616,6 +616,14 @@ function OfferBuilderPageInner() {
   // Grenke Bonitätsprüfung), so we never surface the accept link for copier offers.
   const acceptEnabled = billingEnabled && !copierOffer.isCopierOffer;
 
+  // Freeze the accept-page totals as quoted. Written on EVERY save path (not
+  // just send): a printed PDF carries the accept QR code too, and the accept
+  // page + Stripe charge read this snapshot — it must exist and match what
+  // the builder showed at the moment the offer left the house.
+  function buildAcceptSnapshot() {
+    return computeAcceptTotals({ cart, customItems: getCustomItemsFromCart() }, ALL);
+  }
+
   const builderTabs = builderTabsFor(offerType, offerLocked);
 
   const cartCount = Object.keys(cart).length;
@@ -784,6 +792,7 @@ function OfferBuilderPageInner() {
             offerType,
             paymentEnabled,
             rental,
+            acceptSnapshot: buildAcceptSnapshot(),
           });
           effectiveOfferId = saved.id;
           setCurrentOfferId(effectiveOfferId);
@@ -886,6 +895,7 @@ function OfferBuilderPageInner() {
         offerType,
         paymentEnabled,
         rental,
+        acceptSnapshot: buildAcceptSnapshot(),
       });
       setCurrentOfferId(result.id);
 
@@ -936,6 +946,7 @@ function OfferBuilderPageInner() {
         offerType,
         paymentEnabled,
         rental,
+        acceptSnapshot: buildAcceptSnapshot(),
       });
       setCurrentOfferId(result.id);
       setSaveSuccess(true);
@@ -981,10 +992,7 @@ function OfferBuilderPageInner() {
         rental,
         // Freeze the accept-page totals as quoted (decouples the customer
         // page from later catalog price changes).
-        acceptSnapshot: computeAcceptTotals(
-          { cart, customItems: getCustomItemsFromCart(), raten },
-          ALL,
-        ),
+        acceptSnapshot: buildAcceptSnapshot(),
       });
       offerId = result.id;
       setCurrentOfferId(offerId);

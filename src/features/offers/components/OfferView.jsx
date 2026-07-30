@@ -53,6 +53,7 @@ import { decorateLineItems } from '../../../lib/offerLineItems';
 import { listGroups, countedIds } from '../../../lib/optionGroups';
 import { fmt } from '../../../lib/format';
 import { computeDiscounts, SKONTO_DAYS } from '../../../lib/discounts';
+import { computePlanPricing } from '../../../lib/planPricing';
 
 export default function OfferView({
   cart,
@@ -155,6 +156,16 @@ export default function OfferView({
   // and never affects financing. See src/lib/discounts.ts.
   const discount = computeDiscounts(periodNetto, { rabattActive, skontoActive });
   const periodBrutto = discount.brutto;
+  // Financing figures via the shared module the Stripe charge also uses.
+  const planPricing = computePlanPricing({
+    monthlyNet: totals.monthly,
+    onceNet: totals.once,
+    yearlyNet: totals.yearly,
+    periodNet: totals.periodTotal,
+    rabattActive,
+    months: totals.maxMonths,
+    raten,
+  });
 
   // Chips shown next to a line item: option-group membership and/or the
   // "optional add-on" marker.
@@ -582,11 +593,11 @@ export default function OfferView({
               <div className="bg-slate-50 rounded-lg p-3 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-600">Gesamtbetrag (+8%)</span>
-                  <span className="font-semibold">€ {fmt(periodBrutto * 1.08)} brutto</span>
+                  <span className="font-semibold">€ {fmt(planPricing.ratenzahlung.totalBrutto)} brutto</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-600">Anzahlung (30%)</span>
-                  <span className="font-semibold text-red-700">€ {fmt(periodBrutto * 1.08 * 0.3)} brutto</span>
+                  <span className="font-semibold text-red-700">€ {fmt(planPricing.ratenzahlung.anzahlungBrutto)} brutto</span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-slate-200">
                   <div className="flex items-center gap-2">
@@ -602,7 +613,7 @@ export default function OfferView({
                       }))}
                     />
                   </div>
-                  <span className="font-semibold">€ {fmt(periodBrutto * 1.08 * 0.7 / raten)}/Rate</span>
+                  <span className="font-semibold">€ {fmt(planPricing.ratenzahlung.ratePerMonthBrutto)}/Rate</span>
                 </div>
               </div>
             </div>
@@ -616,11 +627,11 @@ export default function OfferView({
               <div className="bg-slate-50 rounded-lg p-3 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-600">Kaution (einmalig)</span>
-                  <span className="font-semibold text-red-700">€ 500,00 brutto</span>
+                  <span className="font-semibold text-red-700">€ {fmt(planPricing.miete.depositBrutto)} brutto</span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-slate-200">
                   <span className="text-sm text-slate-600">Monatliche Miete (+8%)</span>
-                  <span className="font-semibold">€ {fmt((periodBrutto / totals.maxMonths) * 1.08)}/Monat brutto</span>
+                  <span className="font-semibold">€ {fmt(planPricing.miete.monthlyBrutto)}/Monat brutto</span>
                 </div>
               </div>
             </div>

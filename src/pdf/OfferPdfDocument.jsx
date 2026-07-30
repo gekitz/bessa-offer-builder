@@ -10,6 +10,7 @@ import { styles, COLORS } from './pdfStyles';
 import kitzLogo from '/kitz-logo.png';
 import { TIER_LABEL, TIER_MONTHS } from '../data/tiers';
 import { computeDiscounts, SKONTO_DAYS } from '../lib/discounts';
+import { computePlanPricing } from '../lib/planPricing';
 
 // Format number to German locale
 const fmt = (n) =>
@@ -531,13 +532,15 @@ function SignatureSection({ signature, signedAt }) {
   );
 }
 
-// Financing section component
-function FinancingSection({ periodBrutto, maxMonths, raten }) {
-  const totalWithInterest = periodBrutto * 1.08;
-  const downPayment = totalWithInterest * 0.3;
-  const restAmount = totalWithInterest * 0.7;
-  const perRate = restAmount / raten;
-  const monthlyRent = (periodBrutto / maxMonths) * 1.08;
+// Financing section component. `pricing` comes from the shared
+// computePlanPricing module — the same figures the accept page shows and
+// stripe-complete-acceptance charges.
+function FinancingSection({ pricing, raten }) {
+  const totalWithInterest = pricing.ratenzahlung.totalBrutto;
+  const downPayment = pricing.ratenzahlung.anzahlungBrutto;
+  const perRate = pricing.ratenzahlung.ratePerMonthBrutto;
+  const monthlyRent = pricing.miete.monthlyBrutto;
+  const deposit = pricing.miete.depositBrutto;
 
   return (
     <View style={styles.financingSection} wrap={false}>
@@ -570,7 +573,7 @@ function FinancingSection({ periodBrutto, maxMonths, raten }) {
         <View style={styles.financingRow}>
           <Text style={styles.financingLabel}>Kaution (einmalig)</Text>
           <Text style={[styles.financingValue, styles.financingHighlight]}>
-            500,00 brutto
+            {fmt(deposit)} brutto
           </Text>
         </View>
         <View style={styles.financingRow}>
@@ -709,7 +712,16 @@ export default function OfferPdfDocument({
   const signedAt = signatures ? new Date().toLocaleDateString('de-AT') : null;
   // Rabatt reduces the financing base; Skonto is a pay-in-full note only.
   const discount = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive });
-  const periodBrutto = discount.brutto;
+  // Financing figures via the shared module the Stripe charge also uses.
+  const planPricing = computePlanPricing({
+    monthlyNet: totals.monthly,
+    onceNet: totals.once,
+    yearlyNet: totals.yearly,
+    periodNet: totals.periodTotal,
+    rabattActive,
+    months: totals.maxMonths,
+    raten,
+  });
   // A Sharp/MFP offer renders its own itemised copier layout (device table +
   // Grenke leasing + maintenance rates) instead of the PoS monthly/once tables.
   const isCopier = !!copierOffer?.isCopierOffer;
@@ -911,11 +923,7 @@ export default function OfferPdfDocument({
           {/* Header */}
           <PdfHeader />
 
-          <FinancingSection
-            periodBrutto={periodBrutto}
-            maxMonths={totals.maxMonths}
-            raten={raten}
-          />
+          <FinancingSection pricing={planPricing} raten={raten} />
 
           {/* Footer */}
           <PdfFooter />

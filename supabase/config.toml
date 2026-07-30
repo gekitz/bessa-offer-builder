@@ -27,3 +27,20 @@ verify_jwt = false
 # omitting it would default to the same verify_jwt = true.
 [functions.mesonic-proxy]
 verify_jwt = true
+
+# Stripe posts webhook events signed with STRIPE_WEBHOOK_SECRET, not a
+# Supabase JWT — the function verifies the signature itself. Without this
+# block a plain `supabase functions deploy` would flip the gateway back to
+# verify_jwt = true and silently drop every Stripe event with a 401.
+[functions.stripe-webhook]
+verify_jwt = false
+
+# Called from the anonymous customer accept page (share-code URL, no login).
+# The share code itself is the credential: both functions load the offer by
+# share_code and refuse anything else. The SPA invokes them with the anon-key
+# JWT, which passes the gateway check, so verification stays ON.
+[functions.stripe-create-checkout]
+verify_jwt = true
+
+[functions.stripe-complete-acceptance]
+verify_jwt = true

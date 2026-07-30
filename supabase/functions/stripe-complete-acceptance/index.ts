@@ -2,14 +2,14 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno';
 
+// The money math lives in the shared module the builder UI, PDF and accept
+// page also render from — what was quoted is exactly what gets charged.
+import { computePlanPricing, planBasisFromOffer, toCents } from '../_shared/planPricing.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-const TIER_MONTHS: Record<string, number> = { '12mo': 12, '6mo': 6, '2mo': 2, event: 1 };
-const VAT = 1.2;
-const FIN_SURCHARGE = 1.08;
 
 type PlanId = 'standard' | 'ratenzahlung' | 'miete';
 
@@ -63,28 +63,21 @@ serve(async (req: Request) => {
       invoice_settings: { default_payment_method: paymentMethodId },
     });
 
-    // Derive billing numbers
+    // Billing numbers: the frozen acceptSnapshot (what the customer was
+    // quoted), falling back to the persisted total_* columns for legacy rows.
     const plan = offer.plan_chosen as PlanId;
     const offerData = offer.offer_data || {};
-    const globalTier: string = offerData.globalTier || '12mo';
-    const raten: number = offerData.raten || 12;
-    const tierMonths = TIER_MONTHS[globalTier] || 12;
-    const isOpenEnded = globalTier === '12mo';
+    const isOpenEnded = (offerData.globalTier || '12mo') === '12mo';
 
-    const monthlyNet = Number(offer.total_monthly || 0);
-    const onceNet = Number(offer.total_once || 0);
-    const periodNet = Number(offer.total_period || 0);
-    const yearlyNet = Math.max(0, periodNet - monthlyNet * tierMonths - onceNet);
-
-    const monthlyBrutto = monthlyNet * VAT;
-    const onceBrutto = onceNet * VAT;
-    const yearlyBrutto = yearlyNet * VAT;
-    const periodBrutto = periodNet * VAT;
+    const basis = planBasisFromOffer(offer);
+    const pricing = computePlanPricing(basis);
+    const { raten, months } = basis;
+    const { monthlyBrutto, onceBrutto, yearlyBrutto } = pricing.standard;
 
     const startTs = offer.service_start_date
       ? Math.floor(new Date(offer.service_start_date + 'T00:00:00Z').getTime() / 1000)
       : Math.floor(Date.now() / 1000);
-    const cancelAtTs = addMonthsTs(startTs, tierMonths);
+    const cancelAtTs = addMonthsTs(startTs, months);
 
     const desc = (label: string) =>
       `${label} — Angebot ${offer.id.slice(0, 8)} (${offer.customer_company || offer.customer_name || ''})`.trim();
@@ -184,16 +177,12 @@ serve(async (req: Request) => {
         subscriptionIds.push(yearlySub.id);
       }
     } else if (plan === 'ratenzahlung') {
-      const totalFinanced = periodBrutto * FIN_SURCHARGE;
-      const anzahlung = totalFinanced * 0.3;
-      const ratePerMonth = (totalFinanced * 0.7) / raten;
-
       // Anzahlung rides along on the first schedule invoice as a pending item
-      await addPendingItem(anzahlung, desc('Anzahlung (30%)'));
+      await addPendingItem(pricing.ratenzahlung.anzahlungBrutto, desc('Anzahlung (30%)'));
 
       const phases: Stripe.SubscriptionScheduleCreateParams.Phase[] = [
         {
-          items: [await subItem('installment', ratePerMonth, 'month')],
+          items: [await subItem('installment', pricing.ratenzahlung.ratePerMonthBrutto, 'month')],
           iterations: raten,
           metadata: baseMeta(offer, 'raten_phase1'),
         },
@@ -231,11 +220,10 @@ serve(async (req: Request) => {
         subscriptionIds.push(yearlySub.id);
       }
     } else if (plan === 'miete') {
-      const mieteMonthly = (periodBrutto / tierMonths) * FIN_SURCHARGE;
-      await addPendingItem(500, desc('Kaution (rückzahlbar)'));
+      await addPendingItem(pricing.miete.depositBrutto, desc('Kaution (rückzahlbar)'));
       const sub = await stripe.subscriptions.create({
         customer: customerId,
-        items: [await subItem('rental', mieteMonthly, 'month')],
+        items: [await subItem('rental', pricing.miete.monthlyBrutto, 'month')],
         description: desc('Miete monatlich'),
         trial_end: startTs,
         cancel_at: cancelAtTs,
@@ -277,10 +265,6 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
-}
-
-function toCents(euro: number): number {
-  return Math.round(euro * 100);
 }
 
 function addMonthsTs(ts: number, months: number): number {

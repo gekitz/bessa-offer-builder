@@ -5,7 +5,7 @@ import { supabase } from '../../../lib/supabase';
 import { getOfferByShareCode, acceptOfferWithSignature } from '../../../lib/offerApi';
 import SignaturePad from '../components/SignaturePad';
 import { fmt } from '../../../lib/format';
-import { TIER_MONTHS } from '../../../data/tiers';
+import { computePlanPricing, planBasisFromOffer } from '../../../lib/planPricing';
 
 function AcceptPlanCard({ title, subtitle, rows, cta, onSelect, loading, disabled, highlight }) {
   return (
@@ -34,21 +34,14 @@ function AcceptPlanCard({ title, subtitle, rows, cta, onSelect, loading, disable
 
 function AcceptanceDetails({ offer }) {
   const data = offer.offer_data || {};
-  const tier = data.globalTier || '12mo';
-  const raten = data.raten || 12;
-  const tierMonths = TIER_MONTHS[tier] || 12;
-  const isOpenEnded = tier === '12mo';
+  const isOpenEnded = (data.globalTier || '12mo') === '12mo';
 
-  const monthlyNet = Number(offer.total_monthly || 0);
-  const onceNet = Number(offer.total_once || 0);
-  const periodNet = Number(offer.total_period || 0);
-  const yearlyNet = Math.max(0, periodNet - monthlyNet * tierMonths - onceNet);
-
-  const VAT = 1.2, FIN = 1.08;
-  const monthlyBrutto = monthlyNet * VAT;
-  const onceBrutto = onceNet * VAT;
-  const yearlyBrutto = yearlyNet * VAT;
-  const periodBrutto = periodNet * VAT;
+  // Same shared basis + formulas the edge function charges from — the
+  // confirmation must restate exactly what Stripe collects.
+  const basis = planBasisFromOffer(offer);
+  const pricing = computePlanPricing(basis);
+  const { monthlyBrutto, yearlyBrutto, onceBrutto } = pricing.standard;
+  const { raten, months } = basis;
 
   const plan = offer.plan_chosen;
   const planName = plan === 'standard' ? 'Standard'
@@ -62,7 +55,7 @@ function AcceptanceDetails({ offer }) {
   let endDate = null;
   if (plan === 'miete' || !isOpenEnded) {
     endDate = new Date(startDate.getTime());
-    endDate.setUTCMonth(endDate.getUTCMonth() + tierMonths);
+    endDate.setUTCMonth(endDate.getUTCMonth() + months);
   }
   const formattedEnd = endDate ? endDate.toLocaleDateString('de-AT') : null;
 
@@ -72,12 +65,9 @@ function AcceptanceDetails({ offer }) {
     if (monthlyBrutto > 0) rows.push({ label: 'Monatsgebühr', value: monthlyBrutto, per: '/Monat brutto' });
     if (yearlyBrutto > 0) rows.push({ label: 'Wartung', value: yearlyBrutto, per: '/Jahr brutto' });
   } else if (plan === 'ratenzahlung') {
-    const totalFinanced = periodBrutto * FIN;
-    const anzahlung = totalFinanced * 0.3;
-    const ratePerMonth = (totalFinanced * 0.7) / raten;
-    rows.push({ label: 'Gesamtbetrag (inkl. 8%)', value: totalFinanced, per: ' brutto' });
-    rows.push({ label: 'Anzahlung (30%)', value: anzahlung, per: ' brutto' });
-    rows.push({ label: `${raten} × Rate`, value: ratePerMonth, per: '/Monat brutto' });
+    rows.push({ label: 'Gesamtbetrag (inkl. 8%)', value: pricing.ratenzahlung.totalBrutto, per: ' brutto' });
+    rows.push({ label: 'Anzahlung (30%)', value: pricing.ratenzahlung.anzahlungBrutto, per: ' brutto' });
+    rows.push({ label: `${raten} × Rate`, value: pricing.ratenzahlung.ratePerMonthBrutto, per: '/Monat brutto' });
     if (isOpenEnded && monthlyBrutto > 0) {
       rows.push({ label: `Ab Monat ${raten + 1}: Monatsgebühr`, value: monthlyBrutto, per: '/Monat brutto' });
     }
@@ -85,9 +75,8 @@ function AcceptanceDetails({ offer }) {
       rows.push({ label: 'Wartung', value: yearlyBrutto, per: '/Jahr brutto' });
     }
   } else if (plan === 'miete') {
-    const mieteMonthly = (periodBrutto / tierMonths) * FIN;
-    rows.push({ label: 'Kaution (einmalig)', value: 500, per: ' brutto' });
-    rows.push({ label: 'Miete monatlich (inkl. 8%)', value: mieteMonthly, per: '/Monat brutto' });
+    rows.push({ label: 'Kaution (einmalig)', value: pricing.miete.depositBrutto, per: ' brutto' });
+    rows.push({ label: 'Miete monatlich (inkl. 8%)', value: pricing.miete.monthlyBrutto, per: '/Monat brutto' });
   }
 
   return (
@@ -136,7 +125,7 @@ function AcceptanceDetails({ offer }) {
                 <div className="flex justify-between">
                   <span className="text-slate-600">Laufzeit</span>
                   <span className="font-medium text-slate-800">
-                    {plan === 'miete' ? `${tierMonths} Monate` : isOpenEnded ? 'Unbefristet' : `${tierMonths} Monate`}
+                    {plan === 'miete' ? `${months} Monate` : isOpenEnded ? 'Unbefristet' : `${months} Monate`}
                   </span>
                 </div>
                 {formattedEnd && (
@@ -246,19 +235,16 @@ export default function AcceptPage({ shareCode }) {
     return <SignatureAccept offer={offer} shareCode={shareCode} onAccepted={setOffer} />;
   }
 
-  const data = offer.offer_data || {};
-  const raten = data.raten || 12;
-
-  // Totals are frozen into acceptSnapshot at send time (and backfilled for
-  // older offers), so the anonymous accept page never needs the product
-  // catalog. Guard against a (shouldn't-happen) missing snapshot with zeros.
-  const { monthly = 0, once = 0, yearly = 0, periodTotal = 0, maxMonths = 12 } =
-    data.acceptSnapshot || {};
-
-  const onceBrutto = once * 1.2;
-  const monthlyBrutto = monthly * 1.2;
-  const yearlyBrutto = yearly * 1.2;
-  const periodBrutto = periodTotal * 1.2;
+  // Totals are frozen into acceptSnapshot at save/send time (and backfilled
+  // for older offers), so the anonymous accept page never needs the product
+  // catalog. planBasisFromOffer falls back to the persisted total_* columns
+  // for a (shouldn't-happen) missing snapshot — the same fallback the charge
+  // uses, so the cards always show exactly what would be collected.
+  const basis = planBasisFromOffer(offer);
+  const pricing = computePlanPricing(basis);
+  const { raten, months: maxMonths } = basis;
+  const { onceBrutto, monthlyBrutto, yearlyBrutto } = pricing.standard;
+  const hasPeriod = basis.periodNet > 0;
 
   async function pickPlan(planId) {
     setSubmittingPlan(planId);
@@ -284,17 +270,15 @@ export default function AcceptPage({ shareCode }) {
   if (monthlyBrutto > 0) planA.push({ label: 'Monatlich', value: monthlyBrutto, per: '/Mo' });
   if (yearlyBrutto > 0) planA.push({ label: 'Wartung jährlich', value: yearlyBrutto, per: '/J' });
 
-  const ratenTotal = periodBrutto * 1.08;
   const planB = [
-    { label: `Gesamtbetrag (${raten} Raten, +8%)`, value: ratenTotal },
-    { label: 'Anzahlung (30%)', value: ratenTotal * 0.3 },
-    { label: `Rate (${raten}×)`, value: (ratenTotal * 0.7) / raten, per: '/Mo', emphasis: true },
+    { label: `Gesamtbetrag (${raten} Raten, +8%)`, value: pricing.ratenzahlung.totalBrutto },
+    { label: 'Anzahlung (30%)', value: pricing.ratenzahlung.anzahlungBrutto },
+    { label: `Rate (${raten}×)`, value: pricing.ratenzahlung.ratePerMonthBrutto, per: '/Mo', emphasis: true },
   ];
 
-  const mieteMonthly = (periodBrutto / maxMonths) * 1.08;
   const planC = [
-    { label: 'Kaution (rückzahlbar)', value: 500 },
-    { label: `Miete (${maxMonths} Monate)`, value: mieteMonthly, per: '/Mo', emphasis: true },
+    { label: 'Kaution (rückzahlbar)', value: pricing.miete.depositBrutto },
+    { label: `Miete (${maxMonths} Monate)`, value: pricing.miete.monthlyBrutto, per: '/Mo', emphasis: true },
   ];
 
   return (
@@ -327,7 +311,7 @@ export default function AcceptPage({ shareCode }) {
           disabled={!!submittingPlan}
           highlight
         />
-        {periodBrutto > 0 && (
+        {hasPeriod && (
           <AcceptPlanCard
             title="Ratenzahlung"
             subtitle={`${raten} Raten, danach Standardtarif`}
@@ -338,7 +322,7 @@ export default function AcceptPage({ shareCode }) {
             disabled={!!submittingPlan}
           />
         )}
-        {periodBrutto > 0 && (
+        {hasPeriod && (
           <AcceptPlanCard
             title="Miete"
             subtitle={`${maxMonths} Monate Mietvertrag inkl. Hardware`}
