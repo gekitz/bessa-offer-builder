@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ChevronDown, ChevronRight, LayoutGrid, List, Loader2, Plus, Search, Wrench } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronRight, LayoutGrid, List, Loader2, Plus, Search, User, Wrench } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
@@ -282,8 +282,13 @@ export default function TicketsPage() {
           (t.customerName?.toLowerCase().includes(term) ?? false),
       );
     }
-    return list;
-  }, [tickets, search, poolFilter, assigneeFilter, currentEmployeeId]);
+    // Decorate with the assignee's display name so list rows and board
+    // cards can show who a ticket belongs to.
+    const names = new Map(employees.map((e) => [e.id, e.name]));
+    return list.map((t) =>
+      t.assignedTo && names.has(t.assignedTo) ? { ...t, _assigneeName: names.get(t.assignedTo) } : t,
+    );
+  }, [tickets, search, poolFilter, assigneeFilter, currentEmployeeId, employees]);
 
   // How many closed tickets the board is hiding (older than the window).
   // counts covers every ticket regardless of the board's date cap.
@@ -533,6 +538,15 @@ export default function TicketsPage() {
                         <div className="text-xs text-slate-500 mt-0.5">{t.customerName}</div>
                       )}
                     </div>
+                    {t._assigneeName && (
+                      <div
+                        className="flex items-center gap-1 text-xs text-slate-500 shrink-0"
+                        data-testid="row-assignee"
+                      >
+                        <User size={12} className="text-slate-400" />
+                        {t._assigneeName}
+                      </div>
+                    )}
                   </div>
                 </li>
               );

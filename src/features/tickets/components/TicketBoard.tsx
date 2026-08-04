@@ -47,12 +47,28 @@ function poolKey(pool: number | 'none' | undefined): string {
   return pool === undefined ? 'flat' : String(pool);
 }
 
+// 'Anna Tech' → 'AT'; single-word names take their first two letters.
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function TicketCardBody({ ticket }: { ticket: Ticket }) {
   return (
     <>
       <div className="flex items-center gap-1.5 mb-1">
         <span className={`inline-block w-1.5 h-1.5 rounded-full ${PRIORITY_DOT[ticket.priority]}`} />
         <span className="font-mono text-xs text-slate-400">{ticket.ticketNumber}</span>
+        {ticket._assigneeName && (
+          <span
+            className="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-200/80 text-[9px] font-semibold text-slate-600 shrink-0"
+            title={ticket._assigneeName}
+            data-testid="card-assignee"
+          >
+            {initials(ticket._assigneeName)}
+          </span>
+        )}
       </div>
       <div className="font-medium text-slate-800 leading-tight" style={{ fontSize: 13 }}>
         {ticket.title}

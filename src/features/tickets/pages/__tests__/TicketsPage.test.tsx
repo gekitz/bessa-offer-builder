@@ -248,6 +248,31 @@ describe('TicketsPage', () => {
     expect(screen.queryByText('Drucker')).not.toBeInTheDocument();
   });
 
+  it('shows the assignee on list rows and as an initials chip on board cards', async () => {
+    const u = userEvent.setup();
+    listEmployeesMock.mockResolvedValue([
+      { id: 'emp-a', code: 'a', name: 'Anna Tech', standortId: 1, weeklyHours: 38.5, employmentType: 'fulltime', active: true },
+    ]);
+    listTicketsMock.mockResolvedValue([
+      makeTicket({ id: 't-1', ticketNumber: '26-0000001', shareCode: 's1', title: 'Drucker', assignedTo: 'emp-a' }),
+      makeTicket({ id: 't-2', ticketNumber: '26-0000002', shareCode: 's2', title: 'Waise', assignedTo: null }),
+    ]);
+    renderAt();
+    await screen.findByText('Drucker');
+
+    // List view: assigned ticket shows the full name, unassigned shows nothing.
+    await waitFor(() => expect(screen.queryAllByTestId('row-assignee')).toHaveLength(1));
+    expect(screen.getByTestId('row-assignee')).toHaveTextContent('Anna Tech');
+
+    // Board view: compact initials chip with the full name as tooltip.
+    await u.click(screen.getByTestId('view-toggle-board'));
+    await waitFor(() => expect(screen.getByTestId('ticket-board')).toBeInTheDocument());
+    const chips = screen.getAllByTestId('card-assignee');
+    expect(chips).toHaveLength(1);
+    expect(chips[0]).toHaveTextContent('AT');
+    expect(chips[0]).toHaveAttribute('title', 'Anna Tech');
+  });
+
   it('groups the board into per-pool swimlanes', async () => {
     const u = userEvent.setup();
     listAbteilungenMock.mockResolvedValue([

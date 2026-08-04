@@ -78,7 +78,7 @@ export interface Ticket {
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
-  // Populated by joins
+  // Populated by joins or client-side decoration (TicketsPage)
   _assigneeName?: string;
   _repairOrderCount?: number;
   _appointmentCount?: number;
