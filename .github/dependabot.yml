@@ -1,0 +1,11 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    # Supply-chain hardening: never propose versions younger than 7 days
+    # (poisoned releases are usually detected and pulled within hours/days).
+    cooldown:
+      default-days: 7
