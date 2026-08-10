@@ -1,0 +1,415 @@
+// TEST-ONLY / SEED-ONLY product data. NOT imported by any runtime code path.
+//
+// The app reads its product catalog from the `products` table (see
+// catalogLoader.ts) — the DB is the single source of truth, and catalogs.ts
+// ships empty containers that get hydrated from the DB. This file keeps a
+// hardcoded copy of the catalog for two non-runtime uses only:
+//   1. Tests — vitest.setup.ts seeds the (empty) runtime arrays from here so
+//      unit tests that import `ALL` / `SHARP` / … keep working, and the
+//      data-integrity suites in catalogs.test.ts assert against SEED_* here.
+//   2. scripts/gen-products-seed.ts — regenerates the products seed migration.
+//
+// This copy can drift from the live DB over time; it is a fixture, not truth.
+import type { Item, Catalog } from '../../../lib/pricing';
+
+export const BESSA: Item[] = [
+  // Kassa
+  { id:'3942f638-1abb-4be9-85a5-d3bf442aa3d8', code:'100', name:'Mobile Kassa', cat:'Kassa – Mobil', p:{y:19,s:25,m:30,e:38}, t:'m' },
+  { id:'c4aca644-5fb4-46cf-9fea-8ddc1bee8c30', code:'109', name:'bessa Mobil', cat:'Kassa – Mobil', p:{y:119}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'cb003c42-11dc-48c9-a5de-68a2c998501a', code:'110', name:'Kleiner Handelsbetrieb', cat:'Kassa – Handel', p:{y:24,s:30,m:40,e:48}, t:'m' },
+  { id:'4d6ee0aa-32ad-480a-aa2f-4d1ddf620b12', code:'111', name:'Großer Handelsbetrieb', cat:'Kassa – Handel', p:{y:42,s:55,m:70,e:84}, t:'m' },
+  { id:'6fa5da94-d90b-41a1-ab17-f515d172b940', code:'115', name:'Web Kassa / Auftragsverwaltung', cat:'Kassa – Handel', p:{y:19,s:25,m:30}, t:'m' },
+  { id:'1dfe4874-04a7-47e9-9230-e1696b6e8901', code:'119', name:'bessa Handelsbetrieb', cat:'Kassa – Handel', p:{y:160}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'a4e9ba39-ee22-41b9-8f94-936ee3ce3de3', code:'120', name:'Kleiner Gastrobetrieb', cat:'Kassa – Gastro', p:{y:45,s:55,m:70,e:90}, t:'m' },
+  { id:'95cd9f0f-ec0d-46eb-aaa6-330a8ce129d4', code:'121', name:'Großer Gastrobetrieb', cat:'Kassa – Gastro', p:{y:62,s:80,m:100,e:124}, t:'m' },
+  { id:'6f8ed70a-8388-40d6-8e9e-516f524cd3e5', code:'129', name:'bessa Gastrobetrieb', cat:'Kassa – Gastro', p:{y:240}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'40769d58-ebbb-40f8-b4b8-9a89da35a934', code:'020', name:'Zusätzlicher Bediener', cat:'Kassa – Einzelfunktionen', p:{y:3,s:4,m:5,e:6}, t:'m' },
+  { id:'4bc73978-ee15-4858-8107-87d3faa210e2', code:'021', name:'Kundenverwaltung', cat:'Kassa – Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
+  { id:'f7a4cb27-d3cf-4e84-ba58-a273da596c06', code:'022', name:'Lagerverwaltung', cat:'Kassa – Einzelfunktionen', p:{y:15,s:18,m:20,e:30}, t:'m', note:'+10h Arbeitszeit', autoAdd:{ productId:'b01429e1-672e-44ae-ae79-1d08c4f7f918', qty:10 } },
+  { id:'00c9aca1-e463-4c63-a5c2-9fd51d70010a', code:'023', name:'Lokale Gutscheinverwaltung', cat:'Kassa – Einzelfunktionen', p:{y:10,s:12,m:16,e:20}, t:'m' },
+  { id:'3296ada4-f7f8-47a1-9cf5-a3dc64326f3a', code:'024', name:'Erweitertes Berichtswesen', cat:'Kassa – Einzelfunktionen', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'b2a3bb5a-370c-49d4-96e3-874b5df66c56', code:'030', name:'bessa Signieren', cat:'Kassa – Einzelfunktionen', p:{y:9,s:11,m:25,e:50}, t:'m', note:'derzeit nur DE' },
+  { id:'14105277-c0ca-400f-9444-3ec9414fb279', code:'040a', name:'Anbindung bessa Zahlen (Kartenzahlung)', cat:'Kassa – Externe Systeme', p:{y:0,s:0,m:0,e:0}, t:'m' },
+  { id:'65e7e1a8-23b3-444f-8b18-c5ca7312cf28', code:'040', name:'Anbindung Kartenzahlungsterminal', cat:'Kassa – Externe Systeme', p:{y:12,s:15,m:18,e:24}, t:'m' },
+  { id:'117be9d9-f2b0-409d-9ec6-9497f943ff4f', code:'041', name:'Anbindung Barzahlungsterminal', cat:'Kassa – Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'eceb4278-06cc-4fe5-9413-d41ae999166c', code:'042', name:'Nebenterminal', cat:'Kassa – Externe Systeme', p:{y:14,s:16,m:18,e:28}, t:'m' },
+  { id:'0824405f-8780-4371-919b-5cee2c6efb07', code:'043', name:'Bestellmonitor', cat:'Kassa – Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  { id:'ad5d1834-f864-43a1-8be4-2bae0bfeade4', code:'044', name:'Anbindung Schankanlage', cat:'Kassa – Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m', note:'+10h Arbeitszeit', autoAdd:{ productId:'b01429e1-672e-44ae-ae79-1d08c4f7f918', qty:10 } },
+  { id:'a336d467-a39f-4acd-8872-e7d185c45ea9', code:'049', name:'Öffentliche Schnittstelle', cat:'Kassa – Externe Systeme', p:{y:18,s:22,m:28,e:36}, t:'m' },
+  // Module
+  { id:'3ad3609d-c87a-485f-b96f-827e60c79e81', code:'300', name:'App (pro Filiale)', cat:'Module – Pakete', p:{y:109}, t:'m', note:'50% Rabatt je weitere Filiale', discount:{type:'percent',value:50,label:'Weitere Filiale'} },
+  { id:'d3a94a99-982c-4969-aab8-9aed654ed0cb', code:'310', name:'Handel (pro Filiale)', cat:'Module – Pakete', p:{y:139}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'37551e30-8b3f-44cf-a126-702dfd2539ea', code:'320', name:'Gastro (pro Filiale)', cat:'Module – Pakete', p:{y:199}, t:'m', note:'-50 € je weitere Filiale', discount:{type:'fixed',value:50,label:'Weitere Filiale'} },
+  { id:'bfa4ca0e-b5ed-4cd2-a1a7-12c02854082f', code:'200', name:'Web-Bestellungen', cat:'Module – Einzelfunktionen', p:{y:39,s:49}, t:'m' },
+  { id:'48065ab3-b47f-46ae-a32e-2176ae41dd30', code:'201', name:'Kundenbindung Kundenkarte', cat:'Module – Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'35518df7-6eb3-4bd3-a21c-33e379d23271', code:'202', name:'Lieferservice-Bestellungen', cat:'Module – Einzelfunktionen', p:{y:39}, t:'m', info:'Lieferando, Foodora, Wolt and UberEATS' },
+  { id:'d2c207cf-3c6f-41f6-a1df-739e8e48d4bb', code:'203', name:'Gastro-Kiosk-Bestellungen', cat:'Module – Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weiterer Kiosk', discount:{type:'percent',value:50,label:'Weiterer Kiosk'} },
+  { id:'d0c56974-678a-41b0-9924-e5353cc0891b', code:'204', name:'Tisch-Tablet-Bestellungen', cat:'Module – Einzelfunktionen', p:{y:9,s:12}, t:'m' },
+  { id:'cdc84a4d-99b6-48c5-b414-c5be9daeff03', code:'205', name:'Schank-Bestellungen', cat:'Module – Einzelfunktionen', p:{y:99,s:125}, t:'m', note:'50% je weitere Schank', discount:{type:'percent',value:50,label:'Weitere Schank'} },
+  { id:'ec32520e-cbba-4739-8cf0-fd8bb918ca55', code:'206', name:'Kantinen-Bestellungen', cat:'Module – Einzelfunktionen', p:{y:99}, t:'m', note:'50% für öffentl. Einr.' },
+  { id:'01289762-3f01-486f-8ab8-d5aa9038996e', code:'207', name:'Online Gutscheinverwaltung', cat:'Module – Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'33da16d1-bbaf-40b1-bac4-9160ce593952', code:'208', name:'Gutscheine Shopify/WooCommerce', cat:'Module – Einzelfunktionen', p:{y:39}, t:'m' },
+  { id:'f2d30dd5-e54f-426d-8ea5-20ccb6396b06', code:'209', name:'Gastrotouch Kennzahlen', cat:'Module – Einzelfunktionen', p:{y:39}, t:'m' },
+];
+
+// Melzer X3000 – UVP-Preisliste gültig ab 01.01.2026
+// Einmaliger Softwarepreis + 30% Wartung pro Jahr (servicePercent). Pepper-Terminal-Varianten sind ausgelassen.
+export const MELZER: Item[] = [
+  // Arbeitsplätze (pro Platz/Gerät)
+  { id:'mel-ap-kasse', name:'Kasse', cat:'Arbeitsplätze', price:990, t:'o', servicePercent:30 },
+  { id:'mel-ap-kasse-light', name:'Kasse Light', cat:'Arbeitsplätze', price:690, t:'o', servicePercent:30, info:'Vollwertiger Kassenplatz, kein Büroplatz, keine Module, kein Ablöserabatt' },
+  { id:'mel-ap-kasse-handel', name:'Kasse Handel', cat:'Arbeitsplätze', price:690, t:'o', servicePercent:30, info:'Automatisch SB-Modus, kein Bestellbon, kein grafischer Tischplan' },
+  { id:'mel-ap-buero', name:'Büro', cat:'Arbeitsplätze', price:690, t:'o', servicePercent:30, info:'Boniersystem aufrufbar, bonieren möglich (kein Bestellbon)' },
+  { id:'mel-ap-buero-light', name:'Büro Light', cat:'Arbeitsplätze', price:290, t:'o', servicePercent:30, info:'Pro Dongel ohne „Kasse" ist Büro Light notwendig' },
+  { id:'mel-ap-kiosk', name:'Kiosk (Android)', cat:'Arbeitsplätze', price:790, t:'o', servicePercent:30 },
+  { id:'mel-ap-mob-tablet', name:'MobileKasse Tablet (Android)', cat:'Arbeitsplätze', price:790, t:'o', servicePercent:30, info:'Cloud ohne Wartung: +19 €/Mo Lizenzgebühr' },
+  { id:'mel-ap-mob-phone', name:'MobileKasse Smartphone / Tablet Hochformat', cat:'Arbeitsplätze', price:390, t:'o', servicePercent:30, info:'Cloud ohne Wartung: +19 €/Mo Lizenzgebühr' },
+  { id:'mel-ap-bondisplay', name:'Bondisplay', cat:'Arbeitsplätze', price:590, t:'o', servicePercent:30 },
+  { id:'mel-ap-abholdisplay', name:'Abholdisplay (Web)', cat:'Arbeitsplätze', price:290, t:'o', servicePercent:30 },
+
+  // Interface Kreditkarten-Terminal (Direkt-Anschluss, pro Anschluss)
+  { id:'mel-kk-kasse', name:'Kreditkarten-Terminal – Kasse', cat:'Interface Kreditkarten (Direkt)', price:390, t:'o', servicePercent:30, info:'pro Direkt-Anschluss' },
+  { id:'mel-kk-kiosk', name:'Kreditkarten-Terminal – Kiosk', cat:'Interface Kreditkarten (Direkt)', price:390, t:'o', servicePercent:30, info:'pro Direkt-Anschluss' },
+  { id:'mel-kk-mob-tablet', name:'Kreditkarten-Terminal – MobileKasse Tablet', cat:'Interface Kreditkarten (Direkt)', price:390, t:'o', servicePercent:30, info:'pro Direkt-Anschluss' },
+  { id:'mel-kk-mob-phone', name:'Kreditkarten-Terminal – MobileKasse Smartphone/Hochformat', cat:'Interface Kreditkarten (Direkt)', price:190, t:'o', servicePercent:30, info:'pro Direkt-Anschluss' },
+
+  // Interface Chipleser (pro Anschluss) – kostenpflichtig nur mit Stammdaten-Chipverwaltung
+  { id:'mel-chip-kasse', name:'Chipleser – Kasse', cat:'Interface Chipleser', price:390, t:'o', servicePercent:30 },
+  { id:'mel-chip-kiosk', name:'Chipleser – Kiosk', cat:'Interface Chipleser', price:390, t:'o', servicePercent:30 },
+  { id:'mel-chip-mob-tablet', name:'Chipleser – MobileKasse Tablet', cat:'Interface Chipleser', price:390, t:'o', servicePercent:30 },
+  { id:'mel-chip-mob-phone', name:'Chipleser – MobileKasse Smartphone/Hochformat', cat:'Interface Chipleser', price:190, t:'o', servicePercent:30 },
+
+  // Diverse Interfaces zu externen Geräten
+  { id:'mel-if-vision-checkout', name:'Vision Checkout', cat:'Interfaces externe Geräte', price:690, t:'o', servicePercent:30, info:'zusätzlich: Kassenplatz + Interface Kreditkarten und/oder Chipleser' },
+  { id:'mel-if-waage', name:'Waage', cat:'Interfaces externe Geräte', price:390, t:'o', servicePercent:30 },
+  { id:'mel-if-scanner', name:'Scanner mit Preis-/Grammberechnung', cat:'Interfaces externe Geräte', price:190, t:'o', servicePercent:30 },
+  { id:'mel-if-cashdispenser', name:'Cashdispenser', cat:'Interfaces externe Geräte', price:690, t:'o', servicePercent:30 },
+  { id:'mel-if-schankanlage', name:'Schankanlage', cat:'Interfaces externe Geräte', price:690, t:'o', servicePercent:30, info:'pro Dongel' },
+
+  // Interne Module (pro Dongel)
+  { id:'mel-int-rechnung-online', name:'Rechnung Online', cat:'Interne Module', price:490, t:'o', servicePercent:30, info:'Ohne Wartung: +19 €/Mo Lizenzgebühr' },
+  { id:'mel-int-lieferschein', name:'Lieferschein + Sammelrechnung', cat:'Interne Module', price:390, t:'o', servicePercent:30 },
+  { id:'mel-int-menuebestellung', name:'Menübestellung und -abruf', cat:'Interne Module', price:390, t:'o', servicePercent:30 },
+  { id:'mel-int-gutschein', name:'Gutscheinverwaltung intern', cat:'Interne Module', price:690, t:'o', servicePercent:30 },
+  { id:'mel-int-kassabuch', name:'Kassabuch', cat:'Interne Module', price:490, t:'o', servicePercent:30 },
+  { id:'mel-int-tischreservierung', name:'Tischreservierung intern', cat:'Interne Module', price:490, t:'o', servicePercent:30 },
+  { id:'mel-int-mixmatch', name:'Mix and Match', cat:'Interne Module', price:290, t:'o', servicePercent:30 },
+  { id:'mel-int-filial-zentrale', name:'Filialverwaltung Zentrale', cat:'Interne Module', price:890, t:'o', servicePercent:30, info:'Zumindest ein kostenpflichtiger Büro- oder Kassenplatz zusätzlich notwendig' },
+  { id:'mel-int-filial-filiale', name:'Filialverwaltung Filiale', cat:'Interne Module', price:490, t:'o', servicePercent:30 },
+  { id:'mel-int-webreports', name:'WebReports', cat:'Interne Module', price:290, t:'o', servicePercent:30, info:'pro Dongel und User · Ohne Wartung: +19 €/Mo Lizenzgebühr' },
+
+  // Interfaces zu Fremdsoftware (pro Dongel und Anbieter)
+  { id:'mel-fs-gutschein-ext', name:'Gutscheinverwaltung extern', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30 },
+  { id:'mel-fs-hotelsoftware', name:'Hotelsoftware pro Zimmer', cat:'Interfaces Fremdsoftware', price:25, t:'o', servicePercent:30, info:'Max. 60 Zimmer verrechnet, weitere Zimmer kostenlos' },
+  { id:'mel-fs-fibu-wawi', name:'Fibu / Wawi', cat:'Interfaces Fremdsoftware', price:490, t:'o', servicePercent:30 },
+  { id:'mel-fs-datev', name:'Datev Kassenarchiv online (D)', cat:'Interfaces Fremdsoftware', price:490, t:'o', servicePercent:30 },
+  { id:'mel-fs-selford-ordering', name:'Selfordering – Ordering', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30 },
+  { id:'mel-fs-selford-plattform', name:'Selfordering – Plattform (Lieferando …)', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30 },
+  { id:'mel-fs-selford-payment', name:'Selfordering – Payment', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30 },
+  { id:'mel-fs-selford-kiosk', name:'Selfordering – Kiosk', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30, info:'pro Kiosk' },
+  { id:'mel-fs-bonus-ext', name:'Bonussystem extern', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30 },
+  { id:'mel-fs-tisch-ext', name:'Tischreservierung extern', cat:'Interfaces Fremdsoftware', price:290, t:'o', servicePercent:30 },
+  { id:'mel-fs-zutritt', name:'Zutrittsystem (HKS, TAC, N-TREE)', cat:'Interfaces Fremdsoftware', price:1200, t:'o', servicePercent:30, info:'Evt. Sonderprogrammierung separat verrechnet' },
+  { id:'mel-fs-signieren', name:'Signieren BelegExtern pro Transfer.exe', cat:'Interfaces Fremdsoftware', price:890, t:'o', servicePercent:30, info:'Zumindest ein kostenpflichtiger Büro- oder Kassenplatz notwendig' },
+
+  // Import (pro Dongel und Interface)
+  { id:'mel-imp-artikel', name:'Artikel', cat:'Import', price:490, t:'o', servicePercent:30 },
+  { id:'mel-imp-gaestekartei', name:'Gästekartei', cat:'Import', price:490, t:'o', servicePercent:30 },
+  { id:'mel-imp-chipdetails', name:'Chipdetails', cat:'Import', price:490, t:'o', servicePercent:30 },
+
+  // Lagerverwaltung (pro Dongel)
+  { id:'mel-lag-basis', name:'Lager Basismodul', cat:'Lagerverwaltung', price:290, t:'o', servicePercent:30, info:'Stammdaten, Lieferanten, Inventur, Lagerzuordnung' },
+  { id:'mel-lag-kontrolle', name:'Lager Kontrollmodul', cat:'Lagerverwaltung', price:290, t:'o', servicePercent:30, info:'Voraussetzung: Lager Basismodul' },
+  { id:'mel-lag-bestellung', name:'Lager Bestellung / Einkauf', cat:'Lagerverwaltung', price:290, t:'o', servicePercent:30, info:'Voraussetzung: Basismodul + Kontrolle' },
+  { id:'mel-lag-etiketten', name:'Etikettendruck', cat:'Lagerverwaltung', price:290, t:'o', servicePercent:30 },
+  { id:'mel-lag-mobileinv', name:'MobileInventur', cat:'Lagerverwaltung', price:290, t:'o', servicePercent:30, info:'Voraussetzung: Basismodul + Kontrolle' },
+  { id:'mel-lag-edi-import', name:'Import Lieferanten Lieferscheine (EDI 2.0)', cat:'Lagerverwaltung', price:290, t:'o', servicePercent:30, info:'Voraussetzung: Basismodul, Kontrolle, Bestellung/Einkauf' },
+
+  // Dienstleistungen / Stundensätze
+  { id:'mel-ds-dev', name:'Softwareentwicklung', cat:'Dienstleistungen', price:160, t:'h', info:'pro Stunde' },
+  { id:'mel-ds-service', name:'Dienstleistung', cat:'Dienstleistungen', price:120, t:'h', info:'pro Stunde' },
+  { id:'mel-ds-dongel', name:'Dongel', cat:'Dienstleistungen', price:25, t:'o', info:'EK pro Dongel' },
+];
+
+// GastroTouch – Update-Preisliste, Stand Jänner 2026. Einmalige Update-Preise
+// (netto, zzgl. 20% MwSt.). Der Preis richtet sich nach dem Zeitpunkt des
+// letzten Updates: innerhalb eines Jahres Normalpreis (+0%), ab dem 2. Jahr
+// +50%, ab dem 3. Jahr +100%. Jede Update-Stufe ist als eigene Position
+// hinterlegt — der Verkäufer wählt die passende Zeile je nach letztem Update.
+// Version, auf die aktuell aktualisiert wird — bei jedem Release hier anpassen.
+// Wird an jeden GastroTouch-Positionsnamen angehängt (Angebot + PDF).
+export const GASTROTOUCH_UPDATE_VERSION = 'V.67.25';
+
+// GastroTouch Module – UVP-Preisliste, Stand Jänner 2024. Einmaliger Kaufpreis
+// (netto, zzgl. 20% MwSt.) plus Software-Wartung pro Jahr = 30% des UVP
+// (servicePercent) — exakt die Wartungsspalte der Preisliste. Gleiche Struktur
+// wie die MELZER-Positionen (Einmalpreis + 30% Wartung).
+export const GASTROTOUCH_MODULE: Item[] = [
+  { id:'gt-mod-grund-voll', name:'Grundmodul „Voll" inkl. BackOffice', cat:'Module', price:950, t:'o', servicePercent:30 },
+  { id:'gt-mod-grund-light', name:'Grundmodul „Light"', cat:'Module', price:650, t:'o', servicePercent:30 },
+  { id:'gt-mod-arbeitsplatz', name:'Jeder weitere Arbeitsplatz', cat:'Module', price:600, t:'o', servicePercent:30 },
+  { id:'gt-mod-01-zimmer', name:'Zimmer, Stammgäste, =Kreditm. (Modul 1)', cat:'Module', price:350, t:'o', servicePercent:30 },
+  { id:'gt-mod-02-lager', name:'Lagerverwaltung (Modul 2)', cat:'Module', price:300, t:'o', servicePercent:30 },
+  { id:'gt-mod-03-zeit', name:'Zeiterfassung (Modul 3)', cat:'Module', price:250, t:'o', servicePercent:30 },
+  { id:'gt-mod-04-funk', name:'Funksystem-Handy pro Handy (Modul 4)', cat:'Module', price:290, t:'o', servicePercent:30 },
+  { id:'gt-mod-05-schank', name:'Schankverbund (Modul 5)', cat:'Module', price:670, t:'o', servicePercent:30 },
+  { id:'gt-mod-06-backoffice2', name:'ab 2. BackOffice (Modul 6)', cat:'Module', price:300, t:'o', servicePercent:30 },
+  { id:'gt-mod-07-hotel', name:'Hotelverbund (Modul 7)', cat:'Module', price:650, t:'o', servicePercent:30 },
+  { id:'gt-mod-10-bankomat', name:'Bankomat / Kreditkartenschnittstelle (Modul 10)', cat:'Module', price:400, t:'o', servicePercent:30 },
+  { id:'gt-mod-10-gastroid', name:'Gastroid / Six-Anbindung pro Handy', cat:'Module', price:100, t:'o', servicePercent:30 },
+  { id:'gt-mod-12-bondispo', name:'Bondispo (Modul 12)', cat:'Module', price:470, t:'o', servicePercent:30 },
+  { id:'gt-mod-12-bondispo-ms', name:'Bondispo „Master/Slave"', cat:'Module', price:670, t:'o', servicePercent:30 },
+  { id:'gt-mod-13-gastrocontrol', name:'Gastro Control (Modul 13)', cat:'Module', price:320, t:'o', servicePercent:30 },
+  { id:'gt-mod-18-export', name:'Exportmodul (Modul 18)', cat:'Module', price:440, t:'o', servicePercent:30 },
+  { id:'gt-mod-incert', name:'Gutscheinschnittstelle INCERT', cat:'Module', price:600, t:'o', servicePercent:30 },
+  { id:'gt-mod-treuepass', name:'Treuepass-, Report-, Bestell-APP', cat:'Module', price:320, t:'o', servicePercent:30 },
+];
+
+const GASTROTOUCH_UPDATE_BASE: Item[] = [
+  // Normalpreis – letztes Update innerhalb eines Jahres (+0%)
+  { id:'gt-16067191-2025', code:'16067191', name:'Einzelplatz', cat:'Update – Letztes Update 2025', price:139.90, t:'o' },
+  { id:'gt-16067192-2025', code:'16067192', name:'Mehrplatz', cat:'Update – Letztes Update 2025', price:236.80, t:'o' },
+  { id:'gt-16067193-2025', code:'16067193', name:'Je weiterer Arbeitsplatz', cat:'Update – Letztes Update 2025', price:70.30, t:'o' },
+  { id:'gt-16067194-2025', code:'16067194', name:'Je Orderman', cat:'Update – Letztes Update 2025', price:22.20, t:'o' },
+  // Ab dem 2. Jahr – letztes Update 2024 (+50%)
+  { id:'gt-16067191-2024', code:'16067191', name:'Einzelplatz', cat:'Update – Letztes Update 2024 (+50%)', price:209.85, t:'o', info:'Normalpreis + 50%' },
+  { id:'gt-16067192-2024', code:'16067192', name:'Mehrplatz', cat:'Update – Letztes Update 2024 (+50%)', price:355.20, t:'o', info:'Normalpreis + 50%' },
+  { id:'gt-16067193-2024', code:'16067193', name:'Je weiterer Arbeitsplatz', cat:'Update – Letztes Update 2024 (+50%)', price:105.45, t:'o', info:'Normalpreis + 50%' },
+  { id:'gt-16067194-2024', code:'16067194', name:'Je Orderman', cat:'Update – Letztes Update 2024 (+50%)', price:33.30, t:'o', info:'Normalpreis + 50%' },
+  // Ab dem 3. Jahr – letztes Update 2023 und älter (+100%)
+  { id:'gt-16067191-2023', code:'16067191', name:'Einzelplatz', cat:'Update – 2023 und älter (+100%)', price:279.80, t:'o', info:'Normalpreis + 100%' },
+  { id:'gt-16067192-2023', code:'16067192', name:'Mehrplatz', cat:'Update – 2023 und älter (+100%)', price:473.60, t:'o', info:'Normalpreis + 100%' },
+  { id:'gt-16067193-2023', code:'16067193', name:'Je weiterer Arbeitsplatz', cat:'Update – 2023 und älter (+100%)', price:140.60, t:'o', info:'Normalpreis + 100%' },
+  { id:'gt-16067194-2023', code:'16067194', name:'Je Orderman', cat:'Update – 2023 und älter (+100%)', price:44.40, t:'o', info:'Normalpreis + 100%' },
+];
+
+// Der gastrotouch-Tab zeigt zuerst die Module, danach die Update-Preisliste.
+// Jede Update-Position bekommt die Zielversion in den Namen ("… (Update V.67.25)"),
+// damit sie im Angebot und im PDF sichtbar ist; die Module bleiben unverändert.
+export const GASTROTOUCH: Item[] = [
+  ...GASTROTOUCH_MODULE,
+  ...GASTROTOUCH_UPDATE_BASE.map((it) => ({
+    ...it,
+    name: `${it.name} (Update ${GASTROTOUCH_UPDATE_VERSION})`,
+  })),
+];
+
+export const UNIFY: Item[] = [
+  { id:'unify-dream-router-7', name:'Netzwerk - Dream Router 7', price:300, t:'o' },
+  { id:'unify-cloud-gateway-max', name:'Netzwerk - Cloud Gateway Max', price:249, t:'o' },
+  { id:'unify-lite-8-poe', name:'Netzwerk - Lite 8 PoE', price:139, t:'o' },
+  { id:'unify-lite-16-poe', name:'Netzwerk - Lite 16 PoE', price:249, t:'o' },
+  { id:'unify-u7-pro', name:'Netzwerk - U7 Pro', price:225, t:'o' },
+  { id:'unify-u7-pro-outdoor', name:'Netzwerk - U7 Pro Outdoor', price:350, t:'o' },
+];
+
+export const RCH: Item[] = [
+  { id:'rch-ape3', name:'RCH APE3', cat:'Kassensysteme', price:1390, t:'o', info:'Snapdragon OctaCore · 4 GB RAM · 64 GB ROM · 10" Display · Bondrucker integriert · Android 13 · Software: RCH Atos · 12 Monate Bring-In · zzgl. Installation und Einschulung' },
+  { id:'rch-at15-iron-slim', name:'RCH AT15 IRON SLIM', cat:'Kassensysteme', price:1790, t:'o', info:'4 GB RAM · 32 GB Flash · 10" Display · inkl. Bondrucker · Android 10 · Software: RCH Atos · 12 Monate Bring-In · zzgl. Installation und Einschulung' },
+  { id:'rch-walle-8t', name:'RCH WALLE 8T', cat:'Kassensysteme', price:990, t:'o', info:'1 GB RAM · 8 GB MMC · 8" Display · Bondrucker integriert · Android 5.0.2 oder höher · Software: RCH Atos · 12 Monate Bring-In · zzgl. Installation und Einschulung' },
+  { id:'rch-dva-1210-i3', name:'RCH DVA 1210 i3', cat:'Kassensysteme', price:1453, t:'o', info:'Intel Core i3-1215U Prozessor der 12. Generation mit Windows 11 IoT' },
+  { id:'rch-dva-1210-celeron', name:'RCH DVA 1210 Celeron', cat:'Kassensysteme', price:1193, t:'o', info:'Intel Celeron J6412 mit Windows 11 IoT' },
+  { id:'rch-dva-1210-kundenbildschirm', name:'RCH Kundenbildschirm Display 10.1" DVA1210', cat:'Kassensysteme', price:279, t:'o' },
+];
+
+export const HARDWARE: Item[] = [
+  { id:'fdb37b6a-4ad5-4a46-ba8f-53e4a2154ce3', name:'Sunmi D3 Pro', price:1024, t:'o', info:'15,6" Full-HD Display · Android 13 · kein integrierter Drucker · Kundendisplay 10,1" optional · Garantie laut Hersteller' },
+  { id:'c36c776a-194a-4c32-b758-8ffc09cf991b', name:'Sunmi D3 Mini', price:690, t:'o', info:'10,1" HD Display · Android 13 · Bondrucker 80mm integriert (Auto-Cutter) · Kundendisplay 4" IPS Touch · Garantie laut Hersteller' },
+  { id:'149f374e-6341-4a33-a1bc-23dff12ad749', name:'Sunmi D3 80mm', price:1049, t:'o', info:'15,6" Full-HD Display · Android 14 · Bondrucker 80mm integriert · Kundendisplay 10,1" optional · Garantie laut Hersteller' },
+  { id:'9a92555d-b845-4282-ae38-963980fc1479', name:'Sunmi T3 80mm', price:1249, t:'o', info:'15,6" Full-HD Display · Android 13 · Bondrucker 80mm integriert (Auto-Cutter) · kein Kundendisplay · Garantie laut Hersteller' },
+  { id:'bbcba755-3fa2-4c21-85e2-9842a1baa541', name:'D3 Pro / D3 80mm / T3 80mm Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
+  { id:'91b8a7fa-5b0c-44a4-a4a7-fd6c6f0b25f6', name:'Sunmi V3H', price:649, t:'o', info:'6,75" HD+ Display · Android 13 · Bondrucker 58mm integriert · kein Kundendisplay · Garantie laut Hersteller' },
+  { id:'4bc17b56-5e4e-49cf-b4fb-a0e4d295335a', name:'Sunmi L3H', price:599, t:'o', info:'6,8" HD+ Display · Android 14 · kein integrierter Drucker · kein Kundendisplay · Garantie laut Hersteller' },
+  { id:'1a4f3300-edd2-477f-8188-604b8ef8fba3', name:'V3H/L3H/D3 mini Garantieverlängerung', price:90, t:'o', info:'auf 48 Monate' },
+  { id:'7ea30866-25d7-4fa2-b970-0fd6911a3de8', name:'Hobex ViA PRO', price:1149, t:'o' },
+  { id:'4be8df2f-6293-4a06-b559-d7856c12c1bf', name:'Addminat-Kellnerschloss', price:178, t:'o', info:'inkl 5 Schlüssel' },
+];
+
+export const DRUCKER: Item[] = [
+  { id:'d2769912-6880-4996-b6b9-07d4fdbc9406', name:'Epson TMT20 Bondrucker', price:280, t:'o' },
+  { id:'2ce55292-b567-488a-bd35-20f280dc8381', name:'Bixolon SPP-R200III', price:376, t:'o' },
+];
+
+// Prices = Black Pepper list price (our cost) × 1.42 (selling margin),
+// rounded up to the next whole euro.
+// Source: 2025-10-20 BlackPepper-Preisliste.
+export const KUECHENMONITORE: Item[] = [
+  // KitchenSpeed Lite
+  { id:'b98e4215-ab79-45b0-a365-32a6bb9367a5', name:'KitchenSpeed Lite 15,6" Intel J6412', price:1392, t:'o' },
+  { id:'be7b9177-1682-4388-bfe5-07615adf7cde', name:'KitchenSpeed Lite 15,6" Intel i3', price:1704, t:'o' },
+  { id:'ca26b2dd-e2ee-4068-baeb-0b30bef3652f', name:'KitchenSpeed Lite 15,6" Android PoE++', price:1392, t:'o' },
+  { id:'fcb98549-60de-4634-bf8d-267648cde83e', name:'KitchenSpeed Lite 21,5" Intel J6412', price:1697, t:'o' },
+  { id:'82dfb1e9-37e8-465c-8f08-d56fbe5cd525', name:'KitchenSpeed Lite 21,5" Intel i3', price:2010, t:'o' },
+  { id:'227beac0-cae4-444b-b349-75692a4c288f', name:'KitchenSpeed Lite 21,5" Android PoE++', price:1697, t:'o' },
+  { id:'ba4b1c27-d6dc-4120-b348-236430abecc8', name:'KitchenSpeed Lite 32" Intel J6412', price:2500, t:'o' },
+  { id:'c659e63f-1305-4729-89ab-560e527cd8a2', name:'KitchenSpeed Lite 32" Intel i3', price:2826, t:'o' },
+  { id:'ce5d9b69-52e4-4199-8adf-97f192a9b4e3', name:'KitchenSpeed Lite 32" Android PoE++', price:2500, t:'o' },
+  // KitchenSpeed Ultra
+  { id:'4a898f54-638b-45e8-8f29-d1d3f573d9ad', name:'KitchenSpeed Ultra 22" Intel N97', price:3380, t:'o' },
+  { id:'bd6f02cc-856f-42b2-b3a2-90aacf32c76f', name:'KitchenSpeed Ultra 32" Intel N97', price:4104, t:'o' },
+  // Zubehör
+  { id:'3fff9523-d8bd-4c3f-bcd2-00068feba867', name:'Windows 11 IoT Enterprise LTSC', price:79, t:'o' },
+  { id:'7e3f6afa-b17a-4254-aa8a-a40d80610aa1', name:'Halterungslösung (Wand/Decke/Standfuß)', price:255, t:'o' },
+  { id:'94561292-0c42-47a1-b938-ed3337d8583e', name:'Signalisierungslautsprecher', price:40, t:'o', info:'für Lite' },
+  // Service
+  { id:'69363519-c612-4ecb-9733-02bd782bd654', name:'Black Pepper-Protect Upgrade', price:69, t:'o', info:'für Lite' },
+  { id:'9472265f-181b-403c-bec5-1a53cdc88117', name:'Garantieverlängerung Lite +1 Jahr', price:140, t:'o' },
+  { id:'767029e1-52cf-40a3-9f76-e49c145b94eb', name:'Garantieverlängerung Ultra +1 Jahr', price:256, t:'o' },
+  { id:'90dc559f-f14a-457d-a328-eb7c6945a5c3', name:'Garantieverlängerung Ultra +2 Jahre', price:455, t:'o' },
+];
+
+export const KUECHENMONITORE_SUNMI: Item[] = [
+  { id:'5c1b7d35-27b4-4bc1-b44c-fb8a2f1ca153', name:"Flex 3 22''", price:1139, t:'o', info:'22" Full-HD Touchdisplay · Android 13 · kein integrierter Drucker · kein Kundendisplay · Garantie laut Hersteller' },
+  { id:'9105cea7-5ce7-4cab-87ba-12395c184861', name:"Flex 3 27''", price:1749, t:'o', info:'27" Full-HD Touchdisplay · Android 13 · kein integrierter Drucker · kein Kundendisplay · Garantie laut Hersteller' },
+  { id:'dcfacd8a-e274-44ae-89f7-ecc03164c439', name:'Flex 3 Garantieverlängerung', price:190, t:'o', info:'auf 48 Monate' },
+];
+
+// VK = EK × 2
+export const KIOSK: Item[] = [
+  { id:'kiosk-flex-3-27', name:"Flex Kiosk 3 27''", price:1886, t:'o', info:'27" Full-HD Touchdisplay · Android 13 · kein integrierter Drucker · kein Kundendisplay · Garantie laut Hersteller' },
+  { id:'kiosk-flex-3-22', name:"Flex Kiosk 3 22''", price:1716, t:'o', info:'22" Full-HD Touchdisplay · Android 13 · kein integrierter Drucker · kein Kundendisplay · Garantie laut Hersteller' },
+  { id:'kiosk-flex-tisch-stand', name:'Restaurant Tisch Stand für Flex', price:756, t:'o' },
+  { id:'kiosk-flex-floor-stand', name:'Restaurant Floor Stand für Flex', price:1071.8, t:'o' },
+];
+
+export const DIENSTLEISTUNGEN: Item[] = [
+  { id:'00caa501-4266-4459-bbf6-38074fa7a00d', name:'Fiskalisierung', price:190, t:'o' },
+  { id:'b01429e1-672e-44ae-ae79-1d08c4f7f918', name:'Arbeitszeit', price:118, t:'h', info:'pro Stunde' },
+];
+
+export const ORDERMAN: Item[] = [
+  { id:'591d5910-776c-4864-8cfc-0ad55c6ccca9', name:'Orderman 10', price:900, t:'o' },
+  { id:'24931794-f0f7-44a8-a476-f0a1c5380484', name:'Orderman Garantieverlängerung', price:270, t:'o', info:'auf 48 Monate' },
+  { id:'6b8ccb5b-d690-4daf-82d5-ef637822817f', name:'Orderman Ladestation inkl. Netzteil', price:210, t:'o' },
+  { id:'a252444d-0ac6-4809-9ede-16125a3bc5f0', name:'Orderman Ersatzbatterie', price:60, t:'o' },
+  { id:'d1697574-cac7-4fec-8e72-89a582a0d6d5', name:'Orderman Gürteltasche', price:25, t:'o' },
+  { id:'0134901e-4d85-4e1d-a65b-c53be99e8ef4', name:'Orderman Safety-Cord', price:14, t:'o' },
+  { id:'orderman-magellan-celeron', name:'Magellan Celeron', price:1780, t:'o', info:'Intel N95/N97 · 15,1" 4:3 · 8 GB RAM · 128 GB SSD' },
+  { id:'orderman-magellan-celeron-garantie', name:'Magellan Celeron Garantieverlängerung', price:623, t:'o', info:'auf 60 Monate (35%)' },
+  { id:'orderman-magellan-i3', name:'Magellan i3', price:2080, t:'o', info:'Intel N305 · 15,1" 4:3 · 8 GB RAM · 128 GB SSD' },
+  { id:'orderman-magellan-i3-garantie', name:'Magellan i3 Garantieverlängerung', price:728, t:'o', info:'auf 60 Monate (35%)' },
+  { id:'orderman-magellan-i5', name:'Magellan i5', price:3120, t:'o', info:'Intel Ultra 5 · 15,1" 4:3 · 16 GB RAM · 256 GB SSD' },
+  { id:'orderman-magellan-i5-garantie', name:'Magellan i5 Garantieverlängerung', price:1092, t:'o', info:'auf 60 Monate (35%)' },
+];
+
+// Sharp MFP copiers. Source: "Verkaufs- und Leasingpreise MFP Sharp" price
+// list, Stand Jänner 2026. Each device carries its one-time VK, the UHG
+// (Reprographievergütung, fixed per speed class), the Lieferung/Installation
+// fee, and the All-in maintenance per-page rates (scan flat €0,0019). Leasing
+// is computed by copierOffer.ts (Grenke factor on the financed base) — the
+// price-list leasing columns are intentionally NOT stored. The console + inner
+// output bundled in the list price are recorded as includedOptions (€0 lines).
+//
+// ⚠️ Spec descriptions are concise + factual (from the price list / sample
+// offer). Verify full per-model spec sheets before customer-facing use.
+function sharpDevice(o: {
+  code: string;
+  vk: number;
+  uhg: number;
+  install: number;
+  speed: number;
+  pageBw: number;
+  pageColor: number;
+  console: '12' | '14';
+  note?: string;
+}): Item {
+  const consoleName =
+    o.console === '12'
+      ? 'Unterschrank BPDE12 Konsole 1×550 Blatt'
+      : 'Unterschrank BPDE14 Konsole 3×550 Blatt';
+  return {
+    id: `sharp-${o.code.toLowerCase()}`,
+    code: o.code,
+    name: `Sharp ${o.code}`,
+    cat: 'Sharp MFP',
+    t: 'copier',
+    vk: o.vk,
+    uhg: o.uhg,
+    install: o.install,
+    pageBw: o.pageBw,
+    pageColor: o.pageColor,
+    pageScan: 0.0019,
+    includedOptions: [{ name: consoleName }, { name: 'Innere Ausgabe BPTU10' }],
+    info: `${o.speed} A4-Seiten/min · max. A3${o.note ? ' · ' + o.note : ''}`,
+    description: [
+      `Sharp ${o.code} – A3 Multifunktionssystem (Farbe)`,
+      `Geschwindigkeit: ${o.speed} Seiten/Min. (Farbe & S/W)`,
+      'Papierformat: max. A3',
+      `Inkl. ${consoleName}`,
+      'Inkl. innerer Ausgabe BPTU10',
+      'Netzwerkdrucken / Netzwerkscannen Standard',
+      'Duplexeinheit Standard',
+    ].join('\n'),
+  };
+}
+
+export const SHARP: Item[] = [
+  sharpDevice({ code: 'BP51C26', vk: 3150, uhg: 194.73, install: 250, speed: 26, pageBw: 0.0075, pageColor: 0.075, console: '12' }),
+  sharpDevice({ code: 'BP51C31', vk: 3490, uhg: 194.73, install: 300, speed: 31, pageBw: 0.0075, pageColor: 0.075, console: '12' }),
+  sharpDevice({ code: 'BP51C36', vk: 4450, uhg: 194.73, install: 300, speed: 36, pageBw: 0.0075, pageColor: 0.075, console: '14' }),
+  sharpDevice({ code: 'BP51C45', vk: 4780, uhg: 235.02, install: 300, speed: 45, pageBw: 0.0075, pageColor: 0.075, console: '14' }),
+  sharpDevice({ code: 'BP61C31', vk: 4150, uhg: 194.73, install: 300, speed: 31, pageBw: 0.007, pageColor: 0.065, console: '14' }),
+  sharpDevice({ code: 'BP61C36', vk: 4795, uhg: 194.73, install: 300, speed: 36, pageBw: 0.007, pageColor: 0.065, console: '14' }),
+  sharpDevice({ code: 'BP61C45', vk: 5470, uhg: 235.02, install: 350, speed: 45, pageBw: 0.007, pageColor: 0.065, console: '14' }),
+  sharpDevice({ code: 'BP71C31', vk: 5270, uhg: 194.73, install: 350, speed: 31, pageBw: 0.007, pageColor: 0.065, console: '14' }),
+  sharpDevice({ code: 'BP71C36', vk: 5910, uhg: 194.73, install: 350, speed: 36, pageBw: 0.007, pageColor: 0.065, console: '14' }),
+  sharpDevice({ code: 'BP71C45', vk: 6320, uhg: 235.02, install: 400, speed: 45, pageBw: 0.007, pageColor: 0.065, console: '14' }),
+  sharpDevice({ code: 'BP71C55', vk: 7210, uhg: 235.02, install: 400, speed: 55, pageBw: 0.0055, pageColor: 0.055, console: '14' }),
+  sharpDevice({ code: 'BP71C65', vk: 8300, uhg: 235.02, install: 520, speed: 65, pageBw: 0.0055, pageColor: 0.055, console: '14', note: 'ohne Finisher' }),
+];
+
+// Sharp MFP accessories — one-time items (their list-price leasing column is
+// ignored; leasing is computed on VK via the Grenke factor in copierOffer.ts).
+export const SHARP_ZUBEHOR: Item[] = [
+  { id: 'sharp-zb-bpeb10', code: 'BPEB10', name: 'WLAN-Adapter', cat: 'Sharp Zubehör', price: 216, t: 'o' },
+  { id: 'sharp-zb-mxpk13ed', code: 'MXPK13ED', name: 'Post-Script', cat: 'Sharp Zubehör', price: 423, t: 'o' },
+  { id: 'sharp-zb-bpde14', code: 'BPDE14', name: 'Konsole 3×550 Blatt (Aufpreis auf BPDE12)', cat: 'Sharp Zubehör', price: 345, t: 'o' },
+  { id: 'sharp-zb-bpfx11de', code: 'BPFX11DE', name: 'Faxerweiterungs-Kit', cat: 'Sharp Zubehör', price: 553, t: 'o' },
+  { id: 'sharp-zb-bptr12', code: 'BPTR12', name: 'Rechtes Ausgabefach', cat: 'Sharp Zubehör', price: 119.2, t: 'o' },
+  { id: 'sharp-zb-bprb10', code: 'BPRB10', name: 'Papierführung', cat: 'Sharp Zubehör', price: 334, t: 'o' },
+  { id: 'sharp-zb-bpfn13', code: 'BPFN13', name: 'Heft-Finisher 50 Blatt Multiheftung, 1.000 Blatt Ablage', cat: 'Sharp Zubehör', price: 1445, t: 'o' },
+  { id: 'sharp-zb-bpfn15', code: 'BPFN15', name: 'Heft-Finisher 65 Blatt Multiheftung, 3.000 Blatt Ablage', cat: 'Sharp Zubehör', price: 1910, t: 'o' },
+  { id: 'sharp-zb-bppr12u', code: 'BPPR12U', name: 'Data Security Kit', cat: 'Sharp Zubehör', price: 525, t: 'o' },
+];
+
+// Brother printers / MFPs. Source: "Brother" price list, got Juli 2026.
+// Simple one-time devices (t:'o') — no leasing, per-page maintenance or UHG
+// like Sharp, so a Brother offer renders through the ordinary PoS path.
+// Prices stored NET (the app adds 20% MwSt): the two inkjet MFPs are listed
+// "inkl. MWST" (consumer pricing), so their list gross is divided by 1.2
+// (279 → 232,50; 299 → 249,17); every other device is already listed net
+// (+20% MWST) and marked "Nur Firmenkunden" via info.
+export const BROTHER: Item[] = [
+  // Multifunktionsgerät Tinte
+  { id:'brother-mfc-j4350dw', name:'Brother MFC-J4350DW', cat:'Multifunktionsgerät Tinte', price:232.50, t:'o', description:'A4 Tinten-Multifunktionsgerät (Drucken, Scannen, Kopieren, Faxen), bis 20 S./Min., 20 Blatt ADF, Duplexdruck, WLAN.' },
+  { id:'brother-mfc-j4550dw', name:'Brother MFC-J4550DW', cat:'Multifunktionsgerät Tinte', price:249.17, t:'o', description:'A4 Tinten-Multifunktionsgerät, bis 16 S./Min., 20 Blatt ADF, Duplexdruck, WLAN/LAN, 400 Blatt Papierkapazität.' },
+  { id:'brother-mfc-j6975dw', name:'Brother MFC-J6975DW', cat:'Multifunktionsgerät Tinte', price:599, t:'o', info:'Nur Firmenkunden', description:'Professionelles A3 Multifunktionsgerät, bis 31/30 S./Min. S/W/Farbe, 50 Blatt Duplex-ADF, LAN/WLAN.' },
+  // Multifunktionsgerät Laser Farbe
+  { id:'brother-mfc-l8390cdw', name:'Brother MFC-L8390CDW', cat:'Multifunktionsgerät Laser Farbe', price:550, t:'o', info:'Nur Firmenkunden', description:'Farb-Laser-Multifunktionsgerät A4, bis 30 S./Min., 50 Blatt Duplex-ADF, LAN/WLAN.' },
+  { id:'brother-mfc-l9570cdw', name:'Brother MFC-L9570CDW', cat:'Multifunktionsgerät Laser Farbe', price:1250, t:'o', info:'Nur Firmenkunden', description:'Professionelles Farb-Laser-Multifunktionsgerät A4, bis 31 S./Min., 80 Blatt Duplex-ADF, für hohe Druckvolumen.' },
+  { id:'brother-mfc-l9670cdn', name:'Brother MFC-L9670CDN', cat:'Multifunktionsgerät Laser Farbe', price:1499, t:'o', info:'Nur Firmenkunden', description:'High-End Farb-Laser-Multifunktionsgerät A4, bis 40 S./Min., 100 Blatt Duplex-ADF, für Unternehmen mit hohem Druckaufkommen.' },
+  // Laserdrucker Farbe
+  { id:'brother-hl-9310cdw', name:'Brother HL-L9310CDW', cat:'Laserdrucker Farbe', price:499, t:'o', info:'Nur Firmenkunden', description:'Professioneller Farblaserdrucker A4, bis 31 S./Min., Duplexdruck, LAN/WLAN.' },
+  // Multifunktionsdrucker Laser Mono
+  { id:'brother-mfc-l5710dw', name:'Brother MFC-L5710DW', cat:'Multifunktionsdrucker Laser Mono', price:727.99, t:'o', info:'Nur Firmenkunden', description:'Mono-Laser-Multifunktionsgerät A4, bis 48 S./Min., 50 Blatt Duplex-ADF, LAN/WLAN.' },
+  { id:'brother-mfc-l6910dn', name:'Brother MFC-L6910DN', cat:'Multifunktionsdrucker Laser Mono', price:685, t:'o', info:'Nur Firmenkunden', description:'Leistungsstarkes Mono-Laser-Multifunktionsgerät A4, bis 50 S./Min., 80 Blatt Duplex-ADF, für hohe Druckvolumen.' },
+  // Laserdrucker Mono
+  { id:'brother-hl-l5210dn', name:'Brother HL-L5210DN', cat:'Laserdrucker Mono', price:350, t:'o', info:'Nur Firmenkunden', description:'Mono-Laserdrucker A4, bis 48 S./Min., Duplexdruck, Gigabit-LAN.' },
+  { id:'brother-hl-l6210dw', name:'Brother HL-L6210DW', cat:'Laserdrucker Mono', price:410, t:'o', info:'Nur Firmenkunden', description:'Mono-Laserdrucker A4, bis 50 S./Min., Duplexdruck, LAN/WLAN, für hohe Druckvolumen.' },
+];
+
+// Name → seed array, in the same order catalogLoader groups the live catalog.
+// Used by vitest.setup.ts (to fill the empty runtime arrays) and by
+// scripts/gen-products-seed.ts (to regenerate the seed migration).
+export const SEED_CATALOGS: Record<string, Item[]> = {
+  BESSA, MELZER, GASTROTOUCH, RCH, HARDWARE, UNIFY, DRUCKER,
+  KUECHENMONITORE, KUECHENMONITORE_SUNMI, KIOSK, ORDERMAN,
+  DIENSTLEISTUNGEN, SHARP, SHARP_ZUBEHOR, BROTHER,
+};
+
+// Flat id → Item lookup over the whole seed catalog + its id set.
+export const SEED_ALL: Catalog = {};
+for (const items of Object.values(SEED_CATALOGS)) {
+  for (const it of items) SEED_ALL[it.id] = it;
+}
+export const SEED_CATALOG_IDS: ReadonlySet<string> = new Set(Object.keys(SEED_ALL));

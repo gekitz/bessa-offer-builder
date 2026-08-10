@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowLeft,
   FileText,
   Info,
@@ -163,16 +164,36 @@ function buildWartungItems(entries) {
     });
 }
 
-// Gate the builder on the first catalog-hydrate attempt so the hardcoded
-// fallback catalog is never painted: we wait for the DB (or a definitive
-// failure) and then render live DB data. `ready` flips true on success,
-// failure, or when Supabase is unconfigured, so this never hangs.
+// Gate the builder on the first catalog-hydrate attempt: the product catalog
+// comes from the DB (single source of truth), so we wait for it before
+// painting. `ready` flips true on success or failure, so this never hangs; on
+// failure we show a proper error with a retry instead of an empty catalog.
 export default function OfferBuilderPage() {
-  const { ready } = useHydratedCatalog();
+  const { ready, error, reload } = useHydratedCatalog();
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100">
         <Loader2 className="animate-spin text-slate-400" size={32} />
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6">
+        <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center">
+          <AlertTriangle className="mx-auto mb-3 text-red-500" size={32} />
+          <h1 className="text-lg font-semibold text-slate-800 mb-1">Produktkatalog konnte nicht geladen werden</h1>
+          <p className="text-sm text-slate-500 mb-2">
+            Der Produktkatalog wird aus der Datenbank geladen. Bitte Internetverbindung prüfen und erneut versuchen.
+          </p>
+          <p className="text-xs text-slate-400 mb-4 break-words">{error}</p>
+          <button
+            onClick={() => { void reload(); }}
+            className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
+          >
+            Erneut versuchen
+          </button>
+        </div>
       </div>
     );
   }

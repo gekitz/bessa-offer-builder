@@ -1,10 +1,11 @@
-// Phase 2 — DB read path for the product catalog.
+// DB read path for the product catalog — the `products` table is the single
+// source of truth. The arrays / ALL / CATALOG_IDS in catalogs.ts ship EMPTY;
+// we hydrate from the DB by mutating those exported references in place, then
+// bump a version so subscribers (OfferBuilderPage) re-render with DB data.
 //
-// The hardcoded arrays in catalogs.ts stay as the INITIAL value + offline
-// fallback (so synchronous consumers + the anon accept page keep working).
-// In the authenticated app we hydrate from the `products` table by
-// mutating those exported arrays / ALL / CATALOG_IDS in place, then bump a
-// version so subscribers (OfferBuilderPage) re-render with DB data.
+// There is no hardcoded fallback: if the DB can't be loaded (no Supabase,
+// query error, or zero rows) we record a load error and leave the catalog
+// empty so the UI can show a proper error instead of a stale/blank catalog.
 //
 // Keeping the same `Item` shape + same exports means no consumer changes.
 
@@ -64,11 +65,13 @@ function rowToItem(r: ProductRow): Item {
 
 let version = 0;
 let hydrated = false;
-// True once the FIRST hydrate attempt has finished — success, failure, or
-// no-supabase. Consumers gate their initial render on this so the hardcoded
-// fallback is never shown: the app waits for the DB (or a definitive failure)
-// before painting, then renders live DB data.
+// True once the FIRST hydrate attempt has finished — success or failure.
+// Consumers gate their initial render on this: the app waits for the DB (or a
+// definitive failure) before painting, then renders live DB data or an error.
 let settled = false;
+// Non-null when the last hydrate attempt failed (no Supabase, query error, or
+// zero rows). Consumers show a proper error instead of an empty catalog.
+let loadError: string | null = null;
 let inFlight: Promise<boolean> | null = null;
 const listeners = new Set<() => void>();
 
@@ -85,20 +88,32 @@ export function isCatalogReady(): boolean {
   return settled;
 }
 
+// The last hydrate error message, or null if the catalog loaded successfully.
+export function getCatalogError(): string | null {
+  return loadError;
+}
+
 async function fetchAndSwap(): Promise<boolean> {
-  if (!supabase) return false;
+  if (!supabase) {
+    loadError = 'Keine Verbindung zur Datenbank (Supabase ist nicht konfiguriert).';
+    return false;
+  }
   let rows: ProductRow[];
   try {
     const { data, error } = await supabase
       .from('products')
       .select('id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, sort')
       .eq('active', true);
-    if (error) throw error;
+    if (error) throw new Error(error.message || 'Unbekannter Datenbankfehler');
     rows = (data ?? []) as ProductRow[];
-  } catch {
+  } catch (e) {
+    loadError = e instanceof Error ? e.message : String(e);
     return false;
   }
-  if (rows.length === 0) return false;
+  if (rows.length === 0) {
+    loadError = 'Es wurden keine Produkte in der Datenbank gefunden.';
+    return false;
+  }
 
   const byCatalog = new Map<string, ProductRow[]>();
   for (const r of rows) {
@@ -127,16 +142,18 @@ async function fetchAndSwap(): Promise<boolean> {
     }
   }
 
+  loadError = null;
   hydrated = true;
   version += 1;
   return true;
 }
 
-// Fetch active products and replace the in-memory catalog. Best-effort:
-// on any failure (e.g. anon accept page, offline) the hardcoded fallback
-// stays in place. Concurrent callers share one in-flight request. Always
-// marks the catalog `settled` when done so gated consumers can render.
-// Returns true if it actually swapped in DB data.
+// Fetch active products and replace the in-memory catalog. On any failure
+// (no Supabase, query error, or zero rows) it records a load error and leaves
+// the catalog empty — there is no hardcoded fallback. Concurrent callers share
+// one in-flight request. Always marks the catalog `settled` when done so gated
+// consumers can render (either the catalog or the error). Returns true if it
+// actually swapped in DB data.
 export async function hydrateCatalog(): Promise<boolean> {
   if (inFlight) return inFlight;
   inFlight = fetchAndSwap()
@@ -151,10 +168,25 @@ export async function hydrateCatalog(): Promise<boolean> {
   return inFlight;
 }
 
-// Hook: hydrate once on mount and re-render when the catalog swaps in or the
-// first attempt settles. Returns { version, ready } — gate initial render on
-// `ready` so the hardcoded fallback is never shown in the authenticated app.
-export function useHydratedCatalog(): { version: number; ready: boolean } {
+// Reset readiness and re-run hydration — used by the error screen's retry.
+// Flips consumers back to the loading state, then re-fetches from the DB.
+export async function reloadCatalog(): Promise<boolean> {
+  settled = false;
+  hydrated = false;
+  loadError = null;
+  notify();
+  return hydrateCatalog();
+}
+
+// Hook: hydrate once on mount and re-render when the catalog swaps in or an
+// attempt settles. Returns { version, ready, error, reload } — gate initial
+// render on `ready`, then show `error` (with `reload` to retry) if set.
+export function useHydratedCatalog(): {
+  version: number;
+  ready: boolean;
+  error: string | null;
+  reload: () => Promise<boolean>;
+} {
   const [, tick] = useState(0);
   useEffect(() => {
     const cb = () => tick((t) => t + 1);
@@ -164,5 +196,5 @@ export function useHydratedCatalog(): { version: number; ready: boolean } {
       listeners.delete(cb);
     };
   }, []);
-  return { version, ready: settled };
+  return { version, ready: settled, error: loadError, reload: reloadCatalog };
 }

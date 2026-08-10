@@ -1,8 +1,12 @@
 import { describe, it, expect } from 'vitest';
+// Product data lives in the DB (products table); catalogs.ts ships empty and is
+// hydrated at runtime. The hardcoded copy used for seeding + these
+// data-integrity checks lives in catalogSeed.ts.
 import {
   BESSA,
   MELZER,
   GASTROTOUCH,
+  GASTROTOUCH_MODULE,
   GASTROTOUCH_UPDATE_VERSION,
   RCH,
   HARDWARE,
@@ -16,10 +20,10 @@ import {
   SHARP,
   SHARP_ZUBEHOR,
   BROTHER,
-  ALL,
-  CATALOG_IDS,
-  isCustomItem,
-} from '../catalogs';
+  SEED_ALL,
+  SEED_CATALOG_IDS,
+} from '../catalogSeed';
+import { isCustomItem } from '../catalogs';
 
 const ALL_PRODUCT_LISTS = [
   ['BESSA', BESSA],
@@ -39,7 +43,7 @@ const ALL_PRODUCT_LISTS = [
   ['BROTHER', BROTHER],
 ] as const;
 
-describe('catalogs', () => {
+describe('catalog seed', () => {
   it('every product id is unique across the entire catalog', () => {
     const seen = new Map<string, string>();
     for (const [name, list] of ALL_PRODUCT_LISTS) {
@@ -48,7 +52,7 @@ describe('catalogs', () => {
         if (previous) {
           throw new Error(
             `Duplicate product id "${item.id}" in ${name} (also seen in ${previous}). ` +
-              `Duplicate ids silently overwrite each other in ALL.`,
+              `Duplicate ids silently overwrite each other in SEED_ALL / the DB.`,
           );
         }
         seen.set(item.id, name);
@@ -57,21 +61,24 @@ describe('catalogs', () => {
     expect(seen.size).toBeGreaterThan(0);
   });
 
-  it('ALL contains every product (count matches sum of catalogs)', () => {
+  it('SEED_ALL contains every product (count matches sum of catalogs)', () => {
     const expected = ALL_PRODUCT_LISTS.reduce((n, [, list]) => n + list.length, 0);
-    expect(Object.keys(ALL)).toHaveLength(expected);
+    expect(Object.keys(SEED_ALL)).toHaveLength(expected);
   });
 
-  it('CATALOG_IDS mirrors ALL keys', () => {
-    expect(CATALOG_IDS.size).toBe(Object.keys(ALL).length);
-    for (const id of Object.keys(ALL)) {
-      expect(CATALOG_IDS.has(id)).toBe(true);
+  it('SEED_CATALOG_IDS mirrors SEED_ALL keys', () => {
+    expect(SEED_CATALOG_IDS.size).toBe(Object.keys(SEED_ALL).length);
+    for (const id of Object.keys(SEED_ALL)) {
+      expect(SEED_CATALOG_IDS.has(id)).toBe(true);
     }
   });
+});
 
-  it('isCustomItem returns true for unknown ids and false for catalog ids', () => {
-    const firstCatalogId = BESSA[0]!.id;
-    expect(isCustomItem(firstCatalogId)).toBe(false);
+describe('isCustomItem (runtime, against the hydrated catalog)', () => {
+  it('returns false for a catalog id and true for an unknown id', () => {
+    // vitest.setup.ts seeds the runtime catalog from catalogSeed, so a known
+    // seed id resolves and anything else is treated as a custom user item.
+    expect(isCustomItem(BESSA[0]!.id)).toBe(false);
     expect(isCustomItem('definitely-not-in-catalog')).toBe(true);
   });
 });
@@ -142,10 +149,39 @@ describe('Brother catalog', () => {
   });
 });
 
-describe('GastroTouch catalog', () => {
+describe('GastroTouch modules', () => {
+  it('has all 18 module SKUs as one-time items with 30% annual Wartung', () => {
+    expect(GASTROTOUCH_MODULE.length).toBe(18);
+    for (const item of GASTROTOUCH_MODULE) {
+      expect(item.t).toBe('o');
+      expect(item.price).toBeGreaterThan(0);
+      expect(item.servicePercent).toBe(30);
+      expect(item.cat).toBe('Module');
+      // Modules carry no update-version suffix or update Artikel-Nr.
+      expect(item.name).not.toContain('Update');
+      expect(item.code).toBeUndefined();
+    }
+  });
+
+  it('prices the base modules and Software-Wartung straight from the price list', () => {
+    const byId = (id: string) => GASTROTOUCH_MODULE.find((i) => i.id === id)!;
+    // UVP → Software-Wartung pro Jahr = 30% (Preisliste, Stand Jänner 2024).
+    expect(byId('gt-mod-grund-voll').price).toBe(950); // → 285,-
+    expect(byId('gt-mod-grund-light').price).toBe(650); // → 195,-
+    expect(byId('gt-mod-05-schank').price).toBe(670); // → 201,-
+    expect(byId('gt-mod-10-gastroid').price).toBe(100); // → 30,-
+    for (const item of GASTROTOUCH_MODULE) {
+      expect(item.price! * 0.3).toBeCloseTo(item.price! * item.servicePercent! / 100, 2);
+    }
+  });
+});
+
+describe('GastroTouch update price list', () => {
+  const UPDATES = GASTROTOUCH.filter((i) => i.code?.startsWith('160671'));
+
   it('has all 4 products across 3 update-year tiers (12 one-time SKUs)', () => {
-    expect(GASTROTOUCH.length).toBe(12);
-    for (const item of GASTROTOUCH) {
+    expect(UPDATES.length).toBe(12);
+    for (const item of UPDATES) {
       expect(item.t).toBe('o');
       expect(item.price).toBeGreaterThan(0);
       expect(item.code).toMatch(/^160671\d\d$/);
@@ -168,15 +204,15 @@ describe('GastroTouch catalog', () => {
     }
   });
 
-  it('appends the target update version to every product name', () => {
+  it('appends the target update version to every update product name', () => {
     const suffix = `(Update ${GASTROTOUCH_UPDATE_VERSION})`;
-    for (const item of GASTROTOUCH) {
+    for (const item of UPDATES) {
       expect(item.name.endsWith(suffix)).toBe(true);
     }
   });
 
   it('groups each update-year tier into its own category', () => {
-    const cats = new Set(GASTROTOUCH.map((i) => i.cat));
+    const cats = new Set(UPDATES.map((i) => i.cat));
     expect(cats).toEqual(
       new Set([
         'Update – Letztes Update 2025',
