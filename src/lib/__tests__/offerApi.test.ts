@@ -159,6 +159,33 @@ describe('saveOffer', () => {
     expect(inserted.offer_type).toBe('sharp');
     expect(inserted.offer_data.offerType).toBe('sharp');
   });
+
+  it('persists Brother lieferung + zahlungsziel into offer_data so they restore on reload', async () => {
+    const chain = makeChain({ data: { id: 'x' }, error: null });
+    fromMock.mockReturnValue(chain);
+
+    await saveOffer({
+      ...baseOfferArgs,
+      offerType: 'brother',
+      lieferung: 'ruecksprache',
+      zahlungsziel: 'wie vereinbart',
+    });
+
+    const inserted = chain.insert.mock.calls[0][0];
+    expect(inserted.offer_data.lieferung).toBe('ruecksprache');
+    expect(inserted.offer_data.zahlungsziel).toBe('wie vereinbart');
+  });
+
+  it('omits lieferung/zahlungsziel from offer_data when not provided', async () => {
+    const chain = makeChain({ data: { id: 'x' }, error: null });
+    fromMock.mockReturnValue(chain);
+
+    await saveOffer(baseOfferArgs);
+
+    const inserted = chain.insert.mock.calls[0][0];
+    expect(inserted.offer_data).not.toHaveProperty('lieferung');
+    expect(inserted.offer_data).not.toHaveProperty('zahlungsziel');
+  });
 });
 
 describe('listOffers', () => {

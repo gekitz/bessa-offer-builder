@@ -46,4 +46,39 @@ describe('computeAutoTerms', () => {
       'Kabel müssen vom Kunden eigenständig verlegt werden',
     ]);
   });
+
+  it('keeps the PoS defaults when offerType is not brother even if lieferung/zahlungsziel are passed', () => {
+    expect(
+      computeAutoTerms({}, { offerType: 'pos', lieferung: 'ruecksprache', zahlungsziel: 'wie vereinbart' }),
+    ).toEqual([
+      'Lieferzeit: 2 Wochen',
+      'Zahlungsziel: 10 Tage netto Kassa',
+      'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
+    ]);
+  });
+
+  describe('Brother offers', () => {
+    it('defaults to lagernd + netto Kassa when no picks are provided', () => {
+      expect(computeAutoTerms({}, { offerType: 'brother' })).toEqual([
+        'Lieferzeit: lagernd',
+        'Zahlungsziel: netto Kassa',
+        'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
+      ]);
+    });
+
+    it('reflects "nach Rücksprache" when lieferung is ruecksprache', () => {
+      const terms = computeAutoTerms({}, { offerType: 'brother', lieferung: 'ruecksprache' });
+      expect(terms).toContain('Lieferzeit: nach Rücksprache');
+    });
+
+    it('uses the edited Zahlungsziel verbatim', () => {
+      const terms = computeAutoTerms({}, { offerType: 'brother', zahlungsziel: 'wie vereinbart' });
+      expect(terms).toContain('Zahlungsziel: wie vereinbart');
+    });
+
+    it('falls back to the default Zahlungsziel when the field is blank', () => {
+      const terms = computeAutoTerms({}, { offerType: 'brother', zahlungsziel: '   ' });
+      expect(terms).toContain('Zahlungsziel: netto Kassa');
+    });
+  });
 });

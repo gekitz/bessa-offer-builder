@@ -305,13 +305,16 @@ function TotalsBox({ netto, isMonthly }) {
 }
 
 // Period total summary component
-function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce, hasYearly, discount }) {
+function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce, hasYearly, discount, isBrother = false }) {
   const recurring = periodMonthly + yearly;
   const showRecurringRow = (hasMonthly && hasOnce) || hasYearly;
   const rabattActive = discount?.rabattActive;
   const skontoActive = discount?.skontoActive;
-  const firstYearLabel =
-    'Kosten im ersten Jahr (monatlich × Laufzeit + einmalig' + (hasYearly ? ' + Wartung' : '') + ')';
+  // Brother is a pure one-off sale — no monthly/Wartung — so the "im ersten
+  // Jahr (monatlich × Laufzeit …)" framing is meaningless; just "Kosten".
+  const firstYearLabel = isBrother
+    ? 'Kosten'
+    : 'Kosten im ersten Jahr (monatlich × Laufzeit + einmalig' + (hasYearly ? ' + Wartung' : '') + ')';
   const recurringLabel =
     'Kosten jedes weitere Jahr (monatlich × Laufzeit' + (hasYearly ? ' + Wartung' : '') + ')';
 
@@ -707,6 +710,7 @@ export default function OfferPdfDocument({
   serviceStartDate = null,
   copierOffer = null,
   isRental = false,
+  offerType = 'pos',
 }) {
   const date = new Date().toLocaleDateString('de-AT');
   const signedAt = signatures ? new Date().toLocaleDateString('de-AT') : null;
@@ -725,6 +729,7 @@ export default function OfferPdfDocument({
   // A Sharp/MFP offer renders its own itemised copier layout (device table +
   // Grenke leasing + maintenance rates) instead of the PoS monthly/once tables.
   const isCopier = !!copierOffer?.isCopierOffer;
+  const isBrother = offerType === 'brother';
 
   // Running-costs Laufzeit lives in the section header when every counted line
   // shares one tier; otherwise it's "gemischt" and each row prints its own.
@@ -835,6 +840,7 @@ export default function OfferPdfDocument({
             hasOnce={totals.once > 0}
             hasYearly={(totals.yearly || 0) > 0}
             discount={discount}
+            isBrother={isBrother}
           />
         )}
 

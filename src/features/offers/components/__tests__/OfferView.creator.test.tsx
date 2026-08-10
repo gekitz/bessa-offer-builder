@@ -8,7 +8,7 @@ import OfferView from '../OfferView';
 const CREATORS = [
   { id: 'gkitz', name: 'Georg Kitz', role: 'Geschäftsführung', phone: '', email: 'g.kitz@kitz.co.at', location: 'Klagenfurt' },
   { id: 'hbauer', name: 'Helmut Bauer', role: 'Verkauf', phone: '', email: 'h.bauer@kitz.co.at', location: 'Wolfsberg' },
-  { id: 'dscharf', name: 'Daniel Scharf', role: 'Verkauf', phone: '', email: 'd.scharf@kitz.co.at', location: 'Wolfsberg' },
+  { id: 'dscharf', name: 'Daniel Scharf-Kraxner', role: 'Verkauf', phone: '', email: 'd.scharf@kitz.co.at', location: 'Wolfsberg' },
 ];
 
 const noopProps = {

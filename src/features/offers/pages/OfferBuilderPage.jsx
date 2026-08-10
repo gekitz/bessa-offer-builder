@@ -31,7 +31,7 @@ import { supabase } from '../../../lib/supabase';
 import { generateAcceptQr } from '../../../lib/qr';
 import { useAuth } from '../../../lib/auth';
 import { TIERS, TIER_LABEL_OFFER, TIER_SHORT } from '../../../data/tiers';
-import { computeAutoTerms } from '../../../data/autoTermRules';
+import { computeAutoTerms, DEFAULT_LIEFERUNG, DEFAULT_ZAHLUNGSZIEL } from '../../../data/autoTermRules';
 import {
   isMonthly,
   price,
@@ -253,6 +253,9 @@ function OfferBuilderPageInner() {
   // for payment within 14 days. See src/lib/discounts.ts.
   const [rabattActive, setRabattActive] = useState(false);
   const [skontoActive, setSkontoActive] = useState(false);
+  // Brother-only delivery/payment terms — feed the auto-generated Bedingungen.
+  const [lieferung, setLieferung] = useState(DEFAULT_LIEFERUNG);
+  const [zahlungsziel, setZahlungsziel] = useState(DEFAULT_ZAHLUNGSZIEL);
   const [mandatsRef, setMandatsRef] = useState(() => Date.now().toString().slice(-12));
   const [serviceStartDate, setServiceStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [currentOfferId, setCurrentOfferId] = useState(null);
@@ -411,6 +414,8 @@ function OfferBuilderPageInner() {
         setSkontoActive(data.skontoActive || false);
         setGlobalTier(data.globalTier || '12mo');
         setOfferType(offer.offer_type || data.offerType || 'pos');
+        setLieferung(data.lieferung || DEFAULT_LIEFERUNG);
+        setZahlungsziel(data.zahlungsziel || DEFAULT_ZAHLUNGSZIEL);
         setPaymentEnabled(!!offer.payment_enabled);
         setRental(data.rental || emptyRentalState());
         setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
@@ -765,7 +770,7 @@ function OfferBuilderPageInner() {
       const { monthlyItems, onceItems } = buildLineItems(validEntries, ALL);
 
       const wartungItems = buildWartungItems(validEntries);
-      const autoTerms = computeAutoTerms(cart);
+      const autoTerms = computeAutoTerms(cart, { offerType, lieferung, zahlungsziel });
 
       const creatorInfo = creatorFor(creator);
 
@@ -790,6 +795,8 @@ function OfferBuilderPageInner() {
             cartOrder,
             serviceStartDate,
             offerType,
+            lieferung,
+            zahlungsziel,
             paymentEnabled,
             rental,
             acceptSnapshot: buildAcceptSnapshot(),
@@ -824,6 +831,7 @@ function OfferBuilderPageInner() {
         serviceStartDate,
         copierOffer,
         isRental: offerType === 'rental',
+        offerType,
       });
       const blob = new Blob([pdfBlob], { type: 'application/pdf' });
 
@@ -893,6 +901,8 @@ function OfferBuilderPageInner() {
         cartOrder,
         serviceStartDate,
         offerType,
+        lieferung,
+        zahlungsziel,
         paymentEnabled,
         rental,
         acceptSnapshot: buildAcceptSnapshot(),
@@ -944,6 +954,8 @@ function OfferBuilderPageInner() {
         cartOrder,
         serviceStartDate,
         offerType,
+        lieferung,
+        zahlungsziel,
         paymentEnabled,
         rental,
         acceptSnapshot: buildAcceptSnapshot(),
@@ -988,6 +1000,8 @@ function OfferBuilderPageInner() {
         cartOrder,
         serviceStartDate,
         offerType,
+        lieferung,
+        zahlungsziel,
         paymentEnabled,
         rental,
         // Freeze the accept-page totals as quoted (decouples the customer
@@ -1010,7 +1024,7 @@ function OfferBuilderPageInner() {
       const { monthlyItems, onceItems } = buildLineItems(validSendEntries, ALL);
 
       const wartungItems = buildWartungItems(validSendEntries);
-      const autoTerms = computeAutoTerms(cart);
+      const autoTerms = computeAutoTerms(cart, { offerType, lieferung, zahlungsziel });
 
       // Ensure a share_code exists so the accept URL works (only needed when billing is enabled)
       let effectiveShareCode = shareCode;
@@ -1026,6 +1040,7 @@ function OfferBuilderPageInner() {
         showFinancing: finanzOpen, creator: creatorInfo,
         mandatsRef, acceptQrDataUrl, serviceStartDate, copierOffer,
         isRental: offerType === 'rental',
+        offerType,
       });
 
       const buffer = await pdfBlob.arrayBuffer();
@@ -1066,6 +1081,7 @@ function OfferBuilderPageInner() {
       showFinancing: finanzOpen, creator: creatorInfo,
       mandatsRef, signatures, acceptQrDataUrl, serviceStartDate, copierOffer,
       isRental: offerType === 'rental',
+      offerType,
     });
     const blob = new Blob([pdfBlob], { type: 'application/pdf' });
 
@@ -1119,6 +1135,8 @@ function OfferBuilderPageInner() {
       setSkontoActive(data.skontoActive || false);
       setGlobalTier(data.globalTier || '12mo');
       setOfferType(offer.offer_type || data.offerType || 'pos');
+      setLieferung(data.lieferung || DEFAULT_LIEFERUNG);
+      setZahlungsziel(data.zahlungsziel || DEFAULT_ZAHLUNGSZIEL);
       setRental(data.rental || emptyRentalState());
       setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
       setServiceStartDate(offer.service_start_date || new Date().toISOString().slice(0, 10));
@@ -1152,6 +1170,8 @@ function OfferBuilderPageInner() {
     setSkontoActive(false);
     setGlobalTier('12mo');
     setOfferType(type);
+    setLieferung(DEFAULT_LIEFERUNG);
+    setZahlungsziel(DEFAULT_ZAHLUNGSZIEL);
     setRental(emptyRentalState());
     setMandatsRef(Date.now().toString().slice(-12));
     setServiceStartDate(new Date().toISOString().slice(0, 10));
@@ -1195,6 +1215,8 @@ function OfferBuilderPageInner() {
       setNotes('');
       setBriefing('');
       setRaten(12);
+      setLieferung(DEFAULT_LIEFERUNG);
+      setZahlungsziel(DEFAULT_ZAHLUNGSZIEL);
       setCurrentOfferId(null);
       setMandatsRef(Date.now().toString().slice(-12));
     }
@@ -1415,6 +1437,8 @@ function OfferBuilderPageInner() {
                       onSign={() => setShowSignModal(true)} onAddCustom={() => setShowCustomModal(true)}
                       cartOrder={cartOrder} onReorder={setCartOrder} onRemoveItem={handlers.onRemove} onEditItem={handleEditItem} onCopierField={handlers.onCopierField}
                       isRental={offerType === 'rental'}
+                      offerType={offerType}
+                      lieferung={lieferung} setLieferung={setLieferung} zahlungsziel={zahlungsziel} setZahlungsziel={setZahlungsziel}
                       locked={offerLocked} lockedAt={offerLockedAt} onDuplicate={() => handleLoadOffer(currentOfferId, true)}
                     />
                     {showEmailPreview && (

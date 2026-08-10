@@ -1,13 +1,17 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', rental = null, paymentEnabled = false, acceptSnapshot = undefined }) {
+export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', lieferung = undefined, zahlungsziel = undefined, rental = null, paymentEnabled = false, acceptSnapshot = undefined }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   // offer_type lives in a top-level column (source of truth for the
   // list filter) but is also mirrored into offer_data so the share /
   // URL load path — which only reads offer_data — restores it too.
   const offerData = { cart, globalTier, notes, raten, finanzOpen, rabattActive: !!rabattActive, skontoActive: !!skontoActive, address: customer.address || '', mandatsRef: mandatsRef || '', offerType };
+  // Brother-only delivery/payment picks — persisted so the auto-terms restore
+  // on reload. Omitted for other offer types (they use the fixed defaults).
+  if (lieferung) offerData.lieferung = lieferung;
+  if (zahlungsziel) offerData.zahlungsziel = zahlungsziel;
   // Leihstellung input state — persisted so the calculator can be re-edited on
   // reload (the priced line itself rides along as a custom item).
   if (rental) offerData.rental = rental;
