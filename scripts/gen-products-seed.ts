@@ -1,21 +1,18 @@
 /*
- * One-off generator: emits the products seed migration from the hardcoded
- * catalog, preserving UUIDs. Run with:  npx vite-node scripts/gen-products-seed.ts
- * Re-run to regenerate if the hardcoded catalog changes before Phase 2.
+ * Generator: emits the products seed migration from the hardcoded seed copy,
+ * preserving UUIDs. Run with:  npx vite-node scripts/gen-products-seed.ts
+ *
+ * The DB is now the single source of truth; the runtime catalog (catalogs.ts)
+ * ships empty and hydrates from it. The data literals live in catalogSeed.ts
+ * (test + seed fixture), which is what this script reads. New products should
+ * normally be added via the Produkte admin UI or a hand-written migration —
+ * regenerate this seed only for a full re-import of the fixture copy.
  */
 import { writeFileSync } from 'node:fs';
-import {
-  BESSA, MELZER, GASTROTOUCH, RCH, HARDWARE, UNIFY, DRUCKER,
-  KUECHENMONITORE, KUECHENMONITORE_SUNMI, KIOSK, ORDERMAN,
-  DIENSTLEISTUNGEN, SHARP, SHARP_ZUBEHOR, BROTHER,
-} from '../src/features/offers/data/catalogs';
+import { SEED_CATALOGS } from '../src/features/offers/data/catalogSeed';
 
-// Preserve source-catalog grouping (ALL flattens it).
-const CATALOGS: Record<string, any[]> = {
-  BESSA, MELZER, GASTROTOUCH, RCH, HARDWARE, UNIFY, DRUCKER,
-  KUECHENMONITORE, KUECHENMONITORE_SUNMI, KIOSK, ORDERMAN,
-  DIENSTLEISTUNGEN, SHARP, SHARP_ZUBEHOR, BROTHER,
-};
+// Preserve source-catalog grouping (SEED_ALL flattens it).
+const CATALOGS: Record<string, any[]> = SEED_CATALOGS;
 
 // Data-driven rule migrated out of OfferBuilderPage's hardcoded list.
 const ARBEITSZEIT_ID = 'b01429e1-672e-44ae-ae79-1d08c4f7f918';
