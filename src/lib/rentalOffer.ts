@@ -62,6 +62,7 @@ export const RENTAL_HARDWARE: readonly RentalHardware[] = [
   { id: 'mobile-geraete', name: 'Mobile Geräte', einstand: 216 },
   { id: 'bondrucker', name: 'Bondrucker', einstand: 138 },
   { id: 'guerteldrucker', name: 'Gürteldrucker', einstand: 250 },
+  { id: 'kassenlade', name: 'Kassenlade', einstand: 80 },
   { id: 'udr', name: 'UDR', einstand: 182 },
   { id: 'u6', name: 'U6', einstand: 164 },
   { id: 'kuechenmonitor', name: 'Küchenmonitor', einstand: 1190 },
@@ -83,6 +84,7 @@ export const RENTAL_SERVICES: readonly RentalService[] = [
 // prices (and names) stay in sync with the source catalog. Order matches the
 // spreadsheet. Comments show code + spreadsheet label.
 export const RENTAL_SOFTWARE_IDS: readonly string[] = [
+  'cb003c42-11dc-48c9-a5de-68a2c998501a', // 110 Kleiner Handelsbetrieb (Handel)
   'a4e9ba39-ee22-41b9-8f94-936ee3ce3de3', // 120 Kleiner Gastrobetrieb  (Gastro)
   '3942f638-1abb-4be9-85a5-d3bf442aa3d8', // 100 Mobile Kassa           (Mobile Kasse)
   'eceb4278-06cc-4fe5-9413-d41ae999166c', // 042 Nebenterminal          (Funkterminal)
@@ -98,6 +100,13 @@ export interface RentalState {
   services: Record<string, number>;
   /** bessa item id → quantity */
   software: Record<string, number>;
+  /**
+   * Optional free-text override for the offer line title. When empty, the line
+   * is named after the chosen timespan ("Leihstellung POS, Laufzeit 2 Monate").
+   * Text only — it never changes the price. Lets a rep write the real duration
+   * (e.g. "1 Woche") even when the pricing uses the shortest available package.
+   */
+  labelOverride?: string;
 }
 
 export function emptyRentalState(): RentalState {
@@ -219,6 +228,16 @@ export interface RentalLineFields {
 }
 
 /**
+ * The offer line title for a rental: the rep's free-text override when set,
+ * otherwise the auto "Leihstellung POS, Laufzeit X" derived from the timespan.
+ */
+export function rentalLineName(state: RentalState): string {
+  const override = state.labelOverride?.trim();
+  if (override) return override;
+  return `Leihstellung POS, Laufzeit ${rentalTerm(state.term).label}`;
+}
+
+/**
  * Collapse a rental into the single custom cart line shown on the offer/PDF:
  * "Leihstellung POS, Laufzeit X" priced at the net total, with the description
  * enumerating every item and quantity grouped by bucket. Returns null when the
@@ -240,7 +259,7 @@ export function rentalLineFields(state: RentalState): RentalLineFields | null {
 
   return {
     id: RENTAL_LINE_ID,
-    name: `Leihstellung POS, Laufzeit ${r.term.label}`,
+    name: rentalLineName(state),
     price: r.netto,
     description,
   };

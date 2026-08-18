@@ -4,6 +4,7 @@ import { ALL } from '../data/catalogs';
 import {
   buildRentalOffer,
   softwareUnitPrice,
+  rentalLineName,
   RENTAL_TERMS,
   RENTAL_HARDWARE,
   RENTAL_SERVICES,
@@ -148,6 +149,23 @@ export default function LeihstellungCalculator({ rental, onChange }: Props) {
             </div>
           </div>
 
+          {/* Editable line title — text only, never touches the price. Lets the
+              rep print the real duration (e.g. "1 Woche") even when the pricing
+              uses the shortest available package. Empty falls back to the auto
+              "Leihstellung POS, Laufzeit {label}" title (shown as placeholder). */}
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <div className="text-slate-500 mb-2" style={{ fontSize: 12 }}>Bezeichnung im Angebot</div>
+            <input
+              type="text"
+              value={rental.labelOverride ?? ''}
+              onChange={(e) => onChange({ ...rental, labelOverride: e.target.value })}
+              placeholder={`Leihstellung POS, Laufzeit ${term.label}`}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-300"
+              style={{ fontSize: 13 }}
+            />
+            <div className="text-slate-400 mt-1.5" style={{ fontSize: 11 }}>Leer lassen für den Standardtext. Ändert nur den Text, nicht den Preis.</div>
+          </div>
+
           <Section title="Hardware" subtitle="Einstand gepoolt ÷ Break-Even" subtotal={result.hardwareSum} subtotalLabel="Basis">
             {RENTAL_HARDWARE.map((hw) => {
               const qty = rental.hardware[hw.id] || 0;
@@ -227,7 +245,7 @@ export default function LeihstellungCalculator({ rental, onChange }: Props) {
             </div>
             <div className="px-3.5 py-3">
               <div className="flex items-baseline justify-between gap-2.5">
-                <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>Leihstellung POS, Laufzeit {term.label}</span>
+                <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>{rentalLineName(rental)}</span>
                 <span className="font-bold text-slate-800 whitespace-nowrap tabular-nums" style={{ fontSize: 14 }}>€ {fmt(result.netto)}</span>
               </div>
               {hasLines ? (

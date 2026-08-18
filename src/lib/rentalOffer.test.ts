@@ -4,6 +4,7 @@ import {
   softwareUnitPrice,
   rentalTerm,
   rentalLineFields,
+  rentalLineName,
   emptyRentalState,
   RENTAL_TERMS,
   RENTAL_HARDWARE,
@@ -20,6 +21,7 @@ import { buildCopierOffer } from './copierOffer';
 // bessa ids used across the tests (see RENTAL_SOFTWARE_IDS).
 const MOBILE_KASSA = '3942f638-1abb-4be9-85a5-d3bf442aa3d8'; // code 100, p:{y:19,s:25,m:30,e:38}
 const KARTENZAHLUNG = '65e7e1a8-23b3-444f-8b18-c5ca7312cf28'; // code 040, p:{y:12,s:15,m:18,e:24}
+const KLEINER_HANDEL = 'cb003c42-11dc-48c9-a5de-68a2c998501a'; // code 110, p:{y:24,s:30,m:40,e:48}
 const STANDALONE_MOBILE = 'standalone-mobile'; // Einstand 259
 
 // The scenario captured in the source spreadsheet:
@@ -52,7 +54,13 @@ describe('rental catalog integrity', () => {
     const byId = Object.fromEntries(RENTAL_HARDWARE.map((h) => [h.id, h.einstand]));
     expect(byId['hauptkasse']).toBe(470);
     expect(byId['standalone-mobile']).toBe(259);
+    expect(byId['kassenlade']).toBe(80);
     expect(byId['kuechenmonitor']).toBe(1190);
+  });
+
+  it('offers the Kleiner Handelsbetrieb licence among the software', () => {
+    expect(RENTAL_SOFTWARE_IDS).toContain(KLEINER_HANDEL);
+    expect(ALL[KLEINER_HANDEL]?.name).toBe('Kleiner Handelsbetrieb');
   });
 
   it('services are fixed prices', () => {
@@ -85,6 +93,27 @@ describe('software pricing derives from the bessa tiers', () => {
     // Sanity: the unit price is exactly the catalog tier price × months.
     const item = ALL[MOBILE_KASSA]!;
     expect(softwareUnitPrice(MOBILE_KASSA, rentalTerm('6mo'))).toBe(item.p!.s! * 6);
+  });
+
+  it('prices the Kleiner Handelsbetrieb licence off its tiers', () => {
+    expect(softwareUnitPrice(KLEINER_HANDEL, rentalTerm('1-3d'))).toBe(48); // p.e × 1
+    expect(softwareUnitPrice(KLEINER_HANDEL, rentalTerm('2mo'))).toBe(80); // p.m 40 × 2
+    expect(softwareUnitPrice(KLEINER_HANDEL, rentalTerm('6mo'))).toBe(180); // p.s 30 × 6
+  });
+});
+
+describe('Kassenlade hardware', () => {
+  const withDrawer = (term: RentalTermKey): RentalState => ({
+    term,
+    hardware: { kassenlade: 1 },
+    services: {},
+    software: {},
+  });
+
+  it('pools the 80 € Einstand and divides by the break-even factor', () => {
+    expect(buildRentalOffer(withDrawer('1-3d')).hardwareRental).toBeCloseTo(16, 2); // 80 / 5
+    expect(buildRentalOffer(withDrawer('2mo')).hardwareRental).toBe(40); // 80 / 2
+    expect(buildRentalOffer(withDrawer('6mo')).hardwareRental).toBe(80); // 80 / 1
   });
 });
 
@@ -141,6 +170,21 @@ describe('rentalLineFields — the single offer line', () => {
     expect(line.id).toBe(RENTAL_LINE_ID);
     expect(line.name).toBe('Leihstellung POS, Laufzeit 6 Monate');
     expect(line.price).toBeCloseTo(1618, 2);
+  });
+
+  it('uses a free-text label override for the title without touching the price', () => {
+    const base = sheetState('2mo');
+    const line = rentalLineFields({ ...base, labelOverride: 'Leihstellung POS, Laufzeit 1 Woche' })!;
+    expect(line.name).toBe('Leihstellung POS, Laufzeit 1 Woche');
+    // Price stays the chosen (2-Monats) package net — the override is text only.
+    expect(line.price).toBeCloseTo(rentalLineFields(base)!.price, 2);
+  });
+
+  it('falls back to the auto timespan title when the override is blank', () => {
+    expect(rentalLineName({ ...sheetState('2mo'), labelOverride: '   ' })).toBe(
+      'Leihstellung POS, Laufzeit 2 Monate',
+    );
+    expect(rentalLineName(sheetState('6mo'))).toBe('Leihstellung POS, Laufzeit 6 Monate');
   });
 
   it('enumerates every item grouped by bucket in the description', () => {
