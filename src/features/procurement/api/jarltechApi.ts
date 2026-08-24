@@ -11,6 +11,20 @@ import {
   type JarltechItemInfo,
   type RawJarltechEntry,
 } from '../lib/jarltechNormalize';
+import type { ShippingAddress } from '../lib/shipping';
+
+export interface JarltechOrderItem {
+  jarltechItemId: string;
+  quantity: number;
+}
+
+export interface PlaceJarltechOrderInput {
+  items: JarltechOrderItem[];
+  shippingAddress: ShippingAddress;
+  internalReference?: string;
+  note?: string;
+  allowSplitting?: boolean; // default false — one shipment, one delivery fee
+}
 
 function requireSupabase(): NonNullable<typeof supabase> {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -62,6 +76,29 @@ export async function fetchJarltechPrices(
 export async function pingJarltech(): Promise<boolean> {
   const data = await invokeJarltech({ action: 'ping' });
   return !!data?.ok;
+}
+
+// Whether the current signed-in user may place binding Jarltech orders
+// (server-checked against the JARLTECH_ORDER_ALLOWLIST secret). Drives the
+// UI gate only — the create-order action re-checks server-side.
+export async function canPlaceJarltechOrder(): Promise<boolean> {
+  const data = await invokeJarltech({ action: 'order-permission' });
+  return !!data?.allowed;
+}
+
+// Place a BINDING shop order at Jarltech. Server rejects with 403 if the
+// caller isn't on the allowlist. Returns Jarltech's raw created-order
+// payload (order id etc.).
+export async function placeJarltechOrder(input: PlaceJarltechOrderInput): Promise<any> {
+  const data = await invokeJarltech({
+    action: 'create-order',
+    items: input.items,
+    shippingAddress: input.shippingAddress,
+    internalReference: input.internalReference,
+    note: input.note,
+    allowSplitting: input.allowSplitting ?? false,
+  });
+  return data?.order ?? null;
 }
 
 // Resolve a manufacturer SKU to a Jarltech item identifier (helper for

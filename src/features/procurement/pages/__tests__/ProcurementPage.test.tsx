@@ -56,6 +56,9 @@ beforeEach(() => {
   vi.mocked(api.markPurchaseOrderReceived).mockResolvedValue({ ...PURCHASE_ORDERS[0], status: 'received' });
   const jtInfo: JarltechItemInfo = { jarltechItemId: 'sunmil3jt', unitPrice: 611.5, listPrice: 690, currency: 'EUR', stock: 37 };
   vi.mocked(jarltech.fetchJarltechPrices).mockResolvedValue(new Map([['sunmil3jt', jtInfo]]));
+  // Default: cannot place binding orders (button hidden). Order tests opt in.
+  vi.mocked(jarltech.canPlaceJarltechOrder).mockResolvedValue(false);
+  vi.mocked(jarltech.placeJarltechOrder).mockResolvedValue({ api_request_id: 60001, message: 'ok' });
 });
 
 describe('ProcurementPage — Anfragen', () => {
@@ -107,14 +110,33 @@ describe('ProcurementPage — Einkauf (admin aggregation)', () => {
     expect(within(line).getByText('Sunmi L3')).toBeTruthy();
   });
 
-  it('orders the supplier group, bundling all three request ids', async () => {
+  it('places a binding Jarltech order (allowed user) and records the consolidated PO', async () => {
+    vi.mocked(jarltech.canPlaceJarltechOrder).mockResolvedValue(true);
     await gotoEinkauf();
-    fireEvent.click(await screen.findByTestId('order-s-jarl'));
+
+    // Allowed users get the binding-order button; open it and confirm.
+    fireEvent.click(await screen.findByTestId('jarltech-order-s-jarl'));
+    fireEvent.click(await screen.findByRole('button', { name: /verbindlich bestellen/i }));
+
+    // The aggregated 10× line is sent to Jarltech as one order item.
+    await waitFor(() => expect(jarltech.placeJarltechOrder).toHaveBeenCalledTimes(1));
+    const orderArg = vi.mocked(jarltech.placeJarltechOrder).mock.calls[0][0];
+    expect(orderArg.items).toEqual([{ jarltechItemId: 'sunmil3jt', quantity: 10 }]);
+    expect(orderArg.shippingAddress.city).toBe('Klagenfurt'); // default Standort
+
+    // Internal consolidated PO records all three underlying requests.
     await waitFor(() => expect(api.createPurchaseOrder).toHaveBeenCalledTimes(1));
-    const arg = vi.mocked(api.createPurchaseOrder).mock.calls[0][0];
-    expect(arg.supplierId).toBe('s-jarl');
-    expect(arg.lines).toHaveLength(1);
-    expect(arg.lines[0].requestIds.sort()).toEqual(['r1', 'r2', 'r3']);
+    const poArg = vi.mocked(api.createPurchaseOrder).mock.calls[0][0];
+    expect(poArg.lines[0].requestIds.sort()).toEqual(['r1', 'r2', 'r3']);
+  });
+
+  it('hides the binding-order action from users without permission', async () => {
+    // default canPlaceJarltechOrder → false
+    await gotoEinkauf();
+    await screen.findByTestId('supplier-group');
+    expect(screen.queryByTestId('jarltech-order-s-jarl')).toBeNull();
+    const locked = screen.getByRole('button', { name: /Bei Jarltech bestellen/ });
+    expect(locked).toBeDisabled();
   });
 
   it('reassigns a dual-source line to the alternative supplier', async () => {
@@ -135,7 +157,7 @@ describe('ProcurementPage — Einkauf (admin aggregation)', () => {
     await waitFor(() => expect(api.markPurchaseOrderReceived).toHaveBeenCalledWith('po1'));
   });
 
-  it('fetches Jarltech prices and pre-fills the price + stock, then orders with it', async () => {
+  it('fetches Jarltech prices and pre-fills the price + stock', async () => {
     await gotoEinkauf();
     await screen.findByTestId('supplier-group');
 
@@ -148,13 +170,5 @@ describe('ProcurementPage — Einkauf (admin aggregation)', () => {
       expect((screen.getByLabelText('Preis Jarltech') as HTMLInputElement).value).toBe('611.5');
     });
     expect(screen.getByText('37')).toBeTruthy();
-
-    // Ordering uses the auto-filled price without any manual entry.
-    fireEvent.click(screen.getByTestId('order-s-jarl'));
-    await waitFor(() => expect(api.createPurchaseOrder).toHaveBeenCalledTimes(1));
-    const arg = vi.mocked(api.createPurchaseOrder).mock.calls[0][0];
-    expect(arg.lines[0].unitPrice).toBe(611.5);
-    // The price-compare snapshot is stored on the order.
-    expect(arg.priceQuotes?.some((q) => q.supplierId === 's-jarl' && q.unitPrice === 611.5)).toBe(true);
   });
 });

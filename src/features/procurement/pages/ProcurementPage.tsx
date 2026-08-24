@@ -4,8 +4,11 @@ import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { listEmployees } from '../../vacation/api/vacationApi';
 import { aggregateOpenRequests } from '../lib/aggregate';
-import { fetchJarltechPrices, pingJarltech } from '../api/jarltechApi';
+import { canPlaceJarltechOrder, fetchJarltechPrices, pingJarltech, placeJarltechOrder } from '../api/jarltechApi';
 import type { JarltechItemInfo } from '../lib/jarltechNormalize';
+import { KITZ_STANDORTE, type StandortKey } from '../lib/shipping';
+import JarltechOrderModal from '../components/JarltechOrderModal';
+import type { SupplierGroup } from '../lib/aggregate';
 import {
   createOrderRequest,
   createPurchaseOrder,
@@ -63,6 +66,11 @@ export default function ProcurementPage() {
   // jarltech_item_id.
   const [jarltechInfo, setJarltechInfo] = useState<Map<string, JarltechItemInfo>>(new Map());
   const [loadingJarltech, setLoadingJarltech] = useState(false);
+  // Binding Jarltech order (allowlist-gated server-side; this flag only
+  // controls the button visibility).
+  const [canJarltechOrder, setCanJarltechOrder] = useState(false);
+  const [jarltechOrderGroup, setJarltechOrderGroup] = useState<SupplierGroup | null>(null);
+  const [placingOrder, setPlacingOrder] = useState(false);
   // Connectivity self-test result (Einkauf tab): idle | testing | ok | error.
   const [connTest, setConnTest] = useState<{ status: 'idle' | 'testing' | 'ok' | 'error'; message: string }>({
     status: 'idle',
@@ -207,6 +215,69 @@ export default function ProcurementPage() {
     }
   }
 
+  // Check once (admins only) whether this user may place binding orders.
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    canPlaceJarltechOrder()
+      .then((ok) => { if (!cancelled) setCanJarltechOrder(ok); })
+      .catch(() => { /* stays false — button hidden */ });
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
+  // Place the binding Jarltech order for a group: send the linked lines to
+  // Jarltech, then record the consolidated purchase order internally and
+  // flip its requests to `ordered`. Lines without a jarltech_item_id are
+  // left open (the modal warned about them).
+  async function confirmJarltechOrder(standort: StandortKey) {
+    const group = jarltechOrderGroup;
+    if (!group) return;
+
+    const orderable = group.lines
+      .map((l) => {
+        const jid = l.productId ? productsById.get(l.productId)?.jarltechItemId : null;
+        return jid ? { line: l, jarltechItemId: jid } : null;
+      })
+      .filter((x): x is { line: SupplierGroup['lines'][number]; jarltechItemId: string } => !!x);
+
+    if (orderable.length === 0) return;
+
+    setPlacingOrder(true);
+    setError(null);
+    try {
+      const order = await placeJarltechOrder({
+        items: orderable.map((o) => ({ jarltechItemId: o.jarltechItemId, quantity: o.line.totalQty })),
+        shippingAddress: KITZ_STANDORTE[standort].address,
+        note: `KITZ ${KITZ_STANDORTE[standort].label}`,
+      });
+      const apiRef = order?.api_request_id != null ? String(order.api_request_id) : null;
+
+      // Record the consolidated PO internally (only the lines we actually
+      // ordered) and flip their requests to ordered.
+      const lines: OrderLineDecision[] = orderable.map((o) => {
+        const jt = jarltechInfo.get(o.jarltechItemId);
+        return {
+          requestIds: o.line.requests.map((r) => r.id),
+          supplierId: group.supplierId!,
+          unitPrice: jt?.unitPrice ?? null,
+        };
+      });
+      await createPurchaseOrder({
+        supplierId: group.supplierId!,
+        lines,
+        orderedBy: myEmployeeId,
+        note: `Jarltech-Bestellung${apiRef ? ` (Ref ${apiRef})` : ''} · Lieferung ${KITZ_STANDORTE[standort].label}`,
+      });
+
+      setJarltechOrderGroup(null);
+      await reloadRequests();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPlacingOrder(false);
+    }
+  }
+
   // Jarltech-Preise/Lager für alle offenen, mit Jarltech verknüpften
   // Produkte abrufen. On-demand (Button) — kein Auto-Sync, wie von
   // Jarltech gefordert.
@@ -347,11 +418,13 @@ export default function ProcurementPage() {
                 jarltechSupplierId={jarltechSupplierId}
                 jarltechInfo={jarltechInfo}
                 loadingJarltech={loadingJarltech}
+                canJarltechOrder={canJarltechOrder}
                 ordering={ordering}
                 reassigning={reassigning}
                 onOrder={handleOrder}
                 onReassign={handleReassign}
                 onLoadJarltechPrices={handleLoadJarltechPrices}
+                onPlaceJarltechOrder={setJarltechOrderGroup}
               />
             </section>
             <section>
@@ -361,6 +434,16 @@ export default function ProcurementPage() {
           </div>
         )}
       </div>
+
+      {jarltechOrderGroup && (
+        <JarltechOrderModal
+          group={jarltechOrderGroup}
+          productsById={productsById}
+          placing={placingOrder}
+          onConfirm={confirmJarltechOrder}
+          onClose={() => setJarltechOrderGroup(null)}
+        />
+      )}
     </div>
   );
 }

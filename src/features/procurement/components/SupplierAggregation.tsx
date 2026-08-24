@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeftRight, Loader2, PackageCheck, RefreshCw, ShoppingCart } from 'lucide-react';
+import { ArrowLeftRight, Loader2, Lock, PackageCheck, RefreshCw, ShoppingCart } from 'lucide-react';
 import { cheaperSupplierId, supplierOptionsFor, type AggregatedLine, type SupplierGroup } from '../lib/aggregate';
 import type { JarltechItemInfo } from '../lib/jarltechNormalize';
 import type { OrderLineDecision, PriceQuote, RequestableProduct, Supplier } from '../types';
@@ -25,11 +25,13 @@ export default function SupplierAggregation({
   jarltechSupplierId,
   jarltechInfo,
   loadingJarltech,
+  canJarltechOrder,
   ordering,
   reassigning,
   onOrder,
   onReassign,
   onLoadJarltechPrices,
+  onPlaceJarltechOrder,
 }: {
   groups: SupplierGroup[];
   suppliers: Supplier[];
@@ -37,11 +39,13 @@ export default function SupplierAggregation({
   jarltechSupplierId: string | null;
   jarltechInfo: Map<string, JarltechItemInfo>;
   loadingJarltech: boolean;
+  canJarltechOrder: boolean;
   ordering: string | null;   // supplierId, während bestellt wird
   reassigning: string | null; // lineKey, während umgestellt wird
   onOrder: (supplierId: string, lines: OrderLineDecision[], priceQuotes: PriceQuote[]) => void;
   onReassign: (lineKey: string, requestIds: string[], supplierId: string) => void;
   onLoadJarltechPrices: () => void;
+  onPlaceJarltechOrder: (group: SupplierGroup) => void;
 }) {
   // Manuell eingegebener Preis je (Produktzeile × Lieferant). Überlebt ein
   // Umstellen, weil der Schlüssel an der Produktzeile hängt.
@@ -142,7 +146,28 @@ export default function SupplierAggregation({
                 <h3 className="font-semibold text-slate-700" style={{ fontSize: 14 }}>{group.supplierName}</h3>
                 <span className="text-[11px] text-slate-400">{group.totalQty} Stück · {group.lines.length} Produkt(e)</span>
               </div>
-              {sid ? (
+              {sid && sid === jarltechSupplierId ? (
+                canJarltechOrder ? (
+                  <button
+                    type="button"
+                    data-testid={`jarltech-order-${sid}`}
+                    onClick={() => onPlaceJarltechOrder(group)}
+                    disabled={ordering !== null}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-40"
+                  >
+                    <ShoppingCart size={14} /> Bei Jarltech bestellen
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    title="Nur berechtigte Personen dürfen verbindlich bei Jarltech bestellen."
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 text-xs font-medium cursor-not-allowed"
+                  >
+                    <Lock size={13} /> Bei Jarltech bestellen
+                  </button>
+                )
+              ) : sid ? (
                 <button
                   type="button"
                   data-testid={`order-${sid}`}

@@ -169,6 +169,49 @@ async function apiGet(cfg: Config, token: string, path: string): Promise<unknown
   }
 }
 
+// POST a Jarltech API path with a JSON body and return the parsed JSON.
+// Unlike apiGet, a 404 here is a real error (not "no data").
+async function apiPost(
+  cfg: Config,
+  token: string,
+  path: string,
+  payload: unknown,
+): Promise<unknown> {
+  const sep = path.includes("?") ? "&" : "?";
+  const url = `${cfg.baseUrl}/${cfg.lang}/api/v1/${cfg.customerId}${path}${sep}_format=json`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`Jarltech: ${jarltechErrorMessage(res.status, text)}`);
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error("Jarltech: Antwort ist kein JSON.");
+    }
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("Jarltech timeout nach 20 Sekunden.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // Price + stock for one item. Both are independent lookups; a missing
 // price or stock (404) degrades to null so one gap doesn't sink the row.
 async function priceAndStock(
@@ -184,10 +227,11 @@ async function priceAndStock(
   return { jarltechItemId: id, price, stock };
 }
 
-// ─── JWT verification (same approach as webfleet-proxy/mesonic-proxy) ───
-async function verifyAuth(req: Request): Promise<boolean> {
+// ─── Caller identity (same JWT approach as webfleet-proxy/mesonic-proxy) ───
+// Returns the caller's (lowercased) email, or null if unauthenticated.
+async function getCaller(req: Request): Promise<{ email: string } | null> {
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) return false;
+  if (!authHeader?.startsWith("Bearer ")) return null;
   const token = authHeader.replace("Bearer ", "");
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -195,7 +239,17 @@ async function verifyAuth(req: Request): Promise<boolean> {
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
   const { data: { user }, error } = await supabase.auth.getUser(token);
-  return !!user && !error;
+  if (error || !user) return null;
+  return { email: (user.email ?? "").toLowerCase() };
+}
+
+// Placing a binding Jarltech order is restricted to a small allowlist of
+// people, set via the JARLTECH_ORDER_ALLOWLIST secret (comma-separated,
+// case-insensitive emails). Enforced server-side — the UI gate is only UX.
+function isOrderAllowed(email: string): boolean {
+  const raw = Deno.env.get("JARLTECH_ORDER_ALLOWLIST") ?? "";
+  const allow = raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  return !!email && allow.includes(email);
 }
 
 function json(body: unknown, status = 200): Response {
@@ -211,17 +265,26 @@ serve(async (req: Request) => {
   }
 
   try {
-    if (!(await verifyAuth(req))) {
+    const caller = await getCaller(req);
+    if (!caller) {
       return json({ error: "Unauthorized" }, 401);
     }
 
     const body = await req.json().catch(() => ({}));
     const { action } = body as { action?: string };
-    const cfg = getConfig();
-    const token = await getToken(cfg);
 
-    // ── Health check ──
+    // ── Order-permission check (no Jarltech call needed) ──
+    // Lets the UI show/hide the "place order" button. The real gate is on
+    // the create-order action below.
+    if (action === "order-permission") {
+      return json({ allowed: isOrderAllowed(caller.email) });
+    }
+
+    const cfg = getConfig();
+
+    // ── Health check (validates OAuth credentials) ──
     if (action === "ping") {
+      await getToken(cfg);
       return json({ ok: true });
     }
 
@@ -236,6 +299,7 @@ serve(async (req: Request) => {
       if (ids.length > 100) {
         return json({ error: "Too many ids (max 100 per request)." }, 400);
       }
+      const token = await getToken(cfg);
       const unique = Array.from(new Set(ids.map((x) => String(x))));
       const results = await Promise.all(
         unique.map((id) => priceAndStock(cfg, token, id)),
@@ -249,6 +313,7 @@ serve(async (req: Request) => {
       if (!manufacturerId) {
         return json({ error: "Missing required field: manufacturerId" }, 400);
       }
+      const token = await getToken(cfg);
       const data = await apiGet(
         cfg,
         token,
@@ -257,8 +322,84 @@ serve(async (req: Request) => {
       return json({ result: data });
     }
 
+    // ── Place a BINDING shop order (allowlist-gated) ──
+    if (action === "create-order") {
+      if (!isOrderAllowed(caller.email)) {
+        return json(
+          { error: "Nicht berechtigt, verbindlich bei Jarltech zu bestellen." },
+          403,
+        );
+      }
+      const {
+        items,
+        shippingAddress,
+        internalReference,
+        note,
+        allowSplitting,
+        shippingType,
+      } = body as {
+        items?: Array<{ jarltechItemId?: string; quantity?: number }>;
+        shippingAddress?: {
+          countryCode?: string;
+          companyName?: string;
+          street?: string;
+          zip?: string;
+          city?: string;
+          contactName?: string;
+          phone?: string;
+        };
+        internalReference?: string;
+        note?: string;
+        allowSplitting?: boolean;
+        shippingType?: string;
+      };
+
+      if (!Array.isArray(items) || items.length === 0) {
+        return json({ error: "Missing order items." }, 400);
+      }
+      for (const it of items) {
+        if (!it.jarltechItemId || !it.quantity || it.quantity < 1) {
+          return json({ error: "Each item needs a jarltechItemId and quantity >= 1." }, 400);
+        }
+      }
+      const addr = shippingAddress ?? {};
+      if (!addr.countryCode || !addr.companyName || !addr.street) {
+        return json(
+          { error: "Shipping address needs countryCode, companyName and street." },
+          400,
+        );
+      }
+
+      const token = await getToken(cfg);
+      const orderBody: Record<string, unknown> = {
+        customer_id: Number(cfg.customerId),
+        order_items: items.map((i) => ({
+          quantity: i.quantity,
+          jarltech_item_identifier: i.jarltechItemId,
+        })),
+        shipping_address: {
+          country_code: addr.countryCode,
+          company_name: addr.companyName,
+          street: addr.street,
+          ...(addr.zip ? { zip: addr.zip } : {}),
+          ...(addr.city ? { city: addr.city } : {}),
+          ...(addr.contactName ? { contact_name: addr.contactName } : {}),
+          ...(addr.phone ? { phone: addr.phone } : {}),
+        },
+        // Default OFF: keep the order as a single shipment (one delivery
+        // fee) rather than splitting on partial availability.
+        allow_order_splitting: !!allowSplitting,
+        desired_shipping_type: shippingType || "standard",
+        ...(internalReference ? { internal_customer_reference: String(internalReference).slice(0, 50) } : {}),
+        ...(note ? { customer_order_note: String(note).slice(0, 500) } : {}),
+      };
+
+      const result = await apiPost(cfg, token, `/shop-order/create`, orderBody);
+      return json({ order: result });
+    }
+
     return json(
-      { error: `Unknown action: ${action}. Use ping|prices|resolve.` },
+      { error: `Unknown action: ${action}. Use ping|prices|resolve|order-permission|create-order.` },
       400,
     );
   } catch (err) {
