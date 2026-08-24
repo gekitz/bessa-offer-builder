@@ -65,8 +65,20 @@ export async function pingJarltech(): Promise<boolean> {
 }
 
 // Resolve a manufacturer SKU to a Jarltech item identifier (helper for
-// linking products in the admin UI). Returns the raw result object.
-export async function resolveJarltechId(manufacturerId: string): Promise<unknown> {
+// linking products in the admin UI). Returns null if no purchasable item
+// with that manufacturer identifier exists (Jarltech 404).
+export async function resolveJarltechId(
+  manufacturerId: string,
+): Promise<{ jarltechItemId: string; manufacturerId: string } | null> {
   const data = await invokeJarltech({ action: 'resolve', manufacturerId });
-  return data?.result ?? null;
+  const r = (data?.result ?? null) as
+    | { jarltech_item_identifier?: string; manufacturer_item_identifier?: string }
+    | null;
+  if (r?.jarltech_item_identifier) {
+    return {
+      jarltechItemId: r.jarltech_item_identifier,
+      manufacturerId: r.manufacturer_item_identifier ?? manufacturerId,
+    };
+  }
+  return null;
 }

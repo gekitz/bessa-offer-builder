@@ -2,8 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import ProductsAdminPage from '../ProductsAdminPage';
 import * as productApi from '../../api/productApi';
+import * as procurementApi from '../../../procurement/api/procurementApi';
+import * as jarltech from '../../../procurement/api/jarltechApi';
+import type { Supplier } from '../../../procurement/types';
 
 vi.mock('../../api/productApi');
+vi.mock('../../../procurement/api/procurementApi');
+vi.mock('../../../procurement/api/jarltechApi');
+
+function makeSupplier(over: Partial<Supplier>): Supplier {
+  return {
+    id: over.id ?? 's-x', code: over.code ?? 'x', name: over.name ?? 'Lieferant',
+    orderEmail: null, notes: null, active: true, sort: 0, createdAt: '', updatedAt: '', ...over,
+  };
+}
 
 function makeProduct(over: Partial<productApi.Product>): productApi.Product {
   return {
@@ -41,6 +53,10 @@ beforeEach(() => {
     makeProduct({ ...PRODUCTS.find((p) => p.id === id)!, ...patch }),
   );
   vi.mocked(productApi.deleteProduct).mockResolvedValue(undefined);
+  // Default: no suppliers (supplier/Jarltech block hidden) — keeps the
+  // existing category tests unchanged. Individual tests opt in.
+  vi.mocked(procurementApi.listSuppliers).mockResolvedValue([]);
+  vi.mocked(jarltech.resolveJarltechId).mockResolvedValue(null);
 });
 
 async function openEditor(name: string) {
@@ -151,5 +167,45 @@ describe('ProductsAdminPage — delete', () => {
     render(<ProductsAdminPage />);
     fireEvent.click(await screen.findByRole('button', { name: /neues produkt/i }));
     expect(screen.queryByRole('button', { name: /^löschen$/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('ProductsAdminPage — Jarltech SKU lookup', () => {
+  beforeEach(() => {
+    // Suppliers present → the supplier/Jarltech block renders.
+    vi.mocked(procurementApi.listSuppliers).mockResolvedValue([
+      makeSupplier({ id: 's-jarl', code: 'jarltech', name: 'Jarltech' }),
+    ]);
+  });
+
+  it('resolves an exact manufacturer SKU to a Jarltech id and fills the field', async () => {
+    vi.mocked(jarltech.resolveJarltechId).mockResolvedValue({
+      jarltechItemId: 'v3xyz',
+      manufacturerId: 'SUNMI-V3-XYZ',
+    });
+    await openEditor('Mobile Kassa');
+
+    fireEvent.change(screen.getByPlaceholderText('Exakte Hersteller-Artikelnr.'), {
+      target: { value: 'SUNMI-V3-XYZ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Jarltech-ID suchen/ }));
+
+    // Looked up by exact part number (not the ambiguous product name).
+    await waitFor(() => expect(jarltech.resolveJarltechId).toHaveBeenCalledWith('SUNMI-V3-XYZ'));
+    const jtField = screen.getByPlaceholderText(/für Preis-\/Lagerabruf/) as HTMLInputElement;
+    await waitFor(() => expect(jtField.value).toBe('v3xyz'));
+    expect(screen.getByText(/Gefunden: v3xyz/)).toBeInTheDocument();
+  });
+
+  it('reports when no purchasable item matches the manufacturer number', async () => {
+    vi.mocked(jarltech.resolveJarltechId).mockResolvedValue(null);
+    await openEditor('Mobile Kassa');
+
+    fireEvent.change(screen.getByPlaceholderText('Exakte Hersteller-Artikelnr.'), {
+      target: { value: 'UNKNOWN-SKU' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Jarltech-ID suchen/ }));
+
+    expect(await screen.findByText(/Kein Jarltech-Artikel/)).toBeInTheDocument();
   });
 });

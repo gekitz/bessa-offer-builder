@@ -13,6 +13,7 @@ import {
   type ProductPricing,
 } from '../api/productApi';
 import { listSuppliers } from '../../procurement/api/procurementApi';
+import { resolveJarltechId } from '../../procurement/api/jarltechApi';
 import type { Supplier } from '../../procurement/types';
 
 const CATALOGS = [
@@ -390,8 +391,33 @@ function ProductEditModal({
   const [supplierId, setSupplierId] = useState(product?.supplierId ?? '');
   const [altSupplierIds, setAltSupplierIds] = useState<string[]>(product?.altSupplierIds ?? []);
   const [jarltechItemId, setJarltechItemId] = useState(product?.jarltechItemId ?? '');
+  // SKU-lookup helper: resolve a manufacturer part number → Jarltech id.
+  // Prefilled with the product code, which is often the manufacturer SKU.
+  const [mfrSku, setMfrSku] = useState(product?.code ?? '');
+  const [resolving, setResolving] = useState(false);
+  const [resolveMsg, setResolveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  async function lookupJarltechId() {
+    const sku = mfrSku.trim();
+    if (!sku) { setResolveMsg({ ok: false, text: 'Hersteller-Artikelnr. eingeben.' }); return; }
+    setResolving(true);
+    setResolveMsg(null);
+    try {
+      const r = await resolveJarltechId(sku);
+      if (r) {
+        setJarltechItemId(r.jarltechItemId);
+        setResolveMsg({ ok: true, text: `Gefunden: ${r.jarltechItemId}` });
+      } else {
+        setResolveMsg({ ok: false, text: 'Kein Jarltech-Artikel zu dieser Hersteller-Nr. gefunden.' });
+      }
+    } catch (e) {
+      setResolveMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setResolving(false);
+    }
+  }
 
   async function submit() {
     if (!name.trim()) { setErr('Name erforderlich.'); return; }
@@ -659,6 +685,34 @@ function ProductEditModal({
                   placeholder="z. B. mpk1s12v — für Preis-/Lagerabruf"
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
                 />
+                {/* Look up the Jarltech id by EXACT manufacturer part number
+                    (not the product name) — the name is ambiguous (viele V3-
+                    Varianten), the Herstellernummer maps 1:1. */}
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <input
+                    value={mfrSku}
+                    onChange={(e) => setMfrSku(e.target.value)}
+                    placeholder="Exakte Hersteller-Artikelnr."
+                    className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-slate-200 text-sm font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={lookupJarltechId}
+                    disabled={resolving}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-medium hover:bg-slate-50 disabled:opacity-50 flex-shrink-0"
+                  >
+                    {resolving ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
+                    Jarltech-ID suchen
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Suche über die exakte Hersteller-Artikelnummer (nicht den Namen) — liefert genau einen Treffer.
+                </p>
+                {resolveMsg && (
+                  <div className={`text-[11px] mt-1 ${resolveMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>
+                    {resolveMsg.text}
+                  </div>
+                )}
               </div>
             </div>
           )}
