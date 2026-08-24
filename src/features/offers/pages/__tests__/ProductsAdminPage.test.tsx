@@ -13,7 +13,7 @@ vi.mock('../../../procurement/api/jarltechApi');
 function makeSupplier(over: Partial<Supplier>): Supplier {
   return {
     id: over.id ?? 's-x', code: over.code ?? 'x', name: over.name ?? 'Lieferant',
-    orderEmail: null, notes: null, active: true, sort: 0, createdAt: '', updatedAt: '', ...over,
+    orderEmail: null, orderMethod: 'manual', notes: null, active: true, sort: 0, createdAt: '', updatedAt: '', ...over,
   };
 }
 
@@ -207,5 +207,32 @@ describe('ProductsAdminPage — Jarltech SKU lookup', () => {
     fireEvent.click(screen.getByRole('button', { name: /Jarltech-ID suchen/ }));
 
     expect(await screen.findByText(/Kein Jarltech-Artikel/)).toBeInTheDocument();
+  });
+});
+
+describe('ProductsAdminPage — supplier visibility', () => {
+  beforeEach(() => {
+    vi.mocked(procurementApi.listSuppliers).mockResolvedValue([makeSupplier({ id: 's-jarl', name: 'Jarltech' })]);
+    vi.mocked(productApi.listProductsAdmin).mockResolvedValue([
+      makeProduct({ id: 'linked', name: 'Linked Prod', catalog: 'HARDWARE', supplierId: 's-jarl' }),
+      makeProduct({ id: 'unlinked', name: 'Unlinked Prod', catalog: 'HARDWARE', supplierId: null }),
+    ]);
+  });
+
+  it('shows the supplier name on linked rows and flags unlinked ones', async () => {
+    render(<ProductsAdminPage />);
+    await screen.findByText('Linked Prod');
+    expect(screen.getByText('Jarltech')).toBeInTheDocument();   // supplier chip
+    expect(screen.getByText('Kein Lieferant')).toBeInTheDocument(); // warning chip
+    // Header surfaces the outstanding count.
+    expect(screen.getByText(/1 ohne Lieferant/)).toBeInTheDocument();
+  });
+
+  it('filters to only products without a supplier', async () => {
+    render(<ProductsAdminPage />);
+    await screen.findByText('Linked Prod');
+    fireEvent.click(screen.getByRole('button', { name: /Ohne Lieferant/ }));
+    expect(screen.queryByText('Linked Prod')).not.toBeInTheDocument();
+    expect(screen.getByText('Unlinked Prod')).toBeInTheDocument();
   });
 });

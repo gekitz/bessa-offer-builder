@@ -68,6 +68,9 @@ export default function ProductsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  // Filter to products that still need a supplier linked — the fast path
+  // for doing the linking work.
+  const [onlyMissing, setOnlyMissing] = useState(false);
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -138,16 +141,29 @@ export default function ProductsAdminPage() {
     load();
   }, []);
 
+  const supplierById = useMemo(
+    () => new Map(suppliers.map((s) => [s.id, s.name])),
+    [suppliers],
+  );
+  const missingCount = useMemo(
+    () => products.filter((p) => !p.supplierId).length,
+    [products],
+  );
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return products;
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(term) ||
-        (p.code?.toLowerCase().includes(term) ?? false) ||
-        p.catalog.toLowerCase().includes(term),
-    );
-  }, [products, search]);
+    let list = products;
+    if (onlyMissing) list = list.filter((p) => !p.supplierId);
+    if (term) {
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(term) ||
+          (p.code?.toLowerCase().includes(term) ?? false) ||
+          p.catalog.toLowerCase().includes(term),
+      );
+    }
+    return list;
+  }, [products, search, onlyMissing]);
 
   const byCatalog = useMemo(() => {
     const m = new Map<string, Product[]>();
@@ -189,6 +205,9 @@ export default function ProductsAdminPage() {
             <Package size={20} className="text-red-600" />
             <h1 className="font-bold text-slate-700" style={{ fontSize: 18 }}>Produkte</h1>
             <span className="text-xs text-slate-400">{products.length}</span>
+            {missingCount > 0 && (
+              <span className="text-xs text-amber-600">· {missingCount} ohne Lieferant</span>
+            )}
           </div>
           <button
             type="button"
@@ -209,6 +228,30 @@ export default function ProductsAdminPage() {
             placeholder="Name, Code oder Katalog suchen…"
             className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30"
           />
+        </div>
+
+        {/* Quick filter: jump to the products that still need linking. */}
+        <div className="flex items-center gap-1.5 mb-3">
+          {([
+            { key: false, label: 'Alle' },
+            { key: true, label: `Ohne Lieferant${missingCount ? ` (${missingCount})` : ''}` },
+          ] as const).map((opt) => {
+            const active = onlyMissing === opt.key;
+            return (
+              <button
+                key={String(opt.key)}
+                type="button"
+                onClick={() => setOnlyMissing(opt.key)}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  active
+                    ? 'bg-slate-800 text-white border-slate-800'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
 
         {error && (
@@ -243,7 +286,8 @@ export default function ProductsAdminPage() {
                             <SortableProductRow
                               key={p.id}
                               product={p}
-                              draggable={!search.trim()}
+                              supplierName={p.supplierId ? supplierById.get(p.supplierId) ?? 'Unbekannt' : null}
+                              draggable={!search.trim() && !onlyMissing}
                               onToggle={toggleActive}
                               onEdit={setEditing}
                             />
@@ -275,11 +319,13 @@ export default function ProductsAdminPage() {
 
 function SortableProductRow({
   product: p,
+  supplierName,
   draggable,
   onToggle,
   onEdit,
 }: {
   product: Product;
+  supplierName: string | null;
   draggable: boolean;
   onToggle: (p: Product) => void;
   onEdit: (p: Product) => void;
@@ -312,6 +358,21 @@ function SortableProductRow({
       )}
       {p.code && <span className="font-mono text-xs text-slate-400 w-12 flex-shrink-0">{p.code}</span>}
       <span className="font-medium text-slate-800 truncate flex-1">{p.name}</span>
+      {supplierName ? (
+        <span
+          className="text-[10px] px-1.5 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-slate-500 whitespace-nowrap flex-shrink-0"
+          title={`Lieferant: ${supplierName}`}
+        >
+          {supplierName}
+        </span>
+      ) : (
+        <span
+          className="text-[10px] px-1.5 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-700 whitespace-nowrap flex-shrink-0"
+          title="Kein Lieferant zugeordnet"
+        >
+          Kein Lieferant
+        </span>
+      )}
       <span className="text-slate-600 font-mono text-xs whitespace-nowrap">{priceSummary(p.pricing)}</span>
       <button
         type="button"
