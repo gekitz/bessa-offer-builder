@@ -17,6 +17,32 @@ function requireSupabase(): NonNullable<typeof supabase> {
   return supabase;
 }
 
+// Invoke the jarltech-proxy edge function and return its JSON body.
+//
+// supabase-js reports a non-2xx as a generic "Edge Function returned a
+// non-2xx status code" and hides our real message in error.context (the
+// raw Response). We read that body so the UI shows the actual cause
+// (e.g. "Jarltech: 403 Access denied") instead of the opaque default.
+async function invokeJarltech(body: Record<string, unknown>): Promise<any> {
+  const sb = requireSupabase();
+  const { data, error } = await sb.functions.invoke('jarltech-proxy', { body });
+  if (error) {
+    let detail = error.message;
+    const ctx = (error as { context?: unknown }).context;
+    if (ctx && typeof (ctx as Response).json === 'function') {
+      try {
+        const parsed = await (ctx as Response).json();
+        if (parsed?.error) detail = parsed.error;
+      } catch {
+        // body already consumed or not JSON — keep the generic message
+      }
+    }
+    throw new Error(`Jarltech: ${detail}`);
+  }
+  if (data?.error) throw new Error(`Jarltech: ${data.error}`);
+  return data;
+}
+
 // Fetch current net price + stock for a set of Jarltech item ids. Returns
 // a Map keyed by jarltech item id. An empty input short-circuits (no call).
 export async function fetchJarltechPrices(
@@ -25,13 +51,7 @@ export async function fetchJarltechPrices(
   const ids = Array.from(new Set(jarltechItemIds.filter(Boolean)));
   if (ids.length === 0) return new Map();
 
-  const sb = requireSupabase();
-  const { data, error } = await sb.functions.invoke('jarltech-proxy', {
-    body: { action: 'prices', ids },
-  });
-  if (error) throw new Error(`Jarltech: ${error.message}`);
-  if (data?.error) throw new Error(`Jarltech: ${data.error}`);
-
+  const data = await invokeJarltech({ action: 'prices', ids });
   const items: RawJarltechEntry[] = data?.items ?? [];
   return indexJarltechItems(items);
 }
@@ -40,23 +60,13 @@ export async function fetchJarltechPrices(
 // OAuth token and returns { ok: true }. Throws with the Jarltech error
 // message if the client id/secret (or token placement) are wrong.
 export async function pingJarltech(): Promise<boolean> {
-  const sb = requireSupabase();
-  const { data, error } = await sb.functions.invoke('jarltech-proxy', {
-    body: { action: 'ping' },
-  });
-  if (error) throw new Error(`Jarltech: ${error.message}`);
-  if (data?.error) throw new Error(`Jarltech: ${data.error}`);
+  const data = await invokeJarltech({ action: 'ping' });
   return !!data?.ok;
 }
 
 // Resolve a manufacturer SKU to a Jarltech item identifier (helper for
 // linking products in the admin UI). Returns the raw result object.
 export async function resolveJarltechId(manufacturerId: string): Promise<unknown> {
-  const sb = requireSupabase();
-  const { data, error } = await sb.functions.invoke('jarltech-proxy', {
-    body: { action: 'resolve', manufacturerId },
-  });
-  if (error) throw new Error(`Jarltech: ${error.message}`);
-  if (data?.error) throw new Error(`Jarltech: ${data.error}`);
+  const data = await invokeJarltech({ action: 'resolve', manufacturerId });
   return data?.result ?? null;
 }
