@@ -90,8 +90,10 @@ const CalendarPage = lazyWithReload(() => import('../../calendar/pages/CalendarP
 const TicketsPage = lazyWithReload(() => import('../../tickets/pages/TicketsPage'));
 const DispatcherPage = lazyWithReload(() => import('../../dispatcher/pages/DispatcherPage'));
 const ProductsAdminPage = lazyWithReload(() => import('./ProductsAdminPage'));
+const ProcurementPage = lazyWithReload(() => import('../../procurement/pages/ProcurementPage'));
 import { useApproverPendingCount } from '../../vacation/hooks/useApproverPendingCount';
 import { useMyTicketCount } from '../../tickets/hooks/useMyTicketCount';
+import { useOpenRequestCount } from '../../procurement/hooks/useOpenRequestCount';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { pathForSection, sectionFromPath } from '../../../lib/sectionRoute';
 
@@ -221,6 +223,9 @@ function OfferBuilderPageInner() {
   const section = sectionFromPath(location.pathname);
   const pendingApprovalsCount = useApproverPendingCount();
   const myTicketCount = useMyTicketCount();
+  // Open-request badge on Bestellungen — only the purchaser (admin) needs
+  // the pending-demand count; requesters just file and forget.
+  const openRequestCount = useOpenRequestCount(profile?.role === 'admin');
   const [offerView, setOfferView] = useState('list'); // 'list' | 'builder' | 'followups'
   // When set, the FollowUps page picks this up and immediately opens
   // SendFollowupModal for that offer. Driven by the digest deep-link
@@ -1253,7 +1258,7 @@ function OfferBuilderPageInner() {
       showBillingToggle={isBillingAdmin}
       billingToggle={billingToggle}
       onToggleBilling={setBillingToggle}
-      badges={{ kalender: pendingApprovalsCount, tickets: myTicketCount }}
+      badges={{ kalender: pendingApprovalsCount, tickets: myTicketCount, bestellungen: openRequestCount }}
     >
       {/* ═══ ANGEBOTE SECTION ═══ */}
       {section === 'angebote' && offerView === 'list' && (
@@ -1553,6 +1558,13 @@ function OfferBuilderPageInner() {
       {section === 'dispatcher' && (
         <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
           <DispatcherPage />
+        </React.Suspense>
+      )}
+
+      {/* ═══ BESTELLUNGEN SECTION ═══ */}
+      {section === 'bestellungen' && (
+        <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
+          <ProcurementPage />
         </React.Suspense>
       )}
 

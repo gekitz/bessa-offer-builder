@@ -24,6 +24,11 @@ export interface Product {
   autoAdd: unknown;
   active: boolean;
   sort: number;
+  // Beschaffung: bevorzugte Bezugsquelle + Alternativen (Doppelquelle).
+  supplierId: string | null;
+  altSupplierIds: string[];
+  // Jarltech-Artikelkennung für die Preis-/Lagerabfrage (jarltech-proxy).
+  jarltechItemId: string | null;
 }
 
 export interface ProductInput {
@@ -39,9 +44,12 @@ export interface ProductInput {
   attrs?: Record<string, unknown>;
   active?: boolean;
   sort?: number;
+  supplierId?: string | null;
+  altSupplierIds?: string[];
+  jarltechItemId?: string | null;
 }
 
-const COLS = 'id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, active, sort';
+const COLS = 'id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, active, sort, supplier_id, alt_supplier_ids, jarltech_item_id';
 
 function requireSb(): NonNullable<typeof supabase> {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -63,6 +71,9 @@ function rowToProduct(r: Record<string, unknown>): Product {
     autoAdd: r.auto_add ?? null,
     active: !!r.active,
     sort: (r.sort as number) ?? 0,
+    supplierId: (r.supplier_id as string) ?? null,
+    altSupplierIds: (r.alt_supplier_ids as string[]) ?? [],
+    jarltechItemId: (r.jarltech_item_id as string) ?? null,
   };
 }
 
@@ -96,6 +107,9 @@ export async function updateProduct(
   if (patch.attrs !== undefined) db.attrs = patch.attrs;
   if (patch.active !== undefined) db.active = patch.active;
   if (patch.sort !== undefined) db.sort = patch.sort;
+  if (patch.supplierId !== undefined) db.supplier_id = patch.supplierId;
+  if (patch.altSupplierIds !== undefined) db.alt_supplier_ids = patch.altSupplierIds;
+  if (patch.jarltechItemId !== undefined) db.jarltech_item_id = patch.jarltechItemId;
   const { data, error } = await sb.from('products').update(db).eq('id', id).select(COLS).single();
   if (error) throw new Error(error.message);
   return rowToProduct(data);
@@ -124,6 +138,9 @@ export async function createProduct(input: ProductInput): Promise<Product> {
       attrs: input.attrs ?? {},
       active: input.active ?? true,
       sort: input.sort ?? 999,
+      supplier_id: input.supplierId ?? null,
+      alt_supplier_ids: input.altSupplierIds ?? [],
+      jarltech_item_id: input.jarltechItemId ?? null,
     })
     .select(COLS)
     .single();

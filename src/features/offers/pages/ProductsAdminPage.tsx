@@ -12,6 +12,8 @@ import {
   type Product,
   type ProductPricing,
 } from '../api/productApi';
+import { listSuppliers } from '../../procurement/api/procurementApi';
+import type { Supplier } from '../../procurement/types';
 
 const CATALOGS = [
   'BESSA', 'MELZER', 'GASTROTOUCH', 'RCH', 'HARDWARE', 'UNIFY', 'DRUCKER',
@@ -61,6 +63,7 @@ function groupByCategory(items: Product[]): Array<{ key: string; label: string; 
 
 export default function ProductsAdminPage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -118,7 +121,12 @@ export default function ProductsAdminPage() {
     setLoading(true);
     setError(null);
     try {
-      setProducts(await listProductsAdmin());
+      const [prods, sups] = await Promise.all([
+        listProductsAdmin(),
+        listSuppliers().catch(() => [] as Supplier[]),
+      ]);
+      setProducts(prods);
+      setSuppliers(sups);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -254,6 +262,7 @@ export default function ProductsAdminPage() {
         <ProductEditModal
           product={editing === 'new' ? null : editing}
           allProducts={products}
+          suppliers={suppliers}
           onClose={() => setEditing(null)}
           onSaved={onSaved}
           onDeleted={onDeleted}
@@ -326,12 +335,14 @@ function SortableProductRow({
 function ProductEditModal({
   product,
   allProducts,
+  suppliers,
   onClose,
   onSaved,
   onDeleted,
 }: {
   product: Product | null;
   allProducts: Product[];
+  suppliers: Supplier[];
   onClose: () => void;
   onSaved: (p: Product, isNew: boolean) => void;
   onDeleted: (id: string) => void;
@@ -375,6 +386,10 @@ function ProductEditModal({
   const [apbw, setApbw] = useState(a.pageBw != null ? String(a.pageBw) : '');
   const [apcol, setApcol] = useState(a.pageColor != null ? String(a.pageColor) : '');
   const [adesc, setAdesc] = useState((a.description as string) ?? '');
+  // Beschaffung: bevorzugte Bezugsquelle + Alternativen (Doppelquelle).
+  const [supplierId, setSupplierId] = useState(product?.supplierId ?? '');
+  const [altSupplierIds, setAltSupplierIds] = useState<string[]>(product?.altSupplierIds ?? []);
+  const [jarltechItemId, setJarltechItemId] = useState(product?.jarltechItemId ?? '');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -429,6 +444,10 @@ function ProductEditModal({
         note: note.trim() || null,
         info: info.trim() || null,
         pricing,
+        supplierId: supplierId || null,
+        // Der bevorzugte Lieferant darf nicht doppelt als Alternative zählen.
+        altSupplierIds: altSupplierIds.filter((id) => id !== supplierId),
+        jarltechItemId: jarltechItemId.trim() || null,
         ...(attrs !== undefined ? { attrs } : {}),
       };
       const saved = isNew ? await createProduct(patch) : await updateProduct(product!.id, patch);
@@ -591,6 +610,58 @@ function ProductEditModal({
             <label className="block text-xs font-medium text-slate-600 mb-1">Info</label>
             <input value={info} onChange={(e) => setInfo(e.target.value)} placeholder="optional" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
           </div>
+
+          {suppliers.length > 0 && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 space-y-2">
+              <div className="text-xs font-semibold text-slate-600">Bezugsquelle</div>
+              <div>
+                <label className="block text-[11px] text-slate-500 mb-1">Bevorzugter Lieferant</label>
+                <Select
+                  value={supplierId}
+                  onChange={setSupplierId}
+                  options={[{ value: '', label: 'Kein Lieferant' }, ...suppliers.map((s) => ({ value: s.id, label: s.name }))]}
+                  ariaLabel="Bevorzugter Lieferant"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-slate-500 mb-1">Alternative Lieferanten (Doppelquelle)</label>
+                <div className="flex flex-wrap gap-1">
+                  {suppliers
+                    .filter((s) => s.id !== supplierId)
+                    .map((s) => {
+                      const active = altSupplierIds.includes(s.id);
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() =>
+                            setAltSupplierIds((prev) =>
+                              prev.includes(s.id) ? prev.filter((x) => x !== s.id) : [...prev, s.id],
+                            )
+                          }
+                          className={`px-2 py-0.5 rounded-full text-[11px] border transition-colors ${
+                            active
+                              ? 'bg-slate-800 text-white border-slate-800'
+                              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                          }`}
+                        >
+                          {s.name}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] text-slate-500 mb-1">Jarltech-Artikelkennung</label>
+                <input
+                  value={jarltechItemId}
+                  onChange={(e) => setJarltechItemId(e.target.value)}
+                  placeholder="z. B. mpk1s12v — für Preis-/Lagerabruf"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
+                />
+              </div>
+            </div>
+          )}
 
           {!isNew && confirmDelete && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">

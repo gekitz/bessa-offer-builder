@@ -20,6 +20,9 @@ function makeProduct(over: Partial<productApi.Product>): productApi.Product {
     autoAdd: null,
     active: true,
     sort: 0,
+    supplierId: null,
+    altSupplierIds: [],
+    jarltechItemId: null,
     ...over,
   };
 }

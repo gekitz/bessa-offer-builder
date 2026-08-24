@@ -1,0 +1,160 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import ProcurementPage from '../ProcurementPage';
+import * as api from '../../api/procurementApi';
+import * as jarltech from '../../api/jarltechApi';
+import type { JarltechItemInfo } from '../../lib/jarltechNormalize';
+import type { OrderRequest, PurchaseOrder, RequestableProduct, Supplier } from '../../types';
+
+vi.mock('../../api/procurementApi');
+vi.mock('../../api/jarltechApi');
+vi.mock('../../../vacation/api/vacationApi', () => ({
+  listEmployees: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('../../../../lib/auth', () => ({
+  useAuth: () => ({ profile: { role: 'admin', microsoft_email: 'buyer@kitz.co.at' }, user: null }),
+}));
+
+const SUPPLIERS: Supplier[] = [
+  { id: 's-jarl', code: 'jarltech', name: 'Jarltech', orderEmail: null, notes: null, active: true, sort: 30, createdAt: '', updatedAt: '' },
+  { id: 's-pulsa', code: 'pulsa', name: 'Pulsa', orderEmail: null, notes: null, active: true, sort: 40, createdAt: '', updatedAt: '' },
+];
+
+const PRODUCTS: RequestableProduct[] = [
+  { id: 'sunmi-l3', name: 'Sunmi L3', code: 'L3', catalog: 'HARDWARE', supplierId: 's-jarl', altSupplierIds: ['s-pulsa'], jarltechItemId: 'sunmil3jt' },
+];
+
+function req(id: string, qty: number, requester: string): OrderRequest {
+  return {
+    id, productId: 'sunmi-l3', productName: 'Sunmi L3', productCode: 'L3', supplierId: 's-jarl',
+    qty, note: null, status: 'open', unitPrice: null, customerId: null, customerName: null,
+    offerId: null, purchaseOrderId: null, requestedBy: null, orderedAt: null, receivedAt: null,
+    createdAt: '', updatedAt: '', _requesterName: requester, _supplierName: 'Jarltech',
+  };
+}
+
+const REQUESTS: OrderRequest[] = [req('r1', 5, 'Anna'), req('r2', 3, 'Bert'), req('r3', 2, 'Cara')];
+
+const PURCHASE_ORDERS: PurchaseOrder[] = [
+  {
+    id: 'po1', supplierId: 's-jarl', status: 'ordered', note: null, priceQuotes: null,
+    orderedBy: null, orderedAt: '2026-08-20T10:00:00Z', receivedAt: null, createdAt: '', updatedAt: '',
+    _supplierName: 'Jarltech',
+    _requests: [{ ...req('r9', 4, 'Dora'), status: 'ordered', purchaseOrderId: 'po1', unitPrice: 649 }],
+  },
+];
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(api.listSuppliers).mockResolvedValue(SUPPLIERS);
+  vi.mocked(api.listRequestableProducts).mockResolvedValue(PRODUCTS);
+  vi.mocked(api.listOrderRequests).mockResolvedValue(REQUESTS);
+  vi.mocked(api.listPurchaseOrders).mockResolvedValue(PURCHASE_ORDERS);
+  vi.mocked(api.createOrderRequest).mockResolvedValue(REQUESTS[0]);
+  vi.mocked(api.createPurchaseOrder).mockResolvedValue(PURCHASE_ORDERS[0]);
+  vi.mocked(api.updateOrderRequest).mockResolvedValue(REQUESTS[0]);
+  vi.mocked(api.markPurchaseOrderReceived).mockResolvedValue({ ...PURCHASE_ORDERS[0], status: 'received' });
+  const jtInfo: JarltechItemInfo = { jarltechItemId: 'sunmil3jt', unitPrice: 611.5, listPrice: 690, currency: 'EUR', stock: 37 };
+  vi.mocked(jarltech.fetchJarltechPrices).mockResolvedValue(new Map([['sunmil3jt', jtInfo]]));
+});
+
+describe('ProcurementPage — Anfragen', () => {
+  it('lists existing requests', async () => {
+    render(<ProcurementPage />);
+    await waitFor(() => expect(screen.getAllByTestId('request-row').length).toBe(3));
+  });
+
+  it('creates a request from the catalog-search form', async () => {
+    render(<ProcurementPage />);
+    await waitFor(() => expect(screen.getAllByTestId('request-row').length).toBe(3));
+
+    fireEvent.change(screen.getByPlaceholderText('Produkt suchen oder frei eingeben…'), {
+      target: { value: 'Sunmi' },
+    });
+    // The catalog-search dropdown option is a button (the 3 request rows
+    // that also say "Sunmi L3" are list items, not buttons).
+    fireEvent.click(await screen.findByRole('button', { name: /Sunmi L3/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Anfrage hinzufügen/ }));
+
+    await waitFor(() => expect(api.createOrderRequest).toHaveBeenCalledTimes(1));
+    const arg = vi.mocked(api.createOrderRequest).mock.calls[0][0];
+    expect(arg.productId).toBe('sunmi-l3');
+    expect(arg.supplierId).toBe('s-jarl'); // preferred supplier prefilled from product
+    expect(arg.qty).toBe(1);
+  });
+
+  it('cancels an open request', async () => {
+    render(<ProcurementPage />);
+    await waitFor(() => expect(screen.getAllByTestId('request-row').length).toBe(3));
+    fireEvent.click(screen.getAllByLabelText('Anfrage stornieren')[0]);
+    await waitFor(() => expect(api.updateOrderRequest).toHaveBeenCalledWith('r1', { status: 'cancelled' }));
+  });
+});
+
+describe('ProcurementPage — Einkauf (admin aggregation)', () => {
+  async function gotoEinkauf() {
+    render(<ProcurementPage />);
+    await waitFor(() => expect(screen.getAllByTestId('request-row').length).toBe(3));
+    fireEvent.click(screen.getByRole('button', { name: /Einkauf/ }));
+  }
+
+  it('aggregates the three open requests into one 10× line under Jarltech', async () => {
+    await gotoEinkauf();
+    const group = await screen.findByTestId('supplier-group');
+    expect(within(group).getAllByText('Jarltech').length).toBeGreaterThan(0);
+    const line = within(group).getByTestId('agg-line');
+    expect(within(line).getByText('10×')).toBeTruthy();
+    expect(within(line).getByText('Sunmi L3')).toBeTruthy();
+  });
+
+  it('orders the supplier group, bundling all three request ids', async () => {
+    await gotoEinkauf();
+    fireEvent.click(await screen.findByTestId('order-s-jarl'));
+    await waitFor(() => expect(api.createPurchaseOrder).toHaveBeenCalledTimes(1));
+    const arg = vi.mocked(api.createPurchaseOrder).mock.calls[0][0];
+    expect(arg.supplierId).toBe('s-jarl');
+    expect(arg.lines).toHaveLength(1);
+    expect(arg.lines[0].requestIds.sort()).toEqual(['r1', 'r2', 'r3']);
+  });
+
+  it('reassigns a dual-source line to the alternative supplier', async () => {
+    await gotoEinkauf();
+    await screen.findByTestId('supplier-group');
+    // The compare panel exposes an "umstellen" action for Pulsa (the alt).
+    fireEvent.click(screen.getByText('umstellen'));
+    await waitFor(() => expect(api.updateOrderRequest).toHaveBeenCalled());
+    // All three requests of the line get reassigned to Pulsa.
+    const calls = vi.mocked(api.updateOrderRequest).mock.calls;
+    expect(calls.map((c) => c[0]).sort()).toEqual(['r1', 'r2', 'r3']);
+    expect(calls.every((c) => (c[1] as { supplierId?: string }).supplierId === 's-pulsa')).toBe(true);
+  });
+
+  it('marks a purchase order received', async () => {
+    await gotoEinkauf();
+    fireEvent.click(await screen.findByRole('button', { name: /Erhalten/ }));
+    await waitFor(() => expect(api.markPurchaseOrderReceived).toHaveBeenCalledWith('po1'));
+  });
+
+  it('fetches Jarltech prices and pre-fills the price + stock, then orders with it', async () => {
+    await gotoEinkauf();
+    await screen.findByTestId('supplier-group');
+
+    // Pull live Jarltech prices for the linked product.
+    fireEvent.click(screen.getByRole('button', { name: /Jarltech-Preise abrufen/ }));
+    await waitFor(() => expect(jarltech.fetchJarltechPrices).toHaveBeenCalledWith(['sunmil3jt']));
+
+    // The fetched net price lands in the Jarltech price input, stock shows.
+    await waitFor(() => {
+      expect((screen.getByLabelText('Preis Jarltech') as HTMLInputElement).value).toBe('611.5');
+    });
+    expect(screen.getByText('37')).toBeTruthy();
+
+    // Ordering uses the auto-filled price without any manual entry.
+    fireEvent.click(screen.getByTestId('order-s-jarl'));
+    await waitFor(() => expect(api.createPurchaseOrder).toHaveBeenCalledTimes(1));
+    const arg = vi.mocked(api.createPurchaseOrder).mock.calls[0][0];
+    expect(arg.lines[0].unitPrice).toBe(611.5);
+    // The price-compare snapshot is stored on the order.
+    expect(arg.priceQuotes?.some((q) => q.supplierId === 's-jarl' && q.unitPrice === 611.5)).toBe(true);
+  });
+});
