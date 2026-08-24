@@ -32,6 +32,7 @@ function rowToSupplier(r: any): Supplier {
     code: r.code,
     name: r.name,
     orderEmail: r.order_email ?? null,
+    orderMethod: r.order_method ?? 'manual',
     notes: r.notes ?? null,
     active: !!r.active,
     sort: r.sort ?? 0,
@@ -83,10 +84,46 @@ function rowToPurchaseOrder(r: any): PurchaseOrder {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Email ordering strategy (Orderman & any supplier with order_method='email')
+// ─────────────────────────────────────────────────────────────────────
+
+import type { ShippingAddress } from '../lib/shipping';
+
+// Send the order e-mail via the send-supplier-order edge function. The
+// recipient is resolved server-side from suppliers.order_email by id;
+// the signed-in user is CC'd. Returns the destination address on success.
+export async function sendSupplierOrderEmail(input: {
+  supplierId: string;
+  items: Array<{ name: string; code?: string; qty: number }>;
+  shippingAddress: ShippingAddress;
+  note?: string;
+}): Promise<{ to: string }> {
+  const sb = requireSupabase();
+  const { data, error } = await sb.functions.invoke('send-supplier-order', {
+    body: {
+      supplierId: input.supplierId,
+      items: input.items,
+      shippingAddress: input.shippingAddress,
+      note: input.note,
+    },
+  });
+  if (error) {
+    let detail = error.message;
+    const ctx = (error as { context?: unknown }).context;
+    if (ctx && typeof (ctx as Response).json === 'function') {
+      try { const p = await (ctx as Response).json(); if (p?.error) detail = p.error; } catch { /* keep generic */ }
+    }
+    throw new Error(`Bestell-E-Mail: ${detail}`);
+  }
+  if (data?.error) throw new Error(`Bestell-E-Mail: ${data.error}`);
+  return { to: data?.to ?? '' };
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Suppliers
 // ─────────────────────────────────────────────────────────────────────
 
-const SUPPLIER_COLS = 'id, code, name, order_email, notes, active, sort, created_at, updated_at';
+const SUPPLIER_COLS = 'id, code, name, order_email, order_method, notes, active, sort, created_at, updated_at';
 
 export async function listSuppliers(opts: { activeOnly?: boolean } = {}): Promise<Supplier[]> {
   const sb = requireSupabase();

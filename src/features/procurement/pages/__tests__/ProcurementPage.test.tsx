@@ -16,8 +16,8 @@ vi.mock('../../../../lib/auth', () => ({
 }));
 
 const SUPPLIERS: Supplier[] = [
-  { id: 's-jarl', code: 'jarltech', name: 'Jarltech', orderEmail: null, notes: null, active: true, sort: 30, createdAt: '', updatedAt: '' },
-  { id: 's-pulsa', code: 'pulsa', name: 'Pulsa', orderEmail: null, notes: null, active: true, sort: 40, createdAt: '', updatedAt: '' },
+  { id: 's-jarl', code: 'jarltech', name: 'Jarltech', orderEmail: null, orderMethod: 'api', notes: null, active: true, sort: 30, createdAt: '', updatedAt: '' },
+  { id: 's-pulsa', code: 'pulsa', name: 'Pulsa', orderEmail: null, orderMethod: 'manual', notes: null, active: true, sort: 40, createdAt: '', updatedAt: '' },
 ];
 
 const PRODUCTS: RequestableProduct[] = [
@@ -115,7 +115,7 @@ describe('ProcurementPage — Einkauf (admin aggregation)', () => {
     await gotoEinkauf();
 
     // Allowed users get the binding-order button; open it and confirm.
-    fireEvent.click(await screen.findByTestId('jarltech-order-s-jarl'));
+    fireEvent.click(await screen.findByTestId('auto-order-s-jarl'));
     fireEvent.click(await screen.findByRole('button', { name: /verbindlich bestellen/i }));
 
     // The aggregated 10× line is sent to Jarltech as one order item.
@@ -134,7 +134,7 @@ describe('ProcurementPage — Einkauf (admin aggregation)', () => {
     // default canPlaceJarltechOrder → false
     await gotoEinkauf();
     await screen.findByTestId('supplier-group');
-    expect(screen.queryByTestId('jarltech-order-s-jarl')).toBeNull();
+    expect(screen.queryByTestId('auto-order-s-jarl')).toBeNull();
     const locked = screen.getByRole('button', { name: /Bei Jarltech bestellen/ });
     expect(locked).toBeDisabled();
   });
@@ -170,5 +170,49 @@ describe('ProcurementPage — Einkauf (admin aggregation)', () => {
       expect((screen.getByLabelText('Preis Jarltech') as HTMLInputElement).value).toBe('611.5');
     });
     expect(screen.getByText('37')).toBeTruthy();
+  });
+});
+
+describe('ProcurementPage — Orderman email order (strategy: email)', () => {
+  const OM_SUPPLIER: Supplier = {
+    id: 's-order', code: 'orderman', name: 'Orderman', orderEmail: 'sales@orderman.com',
+    orderMethod: 'email', notes: null, active: true, sort: 10, createdAt: '', updatedAt: '',
+  };
+  const OM_PRODUCT: RequestableProduct = {
+    id: 'orderman10', name: 'Orderman 10', code: 'OM10', catalog: 'ORDERMAN',
+    supplierId: 's-order', altSupplierIds: [], jarltechItemId: null,
+  };
+  const OM_REQ: OrderRequest = {
+    ...req('o1', 6, 'Anna'), productId: 'orderman10', productName: 'Orderman 10',
+    productCode: 'OM10', supplierId: 's-order', _supplierName: 'Orderman',
+  };
+
+  beforeEach(() => {
+    vi.mocked(api.listSuppliers).mockResolvedValue([OM_SUPPLIER]);
+    vi.mocked(api.listRequestableProducts).mockResolvedValue([OM_PRODUCT]);
+    vi.mocked(api.listOrderRequests).mockResolvedValue([OM_REQ]);
+    vi.mocked(api.listPurchaseOrders).mockResolvedValue([]);
+    vi.mocked(api.sendSupplierOrderEmail).mockResolvedValue({ to: 'sales@orderman.com' });
+  });
+
+  it('sends the order email (no allowlist needed) and records the PO', async () => {
+    render(<ProcurementPage />);
+    await waitFor(() => expect(screen.getAllByTestId('request-row').length).toBe(1));
+    fireEvent.click(screen.getByRole('button', { name: /Einkauf/ }));
+
+    // Email strategy is not gated → any admin sees the button.
+    fireEvent.click(await screen.findByTestId('auto-order-s-order'));
+    fireEvent.click(await screen.findByRole('button', { name: /Stück bestellen/i }));
+
+    await waitFor(() => expect(api.sendSupplierOrderEmail).toHaveBeenCalledTimes(1));
+    const arg = vi.mocked(api.sendSupplierOrderEmail).mock.calls[0][0];
+    expect(arg.supplierId).toBe('s-order');
+    expect(arg.items).toEqual([{ name: 'Orderman 10', code: 'OM10', qty: 6 }]);
+    expect(arg.shippingAddress.city).toBe('Klagenfurt');
+
+    // Internal PO recorded for the emailed request.
+    await waitFor(() => expect(api.createPurchaseOrder).toHaveBeenCalledTimes(1));
+    const poArg = vi.mocked(api.createPurchaseOrder).mock.calls[0][0];
+    expect(poArg.lines[0].requestIds).toEqual(['o1']);
   });
 });

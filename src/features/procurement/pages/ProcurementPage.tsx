@@ -4,10 +4,11 @@ import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { listEmployees } from '../../vacation/api/vacationApi';
 import { aggregateOpenRequests } from '../lib/aggregate';
-import { canPlaceJarltechOrder, fetchJarltechPrices, pingJarltech, placeJarltechOrder } from '../api/jarltechApi';
+import { canPlaceJarltechOrder, fetchJarltechPrices, pingJarltech } from '../api/jarltechApi';
 import type { JarltechItemInfo } from '../lib/jarltechNormalize';
 import { KITZ_STANDORTE, type StandortKey } from '../lib/shipping';
-import JarltechOrderModal from '../components/JarltechOrderModal';
+import { strategyForMethod, type OrderStrategy } from '../lib/orderStrategies';
+import SupplierOrderModal from '../components/SupplierOrderModal';
 import type { SupplierGroup } from '../lib/aggregate';
 import {
   createOrderRequest,
@@ -66,10 +67,11 @@ export default function ProcurementPage() {
   // jarltech_item_id.
   const [jarltechInfo, setJarltechInfo] = useState<Map<string, JarltechItemInfo>>(new Map());
   const [loadingJarltech, setLoadingJarltech] = useState(false);
-  // Binding Jarltech order (allowlist-gated server-side; this flag only
-  // controls the button visibility).
-  const [canJarltechOrder, setCanJarltechOrder] = useState(false);
-  const [jarltechOrderGroup, setJarltechOrderGroup] = useState<SupplierGroup | null>(null);
+  // Permission for the gated (api) strategy — allowlist-checked server-side;
+  // this flag only controls button visibility.
+  const [canApiOrder, setCanApiOrder] = useState(false);
+  // The automated-order modal: the group + its resolved strategy.
+  const [orderModal, setOrderModal] = useState<{ group: SupplierGroup; strategy: OrderStrategy } | null>(null);
   const [placingOrder, setPlacingOrder] = useState(false);
   // Connectivity self-test result (Einkauf tab): idle | testing | ok | error.
   const [connTest, setConnTest] = useState<{ status: 'idle' | 'testing' | 'ok' | 'error'; message: string }>({
@@ -215,49 +217,53 @@ export default function ProcurementPage() {
     }
   }
 
-  // Check once (admins only) whether this user may place binding orders.
+  // Check once (admins only) whether this user may place gated (api) orders.
   useEffect(() => {
     if (!isAdmin) return;
     let cancelled = false;
     canPlaceJarltechOrder()
-      .then((ok) => { if (!cancelled) setCanJarltechOrder(ok); })
+      .then((ok) => { if (!cancelled) setCanApiOrder(ok); })
       .catch(() => { /* stays false — button hidden */ });
     return () => { cancelled = true; };
   }, [isAdmin]);
 
-  // Place the binding Jarltech order for a group: send the linked lines to
-  // Jarltech, then record the consolidated purchase order internally and
-  // flip its requests to `ordered`. Lines without a jarltech_item_id are
-  // left open (the modal warned about them).
-  async function confirmJarltechOrder(standort: StandortKey) {
-    const group = jarltechOrderGroup;
-    if (!group) return;
+  // Open the automated-order modal for a group, resolving its strategy from
+  // the supplier's order method.
+  function openAutomatedOrder(group: SupplierGroup) {
+    const method = group.supplierId
+      ? suppliers.find((s) => s.id === group.supplierId)?.orderMethod ?? 'manual'
+      : 'manual';
+    const strategy = strategyForMethod(method);
+    if (strategy) setOrderModal({ group, strategy });
+  }
 
-    const orderable = group.lines
-      .map((l) => {
-        const jid = l.productId ? productsById.get(l.productId)?.jarltechItemId : null;
-        return jid ? { line: l, jarltechItemId: jid } : null;
-      })
-      .filter((x): x is { line: SupplierGroup['lines'][number]; jarltechItemId: string } => !!x);
-
+  // Confirm the automated order: run the strategy's external action
+  // (Jarltech API / order e-mail), then record the consolidated PO for the
+  // ordered lines and flip their requests to `ordered`. This tail is shared
+  // across all strategies.
+  async function confirmAutomatedOrder(standort: StandortKey) {
+    if (!orderModal) return;
+    const { group, strategy } = orderModal;
+    const { orderable } = strategy.split(group, productsById);
     if (orderable.length === 0) return;
 
     setPlacingOrder(true);
     setError(null);
     try {
-      const order = await placeJarltechOrder({
-        items: orderable.map((o) => ({ jarltechItemId: o.jarltechItemId, quantity: o.line.totalQty })),
+      const poNote = await strategy.place({
+        group,
+        productsById,
+        jarltechInfo,
         shippingAddress: KITZ_STANDORTE[standort].address,
-        note: `KITZ ${KITZ_STANDORTE[standort].label}`,
+        standortLabel: KITZ_STANDORTE[standort].label,
+        orderable,
       });
-      const apiRef = order?.api_request_id != null ? String(order.api_request_id) : null;
 
-      // Record the consolidated PO internally (only the lines we actually
-      // ordered) and flip their requests to ordered.
-      const lines: OrderLineDecision[] = orderable.map((o) => {
-        const jt = jarltechInfo.get(o.jarltechItemId);
+      const lines: OrderLineDecision[] = orderable.map((l) => {
+        const jid = l.productId ? productsById.get(l.productId)?.jarltechItemId : null;
+        const jt = jid ? jarltechInfo.get(jid) : undefined;
         return {
-          requestIds: o.line.requests.map((r) => r.id),
+          requestIds: l.requests.map((r) => r.id),
           supplierId: group.supplierId!,
           unitPrice: jt?.unitPrice ?? null,
         };
@@ -266,10 +272,10 @@ export default function ProcurementPage() {
         supplierId: group.supplierId!,
         lines,
         orderedBy: myEmployeeId,
-        note: `Jarltech-Bestellung${apiRef ? ` (Ref ${apiRef})` : ''} · Lieferung ${KITZ_STANDORTE[standort].label}`,
+        note: poNote ?? undefined,
       });
 
-      setJarltechOrderGroup(null);
+      setOrderModal(null);
       await reloadRequests();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -418,13 +424,13 @@ export default function ProcurementPage() {
                 jarltechSupplierId={jarltechSupplierId}
                 jarltechInfo={jarltechInfo}
                 loadingJarltech={loadingJarltech}
-                canJarltechOrder={canJarltechOrder}
+                canApiOrder={canApiOrder}
                 ordering={ordering}
                 reassigning={reassigning}
                 onOrder={handleOrder}
                 onReassign={handleReassign}
                 onLoadJarltechPrices={handleLoadJarltechPrices}
-                onPlaceJarltechOrder={setJarltechOrderGroup}
+                onAutomatedOrder={openAutomatedOrder}
               />
             </section>
             <section>
@@ -435,13 +441,15 @@ export default function ProcurementPage() {
         )}
       </div>
 
-      {jarltechOrderGroup && (
-        <JarltechOrderModal
-          group={jarltechOrderGroup}
+      {orderModal && (
+        <SupplierOrderModal
+          strategy={orderModal.strategy}
+          supplierName={orderModal.group.supplierName}
+          group={orderModal.group}
           productsById={productsById}
           placing={placingOrder}
-          onConfirm={confirmJarltechOrder}
-          onClose={() => setJarltechOrderGroup(null)}
+          onConfirm={confirmAutomatedOrder}
+          onClose={() => setOrderModal(null)}
         />
       )}
     </div>

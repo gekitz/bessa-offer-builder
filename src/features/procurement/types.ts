@@ -7,6 +7,12 @@
 export type OrderRequestStatus = 'open' | 'ordered' | 'received' | 'cancelled';
 export type PurchaseOrderStatus = 'ordered' | 'received' | 'cancelled';
 
+// How an order reaches a supplier:
+//   api    — supplier REST API (Jarltech, binding)
+//   email  — order e-mail to suppliers.orderEmail (Orderman)
+//   manual — recorded internally only; a human places it (RCH, Pulsa, …)
+export type OrderMethod = 'api' | 'email' | 'manual';
+
 // ─────────────────────────────────────────────────────────────────────
 
 export interface Supplier {
@@ -14,6 +20,7 @@ export interface Supplier {
   code: string;
   name: string;
   orderEmail: string | null;
+  orderMethod: OrderMethod;
   notes: string | null;
   active: boolean;
   sort: number;

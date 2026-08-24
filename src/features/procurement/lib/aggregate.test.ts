@@ -8,7 +8,7 @@ import type { OrderRequest, Supplier } from '../types';
 
 function supplier(id: string, name: string, sort: number, active = true): Supplier {
   return {
-    id, code: id, name, orderEmail: null, notes: null, active, sort,
+    id, code: id, name, orderEmail: null, orderMethod: 'manual', notes: null, active, sort,
     createdAt: '', updatedAt: '',
   };
 }
