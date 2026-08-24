@@ -219,12 +219,12 @@ describe('ProductsAdminPage — supplier visibility', () => {
     ]);
   });
 
-  it('shows the supplier name on linked rows and flags unlinked ones', async () => {
+  it('shows a supplier chip only on linked rows; unlinked rows have none', async () => {
     render(<ProductsAdminPage />);
     await screen.findByText('Linked Prod');
-    expect(screen.getByText('Jarltech')).toBeInTheDocument();   // supplier chip
-    expect(screen.getByText('Kein Lieferant')).toBeInTheDocument(); // warning chip
-    // Header surfaces the outstanding count.
+    expect(screen.getByText('Jarltech')).toBeInTheDocument(); // supplier chip on the linked row
+    // No per-row "Kein Lieferant" clutter — the gap is surfaced only in the header count.
+    expect(screen.queryByText('Kein Lieferant')).not.toBeInTheDocument();
     expect(screen.getByText(/1 ohne Lieferant/)).toBeInTheDocument();
   });
 
@@ -234,5 +234,20 @@ describe('ProductsAdminPage — supplier visibility', () => {
     fireEvent.click(screen.getByRole('button', { name: /Ohne Lieferant/ }));
     expect(screen.queryByText('Linked Prod')).not.toBeInTheDocument();
     expect(screen.getByText('Unlinked Prod')).toBeInTheDocument();
+  });
+
+  it('loads and shows the Jarltech Einkaufspreis for linked products', async () => {
+    vi.mocked(productApi.listProductsAdmin).mockResolvedValue([
+      makeProduct({ id: 'jt', name: 'JT Prod', catalog: 'HARDWARE', supplierId: 's-jarl', jarltechItemId: 'jt123' }),
+    ]);
+    vi.mocked(jarltech.fetchJarltechPrices).mockResolvedValue(
+      new Map([['jt123', { jarltechItemId: 'jt123', unitPrice: 1234.5, listPrice: null, currency: 'EUR', stock: 12 }]]),
+    );
+    render(<ProductsAdminPage />);
+    await screen.findByText('JT Prod');
+
+    fireEvent.click(screen.getByRole('button', { name: /Jarltech-Preise laden/ }));
+    await waitFor(() => expect(jarltech.fetchJarltechPrices).toHaveBeenCalledWith(['jt123']));
+    expect(await screen.findByText(/EK €/)).toBeInTheDocument();
   });
 });

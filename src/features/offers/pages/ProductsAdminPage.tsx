@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, GripVertical, Loader2, Package, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-react';
+import { AlertCircle, GripVertical, Loader2, Package, Pencil, Plus, RefreshCw, Save, Search, Trash2, X } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -13,7 +13,8 @@ import {
   type ProductPricing,
 } from '../api/productApi';
 import { listSuppliers } from '../../procurement/api/procurementApi';
-import { resolveJarltechId } from '../../procurement/api/jarltechApi';
+import { fetchJarltechPrices, resolveJarltechId } from '../../procurement/api/jarltechApi';
+import type { JarltechItemInfo } from '../../procurement/lib/jarltechNormalize';
 import type { Supplier } from '../../procurement/types';
 
 const CATALOGS = [
@@ -72,6 +73,9 @@ export default function ProductsAdminPage() {
   // for doing the linking work.
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
+  // Live Jarltech purchase prices (Einkaufspreis), loaded on demand.
+  const [jtPrices, setJtPrices] = useState<Map<string, JarltechItemInfo>>(new Map());
+  const [loadingJt, setLoadingJt] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   // Reorder products WITHIN a category and persist. The offer builder groups
@@ -149,6 +153,32 @@ export default function ProductsAdminPage() {
     () => products.filter((p) => !p.supplierId).length,
     [products],
   );
+  // Distinct Jarltech ids across all products — drives the price loader.
+  const jarltechLinkedIds = useMemo(
+    () => Array.from(new Set(products.filter((p) => p.jarltechItemId).map((p) => p.jarltechItemId!))),
+    [products],
+  );
+
+  // Fetch current Jarltech Einkaufspreise for every linked product. On
+  // demand (button), chunked to respect the API's per-request cap.
+  async function loadJarltechPrices() {
+    if (jarltechLinkedIds.length === 0) return;
+    setLoadingJt(true);
+    setError(null);
+    try {
+      const merged = new Map<string, JarltechItemInfo>();
+      for (let i = 0; i < jarltechLinkedIds.length; i += 100) {
+        const chunk = jarltechLinkedIds.slice(i, i + 100);
+        const m = await fetchJarltechPrices(chunk);
+        for (const [k, v] of m) merged.set(k, v);
+      }
+      setJtPrices(merged);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoadingJt(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -252,6 +282,18 @@ export default function ProductsAdminPage() {
               </button>
             );
           })}
+          {jarltechLinkedIds.length > 0 && (
+            <button
+              type="button"
+              onClick={loadJarltechPrices}
+              disabled={loadingJt}
+              className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-slate-200 bg-white text-slate-600 hover:border-slate-400 disabled:opacity-50"
+              title="Aktuelle Jarltech-Einkaufspreise laden"
+            >
+              {loadingJt ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              Jarltech-Preise laden
+            </button>
+          )}
         </div>
 
         {error && (
@@ -287,6 +329,7 @@ export default function ProductsAdminPage() {
                               key={p.id}
                               product={p}
                               supplierName={p.supplierId ? supplierById.get(p.supplierId) ?? 'Unbekannt' : null}
+                              jtPrice={p.jarltechItemId ? jtPrices.get(p.jarltechItemId) ?? null : null}
                               draggable={!search.trim() && !onlyMissing}
                               onToggle={toggleActive}
                               onEdit={setEditing}
@@ -320,12 +363,14 @@ export default function ProductsAdminPage() {
 function SortableProductRow({
   product: p,
   supplierName,
+  jtPrice,
   draggable,
   onToggle,
   onEdit,
 }: {
   product: Product;
   supplierName: string | null;
+  jtPrice: JarltechItemInfo | null;
   draggable: boolean;
   onToggle: (p: Product) => void;
   onEdit: (p: Product) => void;
@@ -358,19 +403,22 @@ function SortableProductRow({
       )}
       {p.code && <span className="font-mono text-xs text-slate-400 w-12 flex-shrink-0">{p.code}</span>}
       <span className="font-medium text-slate-800 truncate flex-1">{p.name}</span>
-      {supplierName ? (
+      {/* Supplier chip only when set — no chip means no supplier (the header
+          count + "Ohne Lieferant" filter surface the gaps). */}
+      {supplierName && (
         <span
           className="text-[10px] px-1.5 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-slate-500 whitespace-nowrap flex-shrink-0"
           title={`Lieferant: ${supplierName}`}
         >
           {supplierName}
         </span>
-      ) : (
+      )}
+      {jtPrice?.unitPrice != null && (
         <span
-          className="text-[10px] px-1.5 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-700 whitespace-nowrap flex-shrink-0"
-          title="Kein Lieferant zugeordnet"
+          className="text-[10px] px-1.5 py-0.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 whitespace-nowrap flex-shrink-0 font-mono"
+          title={`Jarltech Einkaufspreis${jtPrice.stock != null ? ` · Lager ${jtPrice.stock}` : ''}`}
         >
-          Kein Lieferant
+          EK {eur(jtPrice.unitPrice)}
         </span>
       )}
       <span className="text-slate-600 font-mono text-xs whitespace-nowrap">{priceSummary(p.pricing)}</span>
