@@ -59,6 +59,20 @@ beforeEach(() => {
   // Default: cannot place binding orders (button hidden). Order tests opt in.
   vi.mocked(jarltech.canPlaceJarltechOrder).mockResolvedValue(false);
   vi.mocked(jarltech.placeJarltechOrder).mockResolvedValue({ api_request_id: 60001, message: 'ok' });
+  vi.mocked(jarltech.pingJarltech).mockResolvedValue(true);
+});
+
+describe('ProcurementPage — settings menu', () => {
+  it('runs the Jarltech connection test from the cog menu (not inline)', async () => {
+    render(<ProcurementPage />);
+    await waitFor(() => expect(screen.getAllByTestId('request-row').length).toBe(3));
+
+    // Test action lives in the settings menu, not on the Einkauf surface.
+    fireEvent.click(screen.getByLabelText('Einstellungen'));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Jarltech Verbindung testen/ }));
+
+    await waitFor(() => expect(jarltech.pingJarltech).toHaveBeenCalledTimes(1));
+  });
 });
 
 describe('ProcurementPage — Anfragen', () => {

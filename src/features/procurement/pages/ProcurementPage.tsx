@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, ClipboardList, Loader2, Plug, ShoppingCart, Truck } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, CheckCircle2, ClipboardList, Loader2, Plug, Settings, ShoppingCart, Truck } from 'lucide-react';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { listEmployees } from '../../vacation/api/vacationApi';
@@ -73,6 +73,9 @@ export default function ProcurementPage() {
   // The automated-order modal: the group + its resolved strategy.
   const [orderModal, setOrderModal] = useState<{ group: SupplierGroup; strategy: OrderStrategy } | null>(null);
   const [placingOrder, setPlacingOrder] = useState(false);
+  // Settings dropdown (cog) in the header.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
   // Connectivity self-test result (Einkauf tab): idle | testing | ok | error.
   const [connTest, setConnTest] = useState<{ status: 'idle' | 'testing' | 'ok' | 'error'; message: string }>({
     status: 'idle',
@@ -217,6 +220,23 @@ export default function ProcurementPage() {
     }
   }
 
+  // Close the settings menu on outside-click / Escape.
+  useEffect(() => {
+    if (!settingsOpen) return;
+    function onDown(e: MouseEvent) {
+      if (!settingsRef.current?.contains(e.target as Node)) setSettingsOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setSettingsOpen(false);
+    }
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [settingsOpen]);
+
   // Check once (admins only) whether this user may place gated (api) orders.
   useEffect(() => {
     if (!isAdmin) return;
@@ -352,6 +372,47 @@ export default function ProcurementPage() {
         <div className="flex items-center gap-2 mb-4">
           <ShoppingCart size={20} className="text-red-600" />
           <h1 className="font-bold text-slate-700" style={{ fontSize: 18 }}>Bestellungen</h1>
+          {isAdmin && (
+            <div className="relative ml-auto" ref={settingsRef}>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen((o) => !o)}
+                aria-label="Einstellungen"
+                aria-haspopup="menu"
+                aria-expanded={settingsOpen}
+                className={`rounded-lg p-2 transition-colors ${settingsOpen ? 'bg-slate-100 text-slate-700' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+              >
+                <Settings size={18} />
+              </button>
+              {settingsOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 mt-1 w-72 rounded-xl border border-slate-200 bg-white shadow-lg py-1 z-20"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleTestConnection}
+                    disabled={connTest.status === 'testing'}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    {connTest.status === 'testing' ? <Loader2 size={15} className="animate-spin text-slate-400" /> : <Plug size={15} className="text-slate-400" />}
+                    Jarltech Verbindung testen
+                  </button>
+                  {connTest.status === 'ok' && (
+                    <div className="px-3 py-2 text-[12px] text-emerald-700 flex items-start gap-1.5 border-t border-slate-100">
+                      <CheckCircle2 size={13} className="flex-shrink-0 mt-0.5" /> <span>{connTest.message}</span>
+                    </div>
+                  )}
+                  {connTest.status === 'error' && (
+                    <div className="px-3 py-2 text-[12px] text-red-600 flex items-start gap-1.5 border-t border-slate-100">
+                      <AlertCircle size={13} className="flex-shrink-0 mt-0.5" /> <span>{connTest.message}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
@@ -391,30 +452,6 @@ export default function ProcurementPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {jarltechSupplierId && (
-              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-medium text-slate-600">Jarltech-API</span>
-                <button
-                  type="button"
-                  onClick={handleTestConnection}
-                  disabled={connTest.status === 'testing'}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
-                >
-                  {connTest.status === 'testing' ? <Loader2 size={13} className="animate-spin" /> : <Plug size={13} />}
-                  Verbindung testen
-                </button>
-                {connTest.status === 'ok' && (
-                  <span className="text-xs text-emerald-700 flex items-center gap-1">
-                    <CheckCircle2 size={13} /> {connTest.message}
-                  </span>
-                )}
-                {connTest.status === 'error' && (
-                  <span className="text-xs text-red-600 flex items-center gap-1">
-                    <AlertCircle size={13} /> {connTest.message}
-                  </span>
-                )}
-              </div>
-            )}
             <section>
               <h2 className="text-sm font-semibold text-slate-600 mb-2">Offene Anfragen aggregiert</h2>
               <SupplierAggregation
