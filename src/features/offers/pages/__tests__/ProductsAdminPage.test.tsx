@@ -179,37 +179,46 @@ describe('ProductsAdminPage — Jarltech SKU lookup', () => {
     vi.mocked(procurementApi.listSuppliers).mockResolvedValue([
       makeSupplier({ id: 's-jarl', code: 'jarltech', name: 'Jarltech' }),
     ]);
+    vi.mocked(procurementApi.matchPulsaItems).mockResolvedValue(new Map());
   });
 
-  it('resolves an exact manufacturer SKU to a Jarltech id and fills the field', async () => {
+  it('abgleichen resolves both suppliers by the manufacturer SKU', async () => {
     vi.mocked(jarltech.resolveJarltechId).mockResolvedValue({
       jarltechItemId: 'v3xyz',
       manufacturerId: 'SUNMI-V3-XYZ',
     });
+    vi.mocked(procurementApi.matchPulsaItems).mockResolvedValue(
+      new Map([['_', { artikelnummer: 'PLS-1', name: 'Sunmi V3', ekNet: 296, verfuegbar: 10 }]]),
+    );
     await openEditor('Mobile Kassa');
 
     fireEvent.change(screen.getByPlaceholderText('exakte Hersteller-Artikelnr.'), {
       target: { value: 'SUNMI-V3-XYZ' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Jarltech-ID suchen/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Abgleichen/ }));
 
-    // Looked up by exact part number (not the ambiguous product name).
+    // Both suppliers looked up by the same exact part number.
     await waitFor(() => expect(jarltech.resolveJarltechId).toHaveBeenCalledWith('SUNMI-V3-XYZ'));
+    expect(procurementApi.matchPulsaItems).toHaveBeenCalled();
+    // Jarltech id gets stored; both results shown.
     const jtField = screen.getByPlaceholderText(/mpk1s12v/) as HTMLInputElement;
     await waitFor(() => expect(jtField.value).toBe('v3xyz'));
-    expect(screen.getByText(/Gefunden: v3xyz/)).toBeInTheDocument();
+    expect(screen.getByText(/Jarltech: v3xyz/)).toBeInTheDocument();
+    expect(screen.getByText(/Pulsa: PLS-1/)).toBeInTheDocument();
   });
 
-  it('reports when no purchasable item matches the manufacturer number', async () => {
+  it('abgleichen reports no-match per supplier', async () => {
     vi.mocked(jarltech.resolveJarltechId).mockResolvedValue(null);
+    vi.mocked(procurementApi.matchPulsaItems).mockResolvedValue(new Map());
     await openEditor('Mobile Kassa');
 
     fireEvent.change(screen.getByPlaceholderText('exakte Hersteller-Artikelnr.'), {
       target: { value: 'UNKNOWN-SKU' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Jarltech-ID suchen/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Abgleichen/ }));
 
-    expect(await screen.findByText(/Kein Jarltech-Artikel/)).toBeInTheDocument();
+    expect(await screen.findByText(/Jarltech: kein Treffer/)).toBeInTheDocument();
+    expect(screen.getByText(/Pulsa: kein Treffer/)).toBeInTheDocument();
   });
 });
 

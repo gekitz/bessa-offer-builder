@@ -12,10 +12,10 @@ import {
   type Product,
   type ProductPricing,
 } from '../api/productApi';
-import { listSuppliers } from '../../procurement/api/procurementApi';
+import { listSuppliers, matchPulsaItems } from '../../procurement/api/procurementApi';
 import { fetchJarltechPrices, resolveJarltechId } from '../../procurement/api/jarltechApi';
 import type { JarltechItemInfo } from '../../procurement/lib/jarltechNormalize';
-import type { Supplier } from '../../procurement/types';
+import type { PulsaMatch, Supplier } from '../../procurement/types';
 
 const CATALOGS = [
   'BESSA', 'MELZER', 'GASTROTOUCH', 'RCH', 'HARDWARE', 'UNIFY', 'DRUCKER',
@@ -503,29 +503,51 @@ function ProductEditModal({
   const [supplierArticleNo, setSupplierArticleNo] = useState(product?.supplierArticleNo ?? '');
   const [manufacturerSku, setManufacturerSku] = useState(product?.manufacturerSku ?? '');
   const [ean, setEan] = useState(product?.ean ?? '');
-  const [resolving, setResolving] = useState(false);
-  const [resolveMsg, setResolveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [matching, setMatching] = useState(false);
+  // Result of "Abgleichen": one line per supplier (found / not found).
+  const [abgleich, setAbgleich] = useState<
+    { jt: string; jtOk: boolean; pulsa: string; pulsaOk: boolean } | null
+  >(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  async function lookupJarltechId() {
+  // Abgleichen: look the manufacturer number up at BOTH suppliers at once —
+  // resolve + store the Jarltech id, and verify the Pulsa price-list match.
+  async function handleAbgleichen() {
     const sku = manufacturerSku.trim();
-    if (!sku) { setResolveMsg({ ok: false, text: 'Hersteller-Artikelnr. eingeben.' }); return; }
-    setResolving(true);
-    setResolveMsg(null);
-    try {
-      const r = await resolveJarltechId(sku);
-      if (r) {
-        setJarltechItemId(r.jarltechItemId);
-        setResolveMsg({ ok: true, text: `Gefunden: ${r.jarltechItemId}` });
-      } else {
-        setResolveMsg({ ok: false, text: 'Kein Jarltech-Artikel zu dieser Hersteller-Nr. gefunden.' });
-      }
-    } catch (e) {
-      setResolveMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setResolving(false);
+    if (!sku) { setAbgleich({ jt: 'Hersteller-Artikelnr. eingeben.', jtOk: false, pulsa: '', pulsaOk: false }); return; }
+    setMatching(true);
+    setAbgleich(null);
+
+    const [jtRes, pulsaRes] = await Promise.allSettled([
+      resolveJarltechId(sku),
+      matchPulsaItems([{ id: '_', ean: ean.trim() || null, manufacturerSku: sku }]).then((m) => m.get('_') ?? null),
+    ]);
+
+    let jt: string; let jtOk = false;
+    if (jtRes.status === 'rejected') {
+      jt = `Jarltech: ${jtRes.reason instanceof Error ? jtRes.reason.message : String(jtRes.reason)}`;
+    } else if (jtRes.value) {
+      jtOk = true;
+      jt = `Jarltech: ${jtRes.value.jarltechItemId}`;
+      setJarltechItemId(jtRes.value.jarltechItemId);
+    } else {
+      jt = 'Jarltech: kein Treffer';
     }
+
+    let pulsa: string; let pulsaOk = false;
+    if (pulsaRes.status === 'rejected') {
+      pulsa = `Pulsa: ${pulsaRes.reason instanceof Error ? pulsaRes.reason.message : String(pulsaRes.reason)}`;
+    } else if (pulsaRes.value) {
+      pulsaOk = true;
+      const p = pulsaRes.value as PulsaMatch;
+      pulsa = `Pulsa: ${p.artikelnummer}${p.ekNet != null ? ` · EK €${p.ekNet}` : ''}`;
+    } else {
+      pulsa = 'Pulsa: kein Treffer (Preisliste aktuell?)';
+    }
+
+    setAbgleich({ jt, jtOk, pulsa, pulsaOk });
+    setMatching(false);
   }
 
   async function submit() {
@@ -812,20 +834,23 @@ function ProductEditModal({
                   />
                   <button
                     type="button"
-                    onClick={lookupJarltechId}
-                    disabled={resolving}
+                    onClick={handleAbgleichen}
+                    disabled={matching}
                     className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-medium hover:bg-slate-50 disabled:opacity-50 flex-shrink-0"
                   >
-                    {resolving ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
-                    Jarltech-ID suchen
+                    {matching ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
+                    Abgleichen
                   </button>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1">
-                  Findet das Produkt bei Pulsa (Preisliste) und über „Jarltech-ID suchen“ bei Jarltech.
+                  Gleicht die Nummer bei Jarltech und Pulsa ab und speichert die Jarltech-ID.
                 </p>
-                {resolveMsg && (
-                  <div className={`text-[11px] mt-1 ${resolveMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>
-                    {resolveMsg.text}
+                {abgleich && (
+                  <div className="text-[11px] mt-1 space-y-0.5">
+                    <div className={abgleich.jtOk ? 'text-emerald-700' : 'text-red-600'}>{abgleich.jt}</div>
+                    {abgleich.pulsa && (
+                      <div className={abgleich.pulsaOk ? 'text-emerald-700' : 'text-red-600'}>{abgleich.pulsa}</div>
+                    )}
                   </div>
                 )}
               </div>
