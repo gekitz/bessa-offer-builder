@@ -503,6 +503,7 @@ function ProductEditModal({
   const [supplierArticleNo, setSupplierArticleNo] = useState(product?.supplierArticleNo ?? '');
   const [manufacturerSku, setManufacturerSku] = useState(product?.manufacturerSku ?? '');
   const [ean, setEan] = useState(product?.ean ?? '');
+  const [pulsaBestellnummer, setPulsaBestellnummer] = useState(product?.pulsaBestellnummer ?? '');
   const [matching, setMatching] = useState(false);
   // Result of "Abgleichen": one line per supplier (found / not found).
   const [abgleich, setAbgleich] = useState<
@@ -542,6 +543,7 @@ function ProductEditModal({
       pulsaOk = true;
       const p = pulsaRes.value as PulsaMatch;
       pulsa = `Pulsa: ${p.artikelnummer}${p.ekNet != null ? ` · EK €${p.ekNet}` : ''}`;
+      setPulsaBestellnummer(p.artikelnummer);
     } else {
       pulsa = 'Pulsa: kein Treffer (Preisliste aktuell?)';
     }
@@ -608,6 +610,7 @@ function ProductEditModal({
         supplierArticleNo: supplierArticleNo.trim() || null,
         manufacturerSku: manufacturerSku.trim() || null,
         ean: ean.trim() || null,
+        pulsaBestellnummer: pulsaBestellnummer.trim() || null,
         ...(attrs !== undefined ? { attrs } : {}),
       };
       const saved = isNew ? await createProduct(patch) : await updateProduct(product!.id, patch);
@@ -854,16 +857,8 @@ function ProductEditModal({
                   </div>
                 )}
               </div>
+              {/* Both suppliers get a symmetric, auto-filled id field. */}
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] text-slate-500 mb-1">EAN (Pulsa-Match)</label>
-                  <input
-                    value={ean}
-                    onChange={(e) => setEan(e.target.value)}
-                    placeholder="optional, zusätzlicher Match"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
-                  />
-                </div>
                 <div>
                   <label className="block text-[11px] text-slate-500 mb-1">Jarltech-Artikelkennung</label>
                   <input
@@ -873,6 +868,24 @@ function ProductEditModal({
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
                   />
                 </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 mb-1">Pulsa-Bestellnummer</label>
+                  <input
+                    value={pulsaBestellnummer}
+                    onChange={(e) => setPulsaBestellnummer(e.target.value)}
+                    placeholder="z. B. 1704-L03.01 (auto)"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] text-slate-500 mb-1">EAN (Pulsa-Match)</label>
+                <input
+                  value={ean}
+                  onChange={(e) => setEan(e.target.value)}
+                  placeholder="optional, zusätzlicher Match-Schlüssel"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
+                />
               </div>
             </div>
           )}

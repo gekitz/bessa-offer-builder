@@ -38,6 +38,7 @@ function makeProduct(over: Partial<productApi.Product>): productApi.Product {
     supplierArticleNo: null,
     manufacturerSku: null,
     ean: null,
+    pulsaBestellnummer: null,
     ...over,
   };
 }
@@ -203,6 +204,9 @@ describe('ProductsAdminPage — Jarltech SKU lookup', () => {
     // Jarltech id gets stored; both results shown.
     const jtField = screen.getByPlaceholderText(/mpk1s12v/) as HTMLInputElement;
     await waitFor(() => expect(jtField.value).toBe('v3xyz'));
+    // Both dedicated id fields get auto-filled — symmetric.
+    const pulsaField = screen.getByPlaceholderText(/1704-L03\.01/) as HTMLInputElement;
+    expect(pulsaField.value).toBe('PLS-1');
     expect(screen.getByText(/Jarltech: v3xyz/)).toBeInTheDocument();
     expect(screen.getByText(/Pulsa: PLS-1/)).toBeInTheDocument();
   });

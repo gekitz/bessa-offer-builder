@@ -34,6 +34,8 @@ export interface Product {
   // Match-Schlüssel gegen Lieferanten-Preislisten (z. B. Pulsa).
   manufacturerSku: string | null;
   ean: string | null;
+  // Pulsa-Bestellnummer (von "Abgleichen" gesetzt) — analog jarltechItemId.
+  pulsaBestellnummer: string | null;
 }
 
 export interface ProductInput {
@@ -55,9 +57,10 @@ export interface ProductInput {
   supplierArticleNo?: string | null;
   manufacturerSku?: string | null;
   ean?: string | null;
+  pulsaBestellnummer?: string | null;
 }
 
-const COLS = 'id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, active, sort, supplier_id, alt_supplier_ids, jarltech_item_id, supplier_article_no, manufacturer_sku, ean';
+const COLS = 'id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, active, sort, supplier_id, alt_supplier_ids, jarltech_item_id, supplier_article_no, manufacturer_sku, ean, pulsa_bestellnummer';
 
 function requireSb(): NonNullable<typeof supabase> {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -85,6 +88,7 @@ function rowToProduct(r: Record<string, unknown>): Product {
     supplierArticleNo: (r.supplier_article_no as string) ?? null,
     manufacturerSku: (r.manufacturer_sku as string) ?? null,
     ean: (r.ean as string) ?? null,
+    pulsaBestellnummer: (r.pulsa_bestellnummer as string) ?? null,
   };
 }
 
@@ -124,6 +128,7 @@ export async function updateProduct(
   if (patch.supplierArticleNo !== undefined) db.supplier_article_no = patch.supplierArticleNo;
   if (patch.manufacturerSku !== undefined) db.manufacturer_sku = patch.manufacturerSku;
   if (patch.ean !== undefined) db.ean = patch.ean;
+  if (patch.pulsaBestellnummer !== undefined) db.pulsa_bestellnummer = patch.pulsaBestellnummer;
   const { data, error } = await sb.from('products').update(db).eq('id', id).select(COLS).single();
   if (error) throw new Error(error.message);
   return rowToProduct(data);
@@ -158,6 +163,7 @@ export async function createProduct(input: ProductInput): Promise<Product> {
       supplier_article_no: input.supplierArticleNo ?? null,
       manufacturer_sku: input.manufacturerSku ?? null,
       ean: input.ean ?? null,
+      pulsa_bestellnummer: input.pulsaBestellnummer ?? null,
     })
     .select(COLS)
     .single();

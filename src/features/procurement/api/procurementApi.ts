@@ -211,7 +211,7 @@ export async function listRequestableProducts(): Promise<RequestableProduct[]> {
   const sb = requireSupabase();
   const { data, error } = await sb
     .from('products')
-    .select('id, name, code, catalog, supplier_id, alt_supplier_ids, jarltech_item_id, supplier_article_no, manufacturer_sku, ean')
+    .select('id, name, code, catalog, supplier_id, alt_supplier_ids, jarltech_item_id, supplier_article_no, manufacturer_sku, ean, pulsa_bestellnummer')
     .eq('active', true)
     .order('catalog')
     .order('sort');
@@ -227,6 +227,7 @@ export async function listRequestableProducts(): Promise<RequestableProduct[]> {
     supplierArticleNo: r.supplier_article_no ?? null,
     manufacturerSku: r.manufacturer_sku ?? null,
     ean: r.ean ?? null,
+    pulsaBestellnummer: r.pulsa_bestellnummer ?? null,
   }));
 }
 

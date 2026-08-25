@@ -52,6 +52,7 @@ export interface RequestableProduct {
   supplierArticleNo: string | null; // Artikelnr. beim Lieferanten (Bestell-E-Mail)
   manufacturerSku: string | null;  // Match-Key gegen Pulsa-Preisliste
   ean: string | null;              // Match-Key gegen Pulsa-Preisliste
+  pulsaBestellnummer: string | null; // Pulsa-Bestellnummer (für die XML-Bestellung)
 }
 
 // Ein aus der Pulsa-Preisliste (pulsa_items) aufgelöster Treffer.

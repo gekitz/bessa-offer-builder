@@ -21,7 +21,7 @@ const SUPPLIERS: Supplier[] = [
 ];
 
 const PRODUCTS: RequestableProduct[] = [
-  { id: 'sunmi-l3', name: 'Sunmi L3', code: 'L3', catalog: 'HARDWARE', supplierId: 's-jarl', altSupplierIds: ['s-pulsa'], jarltechItemId: 'sunmil3jt', supplierArticleNo: null, manufacturerSku: 'SUNMI-L3', ean: null },
+  { id: 'sunmi-l3', name: 'Sunmi L3', code: 'L3', catalog: 'HARDWARE', supplierId: 's-jarl', altSupplierIds: ['s-pulsa'], jarltechItemId: 'sunmil3jt', supplierArticleNo: null, manufacturerSku: 'SUNMI-L3', ean: null, pulsaBestellnummer: null },
 ];
 
 function req(id: string, qty: number, requester: string): OrderRequest {
@@ -219,7 +219,7 @@ describe('ProcurementPage — Orderman email order (strategy: email)', () => {
     id: 'orderman10', name: 'Orderman 10', code: 'OM10', catalog: 'ORDERMAN',
     supplierId: 's-order', altSupplierIds: [], jarltechItemId: null,
     supplierArticleNo: 'OM-ART-9', // Orderman article number → goes in the email
-    manufacturerSku: null, ean: null,
+    manufacturerSku: null, ean: null, pulsaBestellnummer: null,
   };
   const OM_REQ: OrderRequest = {
     ...req('o1', 6, 'Anna'), productId: 'orderman10', productName: 'Orderman 10',
