@@ -195,6 +195,12 @@ describe('ProcurementPage — Einkauf (admin aggregation)', () => {
     await waitFor(() => expect(api.markPurchaseOrderReceived).toHaveBeenCalledWith('po1'));
   });
 
+  it('auto-loads Jarltech prices when the Einkauf tab opens', async () => {
+    await gotoEinkauf();
+    // No button click needed — opening Einkauf fetches the open items' prices.
+    await waitFor(() => expect(jarltech.fetchJarltechPrices).toHaveBeenCalledWith(['sunmil3jt']));
+  });
+
   it('fetches Jarltech prices and pre-fills the price + stock', async () => {
     await gotoEinkauf();
     await screen.findByTestId('supplier-group');

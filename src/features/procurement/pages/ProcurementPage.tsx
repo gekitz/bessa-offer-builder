@@ -300,6 +300,15 @@ export default function ProcurementPage() {
     return () => { cancelled = true; };
   }, [isAdmin]);
 
+  // Auto-load Jarltech prices for the open items when the Einkauf tab is
+  // first opened — bounded to the aggregation's linked items (on-demand,
+  // not bulk). Guarded so it fires once; the button stays as a refresh.
+  useEffect(() => {
+    if (tab !== 'einkauf' || loadingJarltech || jarltechInfo.size > 0) return;
+    void handleLoadJarltechPrices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
   // Probe the available Jarltech price lists (metadata). Surfaced in the
   // settings menu so we can see whether a bulk feed exists.
   async function handleShowPriceLists() {
