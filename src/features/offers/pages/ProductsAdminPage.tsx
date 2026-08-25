@@ -76,6 +76,8 @@ export default function ProductsAdminPage() {
   // Live Jarltech purchase prices (Einkaufspreis), loaded on demand.
   const [jtPrices, setJtPrices] = useState<Map<string, JarltechItemInfo>>(new Map());
   const [loadingJt, setLoadingJt] = useState(false);
+  // Pulsa purchase prices from the mirrored price list (matched by SKU/EAN).
+  const [pulsaByProductId, setPulsaByProductId] = useState<Map<string, PulsaMatch>>(new Map());
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   // Reorder products WITHIN a category and persist. The offer builder groups
@@ -144,6 +146,19 @@ export default function ProductsAdminPage() {
   useEffect(() => {
     load();
   }, []);
+
+  // Pulsa purchase prices come from the already-imported price list — a cheap
+  // DB match, so we load them automatically (unlike Jarltech, which is a
+  // rate-limited API call behind a button).
+  useEffect(() => {
+    const withKeys = products.filter((p) => p.ean || p.manufacturerSku);
+    if (withKeys.length === 0) { setPulsaByProductId(new Map()); return; }
+    let cancelled = false;
+    matchPulsaItems(withKeys.map((p) => ({ id: p.id, ean: p.ean, manufacturerSku: p.manufacturerSku })))
+      .then((m) => { if (!cancelled) setPulsaByProductId(m); })
+      .catch(() => { /* no prices shown */ });
+    return () => { cancelled = true; };
+  }, [products]);
 
   const supplierById = useMemo(
     () => new Map(suppliers.map((s) => [s.id, s.name])),
@@ -330,6 +345,7 @@ export default function ProductsAdminPage() {
                               product={p}
                               supplierName={p.supplierId ? supplierById.get(p.supplierId) ?? 'Unbekannt' : null}
                               jtPrice={p.jarltechItemId ? jtPrices.get(p.jarltechItemId) ?? null : null}
+                              pulsaMatch={pulsaByProductId.get(p.id) ?? null}
                               draggable={!search.trim() && !onlyMissing}
                               onToggle={toggleActive}
                               onEdit={setEditing}
@@ -364,6 +380,7 @@ function SortableProductRow({
   product: p,
   supplierName,
   jtPrice,
+  pulsaMatch,
   draggable,
   onToggle,
   onEdit,
@@ -371,6 +388,7 @@ function SortableProductRow({
   product: Product;
   supplierName: string | null;
   jtPrice: JarltechItemInfo | null;
+  pulsaMatch: PulsaMatch | null;
   draggable: boolean;
   onToggle: (p: Product) => void;
   onEdit: (p: Product) => void;
@@ -418,7 +436,15 @@ function SortableProductRow({
           className="text-[10px] px-1.5 py-0.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 whitespace-nowrap flex-shrink-0 font-mono"
           title={`Jarltech Einkaufspreis${jtPrice.stock != null ? ` · Lager ${jtPrice.stock}` : ''}`}
         >
-          EK {eur(jtPrice.unitPrice)}
+          JT {eur(jtPrice.unitPrice)}
+        </span>
+      )}
+      {pulsaMatch?.ekNet != null && (
+        <span
+          className="text-[10px] px-1.5 py-0.5 rounded-full border border-violet-200 bg-violet-50 text-violet-700 whitespace-nowrap flex-shrink-0 font-mono"
+          title={`Pulsa Einkaufspreis${pulsaMatch.verfuegbar != null ? ` · Lager ${pulsaMatch.verfuegbar}` : ''}`}
+        >
+          Pulsa {eur(pulsaMatch.ekNet)}
         </span>
       )}
       <span className="text-slate-600 font-mono text-xs whitespace-nowrap">{priceSummary(p.pricing)}</span>

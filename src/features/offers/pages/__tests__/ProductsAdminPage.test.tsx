@@ -264,6 +264,19 @@ describe('ProductsAdminPage — supplier visibility', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Jarltech-Preise laden/ }));
     await waitFor(() => expect(jarltech.fetchJarltechPrices).toHaveBeenCalledWith(['jt123']));
-    expect(await screen.findByText(/EK €/)).toBeInTheDocument();
+    expect(await screen.findByText(/JT €/)).toBeInTheDocument();
+  });
+
+  it('shows the Pulsa Einkaufspreis badge from the imported price list (auto)', async () => {
+    vi.mocked(productApi.listProductsAdmin).mockResolvedValue([
+      makeProduct({ id: 'pls', name: 'Pulsa Prod', catalog: 'HARDWARE', supplierId: 's-jarl', manufacturerSku: 'SKU-1' }),
+    ]);
+    vi.mocked(procurementApi.matchPulsaItems).mockResolvedValue(
+      new Map([['pls', { artikelnummer: 'A1', name: 'x', ekNet: 331.9, verfuegbar: 5 }]]),
+    );
+    render(<ProductsAdminPage />);
+    await screen.findByText('Pulsa Prod');
+    // No button needed — Pulsa prices come from the DB match automatically.
+    expect(await screen.findByText(/Pulsa €/)).toBeInTheDocument();
   });
 });
