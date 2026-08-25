@@ -62,6 +62,7 @@ beforeEach(() => {
   vi.mocked(jarltech.pingJarltech).mockResolvedValue(true);
   vi.mocked(api.matchPulsaItems).mockResolvedValue(new Map());
   vi.mocked(api.triggerPulsaImport).mockResolvedValue({ imported: 0 });
+  vi.mocked(api.pulsaLastImportedAt).mockResolvedValue(null);
 });
 
 describe('ProcurementPage — settings menu', () => {

@@ -322,6 +322,13 @@ serve(async (req: Request) => {
       return json({ result: data });
     }
 
+    // ── List available price lists (metadata; read-only probe) ──
+    if (action === "price-lists") {
+      const token = await getToken(cfg);
+      const data = await apiGet(cfg, token, `/price-list`);
+      return json({ priceLists: data });
+    }
+
     // ── Place a BINDING shop order (allowlist-gated) ──
     if (action === "create-order") {
       if (!isOrderAllowed(caller.email)) {
@@ -399,7 +406,7 @@ serve(async (req: Request) => {
     }
 
     return json(
-      { error: `Unknown action: ${action}. Use ping|prices|resolve|order-permission|create-order.` },
+      { error: `Unknown action: ${action}. Use ping|prices|resolve|order-permission|create-order|price-lists.` },
       400,
     );
   } catch (err) {

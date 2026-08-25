@@ -68,10 +68,16 @@ function mapRow(r: Record<string, string>): PulsaRow | null {
   };
 }
 
+// Allowed callers: a logged-in user (from the app button) OR the nightly
+// pg_cron job, which presents the shared CRON_SECRET as its bearer token.
 async function verifyAuth(req: Request): Promise<boolean> {
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) return false;
+  const authHeader = req.headers.get("Authorization") || req.headers.get("authorization") || "";
+  if (!authHeader.startsWith("Bearer ")) return false;
   const token = authHeader.replace("Bearer ", "");
+
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  if (cronSecret && token === cronSecret) return true;
+
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
     global: { headers: { Authorization: `Bearer ${token}` } },
   });

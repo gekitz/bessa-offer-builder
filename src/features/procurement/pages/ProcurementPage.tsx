@@ -4,7 +4,7 @@ import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { listEmployees } from '../../vacation/api/vacationApi';
 import { aggregateOpenRequests } from '../lib/aggregate';
-import { canPlaceJarltechOrder, fetchJarltechPrices, pingJarltech } from '../api/jarltechApi';
+import { canPlaceJarltechOrder, fetchJarltechPrices, listJarltechPriceLists, pingJarltech } from '../api/jarltechApi';
 import type { JarltechItemInfo } from '../lib/jarltechNormalize';
 import { KITZ_STANDORTE, type StandortKey } from '../lib/shipping';
 import { strategyForMethod, type OrderStrategy } from '../lib/orderStrategies';
@@ -19,6 +19,7 @@ import {
   listSuppliers,
   markPurchaseOrderReceived,
   matchPulsaItems,
+  pulsaLastImportedAt,
   triggerPulsaImport,
   updateOrderRequest,
 } from '../api/procurementApi';
@@ -76,6 +77,12 @@ export default function ProcurementPage() {
     status: 'idle',
     message: '',
   });
+  const [pulsaUpdatedAt, setPulsaUpdatedAt] = useState<string | null>(null);
+  // Jarltech price-list probe result (settings menu).
+  const [priceListsTest, setPriceListsTest] = useState<{ status: 'idle' | 'testing' | 'ok' | 'error'; message: string }>({
+    status: 'idle',
+    message: '',
+  });
   // Permission for the gated (api) strategy — allowlist-checked server-side;
   // this flag only controls button visibility.
   const [canApiOrder, setCanApiOrder] = useState(false);
@@ -125,6 +132,7 @@ export default function ProcurementPage() {
         setPulsaByProductId(m);
       }
       setPulsaTest({ status: 'ok', message: `Preisliste aktualisiert — ${imported} Artikel importiert.` });
+      pulsaLastImportedAt().then(setPulsaUpdatedAt).catch(() => {});
     } catch (e) {
       setPulsaTest({ status: 'error', message: e instanceof Error ? e.message : String(e) });
     }
@@ -286,8 +294,23 @@ export default function ProcurementPage() {
     canPlaceJarltechOrder()
       .then((ok) => { if (!cancelled) setCanApiOrder(ok); })
       .catch(() => { /* stays false — button hidden */ });
+    pulsaLastImportedAt()
+      .then((ts) => { if (!cancelled) setPulsaUpdatedAt(ts); })
+      .catch(() => { /* no timestamp shown */ });
     return () => { cancelled = true; };
   }, [isAdmin]);
+
+  // Probe the available Jarltech price lists (metadata). Surfaced in the
+  // settings menu so we can see whether a bulk feed exists.
+  async function handleShowPriceLists() {
+    setPriceListsTest({ status: 'testing', message: '' });
+    try {
+      const lists = await listJarltechPriceLists();
+      setPriceListsTest({ status: 'ok', message: JSON.stringify(lists) });
+    } catch (e) {
+      setPriceListsTest({ status: 'error', message: e instanceof Error ? e.message : String(e) });
+    }
+  }
 
   // Open the automated-order modal for a group, resolving its strategy from
   // the supplier's order method.
@@ -471,6 +494,29 @@ export default function ProcurementPage() {
                   {pulsaTest.status === 'error' && (
                     <div className="px-3 py-2 text-[12px] text-red-600 flex items-start gap-1.5">
                       <AlertCircle size={13} className="flex-shrink-0 mt-0.5" /> <span>{pulsaTest.message}</span>
+                    </div>
+                  )}
+                  {pulsaTest.status === 'idle' && pulsaUpdatedAt && (
+                    <div className="px-3 pb-2 text-[11px] text-slate-400">
+                      Zuletzt aktualisiert: {new Date(pulsaUpdatedAt).toLocaleString('de-AT', { dateStyle: 'medium', timeStyle: 'short' })}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleShowPriceLists}
+                    disabled={priceListsTest.status === 'testing'}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 border-t border-slate-100"
+                  >
+                    {priceListsTest.status === 'testing' ? <Loader2 size={15} className="animate-spin text-slate-400" /> : <Plug size={15} className="text-slate-400" />}
+                    Jarltech-Preislisten anzeigen
+                  </button>
+                  {priceListsTest.status === 'ok' && (
+                    <div className="px-3 py-2 text-[11px] text-slate-500 break-all max-h-40 overflow-auto">{priceListsTest.message}</div>
+                  )}
+                  {priceListsTest.status === 'error' && (
+                    <div className="px-3 py-2 text-[12px] text-red-600 flex items-start gap-1.5">
+                      <AlertCircle size={13} className="flex-shrink-0 mt-0.5" /> <span>{priceListsTest.message}</span>
                     </div>
                   )}
                 </div>

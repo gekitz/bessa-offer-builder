@@ -101,6 +101,14 @@ export async function placeJarltechOrder(input: PlaceJarltechOrderInput): Promis
   return data?.order ?? null;
 }
 
+// List the price lists available to this Jarltech account (metadata only).
+// Read-only probe to see whether a bulk price-list feed exists (and its
+// format) before building a nightly mirror like Pulsa's.
+export async function listJarltechPriceLists(): Promise<any> {
+  const data = await invokeJarltech({ action: 'price-lists' });
+  return data?.priceLists ?? null;
+}
+
 // Resolve a manufacturer SKU to a Jarltech item identifier (helper for
 // linking products in the admin UI). Returns null if no purchasable item
 // with that manufacturer identifier exists (Jarltech 404).

@@ -141,6 +141,19 @@ export async function triggerPulsaImport(): Promise<{ imported: number }> {
   return { imported: data?.imported ?? 0 };
 }
 
+// Newest updated_at across pulsa_items — "zuletzt aktualisiert" indicator.
+export async function pulsaLastImportedAt(): Promise<string | null> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('pulsa_items')
+    .select('updated_at')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return (data as { updated_at?: string } | null)?.updated_at ?? null;
+}
+
 // PostgREST in-list value: double-quote + escape embedded quotes so values
 // with commas/spaces don't break the filter.
 function orValue(v: string): string {
