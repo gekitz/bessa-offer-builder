@@ -299,6 +299,9 @@ describe('ProcurementPage — Pulsa XML order (strategy: email_xml)', () => {
     await waitFor(() => expect(api.sendSupplierOrderXml).toHaveBeenCalledTimes(1));
     const arg = vi.mocked(api.sendSupplierOrderXml).mock.calls[0][0];
     expect(arg.supplierId).toBe('s-pulsa2');
+    // Pulsa requires a constant filename + a subject that always begins the same.
+    expect(arg.filename).toBe('Bestellung_KITZ.xml');
+    expect(arg.subject).toMatch(/^PULSA Bestellung /);
     expect(arg.xml).toContain('<Bestellnummer>7201-080.02</Bestellnummer>');
     expect(arg.xml).toContain('<Kundennummer>11720</Kundennummer>');
     expect(arg.xml).toContain('<Anzahl>40.00</Anzahl>');

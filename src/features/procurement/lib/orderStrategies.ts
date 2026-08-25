@@ -143,10 +143,11 @@ const emailXmlStrategy: OrderStrategy = {
       einkaufspreis: (l.productId ? pulsaByProductId.get(l.productId)?.ekNet : null) ?? null,
       anzahl: l.totalQty,
     }));
+    const auftragsnummer = `KITZ-${Date.now()}`;
     const xml = buildPulsaOrderXml({
       firmenname: 'KITZ Computer + Office GmbH',
       kundennummer: supplier?.customerNumber ?? '',
-      auftragsnummer: `KITZ-${Date.now()}`,
+      auftragsnummer,
       auftragsdatum: formatPulsaDate(new Date()),
       // Liefer- + Rechnungsadresse = the Standort chosen in the confirm modal.
       lieferadresse: shippingAddress,
@@ -156,6 +157,10 @@ const emailXmlStrategy: OrderStrategy = {
     const { to } = await sendSupplierOrderXml({
       supplierId: group.supplierId!,
       xml,
+      // Pulsa needs a constant filename + a subject that always begins the
+      // same way ("PULSA Bestellung …"); the sender is fixed server-side.
+      filename: 'Bestellung_KITZ.xml',
+      subject: `PULSA Bestellung ${auftragsnummer}`,
       note: `Lieferung ${standortLabel}`,
     });
     return `Pulsa-XML an ${to} · Lieferung ${standortLabel}`;
