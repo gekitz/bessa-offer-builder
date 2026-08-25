@@ -188,14 +188,14 @@ describe('ProductsAdminPage — Jarltech SKU lookup', () => {
     });
     await openEditor('Mobile Kassa');
 
-    fireEvent.change(screen.getByPlaceholderText('Exakte Hersteller-Artikelnr.'), {
+    fireEvent.change(screen.getByPlaceholderText('exakte Hersteller-Artikelnr.'), {
       target: { value: 'SUNMI-V3-XYZ' },
     });
     fireEvent.click(screen.getByRole('button', { name: /Jarltech-ID suchen/ }));
 
     // Looked up by exact part number (not the ambiguous product name).
     await waitFor(() => expect(jarltech.resolveJarltechId).toHaveBeenCalledWith('SUNMI-V3-XYZ'));
-    const jtField = screen.getByPlaceholderText(/für Preis-\/Lagerabruf/) as HTMLInputElement;
+    const jtField = screen.getByPlaceholderText(/mpk1s12v/) as HTMLInputElement;
     await waitFor(() => expect(jtField.value).toBe('v3xyz'));
     expect(screen.getByText(/Gefunden: v3xyz/)).toBeInTheDocument();
   });
@@ -204,7 +204,7 @@ describe('ProductsAdminPage — Jarltech SKU lookup', () => {
     vi.mocked(jarltech.resolveJarltechId).mockResolvedValue(null);
     await openEditor('Mobile Kassa');
 
-    fireEvent.change(screen.getByPlaceholderText('Exakte Hersteller-Artikelnr.'), {
+    fireEvent.change(screen.getByPlaceholderText('exakte Hersteller-Artikelnr.'), {
       target: { value: 'UNKNOWN-SKU' },
     });
     fireEvent.click(screen.getByRole('button', { name: /Jarltech-ID suchen/ }));

@@ -503,16 +503,13 @@ function ProductEditModal({
   const [supplierArticleNo, setSupplierArticleNo] = useState(product?.supplierArticleNo ?? '');
   const [manufacturerSku, setManufacturerSku] = useState(product?.manufacturerSku ?? '');
   const [ean, setEan] = useState(product?.ean ?? '');
-  // SKU-lookup helper: resolve a manufacturer part number → Jarltech id.
-  // Prefilled with the product code, which is often the manufacturer SKU.
-  const [mfrSku, setMfrSku] = useState(product?.code ?? '');
   const [resolving, setResolving] = useState(false);
   const [resolveMsg, setResolveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function lookupJarltechId() {
-    const sku = mfrSku.trim();
+    const sku = manufacturerSku.trim();
     if (!sku) { setResolveMsg({ ok: false, text: 'Hersteller-Artikelnr. eingeben.' }); return; }
     setResolving(true);
     setResolveMsg(null);
@@ -801,62 +798,56 @@ function ProductEditModal({
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
                 />
               </div>
+              {/* One manufacturer article number drives BOTH: matching at
+                  Pulsa (price list) and resolving the Jarltech id. Search by
+                  the exact number, not the name (viele V3-Varianten). */}
               <div>
-                <label className="block text-[11px] text-slate-500 mb-1">Jarltech-Artikelkennung</label>
-                <input
-                  value={jarltechItemId}
-                  onChange={(e) => setJarltechItemId(e.target.value)}
-                  placeholder="z. B. mpk1s12v — für Preis-/Lagerabruf"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
-                />
-                {/* Look up the Jarltech id by EXACT manufacturer part number
-                    (not the product name) — the name is ambiguous (viele V3-
-                    Varianten), the Herstellernummer maps 1:1. */}
-                <div className="flex items-center gap-1.5 mt-1.5">
+                <label className="block text-[11px] text-slate-500 mb-1">Hersteller-Artikelnr.</label>
+                <div className="flex items-center gap-1.5">
                   <input
-                    value={mfrSku}
-                    onChange={(e) => setMfrSku(e.target.value)}
-                    placeholder="Exakte Hersteller-Artikelnr."
-                    className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-slate-200 text-sm font-mono"
+                    value={manufacturerSku}
+                    onChange={(e) => setManufacturerSku(e.target.value)}
+                    placeholder="exakte Hersteller-Artikelnr."
+                    className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
                   />
                   <button
                     type="button"
                     onClick={lookupJarltechId}
                     disabled={resolving}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-medium hover:bg-slate-50 disabled:opacity-50 flex-shrink-0"
+                    className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-medium hover:bg-slate-50 disabled:opacity-50 flex-shrink-0"
                   >
                     {resolving ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
                     Jarltech-ID suchen
                   </button>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1">
-                  Suche über die exakte Hersteller-Artikelnummer (nicht den Namen) — liefert genau einen Treffer.
+                  Findet das Produkt bei Pulsa (Preisliste) und über „Jarltech-ID suchen“ bei Jarltech.
                 </p>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] text-slate-500 mb-1">Hersteller-Artikelnr. (Match)</label>
-                  <input
-                    value={manufacturerSku}
-                    onChange={(e) => setManufacturerSku(e.target.value)}
-                    placeholder="für Pulsa-Preisliste"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-slate-500 mb-1">EAN (Match)</label>
-                  <input
-                    value={ean}
-                    onChange={(e) => setEan(e.target.value)}
-                    placeholder="für Pulsa-Preisliste"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
-                  />
-                </div>
                 {resolveMsg && (
                   <div className={`text-[11px] mt-1 ${resolveMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>
                     {resolveMsg.text}
                   </div>
                 )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] text-slate-500 mb-1">EAN (Pulsa-Match)</label>
+                  <input
+                    value={ean}
+                    onChange={(e) => setEan(e.target.value)}
+                    placeholder="optional, zusätzlicher Match"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 mb-1">Jarltech-Artikelkennung</label>
+                  <input
+                    value={jarltechItemId}
+                    onChange={(e) => setJarltechItemId(e.target.value)}
+                    placeholder="z. B. mpk1s12v (auto)"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
+                  />
+                </div>
               </div>
             </div>
           )}
