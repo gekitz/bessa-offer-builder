@@ -34,6 +34,7 @@ function rowToSupplier(r: any): Supplier {
     name: r.name,
     orderEmail: r.order_email ?? null,
     orderMethod: r.order_method ?? 'manual',
+    customerNumber: r.customer_number ?? null,
     notes: r.notes ?? null,
     active: !!r.active,
     sort: r.sort ?? 0,
@@ -188,11 +189,53 @@ export async function matchPulsaItems(
   return out;
 }
 
+// UTF-8-safe base64 (btoa is Latin1-only; the XML has ä/ö/ü/ß).
+function utf8Base64(s: string): string {
+  const bytes = new TextEncoder().encode(s);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+// Send an order as an XML attachment (Pulsa). Recipient resolved
+// server-side from suppliers.order_email; caller CC'd. Fixed filename +
+// subject prefix, as Pulsa requires.
+export async function sendSupplierOrderXml(input: {
+  supplierId: string;
+  xml: string;
+  filename?: string;
+  subject?: string;
+  note?: string;
+}): Promise<{ to: string }> {
+  const sb = requireSupabase();
+  const { data, error } = await sb.functions.invoke('send-supplier-order', {
+    body: {
+      supplierId: input.supplierId,
+      subject: input.subject,
+      bodyText: input.note,
+      attachment: {
+        filename: input.filename ?? 'Bestellung_KITZ.xml',
+        contentBase64: utf8Base64(input.xml),
+      },
+    },
+  });
+  if (error) {
+    let detail = error.message;
+    const ctx = (error as { context?: unknown }).context;
+    if (ctx && typeof (ctx as Response).json === 'function') {
+      try { const p = await (ctx as Response).json(); if (p?.error) detail = p.error; } catch { /* keep generic */ }
+    }
+    throw new Error(`Pulsa-Bestellung: ${detail}`);
+  }
+  if (data?.error) throw new Error(`Pulsa-Bestellung: ${data.error}`);
+  return { to: data?.to ?? '' };
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Suppliers
 // ─────────────────────────────────────────────────────────────────────
 
-const SUPPLIER_COLS = 'id, code, name, order_email, order_method, notes, active, sort, created_at, updated_at';
+const SUPPLIER_COLS = 'id, code, name, order_email, order_method, customer_number, notes, active, sort, created_at, updated_at';
 
 export async function listSuppliers(opts: { activeOnly?: boolean } = {}): Promise<Supplier[]> {
   const sb = requireSupabase();

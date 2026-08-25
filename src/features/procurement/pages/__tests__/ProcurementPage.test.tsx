@@ -16,8 +16,8 @@ vi.mock('../../../../lib/auth', () => ({
 }));
 
 const SUPPLIERS: Supplier[] = [
-  { id: 's-jarl', code: 'jarltech', name: 'Jarltech', orderEmail: null, orderMethod: 'api', notes: null, active: true, sort: 30, createdAt: '', updatedAt: '' },
-  { id: 's-pulsa', code: 'pulsa', name: 'Pulsa', orderEmail: null, orderMethod: 'manual', notes: null, active: true, sort: 40, createdAt: '', updatedAt: '' },
+  { id: 's-jarl', code: 'jarltech', name: 'Jarltech', orderEmail: null, orderMethod: 'api', customerNumber: null, notes: null, active: true, sort: 30, createdAt: '', updatedAt: '' },
+  { id: 's-pulsa', code: 'pulsa', name: 'Pulsa', orderEmail: null, orderMethod: 'manual', customerNumber: null, notes: null, active: true, sort: 40, createdAt: '', updatedAt: '' },
 ];
 
 const PRODUCTS: RequestableProduct[] = [
@@ -213,7 +213,7 @@ describe('ProcurementPage — Einkauf (admin aggregation)', () => {
 describe('ProcurementPage — Orderman email order (strategy: email)', () => {
   const OM_SUPPLIER: Supplier = {
     id: 's-order', code: 'orderman', name: 'Orderman', orderEmail: 'sales@orderman.com',
-    orderMethod: 'email', notes: null, active: true, sort: 10, createdAt: '', updatedAt: '',
+    orderMethod: 'email', customerNumber: null, notes: null, active: true, sort: 10, createdAt: '', updatedAt: '',
   };
   const OM_PRODUCT: RequestableProduct = {
     id: 'orderman10', name: 'Orderman 10', code: 'OM10', catalog: 'ORDERMAN',
@@ -255,5 +255,49 @@ describe('ProcurementPage — Orderman email order (strategy: email)', () => {
     await waitFor(() => expect(api.createPurchaseOrder).toHaveBeenCalledTimes(1));
     const poArg = vi.mocked(api.createPurchaseOrder).mock.calls[0][0];
     expect(poArg.lines[0].requestIds).toEqual(['o1']);
+  });
+});
+
+describe('ProcurementPage — Pulsa XML order (strategy: email_xml)', () => {
+  const P_SUPPLIER: Supplier = {
+    id: 's-pulsa2', code: 'pulsa', name: 'Pulsa', orderEmail: 'info@pulsa.de',
+    orderMethod: 'email_xml', customerNumber: '11720', notes: null, active: true, sort: 40, createdAt: '', updatedAt: '',
+  };
+  const P_PRODUCT: RequestableProduct = {
+    id: 'bon', name: 'Bonrollen', code: 'BR', catalog: 'HARDWARE',
+    supplierId: 's-pulsa2', altSupplierIds: [], jarltechItemId: null, supplierArticleNo: null,
+    manufacturerSku: 'MFR-1', ean: null, pulsaBestellnummer: '7201-080.02',
+  };
+  const P_REQ: OrderRequest = {
+    ...req('q1', 40, 'Anna'), productId: 'bon', productName: 'Bonrollen',
+    productCode: 'BR', supplierId: 's-pulsa2', _supplierName: 'Pulsa',
+  };
+
+  beforeEach(() => {
+    vi.mocked(api.listSuppliers).mockResolvedValue([P_SUPPLIER]);
+    vi.mocked(api.listRequestableProducts).mockResolvedValue([P_PRODUCT]);
+    vi.mocked(api.listOrderRequests).mockResolvedValue([P_REQ]);
+    vi.mocked(api.listPurchaseOrders).mockResolvedValue([]);
+    vi.mocked(api.sendSupplierOrderXml).mockResolvedValue({ to: 'info@pulsa.de' });
+  });
+
+  it('sends an XML order with the Bestellnummer + Kundennummer and records the PO', async () => {
+    render(<ProcurementPage />);
+    await waitFor(() => expect(screen.getAllByTestId('request-row').length).toBe(1));
+    fireEvent.click(screen.getByRole('button', { name: /Einkauf/ }));
+
+    fireEvent.click(await screen.findByTestId('auto-order-s-pulsa2'));
+    fireEvent.click(await screen.findByRole('button', { name: /Stück bestellen/i }));
+
+    await waitFor(() => expect(api.sendSupplierOrderXml).toHaveBeenCalledTimes(1));
+    const arg = vi.mocked(api.sendSupplierOrderXml).mock.calls[0][0];
+    expect(arg.supplierId).toBe('s-pulsa2');
+    expect(arg.xml).toContain('<Bestellnummer>7201-080.02</Bestellnummer>');
+    expect(arg.xml).toContain('<Kundennummer>11720</Kundennummer>');
+    expect(arg.xml).toContain('<Anzahl>40.00</Anzahl>');
+    // Delivery address comes from the Standort picker (default Klagenfurt).
+    expect(arg.xml).toContain('<Ort>Klagenfurt</Ort>');
+
+    await waitFor(() => expect(api.createPurchaseOrder).toHaveBeenCalledTimes(1));
   });
 });

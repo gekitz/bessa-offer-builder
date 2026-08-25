@@ -128,18 +128,17 @@ serve(async (req: Request) => {
     const orderedByEmail = (user.email ?? "").toLowerCase();
 
     const body = await req.json().catch(() => ({}));
-    const { supplierId, items, shippingAddress, note } = body as {
+    const { supplierId, items, shippingAddress, note, subject: subjectIn, bodyText, attachment } = body as {
       supplierId?: string;
       items?: OrderItem[];
       shippingAddress?: ShipAddr;
       note?: string;
+      subject?: string;
+      bodyText?: string;
+      attachment?: { filename?: string; contentBase64?: string };
     };
 
     if (!supplierId) return json({ error: "Missing supplierId." }, 400);
-    if (!Array.isArray(items) || items.length === 0) return json({ error: "Missing items." }, 400);
-    if (!shippingAddress?.street || !shippingAddress?.companyName) {
-      return json({ error: "Missing shipping address." }, 400);
-    }
 
     // Resolve the destination address server-side — never trust a
     // client-supplied recipient.
@@ -153,26 +152,40 @@ serve(async (req: Request) => {
       return json({ error: "Für diesen Lieferanten ist keine Bestell-E-Mail hinterlegt." }, 400);
     }
 
-    const { subject, html, text } = buildEmail({
-      supplierName: supplier.name,
-      items,
-      addr: shippingAddress,
-      note,
-      orderedByEmail,
-    });
-
     const resendApiKey = Deno.env.get("RESEND_API_KEY")!;
     const payload: Record<string, unknown> = {
       from: "KITZ Computer + Office GmbH <workspace@kitz.co.at>",
       to: [supplier.order_email],
-      subject,
-      html,
-      text,
     };
     // CC + route replies to the person who placed the order.
     if (orderedByEmail) {
       payload.cc = [orderedByEmail];
       payload.reply_to = orderedByEmail;
+    }
+
+    if (attachment?.contentBase64) {
+      // XML-attachment order (Pulsa): fixed subject/filename, short body.
+      payload.subject = subjectIn || "Bestellung KITZ Computer + Office GmbH";
+      const line = bodyText || "Unsere Bestellung finden Sie im XML-Anhang.";
+      payload.text = `${line}\n\nMit freundlichen Grüßen\nKITZ Computer + Office GmbH`;
+      payload.html = `<div style="font-family:system-ui,sans-serif;font-size:14px">${line}<br><br>Mit freundlichen Grüßen<br>KITZ Computer + Office GmbH</div>`;
+      payload.attachments = [{ filename: attachment.filename || "Bestellung_KITZ.xml", content: attachment.contentBase64 }];
+    } else {
+      // Items-body order (Orderman).
+      if (!Array.isArray(items) || items.length === 0) return json({ error: "Missing items." }, 400);
+      if (!shippingAddress?.street || !shippingAddress?.companyName) {
+        return json({ error: "Missing shipping address." }, 400);
+      }
+      const { subject, html, text } = buildEmail({
+        supplierName: supplier.name,
+        items,
+        addr: shippingAddress,
+        note,
+        orderedByEmail,
+      });
+      payload.subject = subject;
+      payload.html = html;
+      payload.text = text;
     }
 
     const resendRes = await fetch("https://api.resend.com/emails", {

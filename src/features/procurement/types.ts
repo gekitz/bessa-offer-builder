@@ -11,7 +11,7 @@ export type PurchaseOrderStatus = 'ordered' | 'received' | 'cancelled';
 //   api    — supplier REST API (Jarltech, binding)
 //   email  — order e-mail to suppliers.orderEmail (Orderman)
 //   manual — recorded internally only; a human places it (RCH, Pulsa, …)
-export type OrderMethod = 'api' | 'email' | 'manual';
+export type OrderMethod = 'api' | 'email' | 'email_xml' | 'manual';
 
 // ─────────────────────────────────────────────────────────────────────
 
@@ -21,6 +21,7 @@ export interface Supplier {
   name: string;
   orderEmail: string | null;
   orderMethod: OrderMethod;
+  customerNumber: string | null; // unsere Kundennummer beim Lieferanten (Pulsa-XML)
   notes: string | null;
   active: boolean;
   sort: number;

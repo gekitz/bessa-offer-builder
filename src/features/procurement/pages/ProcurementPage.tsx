@@ -314,8 +314,10 @@ export default function ProcurementPage() {
     try {
       const poNote = await strategy.place({
         group,
+        supplier: group.supplierId ? suppliers.find((s) => s.id === group.supplierId) ?? null : null,
         productsById,
         jarltechInfo,
+        pulsaByProductId,
         shippingAddress: KITZ_STANDORTE[standort].address,
         standortLabel: KITZ_STANDORTE[standort].label,
         orderable,

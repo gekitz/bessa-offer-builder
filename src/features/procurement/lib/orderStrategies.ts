@@ -1,10 +1,11 @@
 // Per-supplier ordering strategies (data-driven; keyed by
 // suppliers.order_method). Each supplier's method selects one strategy:
 //
-//   api    → Jarltech REST order (binding, allowlist-gated)
-//   email  → order e-mail to the supplier (Orderman, …)
-//   manual → NOT handled here; recorded internally via the inline
-//            "Bestellen" flow (a human places the order)
+//   api       → Jarltech REST order (binding, allowlist-gated)
+//   email     → order e-mail to the supplier (Orderman, …)
+//   email_xml → order XML emailed as an attachment (Pulsa)
+//   manual    → NOT handled here; recorded internally via the inline
+//               "Bestellen" flow (a human places the order)
 //
 // A strategy centralises: the button label, whether it needs the binding-
 // order permission, which lines can be ordered, and how the external
@@ -15,9 +16,10 @@
 import type { AggregatedLine, SupplierGroup } from './aggregate';
 import type { JarltechItemInfo } from './jarltechNormalize';
 import type { ShippingAddress } from './shipping';
-import type { OrderMethod, RequestableProduct } from '../types';
+import { buildPulsaOrderXml, formatPulsaDate } from './pulsaOrderXml';
+import type { OrderMethod, PulsaMatch, RequestableProduct, Supplier } from '../types';
 import { placeJarltechOrder } from '../api/jarltechApi';
-import { sendSupplierOrderEmail } from '../api/procurementApi';
+import { sendSupplierOrderEmail, sendSupplierOrderXml } from '../api/procurementApi';
 
 export interface OrderableSplit {
   orderable: AggregatedLine[];
@@ -26,9 +28,11 @@ export interface OrderableSplit {
 
 export interface PlaceArgs {
   group: SupplierGroup;
+  supplier: Supplier | null; // the ordering supplier (for Kundennummer etc.)
   productsById: Map<string, RequestableProduct>;
   jarltechInfo: Map<string, JarltechItemInfo>;
-  shippingAddress: ShippingAddress;
+  pulsaByProductId: Map<string, PulsaMatch>;
+  shippingAddress: ShippingAddress; // the selected Standort — Liefer- + Rechnungsadresse
   standortLabel: string;
   orderable: AggregatedLine[];
 }
@@ -111,9 +115,57 @@ const emailStrategy: OrderStrategy = {
   },
 };
 
+const pulsaBestellnummerOf = (
+  line: AggregatedLine,
+  productsById: Map<string, RequestableProduct>,
+): string | null => (line.productId ? productsById.get(line.productId)?.pulsaBestellnummer ?? null : null);
+
+const emailXmlStrategy: OrderStrategy = {
+  method: 'email_xml',
+  gated: false,
+  buttonLabel: 'Per E-Mail bestellen',
+  confirmTitle: 'Bestellung als XML senden',
+  confirmNote: 'Die Bestellung geht als XML-Anhang an den Lieferanten; du bekommst eine Kopie (CC).',
+  // Needs a Pulsa-Bestellnummer per line (set via "Abgleichen").
+  split(group, productsById) {
+    const orderable: AggregatedLine[] = [];
+    const blocked: OrderableSplit['blocked'] = [];
+    for (const line of group.lines) {
+      if (pulsaBestellnummerOf(line, productsById)) orderable.push(line);
+      else blocked.push({ line, reason: 'Keine Pulsa-Bestellnummer' });
+    }
+    return { orderable, blocked };
+  },
+  async place({ group, supplier, productsById, pulsaByProductId, shippingAddress, standortLabel, orderable }) {
+    const positionen = orderable.map((l) => ({
+      bestellnummer: pulsaBestellnummerOf(l, productsById)!,
+      bezeichnung: l.productName,
+      einkaufspreis: (l.productId ? pulsaByProductId.get(l.productId)?.ekNet : null) ?? null,
+      anzahl: l.totalQty,
+    }));
+    const xml = buildPulsaOrderXml({
+      firmenname: 'KITZ Computer + Office GmbH',
+      kundennummer: supplier?.customerNumber ?? '',
+      auftragsnummer: `KITZ-${Date.now()}`,
+      auftragsdatum: formatPulsaDate(new Date()),
+      // Liefer- + Rechnungsadresse = the Standort chosen in the confirm modal.
+      lieferadresse: shippingAddress,
+      rechnungsadresse: shippingAddress,
+      positionen,
+    });
+    const { to } = await sendSupplierOrderXml({
+      supplierId: group.supplierId!,
+      xml,
+      note: `Lieferung ${standortLabel}`,
+    });
+    return `Pulsa-XML an ${to} · Lieferung ${standortLabel}`;
+  },
+};
+
 const REGISTRY: Record<Exclude<OrderMethod, 'manual'>, OrderStrategy> = {
   api: apiStrategy,
   email: emailStrategy,
+  email_xml: emailXmlStrategy,
 };
 
 // The strategy for an order method, or null for 'manual' (inline flow).
