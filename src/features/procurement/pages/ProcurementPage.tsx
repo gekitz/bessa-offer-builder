@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, ClipboardList, Loader2, Plug, Settings, ShoppingCart, Truck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ClipboardList, Loader2, Plug, RefreshCw, Settings, ShoppingCart, Truck } from 'lucide-react';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { listEmployees } from '../../vacation/api/vacationApi';
@@ -18,12 +18,15 @@ import {
   listRequestableProducts,
   listSuppliers,
   markPurchaseOrderReceived,
+  matchPulsaItems,
+  triggerPulsaImport,
   updateOrderRequest,
 } from '../api/procurementApi';
 import type {
   OrderLineDecision,
   OrderRequest,
   PriceQuote,
+  PulsaMatch,
   PurchaseOrder,
   RequestableProduct,
   Supplier,
@@ -67,6 +70,12 @@ export default function ProcurementPage() {
   // jarltech_item_id.
   const [jarltechInfo, setJarltechInfo] = useState<Map<string, JarltechItemInfo>>(new Map());
   const [loadingJarltech, setLoadingJarltech] = useState(false);
+  // Pulsa price-list matches (productId → Bestellnummer/EK/stock).
+  const [pulsaByProductId, setPulsaByProductId] = useState<Map<string, PulsaMatch>>(new Map());
+  const [pulsaTest, setPulsaTest] = useState<{ status: 'idle' | 'testing' | 'ok' | 'error'; message: string }>({
+    status: 'idle',
+    message: '',
+  });
   // Permission for the gated (api) strategy — allowlist-checked server-side;
   // this flag only controls button visibility.
   const [canApiOrder, setCanApiOrder] = useState(false);
@@ -87,6 +96,39 @@ export default function ProcurementPage() {
     () => suppliers.find((s) => s.code === 'jarltech')?.id ?? null,
     [suppliers],
   );
+  const pulsaSupplierId = useMemo(
+    () => suppliers.find((s) => s.code === 'pulsa')?.id ?? null,
+    [suppliers],
+  );
+
+  // Match products against the mirrored Pulsa price list whenever the
+  // product set changes — populates EK/stock in the compare (if the list
+  // has been imported).
+  useEffect(() => {
+    const withKeys = products.filter((p) => p.ean || p.manufacturerSku);
+    if (withKeys.length === 0) { setPulsaByProductId(new Map()); return; }
+    let cancelled = false;
+    matchPulsaItems(withKeys.map((p) => ({ id: p.id, ean: p.ean, manufacturerSku: p.manufacturerSku })))
+      .then((m) => { if (!cancelled) setPulsaByProductId(m); })
+      .catch(() => { /* leave empty — no prices shown */ });
+    return () => { cancelled = true; };
+  }, [products]);
+
+  // Re-import the Pulsa price list, then re-match. Surfaced in the settings menu.
+  async function handlePulsaImport() {
+    setPulsaTest({ status: 'testing', message: '' });
+    try {
+      const { imported } = await triggerPulsaImport();
+      const withKeys = products.filter((p) => p.ean || p.manufacturerSku);
+      if (withKeys.length) {
+        const m = await matchPulsaItems(withKeys.map((p) => ({ id: p.id, ean: p.ean, manufacturerSku: p.manufacturerSku })));
+        setPulsaByProductId(m);
+      }
+      setPulsaTest({ status: 'ok', message: `Preisliste aktualisiert — ${imported} Artikel importiert.` });
+    } catch (e) {
+      setPulsaTest({ status: 'error', message: e instanceof Error ? e.message : String(e) });
+    }
+  }
 
   const reloadRequests = useCallback(async () => {
     const [reqs, pos] = await Promise.all([
@@ -409,6 +451,26 @@ export default function ProcurementPage() {
                       <AlertCircle size={13} className="flex-shrink-0 mt-0.5" /> <span>{connTest.message}</span>
                     </div>
                   )}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handlePulsaImport}
+                    disabled={pulsaTest.status === 'testing'}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60 border-t border-slate-100"
+                  >
+                    {pulsaTest.status === 'testing' ? <Loader2 size={15} className="animate-spin text-slate-400" /> : <RefreshCw size={15} className="text-slate-400" />}
+                    Pulsa-Preisliste aktualisieren
+                  </button>
+                  {pulsaTest.status === 'ok' && (
+                    <div className="px-3 py-2 text-[12px] text-emerald-700 flex items-start gap-1.5">
+                      <CheckCircle2 size={13} className="flex-shrink-0 mt-0.5" /> <span>{pulsaTest.message}</span>
+                    </div>
+                  )}
+                  {pulsaTest.status === 'error' && (
+                    <div className="px-3 py-2 text-[12px] text-red-600 flex items-start gap-1.5">
+                      <AlertCircle size={13} className="flex-shrink-0 mt-0.5" /> <span>{pulsaTest.message}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -461,6 +523,8 @@ export default function ProcurementPage() {
                 jarltechSupplierId={jarltechSupplierId}
                 jarltechInfo={jarltechInfo}
                 loadingJarltech={loadingJarltech}
+                pulsaSupplierId={pulsaSupplierId}
+                pulsaByProductId={pulsaByProductId}
                 canApiOrder={canApiOrder}
                 ordering={ordering}
                 reassigning={reassigning}

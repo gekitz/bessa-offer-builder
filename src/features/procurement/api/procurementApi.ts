@@ -12,6 +12,7 @@ import type {
   OrderRequestFilters,
   OrderRequestInput,
   PriceQuote,
+  PulsaMatch,
   PurchaseOrder,
   RequestableProduct,
   Supplier,
@@ -120,6 +121,74 @@ export async function sendSupplierOrderEmail(input: {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Pulsa price list (mirror in pulsa_items)
+// ─────────────────────────────────────────────────────────────────────
+
+// Trigger a fresh import of the Pulsa CSV feed into pulsa_items.
+export async function triggerPulsaImport(): Promise<{ imported: number }> {
+  const sb = requireSupabase();
+  const { data, error } = await sb.functions.invoke('pulsa-import', { body: {} });
+  if (error) {
+    let detail = error.message;
+    const ctx = (error as { context?: unknown }).context;
+    if (ctx && typeof (ctx as Response).json === 'function') {
+      try { const p = await (ctx as Response).json(); if (p?.error) detail = p.error; } catch { /* keep generic */ }
+    }
+    throw new Error(`Pulsa-Import: ${detail}`);
+  }
+  if (data?.error) throw new Error(`Pulsa-Import: ${data.error}`);
+  return { imported: data?.imported ?? 0 };
+}
+
+// PostgREST in-list value: double-quote + escape embedded quotes so values
+// with commas/spaces don't break the filter.
+function orValue(v: string): string {
+  return `"${v.replace(/"/g, '""')}"`;
+}
+
+// Resolve products against the mirrored Pulsa price list by EAN (preferred)
+// then manufacturer number. Returns a Map productId → PulsaMatch.
+export async function matchPulsaItems(
+  products: Array<{ id: string; ean: string | null; manufacturerSku: string | null }>,
+): Promise<Map<string, PulsaMatch>> {
+  const sb = requireSupabase();
+  const eans = Array.from(new Set(products.map((p) => p.ean).filter(Boolean))) as string[];
+  const skus = Array.from(new Set(products.map((p) => p.manufacturerSku).filter(Boolean))) as string[];
+  if (eans.length === 0 && skus.length === 0) return new Map();
+
+  const filters: string[] = [];
+  if (eans.length) filters.push(`ean.in.(${eans.map(orValue).join(',')})`);
+  if (skus.length) filters.push(`herstellernummer.in.(${skus.map(orValue).join(',')})`);
+
+  const { data, error } = await sb
+    .from('pulsa_items')
+    .select('artikelnummer, name, ean, herstellernummer, ek_net, verfuegbar')
+    .or(filters.join(','));
+  if (error) throw error;
+
+  const byEan = new Map<string, any>();
+  const bySku = new Map<string, any>();
+  for (const r of (data ?? []) as any[]) {
+    if (r.ean) byEan.set(String(r.ean), r);
+    if (r.herstellernummer) bySku.set(String(r.herstellernummer), r);
+  }
+
+  const out = new Map<string, PulsaMatch>();
+  for (const p of products) {
+    const row = (p.ean && byEan.get(p.ean)) || (p.manufacturerSku && bySku.get(p.manufacturerSku)) || null;
+    if (row) {
+      out.set(p.id, {
+        artikelnummer: row.artikelnummer,
+        name: row.name ?? null,
+        ekNet: row.ek_net != null ? Number(row.ek_net) : null,
+        verfuegbar: row.verfuegbar != null ? Number(row.verfuegbar) : null,
+      });
+    }
+  }
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Suppliers
 // ─────────────────────────────────────────────────────────────────────
 
@@ -142,7 +211,7 @@ export async function listRequestableProducts(): Promise<RequestableProduct[]> {
   const sb = requireSupabase();
   const { data, error } = await sb
     .from('products')
-    .select('id, name, code, catalog, supplier_id, alt_supplier_ids, jarltech_item_id, supplier_article_no')
+    .select('id, name, code, catalog, supplier_id, alt_supplier_ids, jarltech_item_id, supplier_article_no, manufacturer_sku, ean')
     .eq('active', true)
     .order('catalog')
     .order('sort');
@@ -156,6 +225,8 @@ export async function listRequestableProducts(): Promise<RequestableProduct[]> {
     altSupplierIds: (r.alt_supplier_ids as string[]) ?? [],
     jarltechItemId: r.jarltech_item_id ?? null,
     supplierArticleNo: r.supplier_article_no ?? null,
+    manufacturerSku: r.manufacturer_sku ?? null,
+    ean: r.ean ?? null,
   }));
 }
 

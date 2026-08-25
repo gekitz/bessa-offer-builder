@@ -50,6 +50,16 @@ export interface RequestableProduct {
   altSupplierIds: string[];       // weitere mögliche Quellen (Doppelquelle)
   jarltechItemId: string | null;  // für Jarltech-Preisabruf
   supplierArticleNo: string | null; // Artikelnr. beim Lieferanten (Bestell-E-Mail)
+  manufacturerSku: string | null;  // Match-Key gegen Pulsa-Preisliste
+  ean: string | null;              // Match-Key gegen Pulsa-Preisliste
+}
+
+// Ein aus der Pulsa-Preisliste (pulsa_items) aufgelöster Treffer.
+export interface PulsaMatch {
+  artikelnummer: string;   // Bestellnummer für die XML
+  name: string | null;
+  ekNet: number | null;    // Einkaufspreis netto
+  verfuegbar: number | null; // Lager (>= N)
 }
 
 // ─────────────────────────────────────────────────────────────────────

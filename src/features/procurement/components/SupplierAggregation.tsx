@@ -3,7 +3,7 @@ import { ArrowLeftRight, Loader2, Lock, PackageCheck, RefreshCw, Send, ShoppingC
 import { cheaperSupplierId, supplierOptionsFor, type AggregatedLine, type SupplierGroup } from '../lib/aggregate';
 import { strategyForMethod } from '../lib/orderStrategies';
 import type { JarltechItemInfo } from '../lib/jarltechNormalize';
-import type { OrderLineDecision, PriceQuote, RequestableProduct, Supplier } from '../types';
+import type { OrderLineDecision, PriceQuote, PulsaMatch, RequestableProduct, Supplier } from '../types';
 
 const parsePrice = (s: string): number | null => {
   if (!s.trim()) return null;
@@ -26,6 +26,8 @@ export default function SupplierAggregation({
   jarltechSupplierId,
   jarltechInfo,
   loadingJarltech,
+  pulsaSupplierId,
+  pulsaByProductId,
   canApiOrder,
   ordering,
   reassigning,
@@ -40,6 +42,8 @@ export default function SupplierAggregation({
   jarltechSupplierId: string | null;
   jarltechInfo: Map<string, JarltechItemInfo>;
   loadingJarltech: boolean;
+  pulsaSupplierId: string | null;
+  pulsaByProductId: Map<string, PulsaMatch>;
   canApiOrder: boolean; // permission for the gated (api) strategy
   ordering: string | null;   // supplierId, während bestellt wird
   reassigning: string | null; // lineKey, während umgestellt wird
@@ -56,16 +60,25 @@ export default function SupplierAggregation({
   const setPrice = (lineKey: string, supplierId: string, v: string) =>
     setPriceByKey((p) => ({ ...p, [priceKey(lineKey, supplierId)]: v }));
 
-  // Jarltech-Info einer Produktzeile (Preis/Lager), falls verknüpft + geladen.
-  function jarltechFor(line: AggregatedLine): JarltechItemInfo | null {
-    const jid = line.productId ? productsById.get(line.productId)?.jarltechItemId : null;
-    return jid ? jarltechInfo.get(jid) ?? null : null;
+  // Auto-Info (Preis/Lager) einer Zeile bei einem Lieferanten, sofern für
+  // diesen Lieferanten Live-Daten vorliegen: Jarltech (API) oder Pulsa
+  // (Preislisten-Spiegel). null, wenn keine Daten.
+  function infoFor(line: AggregatedLine, supplierId: string): { unitPrice: number | null; stock: number | null } | null {
+    if (jarltechSupplierId && supplierId === jarltechSupplierId) {
+      const jid = line.productId ? productsById.get(line.productId)?.jarltechItemId : null;
+      const jt = jid ? jarltechInfo.get(jid) : undefined;
+      return jt ? { unitPrice: jt.unitPrice, stock: jt.stock } : null;
+    }
+    if (pulsaSupplierId && supplierId === pulsaSupplierId) {
+      const pm = line.productId ? pulsaByProductId.get(line.productId) : undefined;
+      return pm ? { unitPrice: pm.ekNet, stock: pm.verfuegbar } : null;
+    }
+    return null;
   }
 
-  // Automatisch vorgeschlagener Preis (nur Jarltech). null, wenn kein Abruf.
+  // Automatisch vorgeschlagener Preis. null, wenn keine Live-Daten.
   function autoPriceFor(line: AggregatedLine, supplierId: string): number | null {
-    if (!jarltechSupplierId || supplierId !== jarltechSupplierId) return null;
-    return jarltechFor(line)?.unitPrice ?? null;
+    return infoFor(line, supplierId)?.unitPrice ?? null;
   }
 
   // Anzeigewert im Eingabefeld: manuelle Eingabe hat Vorrang, sonst der
@@ -220,7 +233,7 @@ export default function SupplierAggregation({
                 const cheapest = hasChoice
                   ? cheaperSupplierId(candidates.map((c) => ({ supplierId: c.id, unitPrice: effectivePrice(line, c.id) })))
                   : null;
-                const jt = jarltechFor(line);
+                const singleStock = sid ? infoFor(line, sid)?.stock ?? null : null;
                 return (
                   <li key={line.key} data-testid="agg-line" className="px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
@@ -244,7 +257,7 @@ export default function SupplierAggregation({
                             value={displayValue(line, sid)}
                             onChange={(v) => setPrice(line.key, sid, v)}
                           />
-                          {sid === jarltechSupplierId && jt && <StockBadge info={jt} />}
+                          {singleStock != null && <StockBadge stock={singleStock} />}
                         </div>
                       )}
                     </div>
@@ -259,7 +272,7 @@ export default function SupplierAggregation({
                           {candidates.map((c) => {
                             const isCurrent = c.id === sid;
                             const isCheapest = c.id === cheapest;
-                            const showStock = c.id === jarltechSupplierId && jt;
+                            const candStock = infoFor(line, c.id)?.stock ?? null;
                             return (
                               <div
                                 key={c.id}
@@ -276,7 +289,7 @@ export default function SupplierAggregation({
                                   placeholder="—"
                                   className="w-16 rounded border border-slate-200 px-1.5 py-0.5 text-xs text-right focus:outline-none focus:ring-1 focus:ring-red-400"
                                 />
-                                {showStock && <StockBadge info={jt!} compact />}
+                                {candStock != null && <StockBadge stock={candStock} compact />}
                                 {isCurrent ? (
                                   <span className="text-[10px] text-slate-400">aktuell</span>
                                 ) : (
@@ -312,17 +325,16 @@ export default function SupplierAggregation({
 }
 
 // Lagerstand-Badge aus Jarltech-Daten. Grün wenn genug auf Lager, sonst amber.
-function StockBadge({ info, compact = false }: { info: JarltechItemInfo; compact?: boolean }) {
-  if (info.stock == null) return null;
-  const ok = info.stock > 0;
+function StockBadge({ stock, compact = false }: { stock: number; compact?: boolean }) {
+  const ok = stock > 0;
   return (
     <span
       className={`text-[10px] px-1.5 py-0.5 rounded-full border whitespace-nowrap ${
         ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'
       }`}
-      title="Jarltech-Lagerstand"
+      title="Lagerstand"
     >
-      {compact ? `${info.stock}` : `Lager: ${info.stock}`}
+      {compact ? `${stock}` : `Lager: ${stock}`}
     </span>
   );
 }

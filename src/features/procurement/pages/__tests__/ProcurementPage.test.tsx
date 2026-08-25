@@ -21,7 +21,7 @@ const SUPPLIERS: Supplier[] = [
 ];
 
 const PRODUCTS: RequestableProduct[] = [
-  { id: 'sunmi-l3', name: 'Sunmi L3', code: 'L3', catalog: 'HARDWARE', supplierId: 's-jarl', altSupplierIds: ['s-pulsa'], jarltechItemId: 'sunmil3jt', supplierArticleNo: null },
+  { id: 'sunmi-l3', name: 'Sunmi L3', code: 'L3', catalog: 'HARDWARE', supplierId: 's-jarl', altSupplierIds: ['s-pulsa'], jarltechItemId: 'sunmil3jt', supplierArticleNo: null, manufacturerSku: 'SUNMI-L3', ean: null },
 ];
 
 function req(id: string, qty: number, requester: string): OrderRequest {
@@ -60,6 +60,8 @@ beforeEach(() => {
   vi.mocked(jarltech.canPlaceJarltechOrder).mockResolvedValue(false);
   vi.mocked(jarltech.placeJarltechOrder).mockResolvedValue({ api_request_id: 60001, message: 'ok' });
   vi.mocked(jarltech.pingJarltech).mockResolvedValue(true);
+  vi.mocked(api.matchPulsaItems).mockResolvedValue(new Map());
+  vi.mocked(api.triggerPulsaImport).mockResolvedValue({ imported: 0 });
 });
 
 describe('ProcurementPage — settings menu', () => {
@@ -153,6 +155,27 @@ describe('ProcurementPage — Einkauf (admin aggregation)', () => {
     expect(locked).toBeDisabled();
   });
 
+  it('prefills the Pulsa price + stock in the compare from the imported price list', async () => {
+    vi.mocked(api.matchPulsaItems).mockResolvedValue(
+      new Map([['sunmi-l3', { artikelnummer: 'PLS-1', name: 'Sunmi L3', ekNet: 296, verfuegbar: 10 }]]),
+    );
+    await gotoEinkauf();
+    await screen.findByTestId('supplier-group');
+    await waitFor(() => {
+      expect((screen.getByLabelText('Preis Pulsa') as HTMLInputElement).value).toBe('296');
+    });
+    expect(screen.getByText('10')).toBeTruthy(); // stock badge
+  });
+
+  it('imports the Pulsa price list from the settings menu', async () => {
+    vi.mocked(api.triggerPulsaImport).mockResolvedValue({ imported: 1234 });
+    await gotoEinkauf();
+    fireEvent.click(screen.getByLabelText('Einstellungen'));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Pulsa-Preisliste aktualisieren/ }));
+    await waitFor(() => expect(api.triggerPulsaImport).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/1234 Artikel importiert/)).toBeInTheDocument();
+  });
+
   it('reassigns a dual-source line to the alternative supplier', async () => {
     await gotoEinkauf();
     await screen.findByTestId('supplier-group');
@@ -196,6 +219,7 @@ describe('ProcurementPage — Orderman email order (strategy: email)', () => {
     id: 'orderman10', name: 'Orderman 10', code: 'OM10', catalog: 'ORDERMAN',
     supplierId: 's-order', altSupplierIds: [], jarltechItemId: null,
     supplierArticleNo: 'OM-ART-9', // Orderman article number → goes in the email
+    manufacturerSku: null, ean: null,
   };
   const OM_REQ: OrderRequest = {
     ...req('o1', 6, 'Anna'), productId: 'orderman10', productName: 'Orderman 10',

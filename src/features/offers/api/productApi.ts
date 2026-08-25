@@ -31,6 +31,9 @@ export interface Product {
   jarltechItemId: string | null;
   // Artikelnummer beim Lieferanten (z. B. Orderman) — für die Bestell-E-Mail.
   supplierArticleNo: string | null;
+  // Match-Schlüssel gegen Lieferanten-Preislisten (z. B. Pulsa).
+  manufacturerSku: string | null;
+  ean: string | null;
 }
 
 export interface ProductInput {
@@ -50,9 +53,11 @@ export interface ProductInput {
   altSupplierIds?: string[];
   jarltechItemId?: string | null;
   supplierArticleNo?: string | null;
+  manufacturerSku?: string | null;
+  ean?: string | null;
 }
 
-const COLS = 'id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, active, sort, supplier_id, alt_supplier_ids, jarltech_item_id, supplier_article_no';
+const COLS = 'id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, active, sort, supplier_id, alt_supplier_ids, jarltech_item_id, supplier_article_no, manufacturer_sku, ean';
 
 function requireSb(): NonNullable<typeof supabase> {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -78,6 +83,8 @@ function rowToProduct(r: Record<string, unknown>): Product {
     altSupplierIds: (r.alt_supplier_ids as string[]) ?? [],
     jarltechItemId: (r.jarltech_item_id as string) ?? null,
     supplierArticleNo: (r.supplier_article_no as string) ?? null,
+    manufacturerSku: (r.manufacturer_sku as string) ?? null,
+    ean: (r.ean as string) ?? null,
   };
 }
 
@@ -115,6 +122,8 @@ export async function updateProduct(
   if (patch.altSupplierIds !== undefined) db.alt_supplier_ids = patch.altSupplierIds;
   if (patch.jarltechItemId !== undefined) db.jarltech_item_id = patch.jarltechItemId;
   if (patch.supplierArticleNo !== undefined) db.supplier_article_no = patch.supplierArticleNo;
+  if (patch.manufacturerSku !== undefined) db.manufacturer_sku = patch.manufacturerSku;
+  if (patch.ean !== undefined) db.ean = patch.ean;
   const { data, error } = await sb.from('products').update(db).eq('id', id).select(COLS).single();
   if (error) throw new Error(error.message);
   return rowToProduct(data);
@@ -147,6 +156,8 @@ export async function createProduct(input: ProductInput): Promise<Product> {
       alt_supplier_ids: input.altSupplierIds ?? [],
       jarltech_item_id: input.jarltechItemId ?? null,
       supplier_article_no: input.supplierArticleNo ?? null,
+      manufacturer_sku: input.manufacturerSku ?? null,
+      ean: input.ean ?? null,
     })
     .select(COLS)
     .single();

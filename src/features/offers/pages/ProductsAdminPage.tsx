@@ -501,6 +501,8 @@ function ProductEditModal({
   const [altSupplierIds, setAltSupplierIds] = useState<string[]>(product?.altSupplierIds ?? []);
   const [jarltechItemId, setJarltechItemId] = useState(product?.jarltechItemId ?? '');
   const [supplierArticleNo, setSupplierArticleNo] = useState(product?.supplierArticleNo ?? '');
+  const [manufacturerSku, setManufacturerSku] = useState(product?.manufacturerSku ?? '');
+  const [ean, setEan] = useState(product?.ean ?? '');
   // SKU-lookup helper: resolve a manufacturer part number → Jarltech id.
   // Prefilled with the product code, which is often the manufacturer SKU.
   const [mfrSku, setMfrSku] = useState(product?.code ?? '');
@@ -585,6 +587,8 @@ function ProductEditModal({
         altSupplierIds: altSupplierIds.filter((id) => id !== supplierId),
         jarltechItemId: jarltechItemId.trim() || null,
         supplierArticleNo: supplierArticleNo.trim() || null,
+        manufacturerSku: manufacturerSku.trim() || null,
+        ean: ean.trim() || null,
         ...(attrs !== undefined ? { attrs } : {}),
       };
       const saved = isNew ? await createProduct(patch) : await updateProduct(product!.id, patch);
@@ -828,6 +832,26 @@ function ProductEditModal({
                 <p className="text-[10px] text-slate-400 mt-1">
                   Suche über die exakte Hersteller-Artikelnummer (nicht den Namen) — liefert genau einen Treffer.
                 </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] text-slate-500 mb-1">Hersteller-Artikelnr. (Match)</label>
+                  <input
+                    value={manufacturerSku}
+                    onChange={(e) => setManufacturerSku(e.target.value)}
+                    placeholder="für Pulsa-Preisliste"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-500 mb-1">EAN (Match)</label>
+                  <input
+                    value={ean}
+                    onChange={(e) => setEan(e.target.value)}
+                    placeholder="für Pulsa-Preisliste"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
+                  />
+                </div>
                 {resolveMsg && (
                   <div className={`text-[11px] mt-1 ${resolveMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>
                     {resolveMsg.text}
