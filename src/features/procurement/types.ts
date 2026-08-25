@@ -49,6 +49,7 @@ export interface RequestableProduct {
   supplierId: string | null;      // bevorzugte Bezugsquelle
   altSupplierIds: string[];       // weitere mögliche Quellen (Doppelquelle)
   jarltechItemId: string | null;  // für Jarltech-Preisabruf
+  supplierArticleNo: string | null; // Artikelnr. beim Lieferanten (Bestell-E-Mail)
 }
 
 // ─────────────────────────────────────────────────────────────────────

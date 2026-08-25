@@ -500,6 +500,7 @@ function ProductEditModal({
   const [supplierId, setSupplierId] = useState(product?.supplierId ?? '');
   const [altSupplierIds, setAltSupplierIds] = useState<string[]>(product?.altSupplierIds ?? []);
   const [jarltechItemId, setJarltechItemId] = useState(product?.jarltechItemId ?? '');
+  const [supplierArticleNo, setSupplierArticleNo] = useState(product?.supplierArticleNo ?? '');
   // SKU-lookup helper: resolve a manufacturer part number → Jarltech id.
   // Prefilled with the product code, which is often the manufacturer SKU.
   const [mfrSku, setMfrSku] = useState(product?.code ?? '');
@@ -583,6 +584,7 @@ function ProductEditModal({
         // Der bevorzugte Lieferant darf nicht doppelt als Alternative zählen.
         altSupplierIds: altSupplierIds.filter((id) => id !== supplierId),
         jarltechItemId: jarltechItemId.trim() || null,
+        supplierArticleNo: supplierArticleNo.trim() || null,
         ...(attrs !== undefined ? { attrs } : {}),
       };
       const saved = isNew ? await createProduct(patch) : await updateProduct(product!.id, patch);
@@ -785,6 +787,15 @@ function ProductEditModal({
                       );
                     })}
                 </div>
+              </div>
+              <div>
+                <label className="block text-[11px] text-slate-500 mb-1">Lieferanten-Artikelnr.</label>
+                <input
+                  value={supplierArticleNo}
+                  onChange={(e) => setSupplierArticleNo(e.target.value)}
+                  placeholder="z. B. Orderman-Art.Nr. — geht in die Bestell-E-Mail"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm font-mono"
+                />
               </div>
               <div>
                 <label className="block text-[11px] text-slate-500 mb-1">Jarltech-Artikelkennung</label>

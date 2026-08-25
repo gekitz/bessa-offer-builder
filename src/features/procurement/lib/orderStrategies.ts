@@ -90,12 +90,17 @@ const emailStrategy: OrderStrategy = {
   split(group) {
     return { orderable: group.lines, blocked: [] };
   },
-  async place({ group, shippingAddress, standortLabel, orderable }) {
-    const items = orderable.map((l) => ({
-      name: l.productName,
-      code: l.productCode ?? undefined,
-      qty: l.totalQty,
-    }));
+  async place({ group, productsById, shippingAddress, standortLabel, orderable }) {
+    const items = orderable.map((l) => {
+      // Prefer the supplier's own article number (e.g. Orderman-Art.Nr.)
+      // so the supplier can identify the item; fall back to our code.
+      const supplierArticleNo = l.productId ? productsById.get(l.productId)?.supplierArticleNo : null;
+      return {
+        name: l.productName,
+        code: supplierArticleNo ?? l.productCode ?? undefined,
+        qty: l.totalQty,
+      };
+    });
     const { to } = await sendSupplierOrderEmail({
       supplierId: group.supplierId!,
       items,

@@ -35,6 +35,7 @@ function makeProduct(over: Partial<productApi.Product>): productApi.Product {
     supplierId: null,
     altSupplierIds: [],
     jarltechItemId: null,
+    supplierArticleNo: null,
     ...over,
   };
 }

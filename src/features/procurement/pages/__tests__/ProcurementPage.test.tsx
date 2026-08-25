@@ -21,7 +21,7 @@ const SUPPLIERS: Supplier[] = [
 ];
 
 const PRODUCTS: RequestableProduct[] = [
-  { id: 'sunmi-l3', name: 'Sunmi L3', code: 'L3', catalog: 'HARDWARE', supplierId: 's-jarl', altSupplierIds: ['s-pulsa'], jarltechItemId: 'sunmil3jt' },
+  { id: 'sunmi-l3', name: 'Sunmi L3', code: 'L3', catalog: 'HARDWARE', supplierId: 's-jarl', altSupplierIds: ['s-pulsa'], jarltechItemId: 'sunmil3jt', supplierArticleNo: null },
 ];
 
 function req(id: string, qty: number, requester: string): OrderRequest {
@@ -195,6 +195,7 @@ describe('ProcurementPage — Orderman email order (strategy: email)', () => {
   const OM_PRODUCT: RequestableProduct = {
     id: 'orderman10', name: 'Orderman 10', code: 'OM10', catalog: 'ORDERMAN',
     supplierId: 's-order', altSupplierIds: [], jarltechItemId: null,
+    supplierArticleNo: 'OM-ART-9', // Orderman article number → goes in the email
   };
   const OM_REQ: OrderRequest = {
     ...req('o1', 6, 'Anna'), productId: 'orderman10', productName: 'Orderman 10',
@@ -221,7 +222,9 @@ describe('ProcurementPage — Orderman email order (strategy: email)', () => {
     await waitFor(() => expect(api.sendSupplierOrderEmail).toHaveBeenCalledTimes(1));
     const arg = vi.mocked(api.sendSupplierOrderEmail).mock.calls[0][0];
     expect(arg.supplierId).toBe('s-order');
-    expect(arg.items).toEqual([{ name: 'Orderman 10', code: 'OM10', qty: 6 }]);
+    // The Orderman article number (supplierArticleNo) is sent as the code,
+    // not our internal product code.
+    expect(arg.items).toEqual([{ name: 'Orderman 10', code: 'OM-ART-9', qty: 6 }]);
     expect(arg.shippingAddress.city).toBe('Klagenfurt');
 
     // Internal PO recorded for the emailed request.

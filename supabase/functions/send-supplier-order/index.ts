@@ -66,7 +66,7 @@ function buildEmail(opts: {
   ].filter(Boolean) as string[];
 
   const itemsText = items
-    .map((i) => `  - ${i.qty}× ${i.code ? `[${i.code}] ` : ""}${i.name}`)
+    .map((i) => `  - ${i.qty}× ${i.name}${i.code ? ` (Art.Nr. ${i.code})` : ""}`)
     .join("\n");
   const text = [
     `Sehr geehrte Damen und Herren,`,
@@ -93,10 +93,15 @@ function buildEmail(opts: {
         `<td style="padding:4px 10px">${esc(i.name ?? "")}</td></tr>`,
     )
     .join("");
+  const header =
+    `<tr style="text-align:left;color:#94a3b8;font-size:12px">` +
+    `<th style="padding:4px 10px;text-align:right">Menge</th>` +
+    `<th style="padding:4px 10px">Art.Nr.</th>` +
+    `<th style="padding:4px 10px">Artikel</th></tr>`;
   const html = `<div style="font-family:system-ui,sans-serif;font-size:14px;color:#0f172a">
 <p>Sehr geehrte Damen und Herren,</p>
 <p>wir möchten folgende Artikel bei <strong>${esc(supplierName)}</strong> bestellen:</p>
-<table style="border-collapse:collapse;margin:8px 0">${itemsRows}</table>
+<table style="border-collapse:collapse;margin:8px 0">${header}${itemsRows}</table>
 <p><strong>Lieferadresse:</strong><br>${addrLines.map(esc).join("<br>")}</p>
 ${note ? `<p><strong>Anmerkung:</strong> ${esc(note)}</p>` : ""}
 <p>Bitte um Auftragsbestätigung an <a href="mailto:${esc(orderedByEmail)}">${esc(orderedByEmail)}</a>.</p>

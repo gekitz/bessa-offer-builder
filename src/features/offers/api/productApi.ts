@@ -29,6 +29,8 @@ export interface Product {
   altSupplierIds: string[];
   // Jarltech-Artikelkennung für die Preis-/Lagerabfrage (jarltech-proxy).
   jarltechItemId: string | null;
+  // Artikelnummer beim Lieferanten (z. B. Orderman) — für die Bestell-E-Mail.
+  supplierArticleNo: string | null;
 }
 
 export interface ProductInput {
@@ -47,9 +49,10 @@ export interface ProductInput {
   supplierId?: string | null;
   altSupplierIds?: string[];
   jarltechItemId?: string | null;
+  supplierArticleNo?: string | null;
 }
 
-const COLS = 'id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, active, sort, supplier_id, alt_supplier_ids, jarltech_item_id';
+const COLS = 'id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, active, sort, supplier_id, alt_supplier_ids, jarltech_item_id, supplier_article_no';
 
 function requireSb(): NonNullable<typeof supabase> {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -74,6 +77,7 @@ function rowToProduct(r: Record<string, unknown>): Product {
     supplierId: (r.supplier_id as string) ?? null,
     altSupplierIds: (r.alt_supplier_ids as string[]) ?? [],
     jarltechItemId: (r.jarltech_item_id as string) ?? null,
+    supplierArticleNo: (r.supplier_article_no as string) ?? null,
   };
 }
 
@@ -110,6 +114,7 @@ export async function updateProduct(
   if (patch.supplierId !== undefined) db.supplier_id = patch.supplierId;
   if (patch.altSupplierIds !== undefined) db.alt_supplier_ids = patch.altSupplierIds;
   if (patch.jarltechItemId !== undefined) db.jarltech_item_id = patch.jarltechItemId;
+  if (patch.supplierArticleNo !== undefined) db.supplier_article_no = patch.supplierArticleNo;
   const { data, error } = await sb.from('products').update(db).eq('id', id).select(COLS).single();
   if (error) throw new Error(error.message);
   return rowToProduct(data);
@@ -141,6 +146,7 @@ export async function createProduct(input: ProductInput): Promise<Product> {
       supplier_id: input.supplierId ?? null,
       alt_supplier_ids: input.altSupplierIds ?? [],
       jarltech_item_id: input.jarltechItemId ?? null,
+      supplier_article_no: input.supplierArticleNo ?? null,
     })
     .select(COLS)
     .single();
