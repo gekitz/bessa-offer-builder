@@ -228,7 +228,10 @@ describe('ProductsAdminPage — Jarltech SKU lookup', () => {
 
 describe('ProductsAdminPage — supplier visibility', () => {
   beforeEach(() => {
-    vi.mocked(procurementApi.listSuppliers).mockResolvedValue([makeSupplier({ id: 's-jarl', name: 'Jarltech' })]);
+    vi.mocked(procurementApi.listSuppliers).mockResolvedValue([
+      makeSupplier({ id: 's-jarl', code: 'jarltech', name: 'Jarltech' }),
+      makeSupplier({ id: 's-pulsa', code: 'pulsa', name: 'Pulsa' }),
+    ]);
     vi.mocked(productApi.listProductsAdmin).mockResolvedValue([
       makeProduct({ id: 'linked', name: 'Linked Prod', catalog: 'HARDWARE', supplierId: 's-jarl' }),
       makeProduct({ id: 'unlinked', name: 'Unlinked Prod', catalog: 'HARDWARE', supplierId: null }),
@@ -264,12 +267,13 @@ describe('ProductsAdminPage — supplier visibility', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Jarltech-Preise laden/ }));
     await waitFor(() => expect(jarltech.fetchJarltechPrices).toHaveBeenCalledWith(['jt123']));
-    expect(await screen.findByText(/JT €/)).toBeInTheDocument();
+    // The Jarltech badge now extends with the price (one badge, not two).
+    expect(await screen.findByText(/Jarltech €/)).toBeInTheDocument();
   });
 
   it('shows the Pulsa Einkaufspreis badge from the imported price list (auto)', async () => {
     vi.mocked(productApi.listProductsAdmin).mockResolvedValue([
-      makeProduct({ id: 'pls', name: 'Pulsa Prod', catalog: 'HARDWARE', supplierId: 's-jarl', manufacturerSku: 'SKU-1' }),
+      makeProduct({ id: 'pls', name: 'Pulsa Prod', catalog: 'HARDWARE', supplierId: 's-jarl', altSupplierIds: ['s-pulsa'], manufacturerSku: 'SKU-1' }),
     ]);
     vi.mocked(procurementApi.matchPulsaItems).mockResolvedValue(
       new Map([['pls', { artikelnummer: 'A1', name: 'x', ekNet: 331.9, verfuegbar: 5 }]]),

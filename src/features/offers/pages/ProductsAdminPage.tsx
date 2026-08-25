@@ -31,6 +31,14 @@ const KINDS: Array<{ value: string; label: string }> = [
 
 const eur = (n: number) => `€${n.toLocaleString('de-AT', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
+// A per-supplier row badge: supplier name, extended with the EK price when
+// we have one. `kind` drives the colour (Jarltech / Pulsa / neutral).
+interface RowBadge {
+  key: string;
+  label: string;
+  kind: 'jarltech' | 'pulsa' | 'other';
+}
+
 function priceSummary(p: ProductPricing): string {
   if (p.tiers) {
     const vals = [p.tiers.y, p.tiers.s, p.tiers.m, p.tiers.e].filter((v): v is number => v != null);
@@ -161,13 +169,36 @@ export default function ProductsAdminPage() {
   }, [products]);
 
   const supplierById = useMemo(
-    () => new Map(suppliers.map((s) => [s.id, s.name])),
+    () => new Map(suppliers.map((s) => [s.id, { name: s.name, code: s.code }])),
     [suppliers],
   );
   const missingCount = useMemo(
     () => products.filter((p) => !p.supplierId).length,
     [products],
   );
+
+  // One badge per linked supplier (preferred + alternatives), each showing
+  // the name and — for suppliers we have a live purchase price for
+  // (Jarltech API / Pulsa list) — extended with that EK price.
+  function rowBadges(p: Product): RowBadge[] {
+    const ids: string[] = [];
+    if (p.supplierId) ids.push(p.supplierId);
+    for (const a of p.altSupplierIds) if (!ids.includes(a)) ids.push(a);
+    return ids.map((id) => {
+      const s = supplierById.get(id);
+      const name = s?.name ?? 'Unbekannt';
+      let price: number | null = null;
+      let kind: RowBadge['kind'] = 'other';
+      if (s?.code === 'jarltech') {
+        kind = 'jarltech';
+        price = p.jarltechItemId ? jtPrices.get(p.jarltechItemId)?.unitPrice ?? null : null;
+      } else if (s?.code === 'pulsa') {
+        kind = 'pulsa';
+        price = pulsaByProductId.get(p.id)?.ekNet ?? null;
+      }
+      return { key: id, kind, label: price != null ? `${name} ${eur(price)}` : name };
+    });
+  }
   // Distinct Jarltech ids across all products — drives the price loader.
   const jarltechLinkedIds = useMemo(
     () => Array.from(new Set(products.filter((p) => p.jarltechItemId).map((p) => p.jarltechItemId!))),
@@ -343,9 +374,7 @@ export default function ProductsAdminPage() {
                             <SortableProductRow
                               key={p.id}
                               product={p}
-                              supplierName={p.supplierId ? supplierById.get(p.supplierId) ?? 'Unbekannt' : null}
-                              jtPrice={p.jarltechItemId ? jtPrices.get(p.jarltechItemId) ?? null : null}
-                              pulsaMatch={pulsaByProductId.get(p.id) ?? null}
+                              badges={rowBadges(p)}
                               draggable={!search.trim() && !onlyMissing}
                               onToggle={toggleActive}
                               onEdit={setEditing}
@@ -378,17 +407,13 @@ export default function ProductsAdminPage() {
 
 function SortableProductRow({
   product: p,
-  supplierName,
-  jtPrice,
-  pulsaMatch,
+  badges,
   draggable,
   onToggle,
   onEdit,
 }: {
   product: Product;
-  supplierName: string | null;
-  jtPrice: JarltechItemInfo | null;
-  pulsaMatch: PulsaMatch | null;
+  badges: RowBadge[];
   draggable: boolean;
   onToggle: (p: Product) => void;
   onEdit: (p: Product) => void;
@@ -421,32 +446,24 @@ function SortableProductRow({
       )}
       {p.code && <span className="font-mono text-xs text-slate-400 w-12 flex-shrink-0">{p.code}</span>}
       <span className="font-medium text-slate-800 truncate flex-1">{p.name}</span>
-      {/* Supplier chip only when set — no chip means no supplier (the header
-          count + "Ohne Lieferant" filter surface the gaps). */}
-      {supplierName && (
+      {/* One badge per linked supplier — name, extended with the EK price
+          where we have one. No badge means no supplier (header count +
+          "Ohne Lieferant" filter surface the gaps). */}
+      {badges.map((b) => (
         <span
-          className="text-[10px] px-1.5 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-slate-500 whitespace-nowrap flex-shrink-0"
-          title={`Lieferant: ${supplierName}`}
+          key={b.key}
+          title={b.label}
+          className={`text-[10px] px-1.5 py-0.5 rounded-full border whitespace-nowrap flex-shrink-0 ${
+            b.kind === 'jarltech'
+              ? 'border-sky-200 bg-sky-50 text-sky-700'
+              : b.kind === 'pulsa'
+                ? 'border-violet-200 bg-violet-50 text-violet-700'
+                : 'border-slate-200 bg-slate-50 text-slate-500'
+          }`}
         >
-          {supplierName}
+          {b.label}
         </span>
-      )}
-      {jtPrice?.unitPrice != null && (
-        <span
-          className="text-[10px] px-1.5 py-0.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 whitespace-nowrap flex-shrink-0 font-mono"
-          title={`Jarltech Einkaufspreis${jtPrice.stock != null ? ` · Lager ${jtPrice.stock}` : ''}`}
-        >
-          JT {eur(jtPrice.unitPrice)}
-        </span>
-      )}
-      {pulsaMatch?.ekNet != null && (
-        <span
-          className="text-[10px] px-1.5 py-0.5 rounded-full border border-violet-200 bg-violet-50 text-violet-700 whitespace-nowrap flex-shrink-0 font-mono"
-          title={`Pulsa Einkaufspreis${pulsaMatch.verfuegbar != null ? ` · Lager ${pulsaMatch.verfuegbar}` : ''}`}
-        >
-          Pulsa {eur(pulsaMatch.ekNet)}
-        </span>
-      )}
+      ))}
       <span className="text-slate-600 font-mono text-xs whitespace-nowrap">{priceSummary(p.pricing)}</span>
       <button
         type="button"
