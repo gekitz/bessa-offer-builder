@@ -158,9 +158,11 @@ serve(async (req: Request) => {
       from: "KITZ Computer + Office GmbH <workspace@kitz.co.at>",
       to: [supplier.order_email],
     };
-    // CC + route replies to the person who placed the order.
+    // CC + route replies to the person who placed the order. Test mails
+    // are sent to the supplier only (no CC) so they mimic a real single-
+    // recipient delivery; real orders still CC the orderer.
     if (orderedByEmail) {
-      payload.cc = [orderedByEmail];
+      if (!test) payload.cc = [orderedByEmail];
       payload.reply_to = orderedByEmail;
     }
 
