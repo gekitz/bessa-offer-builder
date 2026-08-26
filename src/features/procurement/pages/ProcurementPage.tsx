@@ -603,6 +603,11 @@ export default function ProcurementPage() {
         <SupplierOrderModal
           strategy={orderModal.strategy}
           supplierName={orderModal.group.supplierName}
+          recipientEmail={
+            orderModal.group.supplierId
+              ? suppliers.find((s) => s.id === orderModal.group.supplierId)?.orderEmail ?? null
+              : null
+          }
           group={orderModal.group}
           productsById={productsById}
           placing={placingOrder}

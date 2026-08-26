@@ -294,6 +294,8 @@ describe('ProcurementPage — Pulsa XML order (strategy: email_xml)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Einkauf/ }));
 
     fireEvent.click(await screen.findByTestId('auto-order-s-pulsa2'));
+    // The confirm footer shows exactly where the order goes.
+    expect(await screen.findByText(/an den Lieferanten \(info@pulsa\.de\)/)).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: /Stück bestellen/i }));
 
     await waitFor(() => expect(api.sendSupplierOrderXml).toHaveBeenCalledTimes(1));

@@ -42,7 +42,9 @@ export interface OrderStrategy {
   gated: boolean; // requires the binding-order permission (allowlist)
   buttonLabel: string;
   confirmTitle: string;
-  confirmNote: string;
+  // Footer note in the confirm modal; gets the supplier's order recipient
+  // (email suppliers show it, e.g. "… an den Lieferanten (info@pulsa.de) …").
+  confirmNote: (recipientEmail: string | null) => string;
   // Split a group's lines into orderable vs blocked (e.g. missing id).
   split: (group: SupplierGroup, productsById: Map<string, RequestableProduct>) => OrderableSplit;
   // Perform the external action; returns a note/reference for the PO.
@@ -59,7 +61,7 @@ const apiStrategy: OrderStrategy = {
   gated: true,
   buttonLabel: 'Bei Jarltech bestellen',
   confirmTitle: 'Verbindlich bei Jarltech bestellen',
-  confirmNote: 'Die Bestellung ist verbindlich und wird als eine Sendung geliefert (keine Teillieferung).',
+  confirmNote: () => 'Die Bestellung ist verbindlich und wird als eine Sendung geliefert (keine Teillieferung).',
   split(group, productsById) {
     const orderable: AggregatedLine[] = [];
     const blocked: OrderableSplit['blocked'] = [];
@@ -89,7 +91,7 @@ const emailStrategy: OrderStrategy = {
   gated: false,
   buttonLabel: 'Per E-Mail bestellen',
   confirmTitle: 'Bestellung per E-Mail senden',
-  confirmNote: 'Die Bestellung geht per E-Mail an den Lieferanten; du bekommst eine Kopie (CC).',
+  confirmNote: (to) => `Die Bestellung geht per E-Mail an den Lieferanten${to ? ` (${to})` : ''}; du bekommst eine Kopie (CC).`,
   // Email orders don't need a per-item id — every line is orderable.
   split(group) {
     return { orderable: group.lines, blocked: [] };
@@ -125,7 +127,7 @@ const emailXmlStrategy: OrderStrategy = {
   gated: false,
   buttonLabel: 'Per E-Mail bestellen',
   confirmTitle: 'Bestellung als XML senden',
-  confirmNote: 'Die Bestellung geht als XML-Anhang an den Lieferanten; du bekommst eine Kopie (CC).',
+  confirmNote: (to) => `Die Bestellung geht als XML-Anhang an den Lieferanten${to ? ` (${to})` : ''}; du bekommst eine Kopie (CC).`,
   // Needs a Pulsa-Bestellnummer per line (set via "Abgleichen").
   split(group, productsById) {
     const orderable: AggregatedLine[] = [];

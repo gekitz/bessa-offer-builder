@@ -12,6 +12,7 @@ import type { RequestableProduct } from '../types';
 export default function SupplierOrderModal({
   strategy,
   supplierName,
+  recipientEmail,
   group,
   productsById,
   placing,
@@ -20,6 +21,7 @@ export default function SupplierOrderModal({
 }: {
   strategy: OrderStrategy;
   supplierName: string;
+  recipientEmail: string | null;
   group: SupplierGroup;
   productsById: Map<string, RequestableProduct>;
   placing: boolean;
@@ -96,7 +98,7 @@ export default function SupplierOrderModal({
             </div>
           )}
 
-          <p className="text-[11px] text-slate-400">{strategy.confirmNote}</p>
+          <p className="text-[11px] text-slate-400">{strategy.confirmNote(recipientEmail)}</p>
         </div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-100">
