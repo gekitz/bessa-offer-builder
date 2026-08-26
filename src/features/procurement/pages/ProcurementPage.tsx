@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, ClipboardList, Loader2, Plug, RefreshCw, Settings, ShoppingCart, Truck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ClipboardList, Loader2, Plug, RefreshCw, Send, Settings, ShoppingCart, Truck } from 'lucide-react';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { listEmployees } from '../../vacation/api/vacationApi';
@@ -20,6 +20,7 @@ import {
   markPurchaseOrderReceived,
   matchPulsaItems,
   pulsaLastImportedAt,
+  sendSupplierTestMail,
   triggerPulsaImport,
   updateOrderRequest,
 } from '../api/procurementApi';
@@ -309,6 +310,23 @@ export default function ProcurementPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
+  // TEMPORARY: send a Pulsa test mail (with/without XML) to diagnose the
+  // deliverability issue at nv@pulsa.de.
+  const [testMail, setTestMail] = useState<{ status: 'idle' | 'sending' | 'ok' | 'error'; message: string }>({
+    status: 'idle',
+    message: '',
+  });
+  async function handleTestMail(withAttachment: boolean) {
+    if (!pulsaSupplierId) return;
+    setTestMail({ status: 'sending', message: '' });
+    try {
+      const { to } = await sendSupplierTestMail({ supplierId: pulsaSupplierId, withAttachment });
+      setTestMail({ status: 'ok', message: `Testmail (${withAttachment ? 'mit' : 'ohne'} Anhang) an ${to} gesendet.` });
+    } catch (e) {
+      setTestMail({ status: 'error', message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
   // Probe the available Jarltech price lists (metadata). Surfaced in the
   // settings menu so we can see whether a bulk feed exists.
   async function handleShowPriceLists() {
@@ -527,6 +545,41 @@ export default function ProcurementPage() {
                     <div className="px-3 py-2 text-[12px] text-red-600 flex items-start gap-1.5">
                       <AlertCircle size={13} className="flex-shrink-0 mt-0.5" /> <span>{priceListsTest.message}</span>
                     </div>
+                  )}
+                  {pulsaSupplierId && (
+                    <>
+                      <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-slate-400 border-t border-slate-100">Pulsa Zustellungs-Test</div>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => handleTestMail(false)}
+                        disabled={testMail.status === 'sending'}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        {testMail.status === 'sending' ? <Loader2 size={15} className="animate-spin text-slate-400" /> : <Send size={15} className="text-slate-400" />}
+                        Testmail ohne Anhang
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => handleTestMail(true)}
+                        disabled={testMail.status === 'sending'}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        {testMail.status === 'sending' ? <Loader2 size={15} className="animate-spin text-slate-400" /> : <Send size={15} className="text-slate-400" />}
+                        Testmail mit XML-Anhang
+                      </button>
+                      {testMail.status === 'ok' && (
+                        <div className="px-3 py-2 text-[12px] text-emerald-700 flex items-start gap-1.5">
+                          <CheckCircle2 size={13} className="flex-shrink-0 mt-0.5" /> <span>{testMail.message}</span>
+                        </div>
+                      )}
+                      {testMail.status === 'error' && (
+                        <div className="px-3 py-2 text-[12px] text-red-600 flex items-start gap-1.5">
+                          <AlertCircle size={13} className="flex-shrink-0 mt-0.5" /> <span>{testMail.message}</span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
