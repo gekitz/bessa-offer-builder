@@ -696,3 +696,68 @@ describe('leave attachments', () => {
     await expect(getLeaveAttachmentSignedUrl('lr-1/missing.pdf')).rejects.toThrow('not found');
   });
 });
+
+describe('leave lifecycle notifications (notify-leave-event)', () => {
+  const leaveRow = {
+    id: 'lr1', employee_id: 'e1', leave_type_id: 1,
+    start_date: '2026-07-01', end_date: '2026-07-10',
+    half_day_start: false, half_day_end: false,
+    status: 'pending', reason: null, substitute_id: 'sub1',
+  };
+
+  function leaveNotifyCalls() {
+    return invokeMock.mock.calls.filter((c) => c[0] === 'notify-leave-event');
+  }
+
+  it('createLeaveRequest fires event=submitted with the actor as triggeredBy', async () => {
+    fromMock.mockReturnValue(makeChain({ data: leaveRow, error: null }));
+    await createLeaveRequest(
+      { employeeId: 'e1', leaveTypeCode: 'urlaub', startDate: '2026-07-01', endDate: '2026-07-10', substituteId: 'sub1' },
+      { actorId: 'e1' },
+    );
+    const calls = leaveNotifyCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toEqual({ body: { leaveRequestId: 'lr1', event: 'submitted', triggeredBy: 'e1' } });
+  });
+
+  it('createLeaveRequest defaults triggeredBy to the employee when no actor is given', async () => {
+    fromMock.mockReturnValue(makeChain({ data: leaveRow, error: null }));
+    await createLeaveRequest({ employeeId: 'e1', leaveTypeCode: 'urlaub', startDate: '2026-07-01', endDate: '2026-07-10' });
+    expect(leaveNotifyCalls()[0][1]).toEqual({ body: { leaveRequestId: 'lr1', event: 'submitted', triggeredBy: 'e1' } });
+  });
+
+  it('createLeaveRequest with an approver override reports the approver as triggeredBy', async () => {
+    fromMock.mockReturnValue(makeChain({ data: { ...leaveRow, status: 'approved' }, error: null }));
+    await createLeaveRequest(
+      { employeeId: 'e1', leaveTypeCode: 'urlaub', startDate: '2026-07-01', endDate: '2026-07-10' },
+      { actorId: 'gkitz-id', directlyApprove: { decidedBy: 'gkitz-id' } },
+    );
+    expect(leaveNotifyCalls()[0][1]).toEqual({ body: { leaveRequestId: 'lr1', event: 'submitted', triggeredBy: 'gkitz-id' } });
+  });
+
+  it('updateLeaveRequest fires event=updated with the actor', async () => {
+    fromMock.mockReturnValue(makeChain({ data: leaveRow, error: null }));
+    await updateLeaveRequest('lr1', { startDate: '2026-07-02' }, { actorId: 'gkitz-id' });
+    const calls = leaveNotifyCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toEqual({ body: { leaveRequestId: 'lr1', event: 'updated', triggeredBy: 'gkitz-id' } });
+  });
+
+  it('cancelLeaveRequest fires event=cancelled with the actor', async () => {
+    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+    await cancelLeaveRequest('lr1', { actorId: 'gkitz-id' });
+    const calls = leaveNotifyCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toEqual({ body: { leaveRequestId: 'lr1', event: 'cancelled', triggeredBy: 'gkitz-id' } });
+  });
+
+  it('swallows notify errors so the mutation still resolves', async () => {
+    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+    invokeMock.mockRejectedValueOnce(new Error('resend down'));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await expect(cancelLeaveRequest('lr1', { actorId: 'gkitz-id' })).resolves.toBeUndefined();
+    await Promise.resolve();
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+});

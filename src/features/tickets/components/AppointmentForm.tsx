@@ -302,8 +302,8 @@ export default function AppointmentForm({
 
       let saved: Appointment;
       if (isEdit) {
-        saved = await updateAppointment(appointment!.id, input);
-        await setAppointmentAssignees(saved.id, assignees);
+        saved = await updateAppointment(appointment!.id, input, { actorId: currentEmployeeId ?? null });
+        await setAppointmentAssignees(saved.id, assignees, { actorId: currentEmployeeId ?? null });
       } else {
         saved = await createAppointment({ ...input, createdBy: currentEmployeeId ?? null }, assignees);
       }
@@ -321,7 +321,7 @@ export default function AppointmentForm({
     setDeleting(true);
     setError(null);
     try {
-      await deleteAppointment(appointment.id);
+      await deleteAppointment(appointment.id, { actorId: currentEmployeeId ?? null });
       onDeleted?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

@@ -473,7 +473,7 @@ export default function WeekGridView({
         await updateAppointment(appointment.id, {
           startsAt: live.currentStartsAt,
           endsAt: live.currentEndsAt,
-        });
+        }, { actorId: currentEmployeeId ?? null });
         await load();
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));

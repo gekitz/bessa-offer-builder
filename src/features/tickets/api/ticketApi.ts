@@ -57,6 +57,40 @@ function fireNotify(payload: NotifyEvent): void {
     });
 }
 
+// Fire-and-forget notify-appointment-event call. Fans out to the
+// appointment's internal assignees (email + web push) when a Termin is
+// created for them, they're added/removed, it changes, or it's
+// cancelled. Same fire-and-forget contract as fireNotify — the mutation
+// has already committed, so a mail/push outage never surfaces.
+type NotifyAppointmentEvent =
+  | { event: 'created'; appointmentId: string; recipientIds: string[]; triggeredBy?: string | null }
+  | { event: 'assigned'; appointmentId: string; recipientIds: string[]; triggeredBy?: string | null }
+  | { event: 'unassigned'; appointmentId: string; recipientIds: string[]; triggeredBy?: string | null }
+  | { event: 'updated'; appointmentId: string; changedFields: string[]; triggeredBy?: string | null }
+  | {
+      event: 'cancelled';
+      recipientIds: string[];
+      triggeredBy?: string | null;
+      snapshot: { title: string; startsAt: string; endsAt: string; location: string | null; kind: string | null };
+    };
+
+function fireAppointmentNotify(payload: NotifyAppointmentEvent): void {
+  const sb = supabase;
+  if (!sb) return;
+  // Nothing to send when there are no recipients (the actor is the only
+  // assignee, or none at all) — skip the round-trip.
+  if ('recipientIds' in payload && payload.recipientIds.length === 0) return;
+  void sb.functions
+    .invoke('notify-appointment-event', { body: payload })
+    .catch((err) => {
+      console.warn('notify-appointment-event invoke failed:', err);
+    });
+}
+
+// Which appointment fields are worth notifying assignees about when they
+// change. A tweak to internal notes shouldn't ping everyone.
+const NOTIFIABLE_APPOINTMENT_FIELDS = ['startsAt', 'endsAt', 'location', 'status', 'title', 'kind'] as const;
+
 // Best-effort audit comment. The mutation has committed by the time
 // this is called, so failure is logged and otherwise silent — a
 // missing audit row never blocks the user-facing action.
@@ -651,7 +685,7 @@ export async function createAppointment(
     const { error: e2 } = await sb.from('appointment_assignees').insert(rows);
     if (e2) throw e2;
   }
-  // Notify only when the appointment is tied to a customer ticket —
+  // Notify the customer only when the appointment is tied to a ticket —
   // standalone internal termine don't fan out to the customer.
   if (input.ticketId) {
     fireNotify({
@@ -661,10 +695,24 @@ export async function createAppointment(
       triggeredBy: input.createdBy ?? null,
     });
   }
+  // Notify the assigned colleagues that a Termin was put on their
+  // calendar (excludes the creator, handled server-side via triggeredBy).
+  if (assignees.length > 0) {
+    fireAppointmentNotify({
+      event: 'created',
+      appointmentId: appt.id,
+      recipientIds: assignees.map((a) => a.employeeId),
+      triggeredBy: input.createdBy ?? null,
+    });
+  }
   return rowToAppointment(appt);
 }
 
-export async function updateAppointment(id: string, patch: Partial<AppointmentInput>): Promise<Appointment> {
+export async function updateAppointment(
+  id: string,
+  patch: Partial<AppointmentInput>,
+  opts: { actorId?: string | null } = {},
+): Promise<Appointment> {
   const sb = requireSupabase();
   const { data, error } = await sb
     .from('appointments')
@@ -673,30 +721,97 @@ export async function updateAppointment(id: string, patch: Partial<AppointmentIn
     .select(APPOINTMENT_COLS)
     .single();
   if (error) throw error;
+  // Notify current assignees only when a field they care about moved
+  // (time/place/status/…), not on every silent patch. Recipients are
+  // resolved server-side from the current appointment_assignees rows.
+  const changedFields = NOTIFIABLE_APPOINTMENT_FIELDS.filter((f) => patch[f] !== undefined);
+  if (changedFields.length > 0) {
+    fireAppointmentNotify({
+      event: 'updated',
+      appointmentId: id,
+      changedFields,
+      triggeredBy: opts.actorId ?? null,
+    });
+  }
   return rowToAppointment(data);
 }
 
-export async function deleteAppointment(id: string): Promise<void> {
+export async function deleteAppointment(id: string, opts: { actorId?: string | null } = {}): Promise<void> {
   const sb = requireSupabase();
+  // Capture the assignees + a details snapshot BEFORE the row (and its
+  // cascade-deleted assignee rows) are gone, so the notification can
+  // still tell people which Termin was cancelled.
+  const { data: existing } = await sb
+    .from('appointments')
+    .select('title, starts_at, ends_at, location, kind, appointment_assignees(employee_id)')
+    .eq('id', id)
+    .maybeSingle();
   const { error } = await sb.from('appointments').delete().eq('id', id);
   if (error) throw error;
+  if (existing) {
+    const recipientIds = ((existing as any).appointment_assignees ?? [])
+      .map((a: any) => a.employee_id)
+      .filter(Boolean);
+    fireAppointmentNotify({
+      event: 'cancelled',
+      recipientIds,
+      triggeredBy: opts.actorId ?? null,
+      snapshot: {
+        title: (existing as any).title,
+        startsAt: (existing as any).starts_at,
+        endsAt: (existing as any).ends_at,
+        location: (existing as any).location ?? null,
+        kind: (existing as any).kind ?? null,
+      },
+    });
+  }
 }
 
 export async function setAppointmentAssignees(
   appointmentId: string,
   assignees: Array<{ employeeId: string; role?: AssigneeRole }>,
+  opts: { actorId?: string | null } = {},
 ): Promise<void> {
   const sb = requireSupabase();
+  // Read the current assignees first so we can notify precisely the
+  // people who were added / removed rather than pinging the whole set.
+  const { data: before } = await sb
+    .from('appointment_assignees')
+    .select('employee_id')
+    .eq('appointment_id', appointmentId);
+  const previousIds = new Set(((before ?? []) as any[]).map((r) => r.employee_id).filter(Boolean));
+  const nextIds = new Set(assignees.map((a) => a.employeeId));
+
   const { error: e1 } = await sb.from('appointment_assignees').delete().eq('appointment_id', appointmentId);
   if (e1) throw e1;
-  if (assignees.length === 0) return;
-  const rows = assignees.map((a) => ({
-    appointment_id: appointmentId,
-    employee_id: a.employeeId,
-    role: a.role ?? 'techniker',
-  }));
-  const { error: e2 } = await sb.from('appointment_assignees').insert(rows);
-  if (e2) throw e2;
+  if (assignees.length > 0) {
+    const rows = assignees.map((a) => ({
+      appointment_id: appointmentId,
+      employee_id: a.employeeId,
+      role: a.role ?? 'techniker',
+    }));
+    const { error: e2 } = await sb.from('appointment_assignees').insert(rows);
+    if (e2) throw e2;
+  }
+
+  const added = [...nextIds].filter((id) => !previousIds.has(id));
+  const removed = [...previousIds].filter((id) => !nextIds.has(id));
+  if (added.length > 0) {
+    fireAppointmentNotify({
+      event: 'assigned',
+      appointmentId,
+      recipientIds: added,
+      triggeredBy: opts.actorId ?? null,
+    });
+  }
+  if (removed.length > 0) {
+    fireAppointmentNotify({
+      event: 'unassigned',
+      appointmentId,
+      recipientIds: removed,
+      triggeredBy: opts.actorId ?? null,
+    });
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────
