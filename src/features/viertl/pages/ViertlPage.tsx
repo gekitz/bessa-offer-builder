@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Cpu, Download, ExternalLink, FileText, Loader2, Plus, RefreshCw, Search, Send, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Cpu, Download, ExternalLink, FileText, Loader2, Mail, Phone, Plus, RefreshCw, Search, Send, X } from 'lucide-react';
 import { useAuth } from '../../../lib/auth';
 import Select from '../../../components/Select';
 import { addNote, linkOffer, listEvents, listLicenses, notifyViertlClosure, unlinkOffer, updateLicense } from '../api/viertlApi';
@@ -116,6 +116,7 @@ export default function ViertlPage({
   const [statusFilter, setStatusFilter] = useState<ViertlStatus | 'all'>('all');
   const [custFilter, setCustFilter] = useState<ViertlCustomerStatus | 'all'>('all');
   const [hwOnly, setHwOnly] = useState(false);
+  const [noEmailOnly, setNoEmailOnly] = useState(false);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -139,13 +140,14 @@ export default function ViertlPage({
       if (statusFilter !== 'all' && l.status !== statusFilter) return false;
       if (custFilter !== 'all' && l.customerStatus !== custFilter) return false;
       if (hwOnly && !l.hardwareNeeded) return false;
+      if (noEmailOnly && l.email) return false;
       if (q) {
         const hay = `${l.name} ${l.contact ?? ''} ${l.ort ?? ''} ${l.mesonicKdnr} ${l.hardwareModel ?? ''}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [licenses, search, statusFilter, custFilter, hwOnly]);
+  }, [licenses, search, statusFilter, custFilter, hwOnly, noEmailOnly]);
 
   const counts = useMemo(() => {
     const by: Record<string, number> = {};
@@ -227,7 +229,7 @@ export default function ViertlPage({
         <div>
           <h1 className="text-lg font-semibold text-slate-800">Viertl / Gastrotouch</h1>
           <p className="text-xs text-slate-500">
-            {counts.total} Installationen · {counts.open} offen · {counts.done} erledigt · {counts.hw} × neue HW nötig
+            {counts.total} Installationen · {counts.open} offen · {counts.done} erledigt · {counts.hw} × neue HW nötig · {missingEmail.length} ohne E-Mail
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -292,6 +294,15 @@ export default function ViertlPage({
         >
           <Cpu className="w-4 h-4" /> Neue HW nötig
         </button>
+        <button
+          onClick={() => setNoEmailOnly((v) => !v)}
+          title="Nur Kunden ohne hinterlegte E-Mail — die anzurufen sind"
+          className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border ${
+            noEmailOnly ? 'bg-amber-50 border-amber-200 text-amber-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <Phone className="w-4 h-4" /> Ohne E-Mail
+        </button>
       </div>
 
       {/* Body */}
@@ -316,7 +327,7 @@ export default function ViertlPage({
                 <th className="text-left font-medium px-3 py-2">Letztes Update</th>
                 <th className="text-left font-medium px-3 py-2">Hardware</th>
                 <th className="text-left font-medium px-3 py-2">Status</th>
-                <th className="text-left font-medium px-3 py-2">Kunde</th>
+                <th className="text-center font-medium px-3 py-2">E-Mail</th>
               </tr>
             </thead>
             <tbody>
@@ -327,7 +338,14 @@ export default function ViertlPage({
                   className="border-b border-slate-50 hover:bg-indigo-50/40 cursor-pointer"
                 >
                   <td className="px-4 py-2">
-                    <div className="font-medium text-slate-800">{l.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-slate-800">{l.name}</span>
+                      {l.customerStatus !== 'active' && (
+                        <span className={`inline-block px-1.5 py-0.5 rounded-full text-[11px] font-medium ${CUSTOMER_META[l.customerStatus].cls}`}>
+                          {CUSTOMER_META[l.customerStatus].label}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-slate-400">
                       {l.contact ? `${l.contact} · ` : ''}Kd. {l.mesonicKdnr}
                     </div>
@@ -348,10 +366,14 @@ export default function ViertlPage({
                       {STATUS_META[l.status].label}
                     </span>
                   </td>
-                  <td className="px-3 py-2">
-                    {l.customerStatus !== 'active' && (
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${CUSTOMER_META[l.customerStatus].cls}`}>
-                        {CUSTOMER_META[l.customerStatus].label}
+                  <td className="px-3 py-2 text-center">
+                    {l.email ? (
+                      <span className="inline-flex items-center justify-center text-emerald-600" title={l.email}>
+                        <Mail className="w-4 h-4" />
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center justify-center text-amber-500" title="Keine E-Mail – anrufen">
+                        <Phone className="w-4 h-4" />
                       </span>
                     )}
                   </td>
