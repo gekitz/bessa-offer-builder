@@ -76,6 +76,27 @@ async function writeAuditLog(opts: WriteAuditOpts): Promise<void> {
   }
 }
 
+// Fire-and-forget lifecycle notification (submitted / updated /
+// cancelled). Recipients (approvers, substitute, and the employee when
+// someone else acted) are resolved server-side in notify-leave-event.
+// We deliberately do not await so a mail/push outage cannot roll back
+// or fail the mutation — the caller already saw the row change succeed.
+// This is the lifecycle counterpart to notify-leave-decision, which
+// handles the approve/reject outcome.
+function fireLeaveNotify(
+  leaveRequestId: string,
+  event: 'submitted' | 'updated' | 'cancelled',
+  triggeredBy?: string | null,
+): void {
+  const sb = supabase;
+  if (!sb) return;
+  void sb.functions
+    .invoke('notify-leave-event', { body: { leaveRequestId, event, triggeredBy: triggeredBy ?? null } })
+    .catch((err) => {
+      console.warn('notify-leave-event invoke failed:', err);
+    });
+}
+
 // ---------------------------------------------------------
 // Lookup tables
 // ---------------------------------------------------------
@@ -434,6 +455,10 @@ export async function createLeaveRequest(
       overrodeViolations: directly?.overrodeViolations ?? false,
     },
   });
+  // Notify approvers + substitute (and the employee when an approver
+  // entered it on their behalf). For a plain pending request the actor
+  // is the employee themselves and they're suppressed server-side.
+  fireLeaveNotify(created.id, 'submitted', opts.actorId ?? directly?.decidedBy ?? input.employeeId);
   return created;
 }
 
@@ -474,6 +499,7 @@ export async function updateLeaveRequest(
     entityId: id,
     details: { patch },
   });
+  fireLeaveNotify(id, 'updated', opts.actorId ?? null);
   return updated;
 }
 
@@ -537,6 +563,7 @@ export async function cancelLeaveRequest(
     entityType: 'leave_request',
     entityId: id,
   });
+  fireLeaveNotify(id, 'cancelled', opts.actorId ?? null);
 }
 
 // ---------------------------------------------------------
