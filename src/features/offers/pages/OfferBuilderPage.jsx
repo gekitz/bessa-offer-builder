@@ -228,6 +228,9 @@ function OfferBuilderPageInner() {
   // the pending-demand count; requesters just file and forget.
   const openRequestCount = useOpenRequestCount(profile?.role === 'admin');
   const [offerView, setOfferView] = useState('list'); // 'list' | 'builder' | 'followups'
+  // Woher der Builder geöffnet wurde (z. B. aus der Viertl-Ansicht), damit
+  // wir einen Rückweg dorthin anbieten statt nur "Alle Angebote".
+  const [offerOrigin, setOfferOrigin] = useState(null); // null | 'viertl'
   // When set, the FollowUps page picks this up and immediately opens
   // SendFollowupModal for that offer. Driven by the digest deep-link
   // (?action=send-followup&offer=ID); cleared after first render so
@@ -1255,6 +1258,7 @@ function OfferBuilderPageInner() {
       onNavigate={(s) => {
         navigate(pathForSection(s));
         if (s === 'angebote') setOfferView('list');
+        setOfferOrigin(null); // Sidebar-Navigation verwirft den Viertl-Rückweg
       }}
       showBillingToggle={isBillingAdmin}
       billingToggle={billingToggle}
@@ -1294,8 +1298,21 @@ function OfferBuilderPageInner() {
           <div className="no-print border-b border-slate-200 bg-white flex-shrink-0">
             <div className="flex items-center justify-between px-3 py-2 md:px-5 md:py-3">
               <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                {offerOrigin === 'viertl' && (
+                  <>
+                    <button
+                      onClick={() => { setOfferOrigin(null); navigate(pathForSection('viertl')); }}
+                      className="flex items-center gap-1 text-slate-500 hover:text-red-600 transition-colors flex-shrink-0"
+                      style={{ fontSize: 13 }}
+                    >
+                      <ArrowLeft size={16} />
+                      <span className="hidden sm:inline">Zurück zu Viertl</span>
+                    </button>
+                    <span className="text-slate-300 hidden sm:inline">|</span>
+                  </>
+                )}
                 <button
-                  onClick={() => setOfferView('list')}
+                  onClick={() => { setOfferView('list'); setOfferOrigin(null); }}
                   className="flex items-center gap-1 text-slate-500 hover:text-red-600 transition-colors flex-shrink-0"
                   style={{ fontSize: 13 }}
                 >
@@ -1573,11 +1590,12 @@ function OfferBuilderPageInner() {
       {section === 'viertl' && (
         <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
           <ViertlPage
-            onOpenOffer={(offerId) => { navigate(pathForSection('angebote')); handleLoadOffer(offerId); }}
+            onOpenOffer={(offerId) => { setOfferOrigin('viertl'); navigate(pathForSection('angebote')); handleLoadOffer(offerId); }}
             onCreateOffer={(license) => {
               // Neues ATrust-Angebot mit vorbefülltem Kunden; der Rep
               // wählt Positionen + versendet über den normalen (getrackten)
               // Angebotsweg und verknüpft es danach in der Viertl-Ansicht.
+              setOfferOrigin('viertl');
               navigate(pathForSection('angebote'));
               handleNewOffer('pos');
               setCustomer({
