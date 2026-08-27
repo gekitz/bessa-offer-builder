@@ -33,6 +33,7 @@ function rowToLicense(r: any): ViertlLicense {
     plz: r.plz ?? null,
     ort: r.ort ?? null,
     email: r.email ?? null,
+    emailCheckedAt: r.email_checked_at ?? null,
     gastrotouchVersion: r.gastrotouch_version ?? null,
     lastUpdate: r.last_update ?? null,
     hardwareModel: r.hardware_model ?? null,
@@ -207,6 +208,33 @@ export async function notifyViertlClosure(
     throw new Error(msg);
   }
   return data as { ok: true; to: string };
+}
+
+// Ergebnis eines Mesonic-E-Mail-Abrufs festhalten. Stempelt IMMER
+// email_checked_at (damit die Zeile aus dem Backfill-Set fällt, auch wenn
+// Mesonic keine E-Mail kennt) und schreibt die E-Mail nur, wenn gefunden.
+// Die E-Mail-Änderung protokolliert der Audit-Trigger; email_checked_at
+// ist nicht getrackt → keine Log-Flut.
+export async function recordMesonicLookup(
+  licenseId: string,
+  email: string | null,
+  actor: ViertlActor,
+): Promise<ViertlLicense> {
+  const sb = requireSupabase();
+  const row: Record<string, unknown> = {
+    email_checked_at: new Date().toISOString(),
+    updated_by_id: actor.id,
+    updated_by_name: actor.name,
+  };
+  if (email) row.email = email;
+  const { data, error } = await sb
+    .from('viertl_licenses')
+    .update(row)
+    .eq('id', licenseId)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return rowToLicense(data);
 }
 
 // Freitext-Notiz in die Historie schreiben (kein Feld-Diff).
