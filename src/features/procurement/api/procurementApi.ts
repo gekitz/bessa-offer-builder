@@ -250,7 +250,7 @@ export async function sendSupplierOrderXml(input: {
 export async function sendSupplierTestMail(input: {
   supplierId: string;
   withAttachment: boolean;
-}): Promise<{ to: string }> {
+}): Promise<{ to: string; resendId: string | null }> {
   const sb = requireSupabase();
   const base = {
     supplierId: input.supplierId,
@@ -279,7 +279,7 @@ export async function sendSupplierTestMail(input: {
     throw new Error(`Testmail: ${detail}`);
   }
   if (data?.error) throw new Error(`Testmail: ${data.error}`);
-  return { to: data?.to ?? '' };
+  return { to: data?.to ?? '', resendId: data?.resendId ?? null };
 }
 
 // ─────────────────────────────────────────────────────────────────────

@@ -320,8 +320,11 @@ export default function ProcurementPage() {
     if (!pulsaSupplierId) return;
     setTestMail({ status: 'sending', message: '' });
     try {
-      const { to } = await sendSupplierTestMail({ supplierId: pulsaSupplierId, withAttachment });
-      setTestMail({ status: 'ok', message: `Testmail (${withAttachment ? 'mit' : 'ohne'} Anhang) an ${to} gesendet.` });
+      const { to, resendId } = await sendSupplierTestMail({ supplierId: pulsaSupplierId, withAttachment });
+      setTestMail({
+        status: 'ok',
+        message: `Testmail (${withAttachment ? 'mit' : 'ohne'} Anhang) an ${to} gesendet.${resendId ? ` Resend-ID: ${resendId}` : ''}`,
+      });
     } catch (e) {
       setTestMail({ status: 'error', message: e instanceof Error ? e.message : String(e) });
     }
