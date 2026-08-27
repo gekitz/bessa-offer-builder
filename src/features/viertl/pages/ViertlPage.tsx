@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Cpu, Download, ExternalLink, FileText, Loader2, Mail, Phone, Plus, RefreshCw, Search, Send, X } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Cpu, Download, ExternalLink, FileText, Loader2, Mail, Phone, Plus, RefreshCw, Search, Send, X } from 'lucide-react';
 import { useAuth } from '../../../lib/auth';
 import Select from '../../../components/Select';
 import { addNote, linkOffer, listEvents, listLicenses, notifyViertlClosure, unlinkOffer, updateLicense } from '../api/viertlApi';
@@ -128,6 +128,9 @@ export default function ViertlPage({
   const [custFilter, setCustFilter] = useState<ViertlCustomerStatus | 'all'>('all');
   const [hwOnly, setHwOnly] = useState(false);
   const [noEmailOnly, setNoEmailOnly] = useState(false);
+  const [sort, setSort] = useState<{ key: 'name' | 'plz'; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
+  const toggleSort = (key: 'name' | 'plz') =>
+    setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -159,6 +162,22 @@ export default function ViertlPage({
       return true;
     });
   }, [licenses, search, statusFilter, custFilter, hwOnly, noEmailOnly]);
+
+  const sorted = useMemo(() => {
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    const byName = (a: ViertlLicense, b: ViertlLicense) => a.name.localeCompare(b.name, 'de');
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      if (sort.key === 'plz') {
+        // Nach PLZ gruppieren (numerisch), innerhalb einer PLZ immer
+        // alphabetisch nach Name — auch bei absteigender PLZ-Sortierung.
+        const c = (a.plz ?? '').localeCompare(b.plz ?? '', 'de', { numeric: true }) * dir;
+        return c !== 0 ? c : byName(a, b);
+      }
+      return byName(a, b) * dir;
+    });
+    return arr;
+  }, [filtered, sort]);
 
   const counts = useMemo(() => {
     const by: Record<string, number> = {};
@@ -348,8 +367,8 @@ export default function ViertlPage({
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-white border-b border-slate-200 text-xs text-slate-500">
               <tr>
-                <th className="text-left font-medium px-4 py-2">Kunde</th>
-                <th className="text-left font-medium px-3 py-2">Ort</th>
+                <SortHead label="Kunde" className="text-left px-4 py-2" active={sort.key === 'name'} dir={sort.dir} onClick={() => toggleSort('name')} />
+                <SortHead label="Ort" className="text-left px-3 py-2" active={sort.key === 'plz'} dir={sort.dir} onClick={() => toggleSort('plz')} />
                 <th className="text-left font-medium px-3 py-2">Version</th>
                 <th className="text-left font-medium px-3 py-2">Letztes Update</th>
                 <th className="text-left font-medium px-3 py-2">Hardware</th>
@@ -358,7 +377,7 @@ export default function ViertlPage({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((l) => (
+              {sorted.map((l) => (
                 <tr
                   key={l.id}
                   onClick={() => setSelectedId(l.id)}
@@ -840,6 +859,34 @@ function LicenseDetail({
         </div>
       )}
     </div>
+  );
+}
+
+function SortHead({
+  label,
+  active,
+  dir,
+  onClick,
+  className,
+}: {
+  label: string;
+  active: boolean;
+  dir: 'asc' | 'desc';
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <th className={className}>
+      <button
+        onClick={onClick}
+        className={`inline-flex items-center gap-1 font-medium hover:text-slate-700 ${active ? 'text-slate-700' : ''}`}
+      >
+        {label}
+        {active
+          ? (dir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)
+          : <ArrowUpDown className="w-3 h-3 opacity-30" />}
+      </button>
+    </th>
   );
 }
 
