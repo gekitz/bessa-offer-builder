@@ -67,6 +67,11 @@ function offerBadge(status: string): { label: string; cls: string } {
 // erschöpfen den WinLine-Session-Pool und sperren ALLE Mesonic-Zugriffe
 // (auch das CRM). Daher: drosseln, pro Lauf begrenzen, bei Fehlerserie
 // abbrechen statt weiterzuhämmern.
+// Nur zur Anzeige im Bestätigungsdialog. Der tatsächliche Versand nutzt
+// das Server-Secret VIERTL_NOTIFY_EMAIL (in der Edge-Funktion) — diese
+// Konstante muss mit dem Secret übereinstimmen.
+const VIERTL_NOTIFY_EMAIL = 'elsaesser@viertl-edv.com';
+
 const BACKFILL_DELAY_MS = 600;    // Pause zwischen zwei Abrufen
 const BACKFILL_MAX_PER_RUN = 40;  // max. pro Lauf → einfach mehrfach starten
 const BACKFILL_ABORT_AFTER = 5;   // Fehlerserie → Lockout-Schutz
@@ -838,7 +843,7 @@ function LicenseDetail({
             <h3 className="font-semibold text-slate-800">Viertl informieren</h3>
             <p className="mt-1 text-xs text-slate-500">
               E-Mail an Viertl, dass <strong>{license.name}</strong> (Kd. {license.mesonicKdnr}) geschlossen hat.
-              Empfänger ist die hinterlegte Viertl-Adresse.
+              Empfänger: <span className="font-medium text-slate-700">{VIERTL_NOTIFY_EMAIL}</span>
             </p>
             {notifyResult ? (
               <div className="mt-3 flex items-center gap-1.5 text-sm text-emerald-700">
