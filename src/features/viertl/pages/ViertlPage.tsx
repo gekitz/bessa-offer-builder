@@ -61,6 +61,17 @@ function offerBadge(status: string): { label: string; cls: string } {
   }
 }
 
+// Schonender Mesonic-Backfill. Der Proxy loggt sich pro Isolate neu ein
+// und die MDP-WebService-API hat KEINEN Logout (nur ~4–5 min Session-TTL,
+// laut docs/Mesonic_API_Abfrage.md). Zu viele Aufrufe in kurzer Zeit
+// erschöpfen den WinLine-Session-Pool und sperren ALLE Mesonic-Zugriffe
+// (auch das CRM). Daher: drosseln, pro Lauf begrenzen, bei Fehlerserie
+// abbrechen statt weiterzuhämmern.
+const BACKFILL_DELAY_MS = 600;    // Pause zwischen zwei Abrufen
+const BACKFILL_MAX_PER_RUN = 40;  // max. pro Lauf → einfach mehrfach starten
+const BACKFILL_ABORT_AFTER = 5;   // Fehlerserie → Lockout-Schutz
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 function eventActionLabel(type: string): string {
   switch (type) {
     case 'offer_attached':  return 'Angebot verknüpft';
@@ -201,25 +212,38 @@ export default function ViertlPage({
   // Mesonic nachladen. Sequenziell wegen WORKER_LIMIT/30s-Hänger des
   // Mesonic-Proxys; überspringt bereits befüllte Zeilen → wiederholbar.
   const missingEmail = useMemo(() => licenses.filter((l) => !l.email), [licenses]);
-  const [backfill, setBackfill] = useState<{ running: boolean; done: number; total: number; found: number } | null>(null);
+  const [backfill, setBackfill] = useState<{ running: boolean; done: number; total: number; found: number; stopped?: string } | null>(null);
   const abortRef = useRef(false);
 
   const runBackfill = useCallback(async () => {
-    const targets = licenses.filter((l) => !l.email);
+    // Pro Lauf begrenzen, damit ein einzelner Klick den Session-Pool nicht
+    // überlasten kann — bei Bedarf einfach erneut starten.
+    const targets = licenses.filter((l) => !l.email).slice(0, BACKFILL_MAX_PER_RUN);
     abortRef.current = false;
     setBackfill({ running: true, done: 0, total: targets.length, found: 0 });
     let found = 0;
+    let consecutiveFails = 0;
+    let stopped: string | undefined;
     for (let i = 0; i < targets.length; i++) {
-      if (abortRef.current) break;
+      if (abortRef.current) { stopped = 'Abgebrochen.'; break; }
       try {
         const email = await fetchEmail(targets[i]);
         if (email) found++;
+        consecutiveFails = 0;
       } catch {
-        // einzelne Fehlschläge überspringen — Backfill ist wiederholbar
+        consecutiveFails++;
+        if (consecutiveFails >= BACKFILL_ABORT_AFTER) {
+          stopped = `Nach ${BACKFILL_ABORT_AFTER} Fehlern in Folge gestoppt — Mesonic antwortet nicht. Bitte ein paar Minuten warten und erneut starten.`;
+          setBackfill({ running: true, done: i + 1, total: targets.length, found });
+          break;
+        }
       }
       setBackfill({ running: true, done: i + 1, total: targets.length, found });
+      // Drosselung: Aufrufe entzerren, damit der Proxy die warme Session
+      // wiederverwendet statt einen Login-Sturm auszulösen.
+      if (i < targets.length - 1 && !abortRef.current) await sleep(BACKFILL_DELAY_MS);
     }
-    setBackfill((b) => (b ? { ...b, running: false } : b));
+    setBackfill((b) => (b ? { ...b, running: false, stopped } : b));
   }, [licenses, fetchEmail]);
 
   return (
@@ -231,6 +255,9 @@ export default function ViertlPage({
           <p className="text-xs text-slate-500">
             {counts.total} Installationen · {counts.open} offen · {counts.done} erledigt · {counts.hw} × neue HW nötig · {missingEmail.length} ohne E-Mail
           </p>
+          {backfill && !backfill.running && backfill.stopped && (
+            <p className="text-xs text-amber-600 mt-0.5">{backfill.stopped}</p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
@@ -246,9 +273,9 @@ export default function ViertlPage({
               <button
                 onClick={() => void runBackfill()}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
-                title="E-Mails aus Mesonic nachladen (Kd.Nr → Konto)"
+                title={`E-Mails aus Mesonic nachladen (Kd.Nr → Konto). Gedrosselt, max. ${BACKFILL_MAX_PER_RUN} pro Lauf, um Mesonic nicht zu überlasten — bei Bedarf mehrfach starten.`}
               >
-                <Download className="w-4 h-4" /> E-Mails laden ({missingEmail.length})
+                <Download className="w-4 h-4" /> E-Mails laden ({Math.min(missingEmail.length, BACKFILL_MAX_PER_RUN)} von {missingEmail.length})
               </button>
             ) : null
           )}
