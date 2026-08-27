@@ -31,6 +31,10 @@ interface TicketDetailProps {
   ticketId: string;
   onBack: () => void;
   currentEmployeeId?: string | null;
+  // Öffnet das verknüpfte Angebot intern im Builder (funktioniert für jedes
+  // Angebot per ID — unabhängig davon, wer es erstellt hat oder ob ein
+  // öffentlicher share_code existiert).
+  onOpenOffer?: (offerId: string, ticketId: string) => void;
 }
 
 type DetailTab = 'overview' | 'appointments' | 'repair_orders' | 'history';
@@ -83,7 +87,7 @@ const KIND_LABEL: Record<Ticket['kind'], string> = {
   intern: 'Intern',
 };
 
-export default function TicketDetail({ ticketId, onBack, currentEmployeeId = null }: TicketDetailProps) {
+export default function TicketDetail({ ticketId, onBack, currentEmployeeId = null, onOpenOffer }: TicketDetailProps) {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   // share_code of the linked offer (if this ticket came from an accepted
   // offer) — lets us deep-link into the offer via ?s=<code>.
@@ -420,19 +424,35 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
               {ticket.offerId && (
                 <div>
                   <div className="text-xs font-medium text-slate-500">Angebot</div>
-                  {offerShareCode ? (
-                    <a
-                      href={`?s=${encodeURIComponent(offerShareCode)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-red-600 hover:underline"
-                    >
-                      <LinkIcon size={12} />
-                      Angebot ansehen
-                    </a>
-                  ) : (
-                    <div className="text-slate-400">verknüpft</div>
-                  )}
+                  <div className="flex flex-col gap-0.5">
+                    {/* Interner Link — funktioniert immer per Angebots-ID,
+                        egal wer es erstellt hat oder ob ein share_code
+                        existiert. */}
+                    {onOpenOffer ? (
+                      <button
+                        type="button"
+                        onClick={() => onOpenOffer(ticket.offerId!, ticket.id)}
+                        className="inline-flex items-center gap-1 text-red-600 hover:underline"
+                      >
+                        <LinkIcon size={12} />
+                        Angebot öffnen
+                      </button>
+                    ) : (
+                      <div className="text-slate-400">verknüpft</div>
+                    )}
+                    {/* Zusätzlich der öffentliche Annahme-Link, falls vorhanden. */}
+                    {offerShareCode && (
+                      <a
+                        href={`?s=${encodeURIComponent(offerShareCode)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-slate-500 hover:underline text-xs"
+                      >
+                        <LinkIcon size={11} />
+                        Kundenansicht
+                      </a>
+                    )}
+                  </div>
                 </div>
               )}
               <div>

@@ -63,7 +63,13 @@ function parseDetailId(pathname: string): string | null {
   return m ? m[1] : null;
 }
 
-export default function TicketsPage() {
+export default function TicketsPage({
+  onOpenOffer,
+}: {
+  // Öffnet ein verknüpftes Angebot im Angebots-Builder (vom Host gestellt,
+  // der auch den Rückweg zum Ticket kennt).
+  onOpenOffer?: (offerId: string, ticketId: string) => void;
+} = {}) {
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth() as {
@@ -324,6 +330,7 @@ export default function TicketsPage() {
           ticketId={detailId}
           currentEmployeeId={currentEmployeeId}
           onBack={() => navigate('/tickets')}
+          onOpenOffer={onOpenOffer}
         />
       </div>
     );
