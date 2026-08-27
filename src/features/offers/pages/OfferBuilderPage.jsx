@@ -91,6 +91,7 @@ const TicketsPage = lazyWithReload(() => import('../../tickets/pages/TicketsPage
 const DispatcherPage = lazyWithReload(() => import('../../dispatcher/pages/DispatcherPage'));
 const ProductsAdminPage = lazyWithReload(() => import('./ProductsAdminPage'));
 const ProcurementPage = lazyWithReload(() => import('../../procurement/pages/ProcurementPage'));
+const ViertlPage = lazyWithReload(() => import('../../viertl/pages/ViertlPage'));
 import { useApproverPendingCount } from '../../vacation/hooks/useApproverPendingCount';
 import { useMyTicketCount } from '../../tickets/hooks/useMyTicketCount';
 import { useOpenRequestCount } from '../../procurement/hooks/useOpenRequestCount';
@@ -1565,6 +1566,29 @@ function OfferBuilderPageInner() {
       {section === 'bestellungen' && (
         <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
           <ProcurementPage />
+        </React.Suspense>
+      )}
+
+      {/* ═══ VIERTL SECTION ═══ */}
+      {section === 'viertl' && (
+        <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
+          <ViertlPage
+            onOpenOffer={(offerId) => { setSection('angebote'); handleLoadOffer(offerId); }}
+            onCreateOffer={(license) => {
+              // Neues ATrust-Angebot mit vorbefülltem Kunden; der Rep
+              // wählt Positionen + versendet über den normalen (getrackten)
+              // Angebotsweg und verknüpft es danach in der Viertl-Ansicht.
+              handleNewOffer('pos');
+              setCustomer({
+                name: license.contact || '',
+                company: license.name || '',
+                email: license.email || '',
+                phone: '',
+                address: [license.street, [license.plz, license.ort].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+              });
+              setSection('angebote');
+            }}
+          />
         </React.Suspense>
       )}
 

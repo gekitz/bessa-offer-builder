@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar, FileText, Headphones, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, Package, ShoppingCart, Wrench, X } from 'lucide-react';
+import { Calendar, FileText, Headphones, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, Package, ShoppingCart, Wrench, X, KeyRound } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
 // ═══════════════════════════════════════════════════════
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { id: 'kalender',   label: 'Kalender',   icon: Calendar },
   { id: 'tickets',    label: 'Tickets',    icon: Wrench },
   { id: 'bestellungen', label: 'Bestellungen', icon: ShoppingCart },
+  { id: 'viertl',     label: 'Viertl',     icon: KeyRound },
   { id: 'produkte',   label: 'Produkte',   icon: Package, adminOnly: true },
 ];
 
