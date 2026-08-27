@@ -37,6 +37,7 @@ export interface ViertlLicense {
   plz: string | null;
   ort: string | null;
   email: string | null;
+  emailCheckedAt: string | null;    // wann zuletzt aus Mesonic geprüft (auch wenn leer)
   gastrotouchVersion: string | null;
   lastUpdate: string | null;        // ISO date (YYYY-MM-DD)
   hardwareModel: string | null;

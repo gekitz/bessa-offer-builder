@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Cpu, Download, ExternalLink, FileText, Loader2, Mail, Phone, Plus, RefreshCw, Search, Send, X } from 'lucide-react';
 import { useAuth } from '../../../lib/auth';
 import Select from '../../../components/Select';
-import { addNote, linkOffer, listEvents, listLicenses, notifyViertlClosure, unlinkOffer, updateLicense } from '../api/viertlApi';
+import { addNote, linkOffer, listEvents, listLicenses, notifyViertlClosure, recordMesonicLookup, unlinkOffer, updateLicense } from '../api/viertlApi';
 import { fetchMesonicContact } from '../lib/mesonicContact';
 import { getOfferSummary, offerImpliesStatus, suggestOffersForLicense, type OfferSummary } from '../lib/offerLink';
 import type {
@@ -200,15 +200,16 @@ export default function ViertlPage({
   );
 
   // E-Mail einer einzelnen Installation aus Mesonic ziehen (Kd.Nr → Konto).
+  // Markiert die Zeile immer als geprüft (email_checked_at), damit der
+  // Backfill weiterrückt — auch wenn Mesonic keine E-Mail kennt.
   const fetchEmail = useCallback(
     async (license: ViertlLicense): Promise<string | null> => {
       const { email } = await fetchMesonicContact(license.mesonicKdnr);
-      if (email && email !== license.email) {
-        await applyPatch(license.id, { email });
-      }
+      const updated = await recordMesonicLookup(license.id, email, actor);
+      setLicenses((prev) => prev.map((l) => (l.id === license.id ? updated : l)));
       return email;
     },
-    [applyPatch],
+    [actor],
   );
 
   // Angebot ver-/entknüpfen (spiegelt Sende-/Öffnungsstatus in Viertl).
@@ -227,17 +228,25 @@ export default function ViertlPage({
     [actor],
   );
 
-  // Bulk-Backfill (Admin): alle Installationen ohne E-Mail sequenziell aus
-  // Mesonic nachladen. Sequenziell wegen WORKER_LIMIT/30s-Hänger des
-  // Mesonic-Proxys; überspringt bereits befüllte Zeilen → wiederholbar.
+  // Bulk-Backfill (Admin): Installationen ohne E-Mail sequenziell aus
+  // Mesonic nachladen. Sequenziell + gedrosselt (Session-Pool). Ziel sind
+  // NUR noch nicht geprüfte Zeilen (email_checked_at IS NULL) — so rückt
+  // der Backfill weiter, statt bei E-Mail-losen Kunden festzuhängen.
   const missingEmail = useMemo(() => licenses.filter((l) => !l.email), [licenses]);
+  const uncheckedMissing = useMemo(
+    () => licenses.filter((l) => !l.email && !l.emailCheckedAt),
+    [licenses],
+  );
   const [backfill, setBackfill] = useState<{ running: boolean; done: number; total: number; found: number; stopped?: string } | null>(null);
   const abortRef = useRef(false);
 
-  const runBackfill = useCallback(async () => {
+  // recheckAll=true prüft auch schon geprüfte E-Mail-lose Zeilen erneut
+  // (z. B. nachdem in Mesonic E-Mails nachgepflegt wurden).
+  const runBackfill = useCallback(async (recheckAll = false) => {
+    const pool = licenses.filter((l) => !l.email && (recheckAll || !l.emailCheckedAt));
     // Pro Lauf begrenzen, damit ein einzelner Klick den Session-Pool nicht
     // überlasten kann — bei Bedarf einfach erneut starten.
-    const targets = licenses.filter((l) => !l.email).slice(0, BACKFILL_MAX_PER_RUN);
+    const targets = pool.slice(0, BACKFILL_MAX_PER_RUN);
     abortRef.current = false;
     setBackfill({ running: true, done: 0, total: targets.length, found: 0 });
     let found = 0;
@@ -272,7 +281,7 @@ export default function ViertlPage({
         <div>
           <h1 className="text-lg font-semibold text-slate-800">Viertl / Gastrotouch</h1>
           <p className="text-xs text-slate-500">
-            {counts.total} Installationen · {counts.open} offen · {counts.done} erledigt · {counts.hw} × neue HW nötig · {missingEmail.length} ohne E-Mail
+            {counts.total} Installationen · {counts.open} offen · {counts.done} erledigt · {counts.hw} × neue HW nötig · {missingEmail.length} ohne E-Mail{uncheckedMissing.length > 0 ? ` (${uncheckedMissing.length} noch nicht geprüft)` : ''}
           </p>
           {backfill && !backfill.running && backfill.stopped && (
             <p className="text-xs text-amber-600 mt-0.5">{backfill.stopped}</p>
@@ -288,13 +297,21 @@ export default function ViertlPage({
                 <Loader2 className="w-4 h-4 animate-spin" />
                 {backfill.done}/{backfill.total} · {backfill.found} gefunden — Stopp
               </button>
-            ) : missingEmail.length > 0 ? (
+            ) : uncheckedMissing.length > 0 ? (
               <button
                 onClick={() => void runBackfill()}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
-                title={`E-Mails aus Mesonic nachladen (Kd.Nr → Konto). Gedrosselt, max. ${BACKFILL_MAX_PER_RUN} pro Lauf, um Mesonic nicht zu überlasten — bei Bedarf mehrfach starten.`}
+                title={`E-Mails aus Mesonic nachladen (Kd.Nr → Konto). Gedrosselt, max. ${BACKFILL_MAX_PER_RUN} pro Lauf, um Mesonic nicht zu überlasten — bei Bedarf mehrfach starten. Prüft nur noch nicht geprüfte Zeilen.`}
               >
-                <Download className="w-4 h-4" /> E-Mails laden ({Math.min(missingEmail.length, BACKFILL_MAX_PER_RUN)} von {missingEmail.length})
+                <Download className="w-4 h-4" /> E-Mails laden ({Math.min(uncheckedMissing.length, BACKFILL_MAX_PER_RUN)} von {uncheckedMissing.length})
+              </button>
+            ) : missingEmail.length > 0 ? (
+              <button
+                onClick={() => void runBackfill(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
+                title="Alle E-Mail-losen Kunden wurden bereits geprüft (Mesonic kennt keine E-Mail). Erneut prüfen — z. B. nachdem in Mesonic E-Mails nachgepflegt wurden."
+              >
+                <RefreshCw className="w-4 h-4" /> {missingEmail.length} ohne E-Mail erneut prüfen
               </button>
             ) : null
           )}
@@ -418,7 +435,10 @@ export default function ViertlPage({
                         <Mail className="w-4 h-4" />
                       </span>
                     ) : (
-                      <span className="inline-flex items-center justify-center text-amber-500" title="Keine E-Mail – anrufen">
+                      <span
+                        className="inline-flex items-center justify-center text-amber-500"
+                        title={l.emailCheckedAt ? 'In Mesonic keine E-Mail hinterlegt – anrufen' : 'Noch nicht aus Mesonic geprüft'}
+                      >
                         <Phone className="w-4 h-4" />
                       </span>
                     )}
