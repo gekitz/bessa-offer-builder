@@ -1573,11 +1573,12 @@ function OfferBuilderPageInner() {
       {section === 'viertl' && (
         <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
           <ViertlPage
-            onOpenOffer={(offerId) => { setSection('angebote'); handleLoadOffer(offerId); }}
+            onOpenOffer={(offerId) => { navigate(pathForSection('angebote')); handleLoadOffer(offerId); }}
             onCreateOffer={(license) => {
               // Neues ATrust-Angebot mit vorbefülltem Kunden; der Rep
               // wählt Positionen + versendet über den normalen (getrackten)
               // Angebotsweg und verknüpft es danach in der Viertl-Ansicht.
+              navigate(pathForSection('angebote'));
               handleNewOffer('pos');
               setCustomer({
                 name: license.contact || '',
@@ -1586,7 +1587,6 @@ function OfferBuilderPageInner() {
                 phone: '',
                 address: [license.street, [license.plz, license.ort].filter(Boolean).join(' ')].filter(Boolean).join(', '),
               });
-              setSection('angebote');
             }}
           />
         </React.Suspense>
