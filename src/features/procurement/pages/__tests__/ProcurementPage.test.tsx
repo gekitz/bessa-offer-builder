@@ -63,7 +63,7 @@ beforeEach(() => {
   vi.mocked(api.matchPulsaItems).mockResolvedValue(new Map());
   vi.mocked(api.triggerPulsaImport).mockResolvedValue({ imported: 0 });
   vi.mocked(api.pulsaLastImportedAt).mockResolvedValue(null);
-  vi.mocked(api.sendSupplierTestMail).mockResolvedValue({ to: 'nv@pulsa.de' });
+  vi.mocked(api.sendSupplierTestMail).mockResolvedValue({ to: 'nv@pulsa.de', resendId: 're_test' });
 });
 
 describe('ProcurementPage — settings menu', () => {
