@@ -20,12 +20,51 @@ const corsHeaders = {
 };
 
 // ─── Mesonic session ───
-// Note: Supabase Edge Functions are stateless — each invocation may run
-// in a different isolate. We keep a session cache that works within a
-// single isolate's lifetime, but always fall back to fresh login.
+// Supabase Edge Functions are stateless — each invocation may run in a
+// different, freshly-spawned isolate. A per-isolate cache alone means
+// nearly every call cold-logs-in; under load that storms WinLine's small
+// CRM_API session pool (there is NO logout endpoint, sessions only expire
+// via ~4-5 min TTL) and locks out ALL Mesonic access.
+//
+// Fix: a shared session cache in Postgres (table `mesonic_session`) so ALL
+// isolates reuse ONE session — at most ~1 login per SESSION_MAX_AGE window.
+// The per-isolate vars stay as a fast path; every DB access is best-effort
+// and falls back to a plain login, so a cache hiccup can't regress behaviour.
 let mesonicSession: string | null = null;
 let sessionTimestamp = 0;
 const SESSION_MAX_AGE_MS = 4 * 60 * 1000; // re-login after 4 min (WinLine timeout is ~5 min)
+
+// Service-role client for the shared session cache (bypasses RLS).
+const sessionStore = (() => {
+  try {
+    const url = Deno.env.get("SUPABASE_URL");
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !key) return null;
+    return createClient(url, key);
+  } catch {
+    return null;
+  }
+})();
+
+async function loadSharedSession(): Promise<{ session: string; ageMs: number } | null> {
+  if (!sessionStore) return null;
+  try {
+    const { data } = await sessionStore
+      .from("mesonic_session").select("session, created_at").eq("id", 1).maybeSingle();
+    if (data?.session) {
+      return { session: data.session, ageMs: Date.now() - new Date(data.created_at).getTime() };
+    }
+  } catch (_e) { /* fall back to login */ }
+  return null;
+}
+
+async function saveSharedSession(session: string): Promise<void> {
+  if (!sessionStore) return;
+  try {
+    await sessionStore.from("mesonic_session")
+      .upsert({ id: 1, session, created_at: new Date().toISOString() });
+  } catch (_e) { /* best-effort */ }
+}
 
 function getMesonicConfig() {
   const url = Deno.env.get("MESONIC_URL"); // e.g. https://mesonic.kitz.co.at
@@ -81,14 +120,23 @@ async function mesonicLogin(): Promise<string> {
   console.log("[mesonic] logged in, session:", session.substring(0, 8) + "...");
   mesonicSession = session;
   sessionTimestamp = Date.now();
+  await saveSharedSession(session); // allen anderen Isolates verfügbar machen
   return session;
 }
 
 // ─── Get or refresh session ───
+// Order: fast in-isolate cache → shared DB cache (another isolate's live
+// session) → fresh login. This keeps total logins to ~1 per window.
 async function getSession(): Promise<string> {
   const age = Date.now() - sessionTimestamp;
   if (mesonicSession && age < SESSION_MAX_AGE_MS) {
     return mesonicSession;
+  }
+  const shared = await loadSharedSession();
+  if (shared && shared.ageMs < SESSION_MAX_AGE_MS) {
+    mesonicSession = shared.session;
+    sessionTimestamp = Date.now() - shared.ageMs;
+    return shared.session;
   }
   return await mesonicLogin();
 }
