@@ -296,8 +296,8 @@ function ArticleExplorer() {
 // die Datensätze EINES Kunden liefert, ist die richtige Zuordnung.
 function KundenArtikelTester() {
   const [listName, setListName] = useState('KundenArtikel');
-  const [filterName, setFilterName] = useState('KundenArtikel');
-  const [konto, setKonto] = useState('236000');
+  const [filterName, setFilterName] = useState(''); // leer = kein Filter= (Datenquelle direkt)
+  const [konto, setKonto] = useState('272765');
   const [datum, setDatum] = useState('01.01.2020');
   const [preis, setPreis] = useState('0');
   const [customWhere, setCustomWhere] = useState('');
