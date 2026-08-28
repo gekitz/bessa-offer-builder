@@ -41,6 +41,19 @@ let mesonicSession: string | null = null;
 let sessionTimestamp = 0;
 const SESSION_MAX_AGE_MS = 50 * 60 * 1000; // re-login after 50 min (TTL is 1 h, sliding)
 
+// fetch mit Timeout — verhindert, dass ein hängender WinLine-Call den
+// Edge-Isolate blockiert und dadurch Sessions "in Verwendung" hält
+// (häufigste Ursache für schleichende Pool-Erschöpfung beim Testen).
+async function fetchTimeout(url: string, ms = 25000): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 // Service-role client for the shared session cache (bypasses RLS).
 const sessionStore = (() => {
   try {
@@ -93,7 +106,7 @@ async function mesonicLogin(): Promise<string> {
   const loginUrl = `${cfg.url}/ewlservice/login?user=${encodeURIComponent(cfg.user)}&password=${encodeURIComponent(cfg.password)}&company=${encodeURIComponent(cfg.company)}`;
 
   console.log("[mesonic] logging in...");
-  const res = await fetch(loginUrl);
+  const res = await fetchTimeout(loginUrl);
   const text = await res.text();
 
   if (!res.ok) {
@@ -138,7 +151,7 @@ async function mesonicLogout(session: string | null | undefined): Promise<void> 
   if (!session) return;
   try {
     const cfg = getMesonicConfig();
-    await fetch(`${cfg.url}/ewlservice/logout?Session=${encodeURIComponent(session)}`);
+    await fetchTimeout(`${cfg.url}/ewlservice/logout?Session=${encodeURIComponent(session)}`, 5000);
     console.log("[mesonic] logged out session:", session.substring(0, 8) + "...");
   } catch (_e) { /* best-effort */ }
 }
@@ -194,7 +207,7 @@ async function mesonicExport(params: {
     const keyEncoded = params.key.replace(/ /g, '%20').replace(/'/g, '%27');
     const url = `${cfg.url}/ewlservice/export?${baseParams.toString()}&Key=${keyEncoded}`;
     console.log(`[mesonic] export URL: ${url}`);
-    const res = await fetch(url);
+    const res = await fetchTimeout(url);
     return await res.text();
   };
 
@@ -251,7 +264,7 @@ async function mesonicList(params: {
       url += `&Where=${w}`;
     }
     console.log(`[mesonic] list URL: ${url.replace(session, session.substring(0, 8) + "...")}`);
-    const res = await fetch(url);
+    const res = await fetchTimeout(url);
     return await res.text();
   };
 
@@ -498,7 +511,7 @@ serve(async (req: Request) => {
       const loginUrl = `${cfg.url}/ewlservice/login?user=${encodeURIComponent(cfg.user)}&password=${encodeURIComponent(cfg.password)}&company=${encodeURIComponent(cfg.company)}`;
       steps.push({ step: "login_url", url: loginUrl.replace(encodeURIComponent(cfg.password), "***") });
 
-      const loginRes = await fetch(loginUrl);
+      const loginRes = await fetchTimeout(loginUrl);
       const loginText = await loginRes.text();
       steps.push({ step: "login_response", status: loginRes.status, body: loginText });
 
