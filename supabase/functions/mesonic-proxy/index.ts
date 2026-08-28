@@ -24,15 +24,22 @@ const corsHeaders = {
 // different, freshly-spawned isolate. A per-isolate cache alone means
 // nearly every call cold-logs-in; under load that storms WinLine's small
 // CRM_API session pool (there is NO logout endpoint, sessions only expire
-// via ~4-5 min TTL) and locks out ALL Mesonic access.
+// via TTL) and locks out ALL Mesonic access.
 //
 // Fix: a shared session cache in Postgres (table `mesonic_session`) so ALL
 // isolates reuse ONE session — at most ~1 login per SESSION_MAX_AGE window.
 // The per-isolate vars stay as a fast path; every DB access is best-effort
 // and falls back to a plain login, so a cache hiccup can't regress behaviour.
+//
+// White Paper §3.1/§3.2: the WinLine session TTL is **1 hour** (sliding —
+// reset on every command; configurable via MaxHTTPSessionKeepAliveTime),
+// and there IS a **logout** endpoint. The old 4-min re-login (based on a
+// wrong "~5 min timeout" guess) was the real leak: it abandoned a fresh
+// session every 4 min, each living a FULL HOUR → pool exhaustion. We now
+// keep a session ~50 min and explicitly log out the one we replace.
 let mesonicSession: string | null = null;
 let sessionTimestamp = 0;
-const SESSION_MAX_AGE_MS = 4 * 60 * 1000; // re-login after 4 min (WinLine timeout is ~5 min)
+const SESSION_MAX_AGE_MS = 50 * 60 * 1000; // re-login after 50 min (TTL is 1 h, sliding)
 
 // Service-role client for the shared session cache (bypasses RLS).
 const sessionStore = (() => {
@@ -124,6 +131,18 @@ async function mesonicLogin(): Promise<string> {
   return session;
 }
 
+// ─── Mesonic logout (White Paper §3.2) — Session sauber beenden ───
+// Best-effort: gibt den WinLine-Pool-Slot sofort frei, statt ihn bis zum
+// 1-h-TTL blockieren zu lassen.
+async function mesonicLogout(session: string | null | undefined): Promise<void> {
+  if (!session) return;
+  try {
+    const cfg = getMesonicConfig();
+    await fetch(`${cfg.url}/ewlservice/logout?Session=${encodeURIComponent(session)}`);
+    console.log("[mesonic] logged out session:", session.substring(0, 8) + "...");
+  } catch (_e) { /* best-effort */ }
+}
+
 // ─── Get or refresh session ───
 // Order: fast in-isolate cache → shared DB cache (another isolate's live
 // session) → fresh login. This keeps total logins to ~1 per window.
@@ -138,6 +157,9 @@ async function getSession(): Promise<string> {
     sessionTimestamp = Date.now() - shared.ageMs;
     return shared.session;
   }
+  // Beide abgelaufen → die alte Session abmelden, bevor eine neue erzeugt
+  // wird (sonst blockiert sie den Pool bis zu 1 h). Selten (~1× pro 50 min).
+  await mesonicLogout(shared?.session ?? mesonicSession);
   return await mesonicLogin();
 }
 
