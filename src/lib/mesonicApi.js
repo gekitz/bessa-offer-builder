@@ -105,6 +105,25 @@ export async function mesonicExport(type, template, key) {
   return proxyRequest({ action: 'export', type, template, key });
 }
 
+// ─── Named WinLine LIST (e.g. KundenArtikel) — White Paper §3.8 ───
+// Selektion über opts: filter | where | datasourceSel1..4 (Sel1/2 = Text,
+// Sel3/4 = numerisch) | companyYear. Gibt bei OutputFormat=json { data }
+// zurück. `name` ist der WinLine-Listenname.
+export async function mesonicList(name, opts = {}) {
+  return proxyRequest({
+    action: 'list',
+    name,
+    outputFormat: opts.outputFormat ?? 'json',
+    filter: opts.filter,
+    where: opts.where,
+    datasourceSel1: opts.datasourceSel1,
+    datasourceSel2: opts.datasourceSel2,
+    datasourceSel3: opts.datasourceSel3,
+    datasourceSel4: opts.datasourceSel4,
+    companyYear: opts.companyYear,
+  });
+}
+
 // ─── Generic export (raw XML) ───
 export async function mesonicExportRaw(type, template, key) {
   const { data: { session } } = await supabase.auth.getSession();

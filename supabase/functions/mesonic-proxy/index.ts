@@ -193,6 +193,58 @@ async function mesonicExport(params: {
   return text;
 }
 
+// ─── Mesonic LIST (named WinLine list, e.g. KundenArtikel) ───
+// White Paper §3.8. Selektion über Filter / DatasourceSel1..4 / Where.
+// Sel1+Sel2 = Textselektion, Sel3+Sel4 = numerische Selektion.
+async function mesonicList(params: {
+  name: string;
+  outputFormat?: string;   // 'json' (default) | 'pdf'
+  filter?: string;         // Filtername oder 'NOFILTER'
+  where?: string;          // SQL-Where (braucht AllowWhereStatementInWebService=1)
+  datasourceSel1?: string;
+  datasourceSel2?: string;
+  datasourceSel3?: string;
+  datasourceSel4?: string;
+  companyYear?: string;
+}): Promise<string> {
+  const cfg = getMesonicConfig();
+
+  const doList = async (session: string) => {
+    const qp = new URLSearchParams({
+      Session: session,
+      Name: params.name,
+      OutputFormat: params.outputFormat ?? "json",
+    });
+    if (params.filter) qp.set("Filter", params.filter);
+    if (params.companyYear) qp.set("CompanyYear", params.companyYear);
+    if (params.datasourceSel1 != null) qp.set("DatasourceSel1", params.datasourceSel1);
+    if (params.datasourceSel2 != null) qp.set("DatasourceSel2", params.datasourceSel2);
+    if (params.datasourceSel3 != null) qp.set("DatasourceSel3", params.datasourceSel3);
+    if (params.datasourceSel4 != null) qp.set("DatasourceSel4", params.datasourceSel4);
+    let url = `${cfg.url}/ewlservice/LIST?${qp.toString()}`;
+    // Where bewusst NICHT über URLSearchParams encoden — WinLine braucht
+    // Klammern/Hochkommas im Ausdruck (analog zum Export-Key).
+    if (params.where) {
+      const w = params.where.replace(/ /g, "%20").replace(/'/g, "%27");
+      url += `&Where=${w}`;
+    }
+    console.log(`[mesonic] list URL: ${url.replace(session, session.substring(0, 8) + "...")}`);
+    const res = await fetch(url);
+    return await res.text();
+  };
+
+  console.log(`[mesonic] list Name=${params.name}`);
+  let session = await getSession();
+  let text = await doList(session);
+  if (isSessionError(text)) {
+    console.log("[mesonic] session invalid, forcing fresh login...");
+    mesonicSession = null;
+    session = await mesonicLogin();
+    text = await doList(session);
+  }
+  return text;
+}
+
 // ─── Wrap an import record in the MESOWebService envelope ───
 // The import XSD's root element is <MESOWebService TemplateType Template>
 // containing the record element(s). The export RESPONSE uses the same envelope.
@@ -497,6 +549,44 @@ serve(async (req: Request) => {
       const rawXml = await mesonicExport({ type, template, key });
       return new Response(rawXml, {
         headers: { ...corsHeaders, "Content-Type": "text/xml; charset=utf-8" },
+      });
+    }
+
+    // ── LIST (named WinLine list, e.g. KundenArtikel) ──
+    if (action === "list") {
+      const { name, outputFormat, filter, where,
+        datasourceSel1, datasourceSel2, datasourceSel3, datasourceSel4, companyYear } = body;
+      if (!name) {
+        return new Response(
+          JSON.stringify({ error: "Missing required field: name" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const text = await mesonicList({
+        name, outputFormat, filter, where,
+        datasourceSel1, datasourceSel2, datasourceSel3, datasourceSel4, companyYear,
+      });
+
+      const fmt = String(outputFormat ?? "json").toLowerCase();
+      if (fmt === "json") {
+        try {
+          const parsed = JSON.parse(text);
+          return new Response(
+            JSON.stringify({ data: parsed }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        } catch {
+          // Kein valides JSON → i. d. R. eine XML-Fehler-/Leer-Antwort von WinLine.
+          return new Response(
+            JSON.stringify({ error: "Kein JSON von Mesonic (evtl. Fehler oder leeres Ergebnis).", raw: text.substring(0, 4000) }),
+            { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+      // pdf / andere Formate → Rohtext durchreichen
+      return new Response(text, {
+        headers: { ...corsHeaders, "Content-Type": "text/plain; charset=utf-8" },
       });
     }
 
