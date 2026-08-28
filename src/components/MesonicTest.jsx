@@ -319,6 +319,8 @@ function KundenArtikelTester() {
 
   const base = filterName ? { filter: filterName } : {};
   const variants = [
+    ['① NOFILTER — alle Zeilen (ohne Filter)', { filter: 'NOFILTER' }],
+    ['② nur Name (Standardfilter der Liste)', {}],
     ['A · Sel1=Konto', { ...base, datasourceSel1: konto }],
     ['B · Sel1=Konto, Sel2=Datum, Sel3=Preis', { ...base, datasourceSel1: konto, datasourceSel2: datum, datasourceSel3: preis }],
     ['C · Sel1=Konto, Sel3=Preis, Sel4=Datum', { ...base, datasourceSel1: konto, datasourceSel3: preis, datasourceSel4: datum }],
