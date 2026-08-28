@@ -599,10 +599,13 @@ serve(async (req: Request) => {
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         } catch {
-          // Kein valides JSON → i. d. R. eine XML-Fehler-/Leer-Antwort von WinLine.
+          // Kein valides JSON → Rohantwort durchreichen (200), damit die
+          // ECHTE WinLine-Meldung sichtbar ist (Session-/Filter-/Leer-
+          // Fehler, anderes Format …), statt sie hinter einem generischen
+          // Fehler zu verstecken.
           return new Response(
-            JSON.stringify({ error: "Kein JSON von Mesonic (evtl. Fehler oder leeres Ergebnis).", raw: text.substring(0, 4000) }),
-            { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            JSON.stringify({ raw: text, note: "Antwort war kein JSON — siehe raw." }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
       }

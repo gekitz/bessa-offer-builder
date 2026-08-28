@@ -381,8 +381,8 @@ function KundenArtikelTester() {
           <div className={`text-sm font-medium ${out.ok ? 'text-emerald-700' : 'text-rose-700'}`}>
             {out.label} — {out.ok ? 'OK' : 'Fehler'}
           </div>
-          <pre className="mt-1 p-2 bg-slate-900 text-slate-100 rounded text-xs overflow-auto max-h-80">
-            {out.ok ? JSON.stringify(out.res, null, 2) : out.error}
+          <pre className="mt-1 p-2 bg-slate-900 text-slate-100 rounded text-xs overflow-auto max-h-80 whitespace-pre-wrap">
+            {out.ok ? (out.res?.raw ?? JSON.stringify(out.res, null, 2)) : out.error}
           </pre>
         </div>
       )}
