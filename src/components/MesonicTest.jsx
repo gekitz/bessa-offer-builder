@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ping, mesonicExport, mesonicExportRaw, mesonicImport, searchArticles, getArticle, saveCustomer, validateCustomer, buildKontenImportXml, TYPES, TEMPLATES } from '../lib/mesonicApi';
+import { ping, mesonicExport, mesonicExportRaw, mesonicImport, mesonicList, searchArticles, getArticle, saveCustomer, validateCustomer, buildKontenImportXml, TYPES, TEMPLATES } from '../lib/mesonicApi';
 
 // Sample new-customer payload — only the fields a salesperson would enter.
 // Kontonummer is omitted on purpose so saveCustomer() defaults it to '+' (new
@@ -289,6 +289,107 @@ function ArticleExplorer() {
 // Main test page
 // ═══════════════════════════════════════════════════════
 
+// Interaktiver Tester für die WinLine-Liste "KundenArtikel" (LIST-Befehl,
+// White Paper §3.8). Die drei "Fragen" (Kontonummer, Datum Faktura,
+// Einzelpreis) werden über DatasourceSel1..4 übergeben — welcher Slot zu
+// welcher Frage gehört, klären wir hier empirisch: die Variante, die genau
+// die Datensätze EINES Kunden liefert, ist die richtige Zuordnung.
+function KundenArtikelTester() {
+  const [listName, setListName] = useState('KundenArtikel');
+  const [filterName, setFilterName] = useState('KundenArtikel');
+  const [konto, setKonto] = useState('236000');
+  const [datum, setDatum] = useState('01.01.2020');
+  const [preis, setPreis] = useState('0');
+  const [customWhere, setCustomWhere] = useState('');
+  const [out, setOut] = useState(null);
+  const [busy, setBusy] = useState(null);
+
+  async function tryVariant(label, opts) {
+    setBusy(label);
+    setOut(null);
+    try {
+      const res = await mesonicList(listName, opts);
+      setOut({ label, ok: true, res });
+    } catch (e) {
+      setOut({ label, ok: false, error: e.message });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const base = filterName ? { filter: filterName } : {};
+  const variants = [
+    ['A · Sel1=Konto', { ...base, datasourceSel1: konto }],
+    ['B · Sel1=Konto, Sel2=Datum, Sel3=Preis', { ...base, datasourceSel1: konto, datasourceSel2: datum, datasourceSel3: preis }],
+    ['C · Sel1=Konto, Sel3=Preis, Sel4=Datum', { ...base, datasourceSel1: konto, datasourceSel3: preis, datasourceSel4: datum }],
+    ['D · Sel1=Konto, Sel2=Datum, Sel3=Preis, Sel4=Datum', { ...base, datasourceSel1: konto, datasourceSel2: datum, datasourceSel3: preis, datasourceSel4: datum }],
+    ['E · nur Filter (Standardwerte)', { ...base }],
+  ];
+
+  return (
+    <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/40">
+      <h2 className="text-lg font-bold mb-1 text-blue-800">KundenArtikel — LIST-Tester</h2>
+      <p className="text-xs text-slate-500 mb-3">
+        Findet die richtige DatasourceSel-Zuordnung. Erfolg = genau die Belege dieses Kunden.
+      </p>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3">
+        <label className="text-xs text-slate-600">Listenname
+          <input value={listName} onChange={(e) => setListName(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Filtername
+          <input value={filterName} onChange={(e) => setFilterName(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Kontonummer
+          <input value={konto} onChange={(e) => setKonto(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Datum Faktura &gt;
+          <input value={datum} onChange={(e) => setDatum(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Einzelpreis &gt;
+          <input value={preis} onChange={(e) => setPreis(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {variants.map(([label, opts]) => (
+          <button
+            key={label}
+            onClick={() => tryVariant(label, opts)}
+            disabled={!!busy}
+            className="px-2.5 py-1.5 text-xs rounded bg-white border border-blue-300 text-blue-800 hover:bg-blue-100 disabled:opacity-40"
+          >
+            {busy === label ? '…' : label}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-2 mb-3">
+        <input
+          value={customWhere}
+          onChange={(e) => setCustomWhere(e.target.value)}
+          placeholder="Eigenes Where, z. B. WHERE(Kontonummer='236000')"
+          className="flex-1 px-2 py-1 border rounded text-sm font-mono"
+        />
+        <button
+          onClick={() => tryVariant('Where', { where: customWhere })}
+          disabled={!!busy || !customWhere.trim()}
+          className="px-2.5 py-1.5 text-xs rounded bg-white border border-blue-300 text-blue-800 hover:bg-blue-100 disabled:opacity-40"
+        >
+          Where testen
+        </button>
+      </div>
+      {out && (
+        <div className="mt-2">
+          <div className={`text-sm font-medium ${out.ok ? 'text-emerald-700' : 'text-rose-700'}`}>
+            {out.label} — {out.ok ? 'OK' : 'Fehler'}
+          </div>
+          <pre className="mt-1 p-2 bg-slate-900 text-slate-100 rounded text-xs overflow-auto max-h-80">
+            {out.ok ? JSON.stringify(out.res, null, 2) : out.error}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MesonicTest() {
   const [results, setResults] = useState({});
   const [running, setRunning] = useState({});
@@ -393,6 +494,11 @@ export default function MesonicTest() {
       {/* Interactive article explorer */}
       <div className="mt-10">
         <ArticleExplorer />
+      </div>
+
+      {/* KundenArtikel LIST tester */}
+      <div className="mt-10">
+        <KundenArtikelTester />
       </div>
     </div>
   );
