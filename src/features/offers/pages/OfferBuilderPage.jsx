@@ -92,6 +92,7 @@ const DispatcherPage = lazyWithReload(() => import('../../dispatcher/pages/Dispa
 const ProductsAdminPage = lazyWithReload(() => import('./ProductsAdminPage'));
 const ProcurementPage = lazyWithReload(() => import('../../procurement/pages/ProcurementPage'));
 const ViertlPage = lazyWithReload(() => import('../../viertl/pages/ViertlPage'));
+const MesonicTestPage = lazyWithReload(() => import('../../../components/MesonicTest.jsx'));
 import { useApproverPendingCount } from '../../vacation/hooks/useApproverPendingCount';
 import { useMyTicketCount } from '../../tickets/hooks/useMyTicketCount';
 import { useOpenRequestCount } from '../../procurement/hooks/useOpenRequestCount';
@@ -1622,6 +1623,15 @@ function OfferBuilderPageInner() {
         <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
           <ProductsAdminPage />
         </React.Suspense>
+      )}
+
+      {/* ═══ MESONIC TEST SECTION (admin only) ═══ */}
+      {section === 'mesonic' && profile?.role === 'admin' && (
+        <div className="flex-1 overflow-auto">
+          <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
+            <MesonicTestPage />
+          </React.Suspense>
+        </div>
       )}
 
       {detailsOpen && (
