@@ -392,6 +392,90 @@ function KundenArtikelTester() {
   );
 }
 
+// Beleg-Export-Tester (Type 30, WebBelegExport) — der bewährte Export-Weg
+// (wie die CRM-Kundensuche) statt der problematischen LIST-Datenquelle.
+// Ziel: pro Kunde die Belegpositionen (Artikel + DatumFaktura + Einzelpreis)
+// lesen → neueste Hardware. Key kann ein einfacher Schlüssel ODER ein
+// "where …"-Ausdruck sein (wie bei der Kundensuche).
+function BelegExportTester() {
+  const [type, setType] = useState('30');
+  const [template, setTemplate] = useState('WebBelegExport');
+  const [key, setKey] = useState('236000');
+  const [out, setOut] = useState(null);
+  const [busy, setBusy] = useState(null);
+
+  async function run(mode) {
+    setBusy(mode);
+    setOut(null);
+    try {
+      const res = mode === 'raw'
+        ? await mesonicExportRaw(Number(type), template, key)
+        : await mesonicExport(Number(type), template, key);
+      setOut({ ok: true, mode, res });
+    } catch (e) {
+      setOut({ ok: false, error: e.message });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // Schnell-Vorlagen für den Key/WHERE — erste Sondierungen. Die genaue
+  // T025-Spalte für Kontonummer/Belegart ermitteln wir aus der Roh-Antwort.
+  const konto = key.replace(/\D/g, '') || '236000';
+  const presets = [
+    ['Key = Kontonummer', konto],
+    ["WHERE T025.C007 = Konto", `where T025.C007 = '${konto}'`],
+    ["WHERE T025.C003 = Konto", `where T025.C003 = '${konto}'`],
+    ["WHERE T025.C001 = Konto", `where T025.C001 = '${konto}'`],
+  ];
+
+  return (
+    <div className="border border-emerald-200 rounded-lg p-4 bg-emerald-50/40">
+      <h2 className="text-lg font-bold mb-1 text-emerald-800">Beleg-Export-Tester (Type 30)</h2>
+      <p className="text-xs text-slate-500 mb-3">
+        Bewährter Export-Weg statt LIST. Key kann ein Schlüssel oder ein „where …"-Ausdruck sein.
+        Erst „Raw XML" ansehen → echte Feld-/Spaltennamen erkennen → passenden WHERE bauen.
+      </p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+        <label className="text-xs text-slate-600">Type
+          <input value={type} onChange={(e) => setType(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Template
+          <input value={template} onChange={(e) => setTemplate(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600 md:col-span-2">Key / WHERE
+          <input value={key} onChange={(e) => setKey(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm font-mono" />
+        </label>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {presets.map(([label, k]) => (
+          <button key={label} onClick={() => setKey(k)} className="px-2 py-1 text-xs rounded bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100">
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-2 mb-3">
+        <button onClick={() => run('parsed')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40">
+          {busy === 'parsed' ? '…' : 'Parsed'}
+        </button>
+        <button onClick={() => run('raw')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100 disabled:opacity-40">
+          {busy === 'raw' ? '…' : 'Raw XML'}
+        </button>
+      </div>
+      {out && (
+        <div className="mt-2">
+          <div className={`text-sm font-medium ${out.ok ? 'text-emerald-700' : 'text-rose-700'}`}>
+            {out.ok ? `OK (${out.mode})` : 'Fehler'}
+          </div>
+          <pre className="mt-1 p-2 bg-slate-900 text-slate-100 rounded text-xs overflow-auto max-h-96 whitespace-pre-wrap">
+            {out.ok ? (typeof out.res === 'string' ? out.res : JSON.stringify(out.res, null, 2)) : out.error}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MesonicTest() {
   const [results, setResults] = useState({});
   const [running, setRunning] = useState({});
@@ -501,6 +585,11 @@ export default function MesonicTest() {
       {/* KundenArtikel LIST tester */}
       <div className="mt-10">
         <KundenArtikelTester />
+      </div>
+
+      {/* Beleg-Export tester (Type 30) */}
+      <div className="mt-10">
+        <BelegExportTester />
       </div>
     </div>
   );
