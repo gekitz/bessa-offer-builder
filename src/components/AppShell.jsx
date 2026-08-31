@@ -15,7 +15,7 @@ const NAV_ITEMS = [
   { id: 'bestellungen', label: 'Bestellungen', icon: ShoppingCart },
   { id: 'viertl',     label: 'Viertl',     icon: KeyRound },
   { id: 'produkte',   label: 'Produkte',   icon: Package, adminOnly: true },
-  { id: 'mesonic',    label: 'Mesonic',    icon: FlaskConical, adminOnly: true },
+  { id: 'mesonic',    label: 'Mesonic',    icon: FlaskConical, adminOnly: true, desktopOnly: true },
 ];
 
 export default function AppShell({
@@ -34,6 +34,8 @@ export default function AppShell({
   const { profile, logout } = useAuth();
   const isAdmin = profile?.role === 'admin';
   const navItems = NAV_ITEMS.filter((i) => !i.adminOnly || isAdmin);
+  // Dev-/Admin-only tools (e.g. Mesonic test) stay off the cramped mobile bar.
+  const mobileNavItems = navItems.filter((i) => !i.desktopOnly);
 
   const displayName = profile?.display_name || profile?.microsoft_email?.split('@')[0] || '';
 
@@ -220,10 +222,10 @@ export default function AppShell({
         </main>
 
         {/* Bottom tab bar */}
-        <nav className="no-print flex-shrink-0 border-t border-slate-200 bg-white flex items-center justify-around safe-bottom"
+        <nav className="no-print flex-shrink-0 border-t border-slate-200 bg-white flex items-center overflow-x-auto safe-bottom"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
-          {navItems.map(item => {
+          {mobileNavItems.map(item => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
             const badgeCount = badges[item.id];
@@ -231,7 +233,7 @@ export default function AppShell({
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
-                className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-colors ${
+                className={`flex-1 shrink-0 min-w-[62px] flex flex-col items-center gap-0.5 py-2.5 transition-colors ${
                   isActive ? 'text-red-600' : 'text-slate-400'
                 }`}
               >
@@ -247,17 +249,17 @@ export default function AppShell({
                     </span>
                   )}
                 </span>
-                <span style={{ fontSize: 10, fontWeight: isActive ? 600 : 400 }}>{item.label}</span>
+                <span className="whitespace-nowrap" style={{ fontSize: 10, fontWeight: isActive ? 600 : 400 }}>{item.label}</span>
               </button>
             );
           })}
           {/* Logout button in tab bar */}
           <button
             onClick={logout}
-            className="flex-1 flex flex-col items-center gap-0.5 py-2.5 text-slate-400 transition-colors"
+            className="flex-1 shrink-0 min-w-[62px] flex flex-col items-center gap-0.5 py-2.5 text-slate-400 transition-colors"
           >
             <LogOut size={20} />
-            <span style={{ fontSize: 10 }}>Abmelden</span>
+            <span className="whitespace-nowrap" style={{ fontSize: 10 }}>Abmelden</span>
           </button>
         </nav>
       </div>
