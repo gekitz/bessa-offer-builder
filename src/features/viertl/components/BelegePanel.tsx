@@ -7,7 +7,13 @@ import { isLikelyHardware } from '../lib/mesonicBelege';
 // (voller Scan), danach nur neue Belege nachladen. Klick auf einen Beleg
 // öffnet die Positionen; wahrscheinliche Hardware (Erlöskonto 8000/8050)
 // ist hervorgehoben.
-export default function BelegePanel({ kdnr }: { kdnr: string }) {
+export default function BelegePanel({
+  kdnr,
+  highlightHardware = true,
+}: {
+  kdnr: string;
+  highlightHardware?: boolean;
+}) {
   const [cache, setCache] = useState<BelegeCacheState | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -52,7 +58,7 @@ export default function BelegePanel({ kdnr }: { kdnr: string }) {
   return (
     <div className="pt-2 border-t border-slate-100">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Belege / Hardware</span>
+        <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">{highlightHardware ? 'Belege / Hardware' : 'Belege'}</span>
         {syncing ? (
           <button onClick={() => { abortRef.current = true; }} className="inline-flex items-center gap-1 text-xs text-amber-700">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -83,7 +89,7 @@ export default function BelegePanel({ kdnr }: { kdnr: string }) {
         <>
           <div className="space-y-1">
             {belege.map((b) => (
-              <BelegRow key={b.index} beleg={b} open={openIdx === b.index} onToggle={() => setOpenIdx(openIdx === b.index ? null : b.index)} />
+              <BelegRow key={b.index} beleg={b} open={openIdx === b.index} onToggle={() => setOpenIdx(openIdx === b.index ? null : b.index)} highlightHardware={highlightHardware} />
             ))}
           </div>
           {cache?.syncedAt && (
@@ -97,8 +103,8 @@ export default function BelegePanel({ kdnr }: { kdnr: string }) {
   );
 }
 
-function BelegRow({ beleg, open, onToggle }: { beleg: CachedBeleg; open: boolean; onToggle: () => void }) {
-  const hwCount = beleg.positions.filter(isLikelyHardware).length;
+function BelegRow({ beleg, open, onToggle, highlightHardware }: { beleg: CachedBeleg; open: boolean; onToggle: () => void; highlightHardware: boolean }) {
+  const hwCount = highlightHardware ? beleg.positions.filter(isLikelyHardware).length : 0;
   return (
     <div className="rounded border border-slate-200 bg-white">
       <button onClick={onToggle} className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs hover:bg-slate-50">
@@ -115,7 +121,7 @@ function BelegRow({ beleg, open, onToggle }: { beleg: CachedBeleg; open: boolean
           <table className="w-full text-[11px]">
             <tbody>
               {beleg.positions.map((p, i) => {
-                const hw = isLikelyHardware(p);
+                const hw = highlightHardware && isLikelyHardware(p);
                 const isArt = p.datentyp === '1' && (p.artikelnummer || '').toUpperCase() !== 'TEXT';
                 return (
                   <tr key={i} className={hw ? 'text-emerald-700 font-medium' : isArt ? 'text-slate-700' : 'text-slate-400'}>

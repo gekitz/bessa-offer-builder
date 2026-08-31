@@ -255,7 +255,7 @@ function CustomerDetail({ record, onBack, onEdit, onCreateTicket }) {
       {/* Belege / Hardware (Mesonic-Cache, keyed by Kd.Nr.) */}
       {number && (
         <div className="bg-white rounded-xl border border-slate-200 p-4 mt-4">
-          <BelegePanel kdnr={number} />
+          <BelegePanel kdnr={number} highlightHardware={false} />
         </div>
       )}
     </div>
