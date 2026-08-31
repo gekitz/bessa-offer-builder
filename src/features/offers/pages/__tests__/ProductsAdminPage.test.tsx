@@ -13,7 +13,7 @@ vi.mock('../../../procurement/api/jarltechApi');
 function makeSupplier(over: Partial<Supplier>): Supplier {
   return {
     id: over.id ?? 's-x', code: over.code ?? 'x', name: over.name ?? 'Lieferant',
-    orderEmail: null, orderMethod: 'manual', notes: null, active: true, sort: 0, createdAt: '', updatedAt: '', ...over,
+    orderEmail: null, orderMethod: 'manual', customerNumber: null, notes: null, active: true, sort: 0, createdAt: '', updatedAt: '', ...over,
   };
 }
 
