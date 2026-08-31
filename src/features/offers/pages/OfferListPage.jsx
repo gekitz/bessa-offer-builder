@@ -52,6 +52,7 @@ import { lostReasonLabel } from '../data/lostReasons';
 import { filterOffersBySearch } from '../lib/offerSearch';
 import { isActionableBounce } from '../lib/bounce';
 import { bucketize } from '../followUpBuckets';
+import { needsActionOffers } from '../lib/needsAction';
 import { fmt } from '../../../lib/format';
 
 function CreatorDropdown({ value, onChange, creators }) {
@@ -365,7 +366,13 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   const matchesType = (o) => (typeFilter === 'pos' ? !isMfp(o) : isMfp(o));
   const typeScoped = typeFilter === 'all' ? searched : searched.filter(matchesType);
   const creatorFiltered = creatorFilter === 'all' ? typeScoped : typeScoped.filter((o) => o.creator_name === creatorFilter);
-  const filteredOffers = stageFilter === 'all' ? creatorFiltered : creatorFiltered.filter((o) => o.stage === stageFilter);
+  // „Aktion nötig": liegengebliebene Entwürfe + versendete ohne Aktivität.
+  const actionOffers = useMemo(() => needsActionOffers(creatorFiltered), [creatorFiltered]);
+  const filteredOffers = stageFilter === 'action'
+    ? actionOffers
+    : stageFilter === 'all'
+      ? creatorFiltered
+      : creatorFiltered.filter((o) => o.stage === stageFilter);
   // Type pill counts are within the search+creator scope but BEFORE the type
   // filter, so each pill shows its true reachable count.
   const typeCountBase = creatorFilter === 'all' ? searched : searched.filter((o) => o.creator_name === creatorFilter);
@@ -374,7 +381,7 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
     pos: typeCountBase.filter((o) => !isMfp(o)).length,
     mfp: typeCountBase.filter(isMfp).length,
   };
-  const stageCounts = { all: creatorFiltered.length };
+  const stageCounts = { all: creatorFiltered.length, action: actionOffers.length };
   for (const s of ['new', 'offer_sent', 'closed', 'lost']) {
     stageCounts[s] = creatorFiltered.filter((o) => o.stage === s).length;
   }
@@ -493,6 +500,20 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
 
       {/* Stage filter tabs */}
       <div className="flex flex-wrap gap-1.5 mb-3">
+        {/* „Aktion nötig" — liegengebliebene Entwürfe + versendete ohne Aktivität */}
+        <button
+          onClick={() => setStageFilter('action')}
+          className={`rounded-full px-3 py-1 font-medium transition-colors ${
+            stageFilter === 'action'
+              ? 'bg-amber-500 text-white'
+              : stageCounts.action > 0
+                ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+          style={{ fontSize: 11 }}
+        >
+          ⚡ Aktion nötig ({stageCounts.action || 0})
+        </button>
         {[
           { key: 'all', label: 'Alle' },
           { key: 'new', label: 'Neu' },
