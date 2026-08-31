@@ -95,6 +95,7 @@ const ViertlPage = lazyWithReload(() => import('../../viertl/pages/ViertlPage'))
 const MesonicTestPage = lazyWithReload(() => import('../../../components/MesonicTest.jsx'));
 import { useApproverPendingCount } from '../../vacation/hooks/useApproverPendingCount';
 import { useMyTicketCount } from '../../tickets/hooks/useMyTicketCount';
+import { useMyActionNeededCount } from '../hooks/useMyActionNeededCount';
 import { useOpenRequestCount } from '../../procurement/hooks/useOpenRequestCount';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { pathForSection, sectionFromPath } from '../../../lib/sectionRoute';
@@ -225,6 +226,7 @@ function OfferBuilderPageInner() {
   const section = sectionFromPath(location.pathname);
   const pendingApprovalsCount = useApproverPendingCount();
   const myTicketCount = useMyTicketCount();
+  const myActionNeededCount = useMyActionNeededCount();
   // Open-request badge on Bestellungen — only the purchaser (admin) needs
   // the pending-demand count; requesters just file and forget.
   const openRequestCount = useOpenRequestCount(profile?.role === 'admin');
@@ -1265,7 +1267,7 @@ function OfferBuilderPageInner() {
       showBillingToggle={isBillingAdmin}
       billingToggle={billingToggle}
       onToggleBilling={setBillingToggle}
-      badges={{ kalender: pendingApprovalsCount, tickets: myTicketCount, bestellungen: openRequestCount }}
+      badges={{ angebote: myActionNeededCount, kalender: pendingApprovalsCount, tickets: myTicketCount, bestellungen: openRequestCount }}
     >
       {/* ═══ ANGEBOTE SECTION ═══ */}
       {section === 'angebote' && offerView === 'list' && (
