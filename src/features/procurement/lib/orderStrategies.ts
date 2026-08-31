@@ -159,9 +159,9 @@ const emailXmlStrategy: OrderStrategy = {
     const { to } = await sendSupplierOrderXml({
       supplierId: group.supplierId!,
       xml,
-      // Pulsa needs a constant filename + a subject that always begins the
-      // same way ("PULSA Bestellung …"); the sender is fixed server-side.
-      filename: 'Bestellung_KITZ.xml',
+      // Pulsa (PV) wants the filename to carry the order number, the subject
+      // to always begin "PULSA Bestellung …"; the sender is fixed server-side.
+      filename: `Bestellung-${auftragsnummer}.xml`,
       subject: `PULSA Bestellung ${auftragsnummer}`,
       note: `Lieferung ${standortLabel}`,
     });
