@@ -244,44 +244,6 @@ export async function sendSupplierOrderXml(input: {
   return { to: data?.to ?? '' };
 }
 
-// TEMPORARY diagnostic: send a test mail to the supplier's order address
-// (CC the caller), with or without an XML attachment, to check whether the
-// attachment affects deliverability. Remove once Pulsa delivery is sorted.
-export async function sendSupplierTestMail(input: {
-  supplierId: string;
-  withAttachment: boolean;
-}): Promise<{ to: string; resendId: string | null }> {
-  const sb = requireSupabase();
-  const base = {
-    supplierId: input.supplierId,
-    test: true,
-    subject: input.withAttachment ? 'PULSA Testmail (mit Anhang)' : 'PULSA Testmail (ohne Anhang)',
-    bodyText: input.withAttachment
-      ? 'Test-E-Mail von KITZ MIT XML-Anhang — bitte Zustellung prüfen.'
-      : 'Test-E-Mail von KITZ OHNE Anhang — bitte Zustellung prüfen.',
-  };
-  const bodyPayload = input.withAttachment
-    ? {
-        ...base,
-        attachment: {
-          filename: 'Bestellung_KITZ.xml',
-          contentBase64: utf8Base64('<?xml version="1.0" encoding="UTF-8"?>\n<Bestellung>Test</Bestellung>\n'),
-        },
-      }
-    : base;
-  const { data, error } = await sb.functions.invoke('send-supplier-order', { body: bodyPayload });
-  if (error) {
-    let detail = error.message;
-    const ctx = (error as { context?: unknown }).context;
-    if (ctx && typeof (ctx as Response).json === 'function') {
-      try { const p = await (ctx as Response).json(); if (p?.error) detail = p.error; } catch { /* keep generic */ }
-    }
-    throw new Error(`Testmail: ${detail}`);
-  }
-  if (data?.error) throw new Error(`Testmail: ${data.error}`);
-  return { to: data?.to ?? '', resendId: data?.resendId ?? null };
-}
-
 // ─────────────────────────────────────────────────────────────────────
 // Suppliers
 // ─────────────────────────────────────────────────────────────────────

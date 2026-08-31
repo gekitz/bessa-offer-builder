@@ -128,7 +128,7 @@ serve(async (req: Request) => {
     const orderedByEmail = (user.email ?? "").toLowerCase();
 
     const body = await req.json().catch(() => ({}));
-    const { supplierId, items, shippingAddress, note, subject: subjectIn, bodyText, attachment, test } = body as {
+    const { supplierId, items, shippingAddress, note, subject: subjectIn, bodyText, attachment } = body as {
       supplierId?: string;
       items?: OrderItem[];
       shippingAddress?: ShipAddr;
@@ -136,7 +136,6 @@ serve(async (req: Request) => {
       subject?: string;
       bodyText?: string;
       attachment?: { filename?: string; contentBase64?: string };
-      test?: boolean; // plain diagnostic send (no items required)
     };
 
     if (!supplierId) return json({ error: "Missing supplierId." }, 400);
@@ -158,11 +157,9 @@ serve(async (req: Request) => {
       from: "KITZ Computer + Office GmbH <workspace@kitz.co.at>",
       to: [supplier.order_email],
     };
-    // CC + route replies to the person who placed the order. Test mails
-    // are sent to the supplier only (no CC) so they mimic a real single-
-    // recipient delivery; real orders still CC the orderer.
+    // CC + route replies to the person who placed the order.
     if (orderedByEmail) {
-      if (!test) payload.cc = [orderedByEmail];
+      payload.cc = [orderedByEmail];
       payload.reply_to = orderedByEmail;
     }
 
@@ -173,12 +170,6 @@ serve(async (req: Request) => {
       payload.text = `${line}\n\nMit freundlichen Grüßen\nKITZ Computer + Office GmbH`;
       payload.html = `<div style="font-family:system-ui,sans-serif;font-size:14px">${line}<br><br>Mit freundlichen Grüßen<br>KITZ Computer + Office GmbH</div>`;
       payload.attachments = [{ filename: attachment.filename || "Bestellung_KITZ.xml", content: attachment.contentBase64 }];
-    } else if (test) {
-      // Plain diagnostic mail (no attachment, no items).
-      payload.subject = subjectIn || "PULSA Testmail";
-      const line = bodyText || "Test-E-Mail von KITZ — bitte Zustellung prüfen.";
-      payload.text = line;
-      payload.html = `<div style="font-family:system-ui,sans-serif;font-size:14px">${line}</div>`;
     } else {
       // Items-body order (Orderman).
       if (!Array.isArray(items) || items.length === 0) return json({ error: "Missing items." }, 400);

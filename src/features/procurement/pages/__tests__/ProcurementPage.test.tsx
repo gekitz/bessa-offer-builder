@@ -63,7 +63,6 @@ beforeEach(() => {
   vi.mocked(api.matchPulsaItems).mockResolvedValue(new Map());
   vi.mocked(api.triggerPulsaImport).mockResolvedValue({ imported: 0 });
   vi.mocked(api.pulsaLastImportedAt).mockResolvedValue(null);
-  vi.mocked(api.sendSupplierTestMail).mockResolvedValue({ to: 'nv@pulsa.de', resendId: 're_test' });
 });
 
 describe('ProcurementPage — settings menu', () => {
@@ -76,16 +75,6 @@ describe('ProcurementPage — settings menu', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: /Jarltech Verbindung testen/ }));
 
     await waitFor(() => expect(jarltech.pingJarltech).toHaveBeenCalledTimes(1));
-  });
-
-  it('sends a Pulsa test mail (no attachment) from the settings menu', async () => {
-    render(<ProcurementPage />);
-    await waitFor(() => expect(screen.getAllByTestId('request-row').length).toBe(3));
-    fireEvent.click(screen.getByLabelText('Einstellungen'));
-    fireEvent.click(screen.getByRole('menuitem', { name: /Testmail ohne Anhang/ }));
-    await waitFor(() =>
-      expect(api.sendSupplierTestMail).toHaveBeenCalledWith({ supplierId: 's-pulsa', withAttachment: false }),
-    );
   });
 });
 
