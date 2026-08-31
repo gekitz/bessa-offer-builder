@@ -26,6 +26,15 @@ export interface BelegPosition {
   bezeichnung: string;
   menge: number;
   einzelpreis: number;
+  erloeskonto: string;   // Erlöskonto — 8000 deutet oft (nicht immer) auf Hardware
+}
+
+// Erlöskonten, die typischerweise Hardware kennzeichnen (Heuristik, erweiterbar).
+export const HARDWARE_ERLOESKONTEN = new Set(['8000']);
+
+// „Wahrscheinlich Hardware" — echter Artikel auf einem Hardware-Erlöskonto.
+export function isLikelyHardware(p: BelegPosition): boolean {
+  return p.datentyp === '1' && HARDWARE_ERLOESKONTEN.has(p.erloeskonto);
 }
 
 export interface Beleg {
@@ -57,6 +66,7 @@ export function parseBeleg(xml: string, index: number | null = null): Beleg | nu
     bezeichnung: text(p, 'Bezeichnung'),
     menge: Number(text(p, 'Mengegeliefert') || 0),
     einzelpreis: Number(text(p, 'Einzelpreis') || 0),
+    erloeskonto: text(p, 'Erloeskonto'),
   }));
 
   return {
@@ -96,7 +106,8 @@ export function latestHardware(belege: Beleg[]): { beleg: Beleg; articles: Beleg
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export interface FetchBelegeOpts {
-  max?: number;             // harte Obergrenze (Default 60)
+  startIndex?: number;      // ab welchem n starten (Default 1) — für inkrementelles Nachladen
+  max?: number;             // max. Iterationen ab startIndex (Default 60)
   delayMs?: number;         // Drosselung zwischen Aufrufen (Default 300)
   stopAfterEmpty?: number;  // Abbruch nach N leeren in Folge (Default 2)
   onProgress?: (n: number, found: number) => void;
@@ -105,14 +116,17 @@ export interface FetchBelegeOpts {
 
 // Belege eines Kunden sequenziell + gedrosselt laden. Bewusst schonend zum
 // WinLine-Session-Pool → immer PRO KUNDE auf Abruf, nie als Massenlauf.
+// Belege sind unveränderlich: für Nachladen startIndex = höchster bekannter
+// Index + 1 setzen, dann werden nur NEUE Belege geholt.
 export async function fetchCustomerBelege(kontonummer: string, opts: FetchBelegeOpts = {}): Promise<Beleg[]> {
+  const startIndex = Math.max(1, opts.startIndex ?? 1);
   const max = opts.max ?? 60;
   const delayMs = opts.delayMs ?? 300;
   const stopAfterEmpty = opts.stopAfterEmpty ?? 2;
   const belege: Beleg[] = [];
   let emptyStreak = 0;
 
-  for (let n = 1; n <= max; n++) {
+  for (let n = startIndex; n < startIndex + max; n++) {
     if (opts.abort?.()) break;
     let beleg: Beleg | null = null;
     try {

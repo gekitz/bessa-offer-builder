@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { ping, mesonicExport, mesonicExportRaw, mesonicImport, mesonicList, searchArticles, getArticle, saveCustomer, validateCustomer, buildKontenImportXml, TYPES, TEMPLATES } from '../lib/mesonicApi';
-import { fetchCustomerBelege, latestHardware } from '../features/viertl/lib/mesonicBelege';
+import { fetchCustomerBelege, latestHardware, isLikelyHardware } from '../features/viertl/lib/mesonicBelege';
 
 // Sample new-customer payload — only the fields a salesperson would enter.
 // Kontonummer is omitted on purpose so saveCustomer() defaults it to '+' (new
@@ -573,19 +573,21 @@ function KundenBelegeTester() {
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="text-slate-400 text-left">
-                            <th className="pr-2 py-1">Typ</th><th className="pr-2">Artikelnr</th>
+                            <th className="pr-2 py-1">Typ</th><th className="pr-2">Erlöskto</th><th className="pr-2">Artikelnr</th>
                             <th className="pr-2">Bezeichnung</th><th className="pr-2 text-right">Menge</th>
                             <th className="text-right">Einzelpreis</th>
                           </tr>
                         </thead>
                         <tbody>
                           {b.positions.map((p, i) => {
+                            const hw = isLikelyHardware(p);
                             const isArt = p.datentyp === '1' && (p.artikelnummer || '').toUpperCase() !== 'TEXT';
                             return (
-                              <tr key={i} className={isArt ? 'font-medium text-slate-800' : 'text-slate-400'}>
+                              <tr key={i} className={hw ? 'font-semibold text-emerald-700 bg-emerald-50' : isArt ? 'font-medium text-slate-800' : 'text-slate-400'}>
                                 <td className="pr-2 py-0.5">{p.datentyp}</td>
+                                <td className="pr-2 font-mono">{p.erloeskonto || '—'}</td>
                                 <td className="pr-2 font-mono">{p.artikelnummer}</td>
-                                <td className="pr-2">{p.bezeichnung}</td>
+                                <td className="pr-2">{hw ? '🔧 ' : ''}{p.bezeichnung}</td>
                                 <td className="pr-2 text-right">{p.menge}</td>
                                 <td className="text-right">€ {p.einzelpreis}</td>
                               </tr>
