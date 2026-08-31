@@ -454,6 +454,13 @@ function BelegExportTester() {
             {label}
           </button>
         ))}
+        {/* Ansprechpartner eines Kontos (Type 7, T045.C039 = Kontonummer) */}
+        <button
+          onClick={() => { setType('7'); setTemplate('WebKontakteExport'); setKey(`where T045.C039 = '${konto}'`); }}
+          className="px-2 py-1 text-xs rounded bg-white border border-violet-300 text-violet-800 hover:bg-violet-100"
+        >
+          Ansprechpartner (Type 7)
+        </button>
       </div>
       <div className="flex gap-2 mb-3">
         <button onClick={() => run('parsed')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40">
