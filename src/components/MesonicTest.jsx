@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { ping, mesonicExport, mesonicExportRaw, mesonicImport, mesonicList, searchArticles, getArticle, saveCustomer, validateCustomer, buildKontenImportXml, TYPES, TEMPLATES } from '../lib/mesonicApi';
+import { fetchCustomerBelege, latestHardware } from '../features/viertl/lib/mesonicBelege';
 
 // Sample new-customer payload — only the fields a salesperson would enter.
 // Kontonummer is omitted on purpose so saveCustomer() defaults it to '+' (new
@@ -476,6 +477,87 @@ function BelegExportTester() {
   );
 }
 
+// Kunden-Belege-Tester (Type 30, WEBBelege) — zählt <Konto>-<n> hoch,
+// sammelt Belege, ermittelt die neueste Hardware (echte Artikel).
+function KundenBelegeTester() {
+  const [konto, setKonto] = useState('272765');
+  const [max, setMax] = useState('20');
+  const [progress, setProgress] = useState(null);
+  const [belege, setBelege] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const abortRef = useRef(false);
+
+  async function run() {
+    setBusy(true); setError(null); setBelege(null); setProgress({ n: 0, found: 0 });
+    abortRef.current = false;
+    try {
+      const rows = await fetchCustomerBelege(konto.trim(), {
+        max: Number(max) || 20,
+        delayMs: 350,
+        onProgress: (n, found) => setProgress({ n, found }),
+        abort: () => abortRef.current,
+      });
+      setBelege(rows);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const hw = belege ? latestHardware(belege) : null;
+
+  return (
+    <div className="border border-violet-200 rounded-lg p-4 bg-violet-50/40">
+      <h2 className="text-lg font-bold mb-1 text-violet-800">Kunden-Belege / Hardware (WEBBelege)</h2>
+      <p className="text-xs text-slate-500 mb-3">
+        Zählt <code>&lt;Konto&gt;-&lt;n&gt;</code> hoch (gedrosselt), sammelt Belege, zeigt die neueste Hardware.
+      </p>
+      <div className="flex flex-wrap items-end gap-2 mb-3">
+        <label className="text-xs text-slate-600">Kontonummer
+          <input value={konto} onChange={(e) => setKonto(e.target.value)} className="block mt-0.5 px-2 py-1 border rounded text-sm w-36" />
+        </label>
+        <label className="text-xs text-slate-600">max n
+          <input value={max} onChange={(e) => setMax(e.target.value)} className="block mt-0.5 px-2 py-1 border rounded text-sm w-20" />
+        </label>
+        {busy ? (
+          <button onClick={() => { abortRef.current = true; }} className="px-3 py-1.5 text-sm rounded bg-amber-500 text-white">
+            Stopp {progress ? `(${progress.n}, ${progress.found} Belege)` : ''}
+          </button>
+        ) : (
+          <button onClick={run} className="px-3 py-1.5 text-sm rounded bg-violet-600 text-white hover:bg-violet-700">
+            Belege laden
+          </button>
+        )}
+      </div>
+
+      {error && <div className="text-sm text-rose-700 mb-2">{error}</div>}
+
+      {hw && (
+        <div className="mb-3 p-2 rounded bg-white border border-violet-200 text-sm">
+          <div className="font-semibold text-violet-800">
+            Neueste Hardware · Beleg {hw.beleg.laufnummer} · {hw.beleg.datumFaktura ?? '—'} · Belegart {hw.beleg.belegart}
+          </div>
+          <ul className="mt-1 text-xs text-slate-700">
+            {hw.articles.map((a, i) => (
+              <li key={i}>{a.artikelnummer} — {a.bezeichnung} (× {a.menge}, € {a.einzelpreis})</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {belege && (
+        <pre className="p-2 bg-slate-900 text-slate-100 rounded text-xs overflow-auto max-h-96 whitespace-pre-wrap">
+          {belege.length === 0 ? 'Keine Belege gefunden.' : belege.map((b) =>
+            `#${b.index} · Lauf ${b.laufnummer} · ${b.datumFaktura ?? '—'} · Belegart ${b.belegart} · ${b.positions.length} Pos`
+          ).join('\n')}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 export default function MesonicTest() {
   const [results, setResults] = useState({});
   const [running, setRunning] = useState({});
@@ -590,6 +672,11 @@ export default function MesonicTest() {
       {/* Beleg-Export tester (Type 30) */}
       <div className="mt-10">
         <BelegExportTester />
+      </div>
+
+      {/* Kunden-Belege / Hardware tester (WEBBelege) */}
+      <div className="mt-10">
+        <KundenBelegeTester />
       </div>
     </div>
   );
