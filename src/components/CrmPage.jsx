@@ -3,6 +3,7 @@ import { Search, X, Loader2, ArrowLeft, Building2, Phone, Mail, MapPin, User, Fi
 import { useNavigate } from 'react-router-dom';
 import { searchCustomers, getCustomer, listCustomers, getCustomerContacts, saveCustomer, validateCustomer, TYPES, TEMPLATES, mesonicExport } from '../lib/mesonicApi';
 import CustomerForm from './CustomerForm';
+import BelegePanel from '../features/viertl/components/BelegePanel';
 
 // ═══════════════════════════════════════════════════════
 // CRM Page — Customer Search & Detail
@@ -250,6 +251,13 @@ function CustomerDetail({ record, onBack, onEdit, onCreateTicket }) {
           </div>
         )}
       </div>
+
+      {/* Belege / Hardware (Mesonic-Cache, keyed by Kd.Nr.) */}
+      {number && (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 mt-4">
+          <BelegePanel kdnr={number} />
+        </div>
+      )}
     </div>
   );
 }
