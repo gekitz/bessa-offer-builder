@@ -486,6 +486,7 @@ function KundenBelegeTester() {
   const [belege, setBelege] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [openIdx, setOpenIdx] = useState(null);
   const abortRef = useRef(false);
 
   async function run() {
@@ -537,7 +538,8 @@ function KundenBelegeTester() {
       {hw && (
         <div className="mb-3 p-2 rounded bg-white border border-violet-200 text-sm">
           <div className="font-semibold text-violet-800">
-            Neueste Hardware · Beleg {hw.beleg.laufnummer} · {hw.beleg.datumFaktura ?? '—'} · Belegart {hw.beleg.belegart}
+            Neuester Artikel-Beleg · {hw.beleg.datumFaktura ?? '—'} · Belegart {hw.beleg.belegart}
+            <span className="ml-1 font-normal text-slate-400">(inkl. Dienstleistungen — bitte prüfen)</span>
           </div>
           <ul className="mt-1 text-xs text-slate-700">
             {hw.articles.map((a, i) => (
@@ -548,11 +550,56 @@ function KundenBelegeTester() {
       )}
 
       {belege && (
-        <pre className="p-2 bg-slate-900 text-slate-100 rounded text-xs overflow-auto max-h-96 whitespace-pre-wrap">
-          {belege.length === 0 ? 'Keine Belege gefunden.' : belege.map((b) =>
-            `#${b.index} · Lauf ${b.laufnummer} · ${b.datumFaktura ?? '—'} · Belegart ${b.belegart} · ${b.positions.length} Pos`
-          ).join('\n')}
-        </pre>
+        belege.length === 0 ? (
+          <div className="text-sm text-slate-400">Keine Belege gefunden.</div>
+        ) : (
+          <div className="space-y-1">
+            {[...belege].sort((a, b) => (b.datumFaktura ?? '').localeCompare(a.datumFaktura ?? '')).map((b) => {
+              const open = openIdx === b.index;
+              const arts = b.positions.filter((p) => p.datentyp === '1' && (p.artikelnummer || '').toUpperCase() !== 'TEXT');
+              return (
+                <div key={b.index} className="rounded border border-violet-200 bg-white">
+                  <button
+                    onClick={() => setOpenIdx(open ? null : b.index)}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-violet-50"
+                  >
+                    <span className="font-mono text-slate-700">
+                      {open ? '▾' : '▸'} #{b.index} · {b.datumFaktura ?? '—'} · Belegart {b.belegart}
+                    </span>
+                    <span className="text-xs text-slate-500">{arts.length} Artikel / {b.positions.length} Pos</span>
+                  </button>
+                  {open && (
+                    <div className="px-3 pb-2 overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-slate-400 text-left">
+                            <th className="pr-2 py-1">Typ</th><th className="pr-2">Artikelnr</th>
+                            <th className="pr-2">Bezeichnung</th><th className="pr-2 text-right">Menge</th>
+                            <th className="text-right">Einzelpreis</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {b.positions.map((p, i) => {
+                            const isArt = p.datentyp === '1' && (p.artikelnummer || '').toUpperCase() !== 'TEXT';
+                            return (
+                              <tr key={i} className={isArt ? 'font-medium text-slate-800' : 'text-slate-400'}>
+                                <td className="pr-2 py-0.5">{p.datentyp}</td>
+                                <td className="pr-2 font-mono">{p.artikelnummer}</td>
+                                <td className="pr-2">{p.bezeichnung}</td>
+                                <td className="pr-2 text-right">{p.menge}</td>
+                                <td className="text-right">€ {p.einzelpreis}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )
       )}
     </div>
   );
