@@ -29,7 +29,7 @@ export const TEMPLATES = {
   PRICE_EXPORT: 'WebPreisExport',
   CONTACT_EXPORT: 'WebKontakteExport',
   CONTACT_IMPORT: 'WebKontakteImport',
-  BELEG_DETAIL: 'WebBelegExport',
+  BELEG_DETAIL: 'WEBBelege', // Type 30, Key <Konto>-<n> (WebBelegExport existierte nie → 000116)
   BELEG_LIST: 'WebBelegListe',
   BELEG_IMPORT: 'WebBelegImport',
   CRM: 'WEBCRM',
