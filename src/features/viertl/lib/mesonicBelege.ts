@@ -30,7 +30,7 @@ export interface BelegPosition {
 }
 
 // Erlöskonten, die typischerweise Hardware kennzeichnen (Heuristik, erweiterbar).
-export const HARDWARE_ERLOESKONTEN = new Set(['8000']);
+export const HARDWARE_ERLOESKONTEN = new Set(['8000', '8050']);
 
 // „Wahrscheinlich Hardware" — echter Artikel auf einem Hardware-Erlöskonto.
 export function isLikelyHardware(p: BelegPosition): boolean {
