@@ -5,6 +5,7 @@ import Select from '../../../components/Select';
 import { addNote, linkOffer, listEvents, listLicenses, notifyViertlClosure, recordMesonicLookup, unlinkOffer, updateLicense } from '../api/viertlApi';
 import { fetchMesonicContact } from '../lib/mesonicContact';
 import { getOfferSummary, offerImpliesStatus, suggestOffersForLicense, type OfferSummary } from '../lib/offerLink';
+import BelegePanel from '../components/BelegePanel';
 import type {
   ViertlActor,
   ViertlCustomerStatus,
@@ -783,6 +784,9 @@ function LicenseDetail({
               </div>
             )}
           </div>
+
+          {/* Belege / Hardware (Mesonic-Cache) */}
+          <BelegePanel kdnr={license.mesonicKdnr} />
 
           {/* Notiz zur Historie */}
           <div className="pt-2 border-t border-slate-100">

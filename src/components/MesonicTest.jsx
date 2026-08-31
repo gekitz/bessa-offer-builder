@@ -493,7 +493,7 @@ function KundenBelegeTester() {
     setBusy(true); setError(null); setBelege(null); setProgress({ n: 0, found: 0 });
     abortRef.current = false;
     try {
-      const rows = await fetchCustomerBelege(konto.trim(), {
+      const { belege: rows } = await fetchCustomerBelege(konto.trim(), {
         max: Number(max) || 20,
         delayMs: 350,
         onProgress: (n, found) => setProgress({ n, found }),

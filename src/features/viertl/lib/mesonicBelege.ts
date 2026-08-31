@@ -118,16 +118,21 @@ export interface FetchBelegeOpts {
 // WinLine-Session-Pool → immer PRO KUNDE auf Abruf, nie als Massenlauf.
 // Belege sind unveränderlich: für Nachladen startIndex = höchster bekannter
 // Index + 1 setzen, dann werden nur NEUE Belege geholt.
-export async function fetchCustomerBelege(kontonummer: string, opts: FetchBelegeOpts = {}): Promise<Beleg[]> {
+export async function fetchCustomerBelege(
+  kontonummer: string,
+  opts: FetchBelegeOpts = {},
+): Promise<{ belege: Beleg[]; scannedTo: number }> {
   const startIndex = Math.max(1, opts.startIndex ?? 1);
   const max = opts.max ?? 60;
   const delayMs = opts.delayMs ?? 300;
   const stopAfterEmpty = opts.stopAfterEmpty ?? 2;
   const belege: Beleg[] = [];
   let emptyStreak = 0;
+  let scannedTo = startIndex - 1;
 
   for (let n = startIndex; n < startIndex + max; n++) {
     if (opts.abort?.()) break;
+    scannedTo = n;
     let beleg: Beleg | null = null;
     try {
       const xml = await mesonicExportRaw(BELEGE_TYPE, BELEGE_TEMPLATE, `${kontonummer}-${n}`);
@@ -143,7 +148,7 @@ export async function fetchCustomerBelege(kontonummer: string, opts: FetchBelege
       belege.push(beleg as Beleg);
     }
     opts.onProgress?.(n, belege.length);
-    if (n < max && !opts.abort?.()) await sleep(delayMs);
+    if (n < startIndex + max - 1 && !opts.abort?.()) await sleep(delayMs);
   }
-  return belege;
+  return { belege, scannedTo };
 }
