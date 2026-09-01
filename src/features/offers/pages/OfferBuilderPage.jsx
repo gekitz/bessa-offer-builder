@@ -88,7 +88,7 @@ import AppShell from '../../../components/AppShell';
 // section. Lazy import keeps them out of the main bundle.
 const CalendarPage = lazyWithReload(() => import('../../calendar/pages/CalendarPage'));
 const TicketsPage = lazyWithReload(() => import('../../tickets/pages/TicketsPage'));
-const DispatcherPage = lazyWithReload(() => import('../../dispatcher/pages/DispatcherPage'));
+const DashboardPage = lazyWithReload(() => import('../../dashboard/pages/DashboardPage'));
 const ProductsAdminPage = lazyWithReload(() => import('./ProductsAdminPage'));
 const ProcurementPage = lazyWithReload(() => import('../../procurement/pages/ProcurementPage'));
 const ViertlPage = lazyWithReload(() => import('../../viertl/pages/ViertlPage'));
@@ -1582,10 +1582,13 @@ function OfferBuilderPageInner() {
         </React.Suspense>
       )}
 
-      {/* ═══ DISPATCHER SECTION ═══ */}
-      {section === 'dispatcher' && (
+      {/* ═══ DASHBOARD (Übersicht) SECTION ═══ */}
+      {section === 'dashboard' && (
         <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
-          <DispatcherPage />
+          <DashboardPage
+            onOpenTicket={(ticketId) => navigate(`/tickets/${ticketId}`)}
+            onNavigate={(s) => navigate(pathForSection(s))}
+          />
         </React.Suspense>
       )}
 

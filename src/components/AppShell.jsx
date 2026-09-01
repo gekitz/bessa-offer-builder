@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar, FileText, Headphones, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, Package, ShoppingCart, Wrench, X, KeyRound, FlaskConical } from 'lucide-react';
+import { Calendar, FileText, LayoutDashboard, Users, Settings, ChevronLeft, ChevronRight, LogOut, Menu, Package, ShoppingCart, Wrench, X, KeyRound, FlaskConical } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 
 // ═══════════════════════════════════════════════════════
@@ -7,7 +7,7 @@ import { useAuth } from '../lib/auth';
 // ═══════════════════════════════════════════════════════
 
 const NAV_ITEMS = [
-  { id: 'dispatcher', label: 'Leitstelle', icon: Headphones },
+  { id: 'dashboard',  label: 'Übersicht',  icon: LayoutDashboard, adminOnly: true },
   { id: 'angebote',   label: 'Angebote',   icon: FileText },
   { id: 'crm',        label: 'CRM',        icon: Users },
   { id: 'kalender',   label: 'Kalender',   icon: Calendar },
