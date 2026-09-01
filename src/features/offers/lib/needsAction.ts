@@ -23,8 +23,15 @@ export interface ActionOffer {
 
 export type ActionReason = 'draft_unsent' | 'sent_no_action';
 
+// Entschiedene/erledigte Angebote — kein Handlungsbedarf, egal welcher
+// stage. (accepted/rejected setzen zwar den status, aber nicht immer den
+// stage weg von 'offer_sent'.)
+const DECIDED_STATUSES = new Set(['accepted', 'rejected', 'expired']);
+
 export function offerActionReason(o: ActionOffer, now: Date = new Date()): ActionReason | null {
   const nowMs = now.getTime();
+
+  if (o.status && DECIDED_STATUSES.has(o.status)) return null;
 
   // Entwurf, nie versendet, zu lange liegengeblieben.
   if (o.status === 'draft' && o.created_at) {
