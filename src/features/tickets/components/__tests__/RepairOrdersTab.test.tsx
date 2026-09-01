@@ -54,7 +54,9 @@ const ro1: RepairOrder = {
   id: 'ro-1', ticketId: 't-1', appointmentId: null, seqNumber: 1,
   status: 'completed', workDescription: 'Drucker geprüft', gpsTravelNote: null,
   signatureData: null, signedAt: null, signedByName: null,
-  performedAt: '2026-05-12', billable: true, createdBy: null,
+  performedAt: '2026-05-12', billable: true,
+  mesonicBelegLaufnummer: null, mesonicBelegKey: null, mesonicBelegCreatedAt: null,
+  createdBy: null,
   createdAt: '', updatedAt: '',
 };
 
