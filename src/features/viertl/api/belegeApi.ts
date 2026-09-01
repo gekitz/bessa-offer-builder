@@ -80,7 +80,7 @@ export async function syncBelege(kdnr: string, opts: SyncOpts = {}): Promise<Bel
 
   const { belege, scannedTo } = await fetchCustomerBelege(kdnr, {
     startIndex: from,
-    max: opts.max ?? 60,
+    max: opts.max ?? 200, // gebatcht (25/Call) → wenige Requests trotz höherem Limit
     delayMs: 350,
     onProgress: opts.onProgress,
     abort: opts.abort,

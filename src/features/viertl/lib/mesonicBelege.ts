@@ -79,6 +79,42 @@ export function parseBeleg(xml: string, index: number | null = null): Beleg | nu
   };
 }
 
+// Mehrere Belege aus EINER Antwort (Batch-Abruf: mehrere Keys pro Call).
+// Positionen (T026) werden ihrem Kopf (T025) über BELEGKEY zugeordnet.
+// index = Laufnummer (die stabile Belegnummer des Kunden).
+export function parseBelege(xml: string): Beleg[] {
+  if (!xml || /<OverallSuccess>\s*false/i.test(xml)) return [];
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  if (doc.getElementsByTagName('parsererror').length) return [];
+
+  const byKey = new Map<string, Beleg>();
+  for (const h of Array.from(doc.getElementsByTagName('WEBBelegeT025'))) {
+    const belegkey = text(h, 'BELEGKEY');
+    const lauf = text(h, 'Laufnummer');
+    byKey.set(belegkey, {
+      index: lauf ? Number(lauf) : null,
+      kontonummer: text(h, 'Kontonummer'),
+      laufnummer: lauf,
+      belegart: text(h, 'Belegart'),
+      datumFaktura: text(h, 'DatumFaktura') || null,
+      positions: [],
+    });
+  }
+  for (const p of Array.from(doc.getElementsByTagName('WEBBelegeT026'))) {
+    const beleg = byKey.get(text(p, 'BELEGKEY'));
+    if (!beleg) continue;
+    beleg.positions.push({
+      datentyp: text(p, 'Datentyp'),
+      artikelnummer: text(p, 'Artikelnummer'),
+      bezeichnung: text(p, 'Bezeichnung'),
+      menge: Number(text(p, 'Mengegeliefert') || 0),
+      einzelpreis: Number(text(p, 'Einzelpreis') || 0),
+      erloeskonto: text(p, 'Erloeskonto'),
+    });
+  }
+  return Array.from(byKey.values());
+}
+
 // „Kein Beleg an dieser Stelle" — keine Positionen (leerer/Platzhalter-Beleg).
 export function isEmptyBeleg(beleg: Beleg | null): boolean {
   return !beleg || beleg.positions.length === 0;
@@ -105,50 +141,61 @@ export function latestHardware(belege: Beleg[]): { beleg: Beleg; articles: Beleg
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+export const BELEGE_BATCH_SIZE = 25; // Laufnummern pro HTTP-Call
+
 export interface FetchBelegeOpts {
-  startIndex?: number;      // ab welchem n starten (Default 1) — für inkrementelles Nachladen
-  max?: number;             // max. Iterationen ab startIndex (Default 60)
-  delayMs?: number;         // Drosselung zwischen Aufrufen (Default 300)
-  stopAfterEmpty?: number;  // Abbruch nach N leeren in Folge (Default 2)
-  onProgress?: (n: number, found: number) => void;
-  abort?: () => boolean;    // true → abbrechen
+  startIndex?: number;           // ab welchem n starten (Default 1) — inkrementelles Nachladen
+  max?: number;                  // max. Laufnummern ab startIndex (Default 200)
+  batchSize?: number;            // Keys pro Call (Default 25)
+  delayMs?: number;              // Drosselung zwischen Calls (Default 300)
+  stopAfterEmptyBatches?: number; // Abbruch nach N komplett leeren Batches (Default 1)
+  onProgress?: (scannedTo: number, found: number) => void;
+  abort?: () => boolean;         // true → abbrechen
 }
 
-// Belege eines Kunden sequenziell + gedrosselt laden. Bewusst schonend zum
-// WinLine-Session-Pool → immer PRO KUNDE auf Abruf, nie als Massenlauf.
-// Belege sind unveränderlich: für Nachladen startIndex = höchster bekannter
-// Index + 1 setzen, dann werden nur NEUE Belege geholt.
+// Belege eines Kunden laden — GEBATCHT: pro Call mehrere Keys
+// ('<Konto>-<n>','<Konto>-<n+1>',…), WinLine liefert alle in einer Antwort
+// (White Paper §3.5.17). ~25× weniger Calls als pro-Beleg. Belege sind
+// unveränderlich: startIndex = höchster bekannter Index + 1 → nur Neue.
+// Stop, sobald ein ganzer Batch nur leere Platzhalter enthält (Ende erreicht).
 export async function fetchCustomerBelege(
   kontonummer: string,
   opts: FetchBelegeOpts = {},
 ): Promise<{ belege: Beleg[]; scannedTo: number }> {
   const startIndex = Math.max(1, opts.startIndex ?? 1);
-  const max = opts.max ?? 60;
+  const max = opts.max ?? 200;
+  const batchSize = Math.max(1, opts.batchSize ?? BELEGE_BATCH_SIZE);
   const delayMs = opts.delayMs ?? 300;
-  const stopAfterEmpty = opts.stopAfterEmpty ?? 2;
+  const stopAfterEmptyBatches = opts.stopAfterEmptyBatches ?? 1;
   const belege: Beleg[] = [];
-  let emptyStreak = 0;
   let scannedTo = startIndex - 1;
+  let emptyBatchStreak = 0;
+  const end = startIndex + max; // exclusive
 
-  for (let n = startIndex; n < startIndex + max; n++) {
+  for (let start = startIndex; start < end; start += batchSize) {
     if (opts.abort?.()) break;
-    scannedTo = n;
-    let beleg: Beleg | null = null;
+    const size = Math.min(batchSize, end - start);
+    const keys = Array.from({ length: size }, (_, i) => `'${kontonummer}-${start + i}'`).join(',');
+    scannedTo = start + size - 1;
+
+    let batch: Beleg[] = [];
     try {
-      const xml = await mesonicExportRaw(BELEGE_TYPE, BELEGE_TEMPLATE, `${kontonummer}-${n}`);
-      beleg = parseBeleg(xml, n);
+      const xml = await mesonicExportRaw(BELEGE_TYPE, BELEGE_TEMPLATE, keys);
+      batch = parseBelege(xml);
     } catch {
-      // einzelner Fehlschlag: als leer werten (Streak zählt), nicht hämmern
+      // Batch-Fehlschlag: als leer werten, nicht hämmern
     }
-    if (isEmptyBeleg(beleg)) {
-      emptyStreak++;
-      if (emptyStreak >= stopAfterEmpty) break;
+    const nonEmpty = batch.filter((b) => b.positions.length > 0);
+    belege.push(...nonEmpty);
+    opts.onProgress?.(scannedTo, belege.length);
+
+    if (nonEmpty.length === 0) {
+      emptyBatchStreak++;
+      if (emptyBatchStreak >= stopAfterEmptyBatches) break;
     } else {
-      emptyStreak = 0;
-      belege.push(beleg as Beleg);
+      emptyBatchStreak = 0;
     }
-    opts.onProgress?.(n, belege.length);
-    if (n < startIndex + max - 1 && !opts.abort?.()) await sleep(delayMs);
+    if (start + batchSize < end && !opts.abort?.()) await sleep(delayMs);
   }
   return { belege, scannedTo };
 }
