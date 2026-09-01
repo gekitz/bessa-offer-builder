@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { ping, mesonicExport, mesonicExportRaw, mesonicImport, mesonicList, searchArticles, getArticle, saveCustomer, validateCustomer, buildKontenImportXml, TYPES, TEMPLATES } from '../lib/mesonicApi';
 import { fetchCustomerBelege, latestHardware, isLikelyHardware } from '../features/viertl/lib/mesonicBelege';
-import { buildAngebotImportXml, PSEUDO_ARTIKEL, BELEGART } from '../features/offers/lib/angebotImport';
+import { buildAngebotImportXml, PSEUDO_ARTIKEL, BELEGART, REPARATUR_BELEGART, laborArtikelnummer } from '../features/offers/lib/angebotImport';
 
 // Sample new-customer payload — only the fields a salesperson would enter.
 // Kontonummer is omitted on purpose so saveCustomer() defaults it to '+' (new
@@ -694,6 +694,92 @@ function AngebotImportTester() {
   );
 }
 
+// Reparaturschein-Import-Tester — WEBAngebot mit Reparatur-Belegart (WO 12 /
+// KL 16) und Arbeitszeit-Position mit mitarbeiterspezifischer Artikelnummer.
+function ReparaturImportTester() {
+  const [konto, setKonto] = useState('272765');
+  const [lauf, setLauf] = useState('998');
+  const [standort, setStandort] = useState('wolfsberg');
+  const [vertreter, setVertreter] = useState('9');
+  const [stunden, setStunden] = useState('1.5');
+  const [satz, setSatz] = useState('95');
+  const [out, setOut] = useState(null);
+  const [busy, setBusy] = useState(null);
+
+  const belegart = REPARATUR_BELEGART[standort];
+  const arbeitArtikel = laborArtikelnummer(vertreter, standort);
+  const xml = buildAngebotImportXml(
+    { kontonummer: konto, laufnummer: lauf, datumAngebot: new Date().toISOString().slice(0, 10), belegart, vertreternummer: vertreter || undefined },
+    [
+      { artikelnummer: arbeitArtikel, datentyp: '1', menge: Number(stunden) || 0, einzelpreis: Number(satz) || 0, bezeichnung: 'Arbeitszeit Reparatur' },
+      { artikelnummer: 'TEXT', datentyp: '3', menge: 1, bezeichnung: 'TEST Reparaturschein' },
+    ],
+  );
+
+  async function run(mode) {
+    setBusy(mode);
+    setOut(null);
+    try {
+      if (mode === 'preview') {
+        setOut({ ok: true, text: xml });
+      } else {
+        const res = await mesonicImport(TYPES.BELEG, 'WEBAngebot', xml, { actionCode: 0 });
+        setOut({ ok: res.success, text: res.error || res.raw || 'OK' });
+      }
+    } catch (e) {
+      setOut({ ok: false, text: e.message });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="border border-orange-200 rounded-lg p-4 bg-orange-50/40">
+      <h2 className="text-lg font-bold mb-1 text-orange-800">Reparaturschein-Import-Tester (WEBAngebot)</h2>
+      <p className="text-xs text-slate-500 mb-3">
+        Belegart {REPARATUR_BELEGART.wolfsberg} (WO) / {REPARATUR_BELEGART.klagenfurt} (KL). Arbeitszeit-Artikel:
+        <span className="font-mono"> {arbeitArtikel}</span>. „Validieren" = ActionCode=0, kein Beleg.
+      </p>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
+        <label className="text-xs text-slate-600">Kontonummer
+          <input value={konto} onChange={(e) => setKonto(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Laufnummer
+          <input value={lauf} onChange={(e) => setLauf(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Standort
+          <select value={standort} onChange={(e) => setStandort(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm">
+            <option value="wolfsberg">Wolfsberg (Belegart 12)</option>
+            <option value="klagenfurt">Klagenfurt (Belegart 16)</option>
+          </select>
+        </label>
+        <label className="text-xs text-slate-600">Vertreternummer
+          <input value={vertreter} onChange={(e) => setVertreter(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Arbeitsstunden
+          <input value={stunden} onChange={(e) => setStunden(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Stundensatz (netto)
+          <input value={satz} onChange={(e) => setSatz(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+      </div>
+      <div className="flex gap-2 mb-3">
+        <button onClick={() => run('preview')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-white border border-orange-300 text-orange-800 hover:bg-orange-100 disabled:opacity-40">
+          XML-Vorschau
+        </button>
+        <button onClick={() => run('validate')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-40">
+          {busy === 'validate' ? '…' : 'Validieren (ActionCode=0)'}
+        </button>
+      </div>
+      {out && (
+        <pre className={`p-2 rounded text-xs overflow-auto max-h-96 whitespace-pre-wrap ${out.ok ? 'bg-slate-900 text-slate-100' : 'bg-rose-900 text-rose-100'}`}>
+          {out.text}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 export default function MesonicTest() {
   const [results, setResults] = useState({});
   const [running, setRunning] = useState({});
@@ -818,6 +904,11 @@ export default function MesonicTest() {
       {/* Angebot-Import tester (WEBAngebot) */}
       <div className="mt-10">
         <AngebotImportTester />
+      </div>
+
+      {/* Reparaturschein-Import tester (WEBAngebot, Belegart 12/16) */}
+      <div className="mt-10">
+        <ReparaturImportTester />
       </div>
     </div>
   );
