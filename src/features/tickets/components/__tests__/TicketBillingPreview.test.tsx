@@ -10,6 +10,14 @@ vi.mock('../../api/ticketApi', () => ({
   setTicketStatus: (id: string, status: string, opts?: unknown) => setTicketStatusMock(id, status, opts),
 }));
 
+// isAdmin steuerbar; Default false → die bestehenden Tests sehen die
+// Export-UI nicht.
+const authState = vi.hoisted(() => ({ isAdmin: false }));
+vi.mock('../../../../lib/auth', () => ({ useAuth: () => ({ isAdmin: authState.isAdmin }) }));
+
+const { runMock } = vi.hoisted(() => ({ runMock: vi.fn() }));
+vi.mock('../../lib/runTicketBelegExport', () => ({ runTicketBelegExport: (id: string) => runMock(id) }));
+
 import TicketBillingPreview from '../TicketBillingPreview';
 import type { BillingSummary, Ticket } from '../../types';
 
@@ -96,6 +104,8 @@ const summary: BillingSummary = {
 beforeEach(() => {
   calculateTicketBillingMock.mockReset().mockResolvedValue(summary);
   setTicketStatusMock.mockReset().mockResolvedValue({ ...ticket, status: 'closed' });
+  authState.isAdmin = false;
+  runMock.mockReset();
 });
 
 describe('TicketBillingPreview', () => {
@@ -150,10 +160,36 @@ describe('TicketBillingPreview', () => {
     await screen.findByText(/Keine verrechenbaren Reparaturscheine/);
   });
 
-  it('disables the Mesonic-Beleg button while the import is blocked', async () => {
+  it('hides the Beleg export for non-admins', async () => {
     render(<TicketBillingPreview ticket={ticket} onClosed={vi.fn()} onCancel={vi.fn()} />);
     await screen.findByTestId('billing-summary');
-    const btn = screen.getByRole('button', { name: /Mesonic-Beleg/ });
-    expect(btn).toBeDisabled();
+    expect(screen.queryByTestId('create-belege')).not.toBeInTheDocument();
+  });
+
+  it('admin without a WinLine-Konto sees a link-customer hint instead of the button', async () => {
+    authState.isAdmin = true;
+    render(<TicketBillingPreview ticket={ticket} onClosed={vi.fn()} onCancel={vi.fn()} />);
+    await screen.findByTestId('billing-summary');
+    expect(screen.queryByTestId('create-belege')).not.toBeInTheDocument();
+    expect(screen.getByText(/Kein WinLine-Konto/)).toBeInTheDocument();
+  });
+
+  it('admin creates Belege and sees the created Beleg-Keys', async () => {
+    authState.isAdmin = true;
+    runMock.mockResolvedValue({
+      ticketNumber: '26-0000001',
+      created: [{ repairOrderId: 'ro-1', seqNumber: 1, belegKey: '272765-26' }],
+      skipped: [],
+      failed: [],
+    });
+    const u = userEvent.setup();
+    render(<TicketBillingPreview ticket={{ ...ticket, mesonicCustomerId: '272765' }} onClosed={vi.fn()} onCancel={vi.fn()} />);
+    await screen.findByTestId('billing-summary');
+
+    await u.click(screen.getByTestId('create-belege'));
+
+    await screen.findByTestId('beleg-export-result');
+    expect(runMock).toHaveBeenCalledWith('t-1');
+    expect(screen.getByText(/272765-26/)).toBeInTheDocument();
   });
 });

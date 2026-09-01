@@ -1305,8 +1305,10 @@ export async function loadTicketBelegExport(ticketId: string): Promise<ExportInp
   const rateByCode = new Map(ratesArr.map((r) => [r.code, r] as const));
   const zoneByCode = new Map(zonesArr.map((z) => [z.code, z] as const));
 
-  // Stornierte Scheine gehen NICHT über (nichts zu fakturieren).
-  const exportable = repairOrders.filter((o) => o.status !== 'cancelled');
+  // Exportiert wird genau das, was die Abrechnungs-Vorschau zeigt: verrechenbare,
+  // nicht stornierte Scheine. Ein nicht-verrechenbarer Schein (Garantie/Kulanz)
+  // darf keine Faktura auslösen, ein stornierter erst recht nicht.
+  const exportable = repairOrders.filter((o) => o.status !== 'cancelled' && o.billable);
 
   const detailed = await Promise.all(
     exportable.map(async (order) => {
