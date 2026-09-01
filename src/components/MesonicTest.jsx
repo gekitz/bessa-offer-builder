@@ -120,19 +120,15 @@ const TEST_SECTIONS = [
     ],
   },
   {
-    title: 'Preise (Type 5)',
+    title: 'Preise (Type 5) — WEBArtikelPreise, Key = Artikelnummer',
     tests: [
       {
-        label: '21. Price export — Artikel 1',
-        run: () => mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, '1'),
+        label: '21. Preise — Artikel 30003046KL',
+        run: () => mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, '30003046KL'),
       },
       {
-        label: '22. Raw XML — Price Artikel 1',
-        run: () => mesonicExportRaw(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, '1'),
-      },
-      {
-        label: '23. Price export — alle Preise',
-        run: () => mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, "where T024.C003 <> ''"),
+        label: '22. Raw XML — Preise Artikel 30003046KL',
+        run: () => mesonicExportRaw(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, '30003046KL'),
       },
     ],
   },
@@ -468,6 +464,65 @@ function BelegExportTester() {
           {busy === 'parsed' ? '…' : 'Parsed'}
         </button>
         <button onClick={() => run('raw')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100 disabled:opacity-40">
+          {busy === 'raw' ? '…' : 'Raw XML'}
+        </button>
+      </div>
+      {out && (
+        <div className="mt-2">
+          <div className={`text-sm font-medium ${out.ok ? 'text-emerald-700' : 'text-rose-700'}`}>
+            {out.ok ? `OK (${out.mode})` : 'Fehler'}
+          </div>
+          <pre className="mt-1 p-2 bg-slate-900 text-slate-100 rounded text-xs overflow-auto max-h-96 whitespace-pre-wrap">
+            {out.ok ? (typeof out.res === 'string' ? out.res : JSON.stringify(out.res, null, 2)) : out.error}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Artikel-Preise-Tester (Type 5, WEBArtikelPreise) — die Preistabelle (T043)
+// eines Artikels: Preisart / Preisliste / Preis. Key = Artikelnummer
+// (White Paper §3.5.6). 000161 "Kein Datensatz" = Artikel ohne Preislisten-
+// Zeile (Services/Einzelpreise werden pro Beleg gesetzt).
+function ArtikelPreiseTester() {
+  const [artikel, setArtikel] = useState('30003046KL');
+  const [out, setOut] = useState(null);
+  const [busy, setBusy] = useState(null);
+
+  async function run(mode) {
+    setBusy(mode);
+    setOut(null);
+    try {
+      const key = artikel.trim();
+      const res = mode === 'raw'
+        ? await mesonicExportRaw(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, key)
+        : await mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, key);
+      setOut({ ok: true, mode, res });
+    } catch (e) {
+      setOut({ ok: false, error: e.message });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="border border-amber-200 rounded-lg p-4 bg-amber-50/40">
+      <h2 className="text-lg font-bold mb-1 text-amber-800">Artikel-Preise-Tester (Type 5, WEBArtikelPreise)</h2>
+      <p className="text-xs text-slate-500 mb-3">
+        Preistabelle (T043) eines Artikels — Preisart / Preisliste / Preis. Key = Artikelnummer.
+        „Kein Datensatz" (000161) heißt: der Artikel hat keine Preislisten-Zeile.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+        <label className="text-xs text-slate-600">Artikelnummer
+          <input value={artikel} onChange={(e) => setArtikel(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm font-mono" />
+        </label>
+      </div>
+      <div className="flex gap-2 mb-3">
+        <button onClick={() => run('parsed')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-40">
+          {busy === 'parsed' ? '…' : 'Parsed'}
+        </button>
+        <button onClick={() => run('raw')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-white border border-amber-300 text-amber-800 hover:bg-amber-100 disabled:opacity-40">
           {busy === 'raw' ? '…' : 'Raw XML'}
         </button>
       </div>
@@ -894,6 +949,11 @@ export default function MesonicTest() {
       {/* Beleg-Export tester (Type 30) */}
       <div className="mt-10">
         <BelegExportTester />
+      </div>
+
+      {/* Artikel-Preise tester (Type 5, WEBArtikelPreise) */}
+      <div className="mt-10">
+        <ArtikelPreiseTester />
       </div>
 
       {/* Kunden-Belege / Hardware tester (WEBBelege) */}

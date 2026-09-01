@@ -11,7 +11,7 @@ import { supabase } from './supabase';
 //
 //   Type 1  (Customers):  WebKontenExport / WebKontenListe / WebKontenImport
 //   Type 4  (Articles):   WebArtikelExport / WebArtikelListe / WebArtikelImport
-//   Type 5  (Prices):     WebPreisExport
+//   Type 5  (Prices):     WEBArtikelPreise (T043; Key = Artikelnummer)
 //   Type 7  (Contacts):   WEBKontakt (Ansprechpartner, T045; where T045.C039 = <Konto>)
 //   Type 30 (Belege):     WebBelegExport / WebBelegListe / WebBelegImport
 //   Type 34 (CRM):        WEBCRM
@@ -26,7 +26,7 @@ export const TEMPLATES = {
   ARTICLE_DETAIL: 'WebArtikelExport',
   ARTICLE_LIST: 'WebArtikelListe',
   ARTICLE_IMPORT: 'WebArtikelImport',
-  PRICE_EXPORT: 'WebPreisExport',
+  PRICE_EXPORT: 'WEBArtikelPreise', // Type 5, Key = Artikelnummer → T043 (Preisart/Preisliste/Preis)
   CONTACT_EXPORT: 'WEBKontakt',
   CONTACT_IMPORT: 'WebKontakteImport',
   BELEG_DETAIL: 'WEBBelege', // Type 30, Key <Konto>-<n> (WebBelegExport existierte nie → 000116)
@@ -355,6 +355,15 @@ export async function searchArticles(query) {
 /** Get full article details */
 export async function getArticle(articleNumber) {
   return mesonicExport(TYPES.ARTICLE, TEMPLATES.ARTICLE_DETAIL, articleNumber);
+}
+
+/**
+ * Preise (T043) eines Artikels — Preisart / Preisliste / Preis.
+ * Key ist die Artikelnummer (White Paper §3.5.6). Liefert 000161
+ * "Kein Datensatz" wenn der Artikel keine Preislisten-Zeile hat.
+ */
+export async function getArticlePrices(articleNumber) {
+  return mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, articleNumber);
 }
 
 // ═══════════════════════════════════════════════════════
