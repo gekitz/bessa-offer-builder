@@ -375,6 +375,29 @@ export async function getArticlePrices(articleNumber) {
   return mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, baseArticleNumber(articleNumber));
 }
 
+// Der relevante Verkaufspreis liegt IMMER in Preisliste 13 (Standard-VK).
+// Innerhalb einer Preisliste kann es mehrere Preisarten geben (z. B. VK
+// Preisart 1 vs. Sonderpreis 13) — wir nehmen bevorzugt Preisart 1, sonst
+// die erste Zeile der Liste. Preis wird als NETTO-Zahl zurückgegeben (null
+// wenn keine Zeile für die Preisliste existiert). Pure Funktion → testbar.
+export const STANDARD_PREISLISTE = '13';
+export function pickPreis(records, { preisliste = STANDARD_PREISLISTE, preisart = '1' } = {}) {
+  const inList = (records || []).filter((r) => String(r.Preisliste) === String(preisliste));
+  if (inList.length === 0) return null;
+  const pick = inList.find((r) => String(r.Preisart) === String(preisart)) ?? inList[0];
+  const preis = parseFloat(String(pick.Preis).replace(',', '.'));
+  return Number.isFinite(preis) ? preis : null;
+}
+
+/**
+ * Der Standard-Verkaufspreis (netto) eines Artikels aus Preisliste 13,
+ * oder null wenn keine Preiszeile existiert.
+ */
+export async function getArticlePrice(articleNumber, opts) {
+  const { records = [] } = await getArticlePrices(articleNumber);
+  return pickPreis(records, opts);
+}
+
 // ═══════════════════════════════════════════════════════
 // Beleg API (Type 30)
 // ═══════════════════════════════════════════════════════
