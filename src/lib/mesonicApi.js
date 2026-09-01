@@ -12,7 +12,7 @@ import { supabase } from './supabase';
 //   Type 1  (Customers):  WebKontenExport / WebKontenListe / WebKontenImport
 //   Type 4  (Articles):   WebArtikelExport / WebArtikelListe / WebArtikelImport
 //   Type 5  (Prices):     WebPreisExport
-//   Type 7  (Contacts):   WebKontakteExport / WebKontakteImport
+//   Type 7  (Contacts):   WEBKontakte (Ansprechpartner, T045; where T045.C039 = <Konto>)
 //   Type 30 (Belege):     WebBelegExport / WebBelegListe / WebBelegImport
 //   Type 34 (CRM):        WEBCRM
 
@@ -27,7 +27,7 @@ export const TEMPLATES = {
   ARTICLE_LIST: 'WebArtikelListe',
   ARTICLE_IMPORT: 'WebArtikelImport',
   PRICE_EXPORT: 'WebPreisExport',
-  CONTACT_EXPORT: 'WebKontakteExport',
+  CONTACT_EXPORT: 'WEBKontakte',
   CONTACT_IMPORT: 'WebKontakteImport',
   BELEG_DETAIL: 'WEBBelege', // Type 30, Key <Konto>-<n> (WebBelegExport existierte nie → 000116)
   BELEG_LIST: 'WebBelegListe',
