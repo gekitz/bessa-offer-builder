@@ -1,32 +1,34 @@
 name: Deploy to GitHub Pages
 
-# Builds the Vite SPA and publishes it to the gh-pages branch (served at
-# bessa.kitz.co.at) on every push to main, so production never drifts behind
-# the default branch again. Can also be run manually from the Actions tab.
+# Builds the Vite SPA and publishes it via GitHub's native Actions-based Pages
+# deployment (actions/deploy-pages) — NOT the legacy "deploy from gh-pages
+# branch" build, which repeatedly got stuck in an errored/updating state and
+# left the live site behind main. Custom domain (bessa.kitz.co.at) is preserved
+# via dist/CNAME (copied from public/CNAME at build time).
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-# peaceiris/actions-gh-pages pushes the build to the gh-pages branch.
+# actions/deploy-pages needs pages:write + id-token:write; the build only reads.
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
-# Never run two deploys at once; let an in-flight deploy finish rather than
-# publishing a half-built site.
+# Let an in-flight deploy finish rather than publishing a half-built site.
 concurrency:
-  group: deploy-github-pages
+  group: pages
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # Fail loudly if the build-time config is missing, so we never publish an
-      # env-less (broken) bundle over the live site. VITE_PUBLIC_APP_URL is
-      # optional (falls back to window.location.origin).
+      # Fail loudly if build-time config is missing, so we never publish an
+      # env-less (broken) bundle. VITE_PUBLIC_APP_URL is optional.
       - name: Verify required secrets are set
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -50,9 +52,6 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      # Cache Berry's project-local package cache (.yarn/cache) keyed on the
-      # lockfile so installs are fast without relying on setup-node's yarn cache
-      # (which is finicky with Berry).
       - name: Cache Yarn packages
         uses: actions/cache@v4
         with:
@@ -72,11 +71,23 @@ jobs:
           VITE_PUBLIC_APP_URL: ${{ secrets.VITE_PUBLIC_APP_URL }}
           VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
 
-      # Publishes dist/ to the gh-pages branch. dist/CNAME (from public/CNAME)
-      # keeps the custom domain; .nojekyll is added automatically.
-      - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+      # Switches the Pages source to "GitHub Actions" (build_type: workflow) and
+      # uploads dist/ (incl. CNAME) as the Pages artifact.
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          publish_branch: gh-pages
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
