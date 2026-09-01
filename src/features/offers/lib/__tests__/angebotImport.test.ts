@@ -10,9 +10,10 @@ describe('buildAngebotImportXml', () => {
     ],
   );
 
-  it('wraps in the envelope with option="0" (create new) + printVoucher="0"', () => {
+  it('wraps in envelope with option="0" + printVoucher="0" and NO <?xml?> prolog', () => {
     expect(xml).toContain('<MESOWebService TemplateType="30" Template="WEBAngebot" option="0" printVoucher="0">');
-    expect(xml.trim().startsWith('<?xml')).toBe(true);
+    expect(xml.trim().startsWith('<MESOWebService')).toBe(true); // WinLine rejects the xml declaration
+    expect(xml).not.toContain('<?xml');
     expect(xml.trim().endsWith('</MESOWebService>')).toBe(true);
   });
 
