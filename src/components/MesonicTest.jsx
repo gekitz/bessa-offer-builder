@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { ping, mesonicExport, mesonicExportRaw, mesonicImport, mesonicList, searchArticles, getArticle, saveCustomer, validateCustomer, buildKontenImportXml, TYPES, TEMPLATES } from '../lib/mesonicApi';
 import { fetchCustomerBelege, latestHardware, isLikelyHardware } from '../features/viertl/lib/mesonicBelege';
+import { buildAngebotImportXml, PSEUDO_ARTIKEL, BELEGART } from '../features/offers/lib/angebotImport';
 
 // Sample new-customer payload — only the fields a salesperson would enter.
 // Kontonummer is omitted on purpose so saveCustomer() defaults it to '+' (new
@@ -614,6 +615,85 @@ function KundenBelegeTester() {
   );
 }
 
+// Angebot-Import-Tester (WEBAngebot, Type 30) — baut die XML und prüft sie
+// validate-only (ActionCode=0) → KEIN echter Beleg wird angelegt.
+function AngebotImportTester() {
+  const [konto, setKonto] = useState('272765');
+  const [lauf, setLauf] = useState('999');
+  const [standort, setStandort] = useState('klagenfurt');
+  const [vertreter, setVertreter] = useState('');
+  const [out, setOut] = useState(null);
+  const [busy, setBusy] = useState(null);
+
+  const pseudo = PSEUDO_ARTIKEL[standort];
+  const belegart = BELEGART[standort];
+  const positions = [
+    { artikelnummer: pseudo, datentyp: '1', menge: 1, einzelpreis: 1400, bezeichnung: 'TEST Kassa-Paket', zeilenrabatt1: -10 },
+    { artikelnummer: 'TEXT', datentyp: '3', menge: 1, bezeichnung: 'TEST inkl. Fiskalisierung' },
+  ];
+  const xml = buildAngebotImportXml(
+    { kontonummer: konto, laufnummer: lauf, datumAngebot: new Date().toISOString().slice(0, 10), belegart, vertreternummer: vertreter || undefined },
+    positions,
+  );
+
+  async function run(mode) {
+    setBusy(mode);
+    setOut(null);
+    try {
+      if (mode === 'preview') {
+        setOut({ ok: true, text: xml });
+      } else {
+        // ActionCode 0 = nur validieren (kein Schreiben)
+        const res = await mesonicImport(TYPES.BELEG, 'WEBAngebot', xml, { actionCode: 0 });
+        setOut({ ok: res.success, text: res.error || res.raw || 'OK' });
+      }
+    } catch (e) {
+      setOut({ ok: false, text: e.message });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="border border-rose-200 rounded-lg p-4 bg-rose-50/40">
+      <h2 className="text-lg font-bold mb-1 text-rose-800">Angebot-Import-Tester (WEBAngebot)</h2>
+      <p className="text-xs text-slate-500 mb-3">
+        „Validieren" nutzt ActionCode=0 → prüft nur, legt KEINEN Beleg an. Belegart/Pseudoartikel je Standort.
+      </p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+        <label className="text-xs text-slate-600">Kontonummer
+          <input value={konto} onChange={(e) => setKonto(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Laufnummer (frei/eindeutig)
+          <input value={lauf} onChange={(e) => setLauf(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Standort
+          <select value={standort} onChange={(e) => setStandort(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm">
+            <option value="klagenfurt">Klagenfurt (Belegart 8, {PSEUDO_ARTIKEL.klagenfurt})</option>
+            <option value="wolfsberg">Wolfsberg (Belegart 1, {PSEUDO_ARTIKEL.wolfsberg})</option>
+          </select>
+        </label>
+        <label className="text-xs text-slate-600">Vertreternummer (opt.)
+          <input value={vertreter} onChange={(e) => setVertreter(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+      </div>
+      <div className="flex gap-2 mb-3">
+        <button onClick={() => run('preview')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-white border border-rose-300 text-rose-800 hover:bg-rose-100 disabled:opacity-40">
+          XML-Vorschau
+        </button>
+        <button onClick={() => run('validate')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-40">
+          {busy === 'validate' ? '…' : 'Validieren (ActionCode=0)'}
+        </button>
+      </div>
+      {out && (
+        <pre className={`p-2 rounded text-xs overflow-auto max-h-96 whitespace-pre-wrap ${out.ok ? 'bg-slate-900 text-slate-100' : 'bg-rose-900 text-rose-100'}`}>
+          {out.text}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 export default function MesonicTest() {
   const [results, setResults] = useState({});
   const [running, setRunning] = useState({});
@@ -733,6 +813,11 @@ export default function MesonicTest() {
       {/* Kunden-Belege / Hardware tester (WEBBelege) */}
       <div className="mt-10">
         <KundenBelegeTester />
+      </div>
+
+      {/* Angebot-Import tester (WEBAngebot) */}
+      <div className="mt-10">
+        <AngebotImportTester />
       </div>
     </div>
   );
