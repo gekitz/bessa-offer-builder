@@ -456,7 +456,7 @@ function BelegExportTester() {
         ))}
         {/* Ansprechpartner eines Kontos (Type 7, T045.C039 = Kontonummer) */}
         <button
-          onClick={() => { setType('7'); setTemplate('WEBKontakte'); setKey(`where T045.C039 = '${konto}'`); }}
+          onClick={() => { setType('7'); setTemplate('WEBKontakt'); setKey(`where T045.C039 = '${konto}'`); }}
           className="px-2 py-1 text-xs rounded bg-white border border-violet-300 text-violet-800 hover:bg-violet-100"
         >
           Ansprechpartner (Type 7)
