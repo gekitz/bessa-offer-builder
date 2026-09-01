@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { buildAngebotImportXml } from '../angebotImport';
+import { buildAngebotImportXml, laborArtikelnummer, REPARATUR_BELEGART } from '../angebotImport';
+
+describe('laborArtikelnummer (Reparaturschein Arbeitszeit)', () => {
+  it('builds 300000 + 2-digit Vertreternummer (leading zero) + WO/KL', () => {
+    expect(laborArtikelnummer(9, 'wolfsberg')).toBe('30000009WO');
+    expect(laborArtikelnummer(26, 'klagenfurt')).toBe('30000026KL');
+    expect(laborArtikelnummer('7', 'klagenfurt')).toBe('30000007KL');
+  });
+  it('Reparatur Belegart: KL 16 / WO 12', () => {
+    expect(REPARATUR_BELEGART.klagenfurt).toBe('16');
+    expect(REPARATUR_BELEGART.wolfsberg).toBe('12');
+  });
+});
 
 describe('buildAngebotImportXml', () => {
   const xml = buildAngebotImportXml(

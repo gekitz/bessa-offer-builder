@@ -18,6 +18,19 @@
 export const PSEUDO_ARTIKEL = { klagenfurt: '99991234KL', wolfsberg: '99991234WO' } as const;
 export const BELEGART = { klagenfurt: '8', wolfsberg: '1' } as const;
 
+// Reparaturschein = WEBAngebot mit eigener Belegart (KL 16 / WO 12; künftig
+// beide 17, wir starten mit 12/16).
+export const REPARATUR_BELEGART = { klagenfurt: '16', wolfsberg: '12' } as const;
+
+// Arbeitszeit-Artikelnummer je Mitarbeiter: 300000 + 2-stellige
+// Vertreternummer (führende Null) + WO/KL. z. B. Vertreter 9 in Wolfsberg
+// → 30000009WO, Vertreter 26 in Klagenfurt → 30000026KL. Zum Buchen der
+// Arbeitszeit pro Reparaturschein.
+export function laborArtikelnummer(vertreternummer: string | number, standort: 'klagenfurt' | 'wolfsberg'): string {
+  const num = String(vertreternummer).replace(/\D/g, '').padStart(2, '0');
+  return `300000${num}${standort === 'wolfsberg' ? 'WO' : 'KL'}`;
+}
+
 export interface AngebotKopf {
   kontonummer: string;
   laufnummer: string | number;    // eindeutig pro Konto (wir vergeben max+1)
