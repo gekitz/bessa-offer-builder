@@ -18,9 +18,9 @@ describe('sectionFromPath', () => {
     expect(sectionFromPath('/tickets')).toBe('tickets');
   });
 
-  it('maps /leitstelle and /dispatcher to dispatcher', () => {
-    expect(sectionFromPath('/leitstelle')).toBe('dispatcher');
-    expect(sectionFromPath('/dispatcher')).toBe('dispatcher');
+  it('maps /dashboard and /uebersicht to dashboard', () => {
+    expect(sectionFromPath('/dashboard')).toBe('dashboard');
+    expect(sectionFromPath('/uebersicht')).toBe('dashboard');
   });
 
   it('maps /crm to crm', () => {
@@ -61,11 +61,11 @@ describe('pathForSection', () => {
     expect(pathForSection('crm')).toBe('/crm');
     expect(pathForSection('kalender')).toBe('/kalender');
     expect(pathForSection('tickets')).toBe('/tickets');
-    expect(pathForSection('dispatcher')).toBe('/leitstelle');
+    expect(pathForSection('dashboard')).toBe('/dashboard');
   });
 
   it('round-trips through sectionFromPath', () => {
-    for (const s of ['angebote', 'crm', 'kalender', 'tickets', 'dispatcher'] as const) {
+    for (const s of ['angebote', 'crm', 'kalender', 'tickets', 'dashboard'] as const) {
       expect(sectionFromPath(pathForSection(s))).toBe(s);
     }
   });
