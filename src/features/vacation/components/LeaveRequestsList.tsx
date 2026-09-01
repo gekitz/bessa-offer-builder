@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Calendar as CalendarIcon, Check, Download, FileText, Loader2, RefreshCw, User, X } from 'lucide-react';
 import {
   cancelLeaveRequest,
@@ -58,6 +58,8 @@ interface LeaveRequestsListProps {
   // visible. Used to keep decision notes from leaking when a non-
   // approver flips the Mitarbeiter dropdown to "Alle Mitarbeiter".
   hideOthersDecidedRequests?: boolean;
+  // Deep-link aus dem Dashboard: diese Antrags-ID hervorheben + hinscrollen.
+  highlightRequestId?: string | null;
 }
 
 type StatusTab = 'all' | LeaveStatus;
@@ -83,6 +85,7 @@ export default function LeaveRequestsList({
   myEmployeeId,
   defaultMyOnly = false,
   hideOthersDecidedRequests = false,
+  highlightRequestId = null,
   onEdit,
 }: LeaveRequestsListProps) {
   // ISO "today" for compare-against-leave-end. Captured once per render
@@ -117,6 +120,14 @@ export default function LeaveRequestsList({
   // Tab selection — defaults to "Offen" since approvers care about
   // pending requests first. Used only when showStatusTabs is on.
   const [selectedStatus, setSelectedStatus] = useState<StatusTab>('pending');
+  // Deep-link-Highlight (aus dem Dashboard): zur Zeile scrollen, sobald die
+  // Liste geladen ist.
+  const highlightRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (highlightRequestId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }, [highlightRequestId, requests]);
   // Mitarbeiter scope. 'mine' = the SSO-matched user, 'all' = the
   // whole team, otherwise an employee.id (approver-only) for filtering
   // the list to one specific person — useful when you need to find a
@@ -457,8 +468,13 @@ export default function LeaveRequestsList({
             const showEdit = !!onEdit
               && canManageRequest
               && (canDecide || status === 'pending');
+            const isHighlighted = req.id === highlightRequestId;
             return (
-              <li key={req.id} className="px-4 py-3">
+              <li
+                key={req.id}
+                ref={isHighlighted ? highlightRef : undefined}
+                className={`px-4 py-3 ${isHighlighted ? 'ring-2 ring-amber-300 rounded-lg bg-amber-50/50' : ''}`}
+              >
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <div className="flex items-center gap-2 min-w-0">
                     <User size={12} className="text-slate-400 flex-shrink-0" />

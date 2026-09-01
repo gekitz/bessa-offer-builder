@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Loader2, X } from 'lucide-react';
 import type { OrderRequest, OrderRequestStatus } from '../types';
 
@@ -29,11 +30,20 @@ export default function RequestList({
   requests,
   cancellingId,
   onCancel,
+  highlightId = null,
 }: {
   requests: OrderRequest[];
   cancellingId: string | null;
   onCancel: (id: string) => void;
+  highlightId?: string | null; // Deep-link aus dem Dashboard: hervorheben + hinscrollen
 }) {
+  const highlightRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (highlightId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }, [highlightId, requests]);
+
   if (requests.length === 0) {
     return (
       <div className="text-center py-10 text-slate-400 text-sm">
@@ -47,8 +57,11 @@ export default function RequestList({
       {requests.map((r) => (
         <li
           key={r.id}
+          ref={r.id === highlightId ? highlightRef : undefined}
           data-testid="request-row"
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 flex items-center gap-2.5 text-sm"
+          className={`rounded-lg border bg-white px-3 py-2 flex items-center gap-2.5 text-sm ${
+            r.id === highlightId ? 'border-sky-300 ring-2 ring-sky-200' : 'border-slate-200'
+          }`}
         >
           <span className="font-semibold text-slate-800 w-8 text-right flex-shrink-0">{r.qty}×</span>
           <div className="min-w-0 flex-1">
