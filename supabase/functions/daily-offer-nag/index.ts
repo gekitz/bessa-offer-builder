@@ -40,9 +40,13 @@ interface OfferRow {
 type Reason = 'draft_unsent' | 'sent_no_action';
 
 const DECIDED = new Set(['accepted', 'rejected', 'expired']);
+// Gewonnen/Verloren wird oft ohne Versand markiert → status bleibt 'draft'.
+// Die Query filtert die stage bereits, hier zur Sicherheit gespiegelt.
+const DECIDED_STAGES = new Set(['closed', 'lost']);
 
 function actionReason(o: OfferRow, nowMs: number): Reason | null {
   if (o.status && DECIDED.has(o.status)) return null;
+  if (o.stage && DECIDED_STAGES.has(o.stage)) return null;
   if (o.status === 'draft' && o.created_at && nowMs - Date.parse(o.created_at) >= DRAFT_STALE_DAYS * DAY) {
     return 'draft_unsent';
   }
