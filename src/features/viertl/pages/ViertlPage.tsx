@@ -792,8 +792,12 @@ function LicenseDetail({
             )}
           </div>
 
-          {/* Belege / Hardware (Mesonic-Cache) */}
-          <BelegePanel kdnr={license.mesonicKdnr} />
+          {/* Belege / Hardware (Mesonic-Cache). Klick auf eine grüne Hardware-
+              Zeile übernimmt deren Bezeichnung ins Hardware-Modell-Feld oben. */}
+          <BelegePanel
+            kdnr={license.mesonicKdnr}
+            onPickHardware={(bez) => { const v = bez.trim(); if (v) void patch({ hardwareModel: v }); }}
+          />
 
           {/* Notiz zur Historie */}
           <div className="pt-2 border-t border-slate-100">

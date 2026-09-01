@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, RefreshCw, Download, Wrench } from 'lucide-react';
+import { Loader2, RefreshCw, Download, Wrench, ArrowUpToLine } from 'lucide-react';
 import { loadCachedBelege, syncBelege, type BelegeCacheState, type CachedBeleg } from '../api/belegeApi';
 import { isLikelyHardware } from '../lib/mesonicBelege';
 
 // Belege eines Kunden (aus dem kdnr-basierten Cache). Auf Abruf: erst laden
 // (voller Scan), danach nur neue Belege nachladen. Klick auf einen Beleg
 // öffnet die Positionen; wahrscheinliche Hardware (Erlöskonto 8000/8050)
-// ist hervorgehoben.
+// ist hervorgehoben. Ist onPickHardware gesetzt, übernimmt ein Klick auf eine
+// grüne Hardware-Zeile deren Bezeichnung (z. B. ins Hardware-Modell-Feld).
 export default function BelegePanel({
   kdnr,
   highlightHardware = true,
+  onPickHardware,
 }: {
   kdnr: string;
   highlightHardware?: boolean;
+  onPickHardware?: (bezeichnung: string) => void;
 }) {
   const [cache, setCache] = useState<BelegeCacheState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,7 +92,7 @@ export default function BelegePanel({
         <>
           <div className="space-y-1">
             {belege.map((b) => (
-              <BelegRow key={b.index} beleg={b} open={openIdx === b.index} onToggle={() => setOpenIdx(openIdx === b.index ? null : b.index)} highlightHardware={highlightHardware} />
+              <BelegRow key={b.index} beleg={b} open={openIdx === b.index} onToggle={() => setOpenIdx(openIdx === b.index ? null : b.index)} highlightHardware={highlightHardware} onPickHardware={onPickHardware} />
             ))}
           </div>
           {cache?.syncedAt && (
@@ -103,7 +106,7 @@ export default function BelegePanel({
   );
 }
 
-function BelegRow({ beleg, open, onToggle, highlightHardware }: { beleg: CachedBeleg; open: boolean; onToggle: () => void; highlightHardware: boolean }) {
+function BelegRow({ beleg, open, onToggle, highlightHardware, onPickHardware }: { beleg: CachedBeleg; open: boolean; onToggle: () => void; highlightHardware: boolean; onPickHardware?: (bezeichnung: string) => void }) {
   const hwCount = highlightHardware ? beleg.positions.filter(isLikelyHardware).length : 0;
   return (
     <div className="rounded border border-slate-200 bg-white">
@@ -123,10 +126,24 @@ function BelegRow({ beleg, open, onToggle, highlightHardware }: { beleg: CachedB
               {beleg.positions.map((p, i) => {
                 const hw = highlightHardware && isLikelyHardware(p);
                 const isArt = p.datentyp === '1' && (p.artikelnummer || '').toUpperCase() !== 'TEXT';
+                const pickable = hw && !!onPickHardware && !!p.bezeichnung;
                 return (
-                  <tr key={i} className={hw ? 'text-emerald-700 font-medium' : isArt ? 'text-slate-700' : 'text-slate-400'}>
+                  <tr
+                    key={i}
+                    onClick={pickable ? () => onPickHardware!(p.bezeichnung) : undefined}
+                    title={pickable ? 'Als Hardware-Modell übernehmen' : undefined}
+                    className={
+                      `${hw ? 'text-emerald-700 font-medium' : isArt ? 'text-slate-700' : 'text-slate-400'}` +
+                      (pickable ? ' cursor-pointer hover:bg-emerald-50' : '')
+                    }
+                  >
                     <td className="pr-2 py-0.5 font-mono">{p.artikelnummer}</td>
-                    <td className="pr-2">{hw ? '🔧 ' : ''}{p.bezeichnung}</td>
+                    <td className="pr-2">
+                      <span className="inline-flex items-center gap-1">
+                        {hw ? '🔧 ' : ''}{p.bezeichnung}
+                        {pickable && <ArrowUpToLine className="w-3 h-3 opacity-40 shrink-0" />}
+                      </span>
+                    </td>
                     <td className="pr-1 text-right whitespace-nowrap">{p.menge}×</td>
                     <td className="text-right whitespace-nowrap">€ {p.einzelpreis}</td>
                   </tr>
