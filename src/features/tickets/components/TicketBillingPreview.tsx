@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, FileText, Loader2, Receipt, X } from 'lucide-react';
 import { calculateTicketBilling, setTicketStatus } from '../api/ticketApi';
+import { runTicketBelegExport } from '../lib/runTicketBelegExport';
+import { useAuth } from '../../../lib/auth';
 import type { BillingSummary, Ticket } from '../types';
+
+type BelegExportResult = Awaited<ReturnType<typeof runTicketBelegExport>>;
 
 interface TicketBillingPreviewProps {
   ticket: Ticket;
@@ -20,11 +24,28 @@ export default function TicketBillingPreview({
   onClosed,
   onCancel,
 }: TicketBillingPreviewProps) {
+  const { isAdmin } = useAuth() as { isAdmin: boolean };
   const [summary, setSummary] = useState<BillingSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resolutionNote, setResolutionNote] = useState('');
+  // Mesonic-Beleg-Export (Reparaturscheine → WinLine-Belege → Sammel-Faktura).
+  const [belegBusy, setBelegBusy] = useState(false);
+  const [belegResult, setBelegResult] = useState<BelegExportResult | null>(null);
+  const [belegError, setBelegError] = useState<string | null>(null);
+
+  async function handleCreateBelege() {
+    setBelegBusy(true);
+    setBelegError(null);
+    try {
+      setBelegResult(await runTicketBelegExport(ticket.id));
+    } catch (e) {
+      setBelegError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBelegBusy(false);
+    }
+  }
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -192,15 +213,53 @@ export default function TicketBillingPreview({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    disabled
-                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-slate-100 text-slate-400 text-sm font-medium cursor-not-allowed"
-                    title="Mesonic-Import ist bei Heri in Arbeit"
-                  >
-                    <FileText size={14} />
-                    Mesonic-Beleg erstellen (kommt bald)
-                  </button>
+                  {isAdmin && (
+                    !ticket.mesonicCustomerId ? (
+                      <div className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs">
+                        <AlertCircle size={14} />
+                        Kein WinLine-Konto am Ticket — Kunde erst verknüpfen, um Belege anzulegen.
+                      </div>
+                    ) : belegResult ? (
+                      <div className="w-full rounded-lg border border-slate-200 px-3 py-2 space-y-1 text-xs" data-testid="beleg-export-result">
+                        {belegResult.created.length > 0 && (
+                          <div className="flex items-start gap-1.5 text-emerald-700">
+                            <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+                            <span>
+                              {belegResult.created.length} Beleg{belegResult.created.length === 1 ? '' : 'e'} in WinLine angelegt:{' '}
+                              <span className="font-mono">{belegResult.created.map((c) => c.belegKey).join(', ')}</span>
+                            </span>
+                          </div>
+                        )}
+                        {belegResult.skipped.length > 0 && (
+                          <div className="text-slate-500">
+                            {belegResult.skipped.length} übersprungen (bereits verrechnet / leer)
+                          </div>
+                        )}
+                        {belegResult.failed.length > 0 && (
+                          <div className="text-rose-700">
+                            {belegResult.failed.map((f) => `Rep.schein #${f.seqNumber}: ${f.error}`).join(' · ')}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateBelege()}
+                        disabled={belegBusy}
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+                        data-testid="create-belege"
+                        title="Je Reparaturschein einen WinLine-Beleg (Belegart 12/16) anlegen. Mesonic fasst sie zur Sammel-Faktura zusammen."
+                      >
+                        {belegBusy ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+                        Belege in WinLine anlegen
+                      </button>
+                    )
+                  )}
+                  {belegError && (
+                    <div className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                      <AlertCircle size={14} /> {belegError}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -99,7 +99,23 @@ anlegen — V22 ist mehrfach vergeben).
    und **Pseudoartikel**-Suffix folgen weiterhin dem **Ticket-Standort**. D. h.
    eine `…WO`-Arbeitszeile darf auf einem Belegart-16-(KL-)Beleg stehen.
 
-## Was fehlt (Build)
+## Status 2026-09-01 — Steps 1–4 gebaut, live-validiert
+
+- **Verrechnet wird = die Abrechnungs-Vorschau**: verrechenbare (`billable`),
+  nicht stornierte Scheine. Nicht-verrechenbare (Garantie/Kulanz) lösen KEINE
+  Faktura aus — WYSIWYG statt „alle" wörtlich.
+- **readMaxLaufnummer live verifiziert** (Konto 272765: reale Belege 1..25
+  fortlaufend → nächste = 26). Scannt `<konto>-<n>` (fetchCustomerBelege).
+- **Cross-Standort-Arbeitsartikel bestätigt**: ein `…WO`-Artikel (30000009WO)
+  auf einem Belegart-16-(KL-)Beleg validiert mit `OverallSuccess=true`. Der
+  Heimat-Standort-Suffix ist also auch bei standortfremden Tickets ok.
+- **UI**: Button „Belege in WinLine anlegen" im Abschluss-Dialog
+  (`TicketBillingPreview`), admin-only, Konto-Guard, zeigt angelegte Beleg-Keys.
+  Idempotent (bereits exportierte Scheine werden übersprungen).
+- **Offen**: die zwei Test-Belege 272765-998/999 stornieren; ein echter
+  End-to-End-Create auf einem Wegwerf-Ticket, bevor es „scharf" genutzt wird.
+
+## Was fehlt (Build) — erledigt, Referenz
 
 ### 1. Schema + Seed
 - `employees.mesonic_rep_id` (TEXT) hinzufügen + aus obiger Tabelle seeden
