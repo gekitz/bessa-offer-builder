@@ -329,7 +329,11 @@ export default function TicketsPage({
         <TicketDetail
           ticketId={detailId}
           currentEmployeeId={currentEmployeeId}
-          onBack={() => navigate('/tickets')}
+          onBack={() =>
+            new URLSearchParams(location.search).get('from') === 'uebersicht'
+              ? navigate('/dashboard')
+              : navigate('/tickets')
+          }
           onOpenOffer={onOpenOffer}
         />
       </div>

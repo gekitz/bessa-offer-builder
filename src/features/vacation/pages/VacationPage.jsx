@@ -12,6 +12,7 @@ import MyShiftsPanel from '../../shifts/components/MyShiftsPanel';
 import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { isApprover } from '../lib/permissions';
+import BackToDashboardLink, { useDashboardParam } from '../../../components/BackToDashboardLink';
 
 // Urlaubsplaner landing page. Shows the team grouped by Standort and
 // gives every row a "Antrag stellen" button that opens the request
@@ -19,6 +20,7 @@ import { isApprover } from '../lib/permissions';
 // requests list, calendar view, approver inbox, balance dashboard.
 export default function VacationPage() {
   const { profile, user } = useAuth();
+  const freigabeId = useDashboardParam('freigabe'); // Deep-link aus dem Dashboard
   const [employees, setEmployees] = useState([]);
   const [standorte, setStandorte] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +87,7 @@ export default function VacationPage() {
   return (
     <div className="flex-1 overflow-auto px-4 py-4 md:px-8 md:py-6">
       <div className="max-w-3xl mx-auto">
+        <BackToDashboardLink className="mb-3" />
         {/* Header */}
         <div className="flex items-center justify-between mb-4 gap-2">
           <div className="flex items-center gap-2">
@@ -181,6 +184,7 @@ export default function VacationPage() {
           <div className="mb-4">
             <LeaveRequestsList
               reloadKey={reloadKey}
+              highlightRequestId={freigabeId}
               actionable
               showStatusTabs
               canDecide={userIsApprover}

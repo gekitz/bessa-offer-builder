@@ -1586,8 +1586,10 @@ function OfferBuilderPageInner() {
       {section === 'dashboard' && (
         <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
           <DashboardPage
-            onOpenTicket={(ticketId) => navigate(`/tickets/${ticketId}`)}
-            onNavigate={(s) => navigate(pathForSection(s))}
+            onOpenTicket={(id) => navigate(`/tickets/${id}?from=uebersicht`)}
+            onOpenLeave={(id) => navigate(`/kalender?from=uebersicht&freigabe=${id}`)}
+            onOpenRequest={(id) => navigate(`/bestellungen?from=uebersicht&anfrage=${id}`)}
+            onOpenSection={(s) => navigate(pathForSection(s))}
           />
         </React.Suspense>
       )}

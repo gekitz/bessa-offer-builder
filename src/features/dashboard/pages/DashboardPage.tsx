@@ -24,10 +24,12 @@ function fmt(iso: string): string {
 
 interface DashboardPageProps {
   onOpenTicket?: (ticketId: string) => void;
-  onNavigate?: (section: 'kalender' | 'bestellungen') => void;
+  onOpenLeave?: (leaveId: string) => void;
+  onOpenRequest?: (requestId: string) => void;
+  onOpenSection?: (section: 'kalender' | 'bestellungen') => void;
 }
 
-export default function DashboardPage({ onOpenTicket, onNavigate }: DashboardPageProps) {
+export default function DashboardPage({ onOpenTicket, onOpenLeave, onOpenRequest, onOpenSection }: DashboardPageProps) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,10 +106,10 @@ export default function DashboardPage({ onOpenTicket, onNavigate }: DashboardPag
               count={data.pendingLeaves.length}
               accent="amber"
               empty="Keine offenen Anträge."
-              onHeaderClick={onNavigate ? () => onNavigate('kalender') : undefined}
+              onHeaderClick={onOpenSection ? () => onOpenSection('kalender') : undefined}
             >
               {data.pendingLeaves.map((l) => (
-                <Row key={l.id} onClick={onNavigate ? () => onNavigate('kalender') : undefined}>
+                <Row key={l.id} onClick={onOpenLeave ? () => onOpenLeave(l.id) : undefined}>
                   <div className="min-w-0">
                     <div className="font-medium text-slate-700 truncate">{l.employeeName}</div>
                     <div className="text-xs text-slate-400 truncate">
@@ -126,10 +128,10 @@ export default function DashboardPage({ onOpenTicket, onNavigate }: DashboardPag
               count={data.openRequests.length}
               accent="sky"
               empty="Keine offenen Anfragen."
-              onHeaderClick={onNavigate ? () => onNavigate('bestellungen') : undefined}
+              onHeaderClick={onOpenSection ? () => onOpenSection('bestellungen') : undefined}
             >
               {data.openRequests.map((r) => (
-                <Row key={r.id} onClick={onNavigate ? () => onNavigate('bestellungen') : undefined}>
+                <Row key={r.id} onClick={onOpenRequest ? () => onOpenRequest(r.id) : undefined}>
                   <div className="min-w-0">
                     <div className="font-medium text-slate-700 truncate">
                       {r.qty}× {r.productName}

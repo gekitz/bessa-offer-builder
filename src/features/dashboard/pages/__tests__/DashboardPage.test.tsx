@@ -35,12 +35,20 @@ describe('DashboardPage', () => {
     expect(onOpenTicket).toHaveBeenCalledWith('t1');
   });
 
-  it('clicking a leave navigates to the calendar', async () => {
-    const onNavigate = vi.fn();
+  it('clicking a leave calls onOpenLeave with its id (deep-link)', async () => {
+    const onOpenLeave = vi.fn();
     const u = userEvent.setup();
-    render(<DashboardPage onNavigate={onNavigate} />);
+    render(<DashboardPage onOpenLeave={onOpenLeave} />);
     await u.click(await screen.findByText('Heri Scheiber'));
-    expect(onNavigate).toHaveBeenCalledWith('kalender');
+    expect(onOpenLeave).toHaveBeenCalledWith('l1');
+  });
+
+  it('clicking an order request calls onOpenRequest with its id (deep-link)', async () => {
+    const onOpenRequest = vi.fn();
+    const u = userEvent.setup();
+    render(<DashboardPage onOpenRequest={onOpenRequest} />);
+    await u.click(await screen.findByText(/Sunmi V2/));
+    expect(onOpenRequest).toHaveBeenCalledWith('r1');
   });
 
   it('renders a friendly empty state when nothing is pending', async () => {

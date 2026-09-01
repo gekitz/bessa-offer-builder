@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, ClipboardList, Loader2, Plug, RefreshCw, Send, Settings, ShoppingCart, Truck } from 'lucide-react';
 import { useAuth } from '../../../lib/auth';
+import BackToDashboardLink, { useDashboardParam } from '../../../components/BackToDashboardLink';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { listEmployees } from '../../vacation/api/vacationApi';
 import { aggregateOpenRequests } from '../lib/aggregate';
@@ -51,6 +52,7 @@ export default function ProcurementPage() {
   const isAdmin = profile?.role === 'admin';
   const email = profile?.microsoft_email || user?.email || '';
 
+  const anfrageId = useDashboardParam('anfrage'); // Deep-link aus dem Dashboard
   const [tab, setTab] = useState<Tab>('anfragen');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -466,6 +468,7 @@ export default function ProcurementPage() {
   return (
     <div className="flex-1 overflow-auto px-4 py-4 md:px-8 md:py-6">
       <div className="max-w-3xl mx-auto">
+        <BackToDashboardLink className="mb-3" />
         <div className="flex items-center gap-2 mb-4">
           <ShoppingCart size={20} className="text-red-600" />
           <h1 className="font-bold text-slate-700" style={{ fontSize: 18 }}>Bestellungen</h1>
@@ -622,7 +625,7 @@ export default function ProcurementPage() {
             />
             <div>
               <h2 className="text-sm font-semibold text-slate-600 mb-2">Alle Anfragen</h2>
-              <RequestList requests={requests} cancellingId={cancellingId} onCancel={handleCancel} />
+              <RequestList requests={requests} cancellingId={cancellingId} onCancel={handleCancel} highlightId={anfrageId} />
             </div>
           </div>
         ) : (
