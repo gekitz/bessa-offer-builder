@@ -281,6 +281,9 @@ function rowToRepairOrder(r: any): RepairOrder {
     signedByName: r.signed_by_name,
     performedAt: r.performed_at,
     billable: r.billable,
+    mesonicBelegLaufnummer: r.mesonic_beleg_laufnummer ?? null,
+    mesonicBelegKey: r.mesonic_beleg_key ?? null,
+    mesonicBelegCreatedAt: r.mesonic_beleg_created_at ?? null,
     createdBy: r.created_by,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -819,7 +822,7 @@ export async function setAppointmentAssignees(
 // ─────────────────────────────────────────────────────────────────────
 
 const REPAIR_ORDER_COLS =
-  'id, ticket_id, appointment_id, seq_number, status, work_description, gps_travel_note, signature_data, signed_at, signed_by_name, performed_at, billable, created_by, created_at, updated_at';
+  'id, ticket_id, appointment_id, seq_number, status, work_description, gps_travel_note, signature_data, signed_at, signed_by_name, performed_at, billable, mesonic_beleg_laufnummer, mesonic_beleg_key, mesonic_beleg_created_at, created_by, created_at, updated_at';
 const ENTRY_COLS =
   'id, repair_order_id, employee_id, service_rate_code, work_minutes, travel_mode, travel_zone_code, travel_km, travel_wegzeit_minutes, note, created_at';
 const MATERIAL_COLS =

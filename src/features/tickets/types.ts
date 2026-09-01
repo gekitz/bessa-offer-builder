@@ -223,6 +223,12 @@ export interface RepairOrder {
   signedByName: string | null;
   performedAt: IsoDate;
   billable: boolean;
+  // Mesonic-Beleg-Export: gesetzt sobald der Reparaturschein beim Ticket-
+  // Abschluss als WinLine-Beleg angelegt wurde. mesonicBelegKey (<konto>-<n>)
+  // ist der Idempotenz-Anker — ist er gesetzt, wird nicht erneut exportiert.
+  mesonicBelegLaufnummer: number | null;
+  mesonicBelegKey: string | null;
+  mesonicBelegCreatedAt: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
