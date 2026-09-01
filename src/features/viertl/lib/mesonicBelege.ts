@@ -29,7 +29,9 @@ export interface BelegPosition {
   erloeskonto: string;   // Erlöskonto — 8000 deutet oft (nicht immer) auf Hardware
 }
 
-// Erlöskonten, die typischerweise Hardware kennzeichnen (Heuristik, erweiterbar).
+// Erlöskonten für POS-Systeme (das, was für den Hardware-/ATrust-Tausch
+// zählt). Nur Kassensysteme, NICHT Drucker/Peripherie: 8000 = A-Trust,
+// 8050 = Kassen/Orderman.
 export const HARDWARE_ERLOESKONTEN = new Set(['8000', '8050']);
 
 // „Wahrscheinlich Hardware" — echter Artikel auf einem Hardware-Erlöskonto.
