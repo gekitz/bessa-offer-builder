@@ -26,6 +26,13 @@ describe('offerActionReason', () => {
     expect(offerActionReason({ id: '4', stage: 'lost', status: 'rejected', sent_at: daysAgo(60) }, NOW)).toBeNull();
   });
 
+  it('ignores won/lost offers marked without ever sending (status stays draft)', () => {
+    // Regression: rep marks Gewonnen/Verloren without emailing → status='draft'
+    // + stale created_at would otherwise fire draft_unsent. The stage decides.
+    expect(offerActionReason({ id: 'w', stage: 'closed', status: 'draft', created_at: daysAgo(30) }, NOW)).toBeNull();
+    expect(offerActionReason({ id: 'l', stage: 'lost', status: 'draft', created_at: daysAgo(30) }, NOW)).toBeNull();
+  });
+
   it('ignores decided offers even if stage is still offer_sent', () => {
     // accepted/rejected/expired change status but not always the stage
     for (const status of ['accepted', 'rejected', 'expired']) {

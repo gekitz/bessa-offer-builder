@@ -28,10 +28,17 @@ export type ActionReason = 'draft_unsent' | 'sent_no_action';
 // stage weg von 'offer_sent'.)
 const DECIDED_STATUSES = new Set(['accepted', 'rejected', 'expired']);
 
+// Abgeschlossene/verlorene Angebote laut Pipeline-Stage — ebenfalls erledigt.
+// Vertreter markieren „Gewonnen"/„Verloren" oft OHNE das Angebot je zu mailen,
+// dann bleibt status='draft' und die draft_unsent-Regel würde sie fälschlich
+// als „Aktion nötig" führen. Darum die Stage zusätzlich zum status abfangen.
+const DECIDED_STAGES = new Set(['closed', 'lost']);
+
 export function offerActionReason(o: ActionOffer, now: Date = new Date()): ActionReason | null {
   const nowMs = now.getTime();
 
   if (o.status && DECIDED_STATUSES.has(o.status)) return null;
+  if (o.stage && DECIDED_STAGES.has(o.stage)) return null;
 
   // Entwurf, nie versendet, zu lange liegengeblieben.
   if (o.status === 'draft' && o.created_at) {
