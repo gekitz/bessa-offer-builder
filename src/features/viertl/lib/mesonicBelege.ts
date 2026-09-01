@@ -29,8 +29,9 @@ export interface BelegPosition {
   erloeskonto: string;   // Erlöskonto — 8000 deutet oft (nicht immer) auf Hardware
 }
 
-// Erlöskonten, die typischerweise Hardware kennzeichnen (Heuristik, erweiterbar).
-export const HARDWARE_ERLOESKONTEN = new Set(['8000', '8050']);
+// Erlöskonten, die Hardware kennzeichnen (Heuristik, erweiterbar).
+// 8000 = A-Trust, 8050 = Kassen/Orderman, 8060 = Drucker/Netzwerk.
+export const HARDWARE_ERLOESKONTEN = new Set(['8000', '8050', '8060']);
 
 // „Wahrscheinlich Hardware" — echter Artikel auf einem Hardware-Erlöskonto.
 export function isLikelyHardware(p: BelegPosition): boolean {
