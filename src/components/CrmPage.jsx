@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { searchCustomers, getCustomer, listCustomers, getCustomerContacts, saveCustomer, validateCustomer, TYPES, TEMPLATES, mesonicExport } from '../lib/mesonicApi';
 import CustomerForm from './CustomerForm';
 import BelegePanel from '../features/viertl/components/BelegePanel';
+import ContactsPanel from './ContactsPanel';
 
 // ═══════════════════════════════════════════════════════
 // CRM Page — Customer Search & Detail
@@ -251,6 +252,13 @@ function CustomerDetail({ record, onBack, onEdit, onCreateTicket }) {
           </div>
         )}
       </div>
+
+      {/* Ansprechpartner (Mesonic Type 7, keyed by Kd.Nr.) */}
+      {number && (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 mt-4">
+          <ContactsPanel kdnr={number} />
+        </div>
+      )}
 
       {/* Belege / Hardware (Mesonic-Cache, keyed by Kd.Nr.) */}
       {number && (
