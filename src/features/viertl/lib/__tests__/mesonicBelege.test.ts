@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseBeleg, isEmptyBeleg, articlePositions, latestHardware, isLikelyHardware } from '../mesonicBelege';
+import { parseBeleg, parseBelege, isEmptyBeleg, articlePositions, latestHardware, isLikelyHardware } from '../mesonicBelege';
 
 // Echte Antwort (aus der Praxis) — Beleg mit Positionen.
 const WITH_DATA = `<?xml version="1.0" encoding="UTF-8"?><MESOWebService TemplateType="30" Template="WEBBelege">
@@ -39,6 +39,34 @@ describe('parseBeleg', () => {
   it('returns null for an error envelope', () => {
     expect(parseBeleg(ERROR)).toBeNull();
     expect(parseBeleg('')).toBeNull();
+  });
+});
+
+// Batch-Antwort: zwei Belege in einem Response, Positionen per BELEGKEY zugeordnet.
+const BATCH = `<?xml version="1.0" encoding="UTF-8"?><MESOWebService TemplateType="30" Template="WEBBelege">
+  <WEBBelegeT025><BELEGKEY>1</BELEGKEY><Kontonummer>272765</Kontonummer><Laufnummer>1</Laufnummer><DatumFaktura>2020-08-03</DatumFaktura><Belegart>8</Belegart></WEBBelegeT025>
+  <WEBBelegeT026><BELEGKEY>1</BELEGKEY><Datentyp>1</Datentyp><Artikelnummer>38100500KL</Artikelnummer><Mengegeliefert>1.00</Mengegeliefert><Einzelpreis>3000.00</Einzelpreis><Erloeskonto>8050</Erloeskonto><Bezeichnung>ORDERMAN COLUMBUS 500</Bezeichnung></WEBBelegeT026>
+  <WEBBelegeT026><BELEGKEY>2</BELEGKEY><Datentyp>3</Datentyp><Artikelnummer>TEXT</Artikelnummer><Mengegeliefert>14.00</Mengegeliefert><Einzelpreis>0.00</Einzelpreis><Bezeichnung>Stunden</Bezeichnung></WEBBelegeT026>
+  <WEBBelegeT025><BELEGKEY>2</BELEGKEY><Kontonummer>272765</Kontonummer><Laufnummer>2</Laufnummer><DatumFaktura>2020-07-31</DatumFaktura><Belegart>4</Belegart></WEBBelegeT025>
+</MESOWebService>`;
+
+describe('parseBelege (batch)', () => {
+  it('splits multiple belege and assigns T026 to the right head via BELEGKEY', () => {
+    const belege = parseBelege(BATCH);
+    expect(belege).toHaveLength(2);
+    const b1 = belege.find((b) => b.laufnummer === '1')!;
+    const b2 = belege.find((b) => b.laufnummer === '2')!;
+    expect(b1.index).toBe(1);
+    expect(b1.belegart).toBe('8');
+    expect(b1.positions).toHaveLength(1);
+    expect(b1.positions[0]).toMatchObject({ artikelnummer: '38100500KL', erloeskonto: '8050' });
+    expect(b2.positions).toHaveLength(1);
+    expect(b2.positions[0].datentyp).toBe('3');
+  });
+
+  it('returns [] on error/empty', () => {
+    expect(parseBelege('<MESOWebServiceResult><OverallSuccess>false</OverallSuccess></MESOWebServiceResult>')).toEqual([]);
+    expect(parseBelege('')).toEqual([]);
   });
 });
 
