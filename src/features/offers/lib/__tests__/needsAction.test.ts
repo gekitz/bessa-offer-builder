@@ -26,6 +26,13 @@ describe('offerActionReason', () => {
     expect(offerActionReason({ id: '4', stage: 'lost', status: 'rejected', sent_at: daysAgo(60) }, NOW)).toBeNull();
   });
 
+  it('ignores decided offers even if stage is still offer_sent', () => {
+    // accepted/rejected/expired change status but not always the stage
+    for (const status of ['accepted', 'rejected', 'expired']) {
+      expect(offerActionReason({ id: 'x', stage: 'offer_sent', status, sent_at: daysAgo(60) }, NOW)).toBeNull();
+    }
+  });
+
   it('ignores a recently sent offer', () => {
     expect(offerActionReason({ id: '5', stage: 'offer_sent', sent_at: daysAgo(2) }, NOW)).toBeNull();
   });
