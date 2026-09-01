@@ -86,8 +86,9 @@ export function buildAngebotImportXml(
     )
     .join('\n');
 
+  // KEIN <?xml?>-Prolog — WinLines Beleg-Schemaprüfung lehnt ihn ab
+  // ("Invalid syntax for an xml declaration"). Nur die MESOWebService-Wurzel.
   return (
-    `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<MESOWebService TemplateType="30" Template="WEBAngebot" option="${esc(option)}" printVoucher="${esc(printVoucher)}">\n` +
     `${kopfXml}\n${posXml}\n` +
     `</MESOWebService>`
