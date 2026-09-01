@@ -44,8 +44,21 @@ function el(tag: string, value: string | number | undefined | null): string {
   return `  <${tag}>${esc(String(value))}</${tag}>\n`;
 }
 
-// Nackte T025/T026-Zeilen (ohne Envelope). Reihenfolge = XSD-Sequenz.
-export function buildAngebotImportXml(kopf: AngebotKopf, positions: AngebotPosition[]): string {
+export interface AngebotImportOpts {
+  option?: string;        // §3.6.3: 0 = neuen Beleg erstellen (Default), 3 = editieren, 4 = storno …
+  printVoucher?: string;  // 0 = nicht drucken (Default), 1 = Angebot, 2 = Auftrag …
+}
+
+// VOLLER MESOWebService-Envelope inkl. Pflicht-Attribut option="0" (neuen
+// Beleg erstellen, §3.6.3) — der Proxy erkennt den Envelope und wrappt NICHT
+// erneut. Reihenfolge der Felder = XSD-Sequenz.
+export function buildAngebotImportXml(
+  kopf: AngebotKopf,
+  positions: AngebotPosition[],
+  opts: AngebotImportOpts = {},
+): string {
+  const option = opts.option ?? '0';
+  const printVoucher = opts.printVoucher ?? '0';
   const bk = kopf.belegkey ?? 1;
 
   const kopfXml =
@@ -73,5 +86,10 @@ export function buildAngebotImportXml(kopf: AngebotKopf, positions: AngebotPosit
     )
     .join('\n');
 
-  return `${kopfXml}\n${posXml}`;
+  return (
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<MESOWebService TemplateType="30" Template="WEBAngebot" option="${esc(option)}" printVoucher="${esc(printVoucher)}">\n` +
+    `${kopfXml}\n${posXml}\n` +
+    `</MESOWebService>`
+  );
 }
