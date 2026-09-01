@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ping, mesonicExport, mesonicExportRaw, mesonicImport, mesonicList, searchArticles, getArticle, saveCustomer, validateCustomer, buildKontenImportXml, TYPES, TEMPLATES } from '../lib/mesonicApi';
+import { ping, mesonicExport, mesonicExportRaw, mesonicImport, mesonicList, searchArticles, getArticle, baseArticleNumber, saveCustomer, validateCustomer, buildKontenImportXml, TYPES, TEMPLATES } from '../lib/mesonicApi';
 import { fetchCustomerBelege, latestHardware, isLikelyHardware } from '../features/viertl/lib/mesonicBelege';
 import { buildAngebotImportXml, PSEUDO_ARTIKEL, BELEGART, REPARATUR_BELEGART, laborArtikelnummer } from '../features/offers/lib/angebotImport';
 
@@ -120,15 +120,15 @@ const TEST_SECTIONS = [
     ],
   },
   {
-    title: 'Preise (Type 5) — WEBArtikelPreise, Key = Artikelnummer',
+    title: 'Preise (Type 5) — WEBArtikelPreise, Key = Basis-Artikelnummer (ohne KL/WO)',
     tests: [
       {
-        label: '21. Preise — Artikel 30003046KL',
-        run: () => mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, '30003046KL'),
+        label: '21. Preise — Artikel 16030051',
+        run: () => mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, '16030051'),
       },
       {
-        label: '22. Raw XML — Preise Artikel 30003046KL',
-        run: () => mesonicExportRaw(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, '30003046KL'),
+        label: '22. Raw XML — Preise Artikel 16030051',
+        run: () => mesonicExportRaw(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, '16030051'),
       },
     ],
   },
@@ -482,11 +482,11 @@ function BelegExportTester() {
 }
 
 // Artikel-Preise-Tester (Type 5, WEBArtikelPreise) — die Preistabelle (T043)
-// eines Artikels: Preisart / Preisliste / Preis. Key = Artikelnummer
-// (White Paper §3.5.6). 000161 "Kein Datensatz" = Artikel ohne Preislisten-
-// Zeile (Services/Einzelpreise werden pro Beleg gesetzt).
+// eines Artikels: Preisart / Preisliste / Preis. Key = BASIS-Artikelnummer
+// (White Paper §3.5.6) OHNE KL/WO-Suffix — die Preise hängen am Artikel, nicht
+// an der Standort-Ausprägung. 000161 "Kein Datensatz" = Artikel ohne Preiszeile.
 function ArtikelPreiseTester() {
-  const [artikel, setArtikel] = useState('30003046KL');
+  const [artikel, setArtikel] = useState('16030051');
   const [out, setOut] = useState(null);
   const [busy, setBusy] = useState(null);
 
@@ -494,7 +494,7 @@ function ArtikelPreiseTester() {
     setBusy(mode);
     setOut(null);
     try {
-      const key = artikel.trim();
+      const key = baseArticleNumber(artikel); // KL/WO-Ausprägung strippen
       const res = mode === 'raw'
         ? await mesonicExportRaw(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, key)
         : await mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, key);

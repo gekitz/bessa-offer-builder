@@ -358,12 +358,21 @@ export async function getArticle(articleNumber) {
 }
 
 /**
+ * Basis-Artikelnummer ohne Standort-Ausprägung (Suffix KL/WO). Die Preise
+ * hängen am Artikel, NICHT an der Ausprägung — 16030051KL liefert 000161,
+ * 16030051 liefert die Preiszeilen.
+ */
+export function baseArticleNumber(articleNumber) {
+  return String(articleNumber).trim().replace(/(KL|WO)$/i, '');
+}
+
+/**
  * Preise (T043) eines Artikels — Preisart / Preisliste / Preis.
- * Key ist die Artikelnummer (White Paper §3.5.6). Liefert 000161
- * "Kein Datensatz" wenn der Artikel keine Preislisten-Zeile hat.
+ * Key ist die Basis-Artikelnummer (White Paper §3.5.6), OHNE KL/WO-Suffix.
+ * Liefert 000161 "Kein Datensatz" wenn der Artikel keine Preiszeile hat.
  */
 export async function getArticlePrices(articleNumber) {
-  return mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, articleNumber);
+  return mesonicExport(TYPES.PRICE, TEMPLATES.PRICE_EXPORT, baseArticleNumber(articleNumber));
 }
 
 // ═══════════════════════════════════════════════════════
