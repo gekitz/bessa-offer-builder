@@ -29,7 +29,10 @@ import type {
   TicketStatus,
   TravelZone,
 } from '../types';
-import { calcTicketBilling } from '../lib/billing';
+import { calcRepairOrderBilling, calcTicketBilling } from '../lib/billing';
+import { standortFromId, type EmployeeMesonic } from '../lib/repairOrderBeleg';
+import type { OrderForExport } from '../lib/ticketBelegPlan';
+import type { ExportInput } from '../lib/ticketBelegExport';
 
 function requireSupabase(): NonNullable<typeof supabase> {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -1278,4 +1281,119 @@ export async function calculateTicketBilling(ticketId: string): Promise<BillingS
     zoneByCode,
     employeeNameById,
   });
+}
+
+// ═══════════════════════════════════════════════════════
+// Mesonic-Verrechnung: Reparaturscheine → WinLine-Belege
+// (docs/ticket-mesonic-verrechnung.md)
+// ═══════════════════════════════════════════════════════
+
+// Lädt alle Bausteine, die exportTicketBelege() braucht: je Reparaturschein
+// die volle Abrechnung (ALLE Scheine außer stornierten — kein billable-Filter,
+// so gewünscht) + das Mitarbeiter→Vertreternummer/Heimat-Standort-Mapping +
+// die verantwortliche Rep am Beleg-Kopf (Ticket-Assignee).
+export async function loadTicketBelegExport(ticketId: string): Promise<ExportInput & { ticketNumber: string }> {
+  const sb = requireSupabase();
+  const ticket = await getTicket(ticketId);
+  if (!ticket) throw new Error('Ticket nicht gefunden');
+
+  const [ratesArr, zonesArr, repairOrders] = await Promise.all([
+    listServiceRates(),
+    listTravelZones(),
+    listRepairOrders(ticketId),
+  ]);
+  const rateByCode = new Map(ratesArr.map((r) => [r.code, r] as const));
+  const zoneByCode = new Map(zonesArr.map((z) => [z.code, z] as const));
+
+  // Stornierte Scheine gehen NICHT über (nichts zu fakturieren).
+  const exportable = repairOrders.filter((o) => o.status !== 'cancelled');
+
+  const detailed = await Promise.all(
+    exportable.map(async (order) => {
+      const { data: entries, error: eErr } = await sb
+        .from('repair_order_entries')
+        .select(`${ENTRY_COLS}, employees(name)`)
+        .eq('repair_order_id', order.id);
+      if (eErr) throw eErr;
+      const { data: materials, error: mErr } = await sb
+        .from('repair_order_materials')
+        .select(MATERIAL_COLS)
+        .eq('repair_order_id', order.id);
+      if (mErr) throw mErr;
+      const { data: adjustments, error: aErr } = await sb
+        .from('repair_order_adjustments')
+        .select(ADJUSTMENT_COLS)
+        .eq('repair_order_id', order.id);
+      if (aErr) throw aErr;
+      return {
+        order,
+        entries: (entries ?? []).map(rowToEntry),
+        materials: (materials ?? []).map(rowToMaterial),
+        adjustments: (adjustments ?? []).map(rowToAdjustment),
+      };
+    }),
+  );
+
+  // Mitarbeiter → Vertreternummer + Heimat-Standort (treibt den Arbeits-
+  // Artikel). Plus die Kopf-Vertreternummer aus dem Ticket-Assignee.
+  const empIds = new Set<string>();
+  for (const d of detailed) for (const e of d.entries) empIds.add(e.employeeId);
+  if (ticket.assignedTo) empIds.add(ticket.assignedTo);
+
+  const employeeMesonic = new Map<string, EmployeeMesonic>();
+  let kopfVertreternummer: string | undefined;
+  if (empIds.size > 0) {
+    const { data: emps, error } = await sb
+      .from('employees')
+      .select('id, mesonic_rep_id, standort_id')
+      .in('id', [...empIds]);
+    if (error) throw error;
+    for (const e of emps ?? []) {
+      if (e.mesonic_rep_id) {
+        employeeMesonic.set(e.id, { vertreternummer: e.mesonic_rep_id, standort: standortFromId(e.standort_id) });
+      }
+      if (ticket.assignedTo && e.id === ticket.assignedTo) kopfVertreternummer = e.mesonic_rep_id ?? undefined;
+    }
+  }
+
+  const orders: OrderForExport[] = detailed.map((d) => ({
+    billing: calcRepairOrderBilling({
+      repairOrder: d.order,
+      entries: d.entries,
+      materials: d.materials,
+      adjustments: d.adjustments,
+      rateByCode,
+      zoneByCode,
+      customerHasWartungsvertrag: ticket.customerHasWartungsvertrag,
+    }),
+    alreadyExportedKey: d.order.mesonicBelegKey,
+  }));
+
+  return {
+    konto: ticket.mesonicCustomerId ?? '',
+    ticketStandort: standortFromId(ticket.standortId),
+    orders,
+    employeeMesonic,
+    kopfVertreternummer,
+    ticketNumber: ticket.ticketNumber,
+  };
+}
+
+// Persistiert Laufnummer + Beleg-Key auf dem Reparaturschein (Idempotenz-Anker
+// für exportTicketBelege).
+export async function setRepairOrderBelegExport(
+  repairOrderId: string,
+  laufnummer: number,
+  belegKey: string,
+): Promise<void> {
+  const sb = requireSupabase();
+  const { error } = await sb
+    .from('repair_orders')
+    .update({
+      mesonic_beleg_laufnummer: laufnummer,
+      mesonic_beleg_key: belegKey,
+      mesonic_beleg_created_at: new Date().toISOString(),
+    })
+    .eq('id', repairOrderId);
+  if (error) throw error;
 }
