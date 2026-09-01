@@ -2,6 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+// OfferView gates the Save/Send row on a configured supabase client
+// (`supabase && !locked`). Stub it truthy so the test doesn't depend on
+// ambient VITE_SUPABASE_* env — it's only a render gate, never called here.
+vi.mock('../../../../lib/supabase', () => ({ supabase: {} }));
+
 import OfferView from '../OfferView';
 import { computeTotals } from '../../../../lib/totals';
 import { ALL } from '../../data/catalogs';
