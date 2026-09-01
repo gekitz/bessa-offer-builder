@@ -10,6 +10,12 @@ describe('buildAngebotImportXml', () => {
     ],
   );
 
+  it('wraps in the envelope with option="0" (create new) + printVoucher="0"', () => {
+    expect(xml).toContain('<MESOWebService TemplateType="30" Template="WEBAngebot" option="0" printVoucher="0">');
+    expect(xml.trim().startsWith('<?xml')).toBe(true);
+    expect(xml.trim().endsWith('</MESOWebService>')).toBe(true);
+  });
+
   it('emits Kopf fields in XSD order', () => {
     const kopf = xml.slice(xml.indexOf('<WEBAngebotT025>'), xml.indexOf('</WEBAngebotT025>'));
     const order = ['BELEGKEY', 'Kontonummer', 'Laufnummer', 'DatumAngebot', 'Belegart', 'Vertreternummer'];
