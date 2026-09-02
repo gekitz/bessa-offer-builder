@@ -473,7 +473,7 @@ export default function LeaveRequestsList({
               <li
                 key={req.id}
                 ref={isHighlighted ? highlightRef : undefined}
-                className={`px-4 py-3 ${isHighlighted ? 'ring-2 ring-amber-300 rounded-lg bg-amber-50/50' : ''}`}
+                className={`px-4 py-3 ${isHighlighted ? 'ring-2 ring-inset ring-amber-300 rounded-lg bg-amber-50/50' : ''}`}
               >
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <div className="flex items-center gap-2 min-w-0">
