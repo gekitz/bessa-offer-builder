@@ -60,7 +60,7 @@ export default function RequestList({
           ref={r.id === highlightId ? highlightRef : undefined}
           data-testid="request-row"
           className={`rounded-lg border bg-white px-3 py-2 flex items-center gap-2.5 text-sm ${
-            r.id === highlightId ? 'border-sky-300 ring-2 ring-sky-200' : 'border-slate-200'
+            r.id === highlightId ? 'border-sky-300 ring-2 ring-inset ring-sky-200' : 'border-slate-200'
           }`}
         >
           <span className="font-semibold text-slate-800 w-8 text-right flex-shrink-0">{r.qty}×</span>
