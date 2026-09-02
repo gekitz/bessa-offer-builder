@@ -120,6 +120,7 @@ describe('TicketBillingPreview', () => {
   });
 
   it('confirms close calls setTicketStatus with closed + resolution note', async () => {
+    authState.isAdmin = true; // Schließen ist Admin-Sache
     const u = userEvent.setup();
     const onClosed = vi.fn();
     render(
@@ -142,6 +143,14 @@ describe('TicketBillingPreview', () => {
     expect(opts.resolutionNote).toBe('Toner getauscht');
     expect(opts.closedBy).toBe('emp-a');
     expect(onClosed).toHaveBeenCalled();
+  });
+
+  it('non-admins cannot confirm the close (button disabled)', async () => {
+    // authState.isAdmin defaults to false (beforeEach)
+    render(<TicketBillingPreview ticket={ticket} onClosed={vi.fn()} onCancel={vi.fn()} />);
+    await screen.findByTestId('billing-summary');
+    expect(screen.getByTestId('billing-confirm-close')).toBeDisabled();
+    expect(setTicketStatusMock).not.toHaveBeenCalled();
   });
 
   it('falls back to a friendly message when there are no billable repair orders', async () => {
