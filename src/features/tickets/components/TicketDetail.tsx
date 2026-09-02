@@ -14,6 +14,7 @@ import {
   User,
 } from 'lucide-react';
 import { getTicket, setTicketStatus, updateTicket } from '../api/ticketApi';
+import { useAuth } from '../../../lib/auth';
 import { getOffer } from '../../../lib/offerApi';
 import { listAbteilungen, listEmployees } from '../../vacation/api/vacationApi';
 import type { Abteilung } from '../../vacation/api/vacationApi';
@@ -88,6 +89,10 @@ const KIND_LABEL: Record<Ticket['kind'], string> = {
 };
 
 export default function TicketDetail({ ticketId, onBack, currentEmployeeId = null, onOpenOffer }: TicketDetailProps) {
+  // Nur Admins (Georg + Herbert) dürfen ein Ticket schließen (→ Mesonic-Beleg).
+  // Techniker geben es maximal „In Prüfung" — ihr letzter Schritt.
+  const { profile } = useAuth() as { profile: { role?: string } | null };
+  const isAdmin = profile?.role === 'admin';
   const [ticket, setTicket] = useState<Ticket | null>(null);
   // share_code of the linked offer (if this ticket came from an accepted
   // offer) — lets us deep-link into the offer via ?s=<code>.
@@ -298,10 +303,11 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
         <Select
           value={ticket.status}
           onChange={(v) => handleStatusChange(v as TicketStatus)}
-          options={(Object.keys(STATUS_LABEL) as TicketStatus[]).map((s) => ({
-            value: s,
-            label: STATUS_LABEL[s],
-          }))}
+          options={(Object.keys(STATUS_LABEL) as TicketStatus[])
+            // „Geschlossen" nur für Admins — außer das Ticket ist bereits
+            // geschlossen (dann muss der Wert anzeigbar bleiben).
+            .filter((s) => isAdmin || s !== 'closed' || ticket.status === 'closed')
+            .map((s) => ({ value: s, label: STATUS_LABEL[s] }))}
           disabled={ticket.status === 'closed'}
           size="sm"
           className="inline-block w-44"
@@ -318,15 +324,27 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
           className="inline-block w-56"
           ariaLabel="Zugewiesen an"
         />
-        {ticket.status !== 'closed' && (
-          <button
-            onClick={() => setShowCloseDialog(true)}
-            className="ml-auto inline-flex items-center gap-1 px-3 py-1 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
-          >
-            <CheckCircle2 size={14} />
-            Ticket schließen
-          </button>
-        )}
+        {isAdmin
+          ? ticket.status !== 'closed' && (
+              <button
+                onClick={() => setShowCloseDialog(true)}
+                className="ml-auto inline-flex items-center gap-1 px-3 py-1 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
+              >
+                <CheckCircle2 size={14} />
+                Ticket schließen
+              </button>
+            )
+          : ['open', 'in_progress', 'waiting'].includes(ticket.status) && (
+              // Techniker-Aktion „Ich bin fertig" → Ticket in Prüfung geben.
+              // Schließen bleibt den Admins vorbehalten.
+              <button
+                onClick={() => void handleStatusChange('review')}
+                className="ml-auto inline-flex items-center gap-1 px-3 py-1 rounded-md bg-violet-600 text-white text-sm font-medium hover:bg-violet-700"
+              >
+                <CheckCircle2 size={14} />
+                In Prüfung geben
+              </button>
+            )}
       </div>
 
       {error && (

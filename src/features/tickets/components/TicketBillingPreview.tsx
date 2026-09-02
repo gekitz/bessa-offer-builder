@@ -75,6 +75,12 @@ export default function TicketBillingPreview({
   }, [ticket.id]);
 
   async function handleConfirmClose() {
+    // Absicherung: Schließen ist Admin-Sache (Georg + Herbert). Die Einstiege
+    // sind für Techniker bereits ausgeblendet — hier der zweite Riegel.
+    if (!isAdmin) {
+      setError('Nur Admins können ein Ticket schließen.');
+      return;
+    }
     setClosing(true);
     setError(null);
     try {
@@ -298,7 +304,8 @@ export default function TicketBillingPreview({
           <button
             type="button"
             onClick={handleConfirmClose}
-            disabled={closing || loading}
+            disabled={closing || loading || !isAdmin}
+            title={!isAdmin ? 'Nur Admins können Tickets schließen' : undefined}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
             data-testid="billing-confirm-close"
           >
