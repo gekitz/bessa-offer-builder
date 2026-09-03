@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const listAttachmentsMock = vi.fn();
@@ -82,6 +82,32 @@ describe('AttachmentsPanel', () => {
     expect(opts.filename).toBe('note.txt');
     expect(opts.uploadedBy).toBe('emp-a');
     expect(await screen.findByText('note.txt')).toBeInTheDocument();
+  });
+
+  it('uploads files dropped onto the panel', async () => {
+    render(<AttachmentsPanel scope={{ ticketId: 't-1' }} currentEmployeeId="emp-a" />);
+    await waitFor(() => expect(listAttachmentsMock).toHaveBeenCalled());
+
+    const panel = screen.getByTestId('attachments-panel');
+    const file = new File(['x'], 'dropped.pdf', { type: 'application/pdf' });
+    const dataTransfer = { files: [file], types: ['Files'] };
+
+    // Highlight on drag-over, upload on drop.
+    fireEvent.dragOver(panel, { dataTransfer });
+    fireEvent.drop(panel, { dataTransfer });
+
+    await waitFor(() => expect(uploadAttachmentMock).toHaveBeenCalled());
+    expect(uploadAttachmentMock.mock.calls[0][0].filename).toBe('dropped.pdf');
+    expect(await screen.findByText('dropped.pdf')).toBeInTheDocument();
+  });
+
+  it('does not accept drops when editable=false', async () => {
+    render(<AttachmentsPanel scope={{ ticketId: 't-1' }} editable={false} />);
+    await waitFor(() => expect(listAttachmentsMock).toHaveBeenCalled());
+    const panel = screen.getByTestId('attachments-panel');
+    const file = new File(['x'], 'nope.pdf', { type: 'application/pdf' });
+    fireEvent.drop(panel, { dataTransfer: { files: [file], types: ['Files'] } });
+    expect(uploadAttachmentMock).not.toHaveBeenCalled();
   });
 
   it('hides upload + delete when editable=false', async () => {

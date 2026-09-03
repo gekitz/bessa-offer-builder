@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import {
   AlertCircle,
   Camera,
@@ -48,6 +48,7 @@ export default function AttachmentsPanel({
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -98,6 +99,27 @@ export default function AttachmentsPanel({
     }
   }
 
+  // Drag-and-drop upload. Only reacts to drags carrying files, and clears
+  // the highlight only when the pointer actually leaves the panel (not when
+  // moving over a child), so it doesn't flicker.
+  function onDragOver(e: DragEvent) {
+    if (!editable) return;
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    e.preventDefault();
+    if (!dragActive) setDragActive(true);
+  }
+  function onDragLeave(e: DragEvent) {
+    if (!editable) return;
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setDragActive(false);
+  }
+  function onDrop(e: DragEvent) {
+    if (!editable) return;
+    e.preventDefault();
+    setDragActive(false);
+    handleUpload(e.dataTransfer.files);
+  }
+
   async function handleOpen(a: TicketAttachment) {
     try {
       const url = await getAttachmentSignedUrl(a.storagePath, 3600);
@@ -119,7 +141,16 @@ export default function AttachmentsPanel({
   }
 
   return (
-    <div className="space-y-2" data-testid="attachments-panel">
+    <div
+      className={`space-y-2 rounded-lg transition-colors ${
+        dragActive ? 'ring-2 ring-red-300 bg-red-50/40 p-2 -m-2' : ''
+      }`}
+      data-testid="attachments-panel"
+      onDragOver={onDragOver}
+      onDragEnter={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Paperclip size={14} className="text-slate-500" />
@@ -183,7 +214,13 @@ export default function AttachmentsPanel({
           <Loader2 size={16} className="animate-spin text-slate-400" />
         </div>
       ) : attachments.length === 0 ? (
-        <div className="text-xs text-slate-400 text-center py-3">Keine Anhänge.</div>
+        <div className="text-xs text-slate-400 text-center py-3">
+          {dragActive
+            ? 'Dateien hier ablegen …'
+            : editable
+              ? 'Keine Anhänge – Dateien hierher ziehen oder „Datei" wählen.'
+              : 'Keine Anhänge.'}
+        </div>
       ) : (
         <ul className="space-y-1">
           {attachments.map((a) => {
