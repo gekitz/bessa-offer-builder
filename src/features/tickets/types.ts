@@ -75,6 +75,9 @@ export interface Ticket {
   resolutionNote: string | null;
   offerId: string | null;
   mesonicBelegId: string | null;
+  // Idempotency anchor for the WinLine CRM Aktion (staff deep-link note),
+  // posted once when the ticket detail is first opened. Set → never re-post.
+  mesonicCrmKey: string | null;
   // Frozen labor-hours floor from the accepted offer's accept snapshot.
   // The finished ticket never bills fewer labor hours than the offer quoted.
   offerLaborMinutes: number;       // quoted labor minutes (0 = no floor)
@@ -234,6 +237,9 @@ export interface RepairOrder {
   mesonicBelegLaufnummer: number | null;
   mesonicBelegKey: string | null;
   mesonicBelegCreatedAt: string | null;
+  // Idempotency anchor for the WinLine CRM Aktion (links to the parent
+  // ticket), posted once when the repair order is created. Set → never re-post.
+  mesonicCrmKey: string | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;

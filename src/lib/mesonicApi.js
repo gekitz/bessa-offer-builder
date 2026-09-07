@@ -14,7 +14,7 @@ import { supabase } from './supabase';
 //   Type 5  (Prices):     WEBArtikelPreise (T043; Key = Artikelnummer)
 //   Type 7  (Contacts):   WEBKontakt (Ansprechpartner, T045; where T045.C039 = <Konto>)
 //   Type 30 (Belege):     WebBelegExport / WebBelegListe / WebBelegImport
-//   Type 34 (CRM):        WEBCRM
+//   Type 34 (CRM):        WebCRM (exact case — 'WEBCRM' hangs 30s, live-verified)
 
 const PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/mesonic-proxy`;
 
@@ -32,7 +32,7 @@ export const TEMPLATES = {
   BELEG_DETAIL: 'WEBBelege', // Type 30, Key <Konto>-<n> (WebBelegExport existierte nie → 000116)
   BELEG_LIST: 'WebBelegListe',
   BELEG_IMPORT: 'WebBelegImport',
-  CRM: 'WEBCRM',
+  CRM: 'WebCRM', // exact case matters — WinLine hangs 30s on 'WEBCRM' (live-verified 2026-09-07)
 };
 
 // ─── Type codes ───

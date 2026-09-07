@@ -63,6 +63,28 @@ export async function saveOffer({ id, customer, creator, creatorName, creatorEma
   }
 }
 
+// Patch the Mesonic linkage columns on an offer. Used by the CRM-note
+// flow to persist the resolved WinLine Kd.-Nr. (mesonic_customer_id) and
+// the created CRM Aktion key (mesonic_crm_key). Only the provided columns
+// are written, so it never clobbers the other one on a partial update.
+export async function updateOfferMesonic(id, { mesonicCustomerId, mesonicCrmKey } = {}) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+
+  const patch = {};
+  if (mesonicCustomerId !== undefined) patch.mesonic_customer_id = mesonicCustomerId;
+  if (mesonicCrmKey !== undefined) patch.mesonic_crm_key = mesonicCrmKey;
+  if (Object.keys(patch).length === 0) return null;
+
+  const { data, error } = await supabase
+    .from('offers')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 // List offer creators from the employees table — the single source of
 // truth for rep name/email/phone/role. Every active employee is eligible
 // to create (and therefore be filtered for) an offer.

@@ -46,7 +46,7 @@ const ticket: Ticket = {
   customerName: 'Müller', customerPhone: null, customerEmail: null,
   customerAddress: null, customerHasWartungsvertrag: false, standortId: null,
   billable: true, closedAt: null, closedBy: null, resolutionNote: null,
-  offerId: null, mesonicBelegId: null,
+  offerId: null, mesonicBelegId: null, mesonicCrmKey: null,
   offerLaborMinutes: 0, offerLaborRate: null, offerLaborFloorBilledMinutes: 0,
   createdBy: null,
   createdAt: '2026-05-11T08:00:00Z', updatedAt: '2026-05-11T08:00:00Z',
@@ -58,6 +58,7 @@ const ro1: RepairOrder = {
   signatureData: null, signedAt: null, signedByName: null,
   performedAt: '2026-05-12', billable: true,
   mesonicBelegLaufnummer: null, mesonicBelegKey: null, mesonicBelegCreatedAt: null,
+  mesonicCrmKey: null,
   createdBy: null,
   createdAt: '', updatedAt: '',
 };
