@@ -15,8 +15,11 @@ import {
   createRepairOrder,
   listAppointmentsForTicket,
   listRepairOrders,
+  updateRepairOrderMesonicCrmKey,
 } from '../api/ticketApi';
 import type { Appointment, RepairOrder, Ticket } from '../types';
+import { mesonicImport, TYPES, TEMPLATES } from '../../../lib/mesonicApi';
+import { postRepairOrderCrmNote } from '../lib/ticketCrmNote';
 import RepairOrderDetail from './RepairOrderDetail';
 
 interface RepairOrdersTabProps {
@@ -75,6 +78,30 @@ export default function RepairOrdersTab({
     reload();
   }, [reload]);
 
+  // ── CRM-note (WinLine Aktion) auto-post on create ────────────────────
+  // File an internal deep-link (to the parent ticket) as a CRM Aktion, once
+  // per repair order (guard: repair_orders.mesonic_crm_key). Kd.-Nr. is
+  // inherited from the ticket — if the ticket has none, skip silently (no
+  // dialog; the ticket flow handles resolution). Fully best-effort.
+  const maybePostRepairOrderCrm = useCallback(
+    async (created: RepairOrder) => {
+      if (!ticket.mesonicCustomerId || created.mesonicCrmKey) return;
+      try {
+        const res = await postRepairOrderCrmNote(created, ticket, {
+          importCrm: (xml) => mesonicImport(TYPES.CRM, TEMPLATES.CRM, xml, { actionCode: 1 }),
+        });
+        if (res.success && res.key) {
+          await updateRepairOrderMesonicCrmKey(created.id, res.key);
+        } else if (!res.skipped) {
+          console.warn('[repair-order-crm] Notiz konnte nicht angelegt werden:', res.error);
+        }
+      } catch (err) {
+        console.warn('[repair-order-crm] übersprungen:', (err as Error)?.message || err);
+      }
+    },
+    [ticket],
+  );
+
   // Appointments past their start time that don't yet have a rep-order
   // are candidates for "Schein aus Termin erstellen".
   const appointmentsAwaitingRo = useMemo(() => {
@@ -96,6 +123,7 @@ export default function RepairOrdersTab({
       setOrders((prev) => [...prev, created]);
       setActiveId(created.id);
       onChange?.();
+      void maybePostRepairOrderCrm(created);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -134,6 +162,7 @@ export default function RepairOrdersTab({
       setOrders((prev) => [...prev, created]);
       setActiveId(created.id);
       onChange?.();
+      void maybePostRepairOrderCrm(created);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

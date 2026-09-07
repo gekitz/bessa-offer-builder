@@ -10,7 +10,7 @@ function ticket(over: Partial<Ticket> = {}): Ticket {
     mesonicCustomerId: null, customerName: null, customerPhone: null,
     customerEmail: null, customerAddress: null, customerHasWartungsvertrag: false,
     standortId: null, billable: true, closedAt: null, closedBy: null,
-    resolutionNote: null, offerId: null, mesonicBelegId: null,
+    resolutionNote: null, offerId: null, mesonicBelegId: null, mesonicCrmKey: null,
     offerLaborMinutes: 0, offerLaborRate: null, offerLaborFloorBilledMinutes: 0, createdBy: null,
     createdAt: '2026-07-08T00:00:00Z', updatedAt: '2026-07-08T00:00:00Z',
     ...over,

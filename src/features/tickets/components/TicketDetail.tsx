@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
@@ -13,7 +13,11 @@ import {
   Phone,
   User,
 } from 'lucide-react';
-import { getTicket, setTicketStatus, updateTicket } from '../api/ticketApi';
+import { getTicket, setTicketStatus, updateTicket, updateTicketMesonicCrmKey } from '../api/ticketApi';
+import { mesonicImport, TYPES, TEMPLATES } from '../../../lib/mesonicApi';
+import { decideCrmAction } from '../../offers/lib/crmNoteImport';
+import { postTicketCrmNote } from '../lib/ticketCrmNote';
+import CustomerResolveDialog from '../../offers/components/CustomerResolveDialog';
 import { useAuth } from '../../../lib/auth';
 import { getOffer } from '../../../lib/offerApi';
 import { listAbteilungen, listEmployees } from '../../vacation/api/vacationApi';
@@ -105,6 +109,13 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
   const [editing, setEditing] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [shareLinkCopied, setShareLinkCopied] = useState(false);
+  // CRM-note (WinLine Aktion) auto-post — see the effect below. The resolve
+  // dialog opens only when the ticket has no Kd.-Nr. yet.
+  const [showCrmResolve, setShowCrmResolve] = useState(false);
+  // Tickets whose resolve dialog was cancelled this session — don't nag on
+  // every re-open. Also guards "already handled this open" per ticket id.
+  const crmDismissedRef = useRef<Set<string>>(new Set());
+  const crmHandledRef = useRef<Set<string>>(new Set());
 
   function buildPublicShareUrl(t: Ticket): string {
     // The customer-facing flow lives outside the HashRouter at the
@@ -168,6 +179,77 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
       cancelled = true;
     };
   }, [ticket?.offerId]);
+
+  // ── CRM-note (WinLine Aktion) auto-post ──────────────────────────────
+  // Post an internal staff deep-link as a CRM Aktion to the customer's Mesonic
+  // account, once per ticket (guard: tickets.mesonic_crm_key). Fully
+  // best-effort — any Mesonic failure/hang is caught + logged and never blocks
+  // rendering. If the ticket has no Kd.-Nr. yet, open the resolve dialog.
+  const importTicketCrm = useCallback(
+    (xml: string) => mesonicImport(TYPES.CRM, TEMPLATES.CRM, xml, { actionCode: 1 }),
+    [],
+  );
+
+  const postAndPersistTicketCrm = useCallback(
+    async (t: Ticket) => {
+      const res = await postTicketCrmNote(t, { importCrm: importTicketCrm });
+      if (res.success && res.key) {
+        try {
+          const updated = await updateTicketMesonicCrmKey(t.id, res.key);
+          setTicket((cur) => (cur && cur.id === updated.id ? updated : cur));
+        } catch (err) {
+          console.warn('[ticket-crm] Schlüssel konnte nicht gespeichert werden:', err);
+        }
+      } else if (!res.skipped) {
+        console.warn('[ticket-crm] Notiz konnte nicht angelegt werden:', res.error);
+      }
+    },
+    [importTicketCrm],
+  );
+
+  // Fire once per opened ticket, after it loads.
+  useEffect(() => {
+    if (!ticket) return;
+    if (crmHandledRef.current.has(ticket.id)) return;
+    crmHandledRef.current.add(ticket.id);
+    // decideCrmAction is snake_case (shared with the offer flow).
+    const action = decideCrmAction(
+      {
+        id: ticket.id,
+        mesonic_crm_key: ticket.mesonicCrmKey,
+        mesonic_customer_id: ticket.mesonicCustomerId,
+      },
+      crmDismissedRef.current,
+    );
+    if (action === 'skip') return;
+    if (action === 'post') {
+      void postAndPersistTicketCrm(ticket).catch((err) => {
+        console.warn('[ticket-crm] übersprungen:', (err as Error)?.message || err);
+      });
+    } else {
+      // No Kd.-Nr. → ask the user to resolve one via the dialog.
+      setShowCrmResolve(true);
+    }
+    // Keyed on the ticket id — a reload of the same ticket won't re-fire.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket?.id]);
+
+  async function handleCrmResolved(kdNr: string) {
+    setShowCrmResolve(false);
+    if (!ticket || !kdNr) return;
+    try {
+      const updated = await updateTicket(ticket.id, { mesonicCustomerId: kdNr });
+      setTicket(updated);
+      await postAndPersistTicketCrm(updated);
+    } catch (err) {
+      console.warn('[ticket-crm] Zuordnung fehlgeschlagen:', (err as Error)?.message || err);
+    }
+  }
+
+  function handleCrmCancel() {
+    if (ticket?.id) crmDismissedRef.current.add(ticket.id);
+    setShowCrmResolve(false);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -542,6 +624,21 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
           }}
         />
       )}
+
+      {/* CRM-Kunde zuordnen (nur wenn das Ticket noch keine Kd.-Nr. hat) */}
+      <CustomerResolveDialog
+        open={showCrmResolve}
+        customer={{
+          name: ticket.customerName ?? undefined,
+          company: ticket.customerName ?? undefined,
+          email: ticket.customerEmail ?? undefined,
+          phone: ticket.customerPhone ?? undefined,
+          address: ticket.customerAddress ?? undefined,
+        }}
+        offerLabel={`Ticket ${ticket.ticketNumber}`}
+        onResolved={handleCrmResolved}
+        onCancel={handleCrmCancel}
+      />
 
       {/* Close-with-billing-preview dialog */}
       {showCloseDialog && (

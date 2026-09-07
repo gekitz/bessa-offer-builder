@@ -61,6 +61,7 @@ function makeTicket(over: Partial<Ticket> = {}): Ticket {
     resolutionNote: null,
     offerId: null,
     mesonicBelegId: null,
+    mesonicCrmKey: null,
     offerLaborMinutes: 0,
     offerLaborRate: null,
     offerLaborFloorBilledMinutes: 0,
