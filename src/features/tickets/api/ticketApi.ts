@@ -156,6 +156,7 @@ function rowToTicket(r: any): Ticket {
     resolutionNote: r.resolution_note,
     offerId: r.offer_id,
     mesonicBelegId: r.mesonic_beleg_id,
+    mesonicCrmKey: r.mesonic_crm_key ?? null,
     offerLaborMinutes: r.offer_labor_minutes ?? 0,
     offerLaborRate: r.offer_labor_rate ?? null,
     offerLaborFloorBilledMinutes: r.offer_labor_floor_billed_minutes ?? 0,
@@ -256,6 +257,7 @@ function rowToRepairOrder(r: any): RepairOrder {
     mesonicBelegLaufnummer: r.mesonic_beleg_laufnummer ?? null,
     mesonicBelegKey: r.mesonic_beleg_key ?? null,
     mesonicBelegCreatedAt: r.mesonic_beleg_created_at ?? null,
+    mesonicCrmKey: r.mesonic_crm_key ?? null,
     createdBy: r.created_by,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -379,7 +381,7 @@ export async function listTravelZones(): Promise<TravelZone[]> {
 // ─────────────────────────────────────────────────────────────────────
 
 const TICKET_COLS =
-  'id, ticket_number, share_code, title, description, kind, priority, status, pool_abteilung_id, assigned_to, mesonic_customer_id, customer_name, customer_phone, customer_email, customer_address, customer_has_wartungsvertrag, standort_id, billable, closed_at, closed_by, resolution_note, offer_id, mesonic_beleg_id, offer_labor_minutes, offer_labor_rate, offer_labor_floor_billed_minutes, created_by, created_at, updated_at';
+  'id, ticket_number, share_code, title, description, kind, priority, status, pool_abteilung_id, assigned_to, mesonic_customer_id, customer_name, customer_phone, customer_email, customer_address, customer_has_wartungsvertrag, standort_id, billable, closed_at, closed_by, resolution_note, offer_id, mesonic_beleg_id, mesonic_crm_key, offer_labor_minutes, offer_labor_rate, offer_labor_floor_billed_minutes, created_by, created_at, updated_at';
 
 export async function listTickets(filters: TicketFilters = {}): Promise<Ticket[]> {
   const sb = requireSupabase();
@@ -520,6 +522,20 @@ export async function updateTicket(
     }
   }
 
+  return rowToTicket(data);
+}
+
+// Persist the WinLine CRM Aktion key on a ticket (idempotency anchor for the
+// staff deep-link note). Plain column patch — no audit/notify side effects.
+export async function updateTicketMesonicCrmKey(id: string, key: string): Promise<Ticket> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('tickets')
+    .update({ mesonic_crm_key: key })
+    .eq('id', id)
+    .select(TICKET_COLS)
+    .single();
+  if (error) throw error;
   return rowToTicket(data);
 }
 
@@ -713,7 +729,7 @@ export async function setAppointmentAssignees(
 // ─────────────────────────────────────────────────────────────────────
 
 const REPAIR_ORDER_COLS =
-  'id, ticket_id, appointment_id, seq_number, status, work_description, gps_travel_note, signature_data, signed_at, signed_by_name, performed_at, billable, mesonic_beleg_laufnummer, mesonic_beleg_key, mesonic_beleg_created_at, created_by, created_at, updated_at';
+  'id, ticket_id, appointment_id, seq_number, status, work_description, gps_travel_note, signature_data, signed_at, signed_by_name, performed_at, billable, mesonic_beleg_laufnummer, mesonic_beleg_key, mesonic_beleg_created_at, mesonic_crm_key, created_by, created_at, updated_at';
 const ENTRY_COLS =
   'id, repair_order_id, employee_id, service_rate_code, work_minutes, travel_mode, travel_zone_code, travel_km, travel_wegzeit_minutes, note, created_at';
 const MATERIAL_COLS =
@@ -833,6 +849,20 @@ export async function updateRepairOrder(
     }
   }
 
+  return rowToRepairOrder(data);
+}
+
+// Persist the WinLine CRM Aktion key on a repair order (idempotency anchor
+// for the note linking to the parent ticket). Plain column patch.
+export async function updateRepairOrderMesonicCrmKey(id: string, key: string): Promise<RepairOrder> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('repair_orders')
+    .update({ mesonic_crm_key: key })
+    .eq('id', id)
+    .select(REPAIR_ORDER_COLS)
+    .single();
+  if (error) throw error;
   return rowToRepairOrder(data);
 }
 
