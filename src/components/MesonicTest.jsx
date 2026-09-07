@@ -724,8 +724,8 @@ function AngebotImportTester() {
         </label>
         <label className="text-xs text-slate-600">Standort
           <select value={standort} onChange={(e) => setStandort(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm">
-            <option value="klagenfurt">Klagenfurt (Belegart 8, {PSEUDO_ARTIKEL.klagenfurt})</option>
-            <option value="wolfsberg">Wolfsberg (Belegart 1, {PSEUDO_ARTIKEL.wolfsberg})</option>
+            <option value="klagenfurt">Klagenfurt (Belegart {BELEGART.klagenfurt}, {PSEUDO_ARTIKEL.klagenfurt})</option>
+            <option value="wolfsberg">Wolfsberg (Belegart {BELEGART.wolfsberg}, {PSEUDO_ARTIKEL.wolfsberg})</option>
           </select>
         </label>
         <label className="text-xs text-slate-600">Vertreternummer (opt.)
@@ -749,8 +749,8 @@ function AngebotImportTester() {
   );
 }
 
-// Reparaturschein-Import-Tester — WEBAngebot mit Reparatur-Belegart (WO 12 /
-// KL 16) und Arbeitszeit-Position mit mitarbeiterspezifischer Artikelnummer.
+// Reparaturschein-Import-Tester — WEBAngebot mit Reparaturauftrag-Belegart 18
+// und Arbeitszeit-Position mit mitarbeiterspezifischer Artikelnummer.
 function ReparaturImportTester() {
   const [konto, setKonto] = useState('272765');
   const [lauf, setLauf] = useState('998');
@@ -804,8 +804,8 @@ function ReparaturImportTester() {
         </label>
         <label className="text-xs text-slate-600">Standort
           <select value={standort} onChange={(e) => setStandort(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm">
-            <option value="wolfsberg">Wolfsberg (Belegart 12)</option>
-            <option value="klagenfurt">Klagenfurt (Belegart 16)</option>
+            <option value="wolfsberg">Wolfsberg (Belegart {REPARATUR_BELEGART.wolfsberg})</option>
+            <option value="klagenfurt">Klagenfurt (Belegart {REPARATUR_BELEGART.klagenfurt})</option>
           </select>
         </label>
         <label className="text-xs text-slate-600">Vertreternummer

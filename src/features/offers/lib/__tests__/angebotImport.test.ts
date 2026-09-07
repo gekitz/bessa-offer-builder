@@ -7,15 +7,15 @@ describe('laborArtikelnummer (Reparaturschein Arbeitszeit)', () => {
     expect(laborArtikelnummer(26, 'klagenfurt')).toBe('30000026KL');
     expect(laborArtikelnummer('7', 'klagenfurt')).toBe('30000007KL');
   });
-  it('Reparatur Belegart: KL 16 / WO 12', () => {
-    expect(REPARATUR_BELEGART.klagenfurt).toBe('16');
-    expect(REPARATUR_BELEGART.wolfsberg).toBe('12');
+  it('Reparaturauftrag Belegart: 18 (beide Standorte)', () => {
+    expect(REPARATUR_BELEGART.klagenfurt).toBe('18');
+    expect(REPARATUR_BELEGART.wolfsberg).toBe('18');
   });
 });
 
 describe('buildAngebotImportXml', () => {
   const xml = buildAngebotImportXml(
-    { kontonummer: '272765', laufnummer: 7, datumAngebot: '2026-09-01', belegart: '8', vertreternummer: 42 },
+    { kontonummer: '272765', laufnummer: 7, datumAngebot: '2026-09-01', belegart: '17', vertreternummer: 42 },
     [
       { artikelnummer: '99991234KL', datentyp: '1', menge: 1, einzelpreis: 1400, bezeichnung: 'Kassa-Paket', zeilenrabatt1: -10 },
       { artikelnummer: 'TEXT', datentyp: '3', menge: 1, bezeichnung: 'inkl. Fiskalisierung' },
@@ -36,7 +36,7 @@ describe('buildAngebotImportXml', () => {
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect(kopf).toContain('<Kontonummer>272765</Kontonummer>');
     expect(kopf).toContain('<Laufnummer>7</Laufnummer>');
-    expect(kopf).toContain('<Belegart>8</Belegart>');
+    expect(kopf).toContain('<Belegart>17</Belegart>');
   });
 
   it('emits a priced article position (Datentyp 1) with net price + percent discount', () => {

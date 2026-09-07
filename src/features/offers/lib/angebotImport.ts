@@ -10,17 +10,21 @@
 // Der Proxy (mesonicImport) legt den <MESOWebService …>-Envelope drum —
 // hier NUR die nackten Zeilen erzeugen.
 //
-// Standort-abhängig (vom Ersteller): Klagenfurt → Belegart 8 + Pseudoartikel
-// 99991234KL, Wolfsberg → Belegart 1 + 99991234WO. Einzelpreis = NETTO,
-// Zeilenrabatt1 = Prozent negativ (z. B. -10 für 10 %). Datentyp 1 = Artikel
-// folgt, 3 = Text (dann Artikelnummer = 'TEXT').
+// Belegart (seit Heri 2026-09: eigene Import-Belegarten, standortübergreifend):
+//   17 = Import Angebot, 18 = Import Reparaturauftrag.
+// Der Pseudoartikel-Suffix (KL/WO) hängt weiterhin am Ersteller-/Ticket-
+// Standort: Klagenfurt → 99991234KL, Wolfsberg → 99991234WO. Einzelpreis =
+// NETTO, Zeilenrabatt1 = Prozent negativ (z. B. -10 für 10 %). Datentyp 1 =
+// Artikel folgt, 3 = Text (dann Artikelnummer = 'TEXT').
 
 export const PSEUDO_ARTIKEL = { klagenfurt: '99991234KL', wolfsberg: '99991234WO' } as const;
-export const BELEGART = { klagenfurt: '8', wolfsberg: '1' } as const;
 
-// Reparaturschein = WEBAngebot mit eigener Belegart (KL 16 / WO 12; künftig
-// beide 17, wir starten mit 12/16).
-export const REPARATUR_BELEGART = { klagenfurt: '16', wolfsberg: '12' } as const;
+// Angebot-Import → Belegart 17 (beide Standorte). Map-Form beibehalten, falls
+// Mesonic künftig wieder pro Standort splittet.
+export const BELEGART = { klagenfurt: '17', wolfsberg: '17' } as const;
+
+// Reparaturauftrag-Import → Belegart 18 (beide Standorte).
+export const REPARATUR_BELEGART = { klagenfurt: '18', wolfsberg: '18' } as const;
 
 // Arbeitszeit-Artikelnummer je Mitarbeiter: 300000 + 2-stellige
 // Vertreternummer (führende Null) + WO/KL. z. B. Vertreter 9 in Wolfsberg
@@ -35,7 +39,7 @@ export interface AngebotKopf {
   kontonummer: string;
   laufnummer: string | number;    // eindeutig pro Konto (wir vergeben max+1)
   datumAngebot?: string;          // YYYY-MM-DD
-  belegart?: string;              // '8' KL / '1' WO
+  belegart?: string;              // '17' Angebot / '18' Reparaturauftrag
   vertreternummer?: string | number;
   belegkey?: number;              // default 1 (verbindet Kopf ↔ Mitte)
 }
