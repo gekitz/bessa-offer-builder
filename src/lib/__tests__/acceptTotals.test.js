@@ -6,6 +6,7 @@ import { computeAcceptTotals } from '../acceptTotals';
 const CATALOG = {
   mon: { id: 'mon', name: 'Monthly', t: 'm', p: { y: 100 } },
   hw: { id: 'hw', name: 'Hardware', t: 'o', price: 1000, servicePercent: 10 },
+  arb: { id: 'arb', name: 'Arbeitszeit', t: 'h', p: { o: 118 } },
 };
 
 describe('computeAcceptTotals', () => {
@@ -52,6 +53,38 @@ describe('computeAcceptTotals', () => {
   it('returns zeros for an empty cart', () => {
     expect(computeAcceptTotals({ cart: {} }, CATALOG)).toEqual({
       monthly: 0, once: 0, yearly: 0, periodTotal: 0, maxMonths: 12,
+      laborMinutes: 0, laborAmount: 0,
     });
+  });
+
+  it('freezes the quoted labor hours + amount (kind:h)', () => {
+    const offerData = {
+      cart: { arb: { qty: 10, discountQty: 0 } }, // 10h × €118 = 1180
+    };
+    const t = computeAcceptTotals(offerData, CATALOG);
+    expect(t.laborMinutes).toBe(600);
+    expect(t.laborAmount).toBe(1180);
+    // labor € also lives in the `once` bucket (kind:'h' flows into once).
+    expect(t.once).toBe(1180);
+  });
+
+  it('reports zero labor when there are no hourly items', () => {
+    const offerData = { cart: { mon: { qty: 1, tier: 'y' }, hw: { qty: 1 } } };
+    const t = computeAcceptTotals(offerData, CATALOG);
+    expect(t.laborMinutes).toBe(0);
+    expect(t.laborAmount).toBe(0);
+  });
+
+  it('excludes labor on an unselected option-group alternative', () => {
+    const offerData = {
+      cart: {
+        arb: { qty: 10, optionGroup: 'g1', optionSelected: true }, // counted
+        arb2: { qty: 5, optionGroup: 'g1', optionSelected: false }, // alternative
+      },
+      customItems: { arb2: { id: 'arb2', name: 'Arbeitszeit B', t: 'h', p: { o: 118 } } },
+    };
+    const t = computeAcceptTotals(offerData, CATALOG);
+    expect(t.laborMinutes).toBe(600); // only the selected 10h
+    expect(t.laborAmount).toBe(1180);
   });
 });

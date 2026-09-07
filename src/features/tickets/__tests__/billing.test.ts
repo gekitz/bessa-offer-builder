@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calcRepairOrderBilling, calcTicketBilling, VAT_PERCENT } from '../lib/billing';
+import { calcRepairOrderBilling, calcTicketBilling, offerLaborFloorPosition, VAT_PERCENT } from '../lib/billing';
 import type {
   RepairOrder,
   RepairOrderEntry,
@@ -102,6 +102,9 @@ function ticket(overrides: Partial<Ticket> = {}): Ticket {
     resolutionNote: null,
     offerId: null,
     mesonicBelegId: null,
+    offerLaborMinutes: 0,
+    offerLaborRate: null,
+    offerLaborFloorBilledMinutes: 0,
     createdBy: null,
     createdAt: '2026-05-11T08:00:00Z',
     updatedAt: '2026-05-11T08:00:00Z',
@@ -570,5 +573,182 @@ describe('calcTicketBilling', () => {
     expect(summary.materialTotal).toBe(100);
     expect(summary.serviceTotal).toBe(45);
     expect(summary.subtotalNet).toBe(307);
+  });
+});
+
+describe('calcRepairOrderBilling — laborMinutes', () => {
+  it('counts only hourly work minutes (not Wegzeit, not pauschale)', () => {
+    const r = calcRepairOrderBilling({
+      repairOrder: repairOrder(),
+      entries: [
+        entry({
+          rate: 'PC_NB',
+          minutes: 120, // 2h hourly labor
+          travelMode: 'km_plus_wegzeit',
+          travelKm: 10,
+          travelWegzeitMin: 60, // Wegzeit — must NOT count
+        }),
+        entry({ rate: 'FERNWARTUNG', minutes: 30, emp: 'emp-b' }), // pauschale — must NOT count
+      ],
+      materials: [],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+      customerHasWartungsvertrag: false,
+    });
+    expect(r.laborMinutes).toBe(120);
+  });
+});
+
+describe('offerLaborFloorPosition', () => {
+  it('returns null when there is no quoted floor', () => {
+    expect(offerLaborFloorPosition(0, 0, { minutes: 0, rate: null }, { repairOrderId: 'ro', repairOrderSeq: 1 })).toBeNull();
+  });
+
+  it('returns null when billed labor already meets the floor', () => {
+    expect(
+      offerLaborFloorPosition(600, 0, { minutes: 600, rate: 118 }, { repairOrderId: 'ro', repairOrderSeq: 1 }),
+    ).toBeNull();
+  });
+
+  it('tops up the full quoted labor when nothing was logged', () => {
+    const p = offerLaborFloorPosition(0, 0, { minutes: 600, rate: 118 }, { repairOrderId: 'ro', repairOrderSeq: 1 });
+    expect(p).not.toBeNull();
+    expect(p!.kind).toBe('labor_floor');
+    expect(p!.quantity).toBe(10);
+    expect(p!.unitPrice).toBe(118);
+    expect(p!.total).toBe(1180);
+    expect(p!.employeeId).toBeUndefined();
+  });
+
+  it('tops up only the shortfall when labor was partially logged', () => {
+    // floor 10h, logged 4h → 6h shortfall × €118 = €708
+    const p = offerLaborFloorPosition(240, 0, { minutes: 600, rate: 118 }, { repairOrderId: 'ro', repairOrderSeq: 1 });
+    expect(p!.quantity).toBe(6);
+    expect(p!.total).toBe(708);
+  });
+
+  it('accounts for minutes already floored (incremental export)', () => {
+    // floor 10h, logged 2h, already floored 5h → shortfall 3h
+    const p = offerLaborFloorPosition(120, 300, { minutes: 600, rate: 118 }, { repairOrderId: 'ro', repairOrderSeq: 1 });
+    expect(p!.quantity).toBe(3);
+    expect(p!.total).toBe(354);
+  });
+
+  it('defaults the rate to €118 when the frozen rate is null', () => {
+    const p = offerLaborFloorPosition(0, 0, { minutes: 60, rate: null }, { repairOrderId: 'ro', repairOrderSeq: 1 });
+    expect(p!.unitPrice).toBe(118);
+    expect(p!.total).toBe(118);
+  });
+});
+
+describe('calcTicketBilling — offer labor floor', () => {
+  it('tops up to the quoted floor and recomputes VAT/gross', () => {
+    const t = ticket({ offerLaborMinutes: 600, offerLaborRate: 118 }); // 10h quoted
+    const summary = calcTicketBilling({
+      ticket: t,
+      repairOrders: [
+        {
+          repairOrder: repairOrder({ id: 'ro-1', seqNumber: 1 }),
+          entries: [entry({ rate: 'PC_NB', minutes: 120 })], // 2h × 130 = 260
+          materials: [],
+        },
+      ],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+    });
+    // real labor 260 + floor top-up 8h × 118 = 944 → laborTotal 1204
+    const floor = summary.repairOrders[0].positions.find((p) => p.kind === 'labor_floor');
+    expect(floor).toBeTruthy();
+    expect(floor!.quantity).toBe(8);
+    expect(floor!.total).toBe(944);
+    expect(summary.laborTotal).toBe(1204);
+    expect(summary.subtotalNet).toBe(1204);
+    expect(summary.vatAmount).toBe(240.8);
+    expect(summary.grandTotalGross).toBe(1444.8);
+  });
+
+  it('is a no-op when billed labor already meets the floor', () => {
+    const t = ticket({ offerLaborMinutes: 60, offerLaborRate: 118 }); // 1h quoted
+    const summary = calcTicketBilling({
+      ticket: t,
+      repairOrders: [
+        {
+          repairOrder: repairOrder(),
+          entries: [entry({ rate: 'PC_NB', minutes: 120 })], // 2h logged
+          materials: [],
+        },
+      ],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+    });
+    expect(summary.repairOrders[0].positions.some((p) => p.kind === 'labor_floor')).toBe(false);
+    expect(summary.laborTotal).toBe(260);
+  });
+
+  it('does not add a floor when the offer quoted no labor', () => {
+    const t = ticket(); // offerLaborMinutes: 0
+    const summary = calcTicketBilling({
+      ticket: t,
+      repairOrders: [
+        {
+          repairOrder: repairOrder(),
+          entries: [entry({ rate: 'PC_NB', minutes: 60 })],
+          materials: [],
+        },
+      ],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+    });
+    expect(summary.repairOrders[0].positions.some((p) => p.kind === 'labor_floor')).toBe(false);
+    expect(summary.laborTotal).toBe(130);
+  });
+
+  it('the floor does not promote the Kassen tier of real hours', () => {
+    // 5h real Kassen labor → stays at KASSA_BASE €118 even though the floor
+    // adds hours (floor is a synthetic position, not a Kassen work entry).
+    const t = ticket({ offerLaborMinutes: 60 * 60, offerLaborRate: 118 }); // absurd 60h floor
+    const summary = calcTicketBilling({
+      ticket: t,
+      repairOrders: [
+        {
+          repairOrder: repairOrder(),
+          entries: [entry({ rate: 'KASSA_BASE', minutes: 5 * 60 })], // 5h → KASSA_BASE
+          materials: [],
+        },
+      ],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+    });
+    const realLabor = summary.repairOrders[0].positions.find((p) => p.kind === 'labor');
+    expect(realLabor!.unitPrice).toBe(118); // NOT promoted to a higher-hour tier
+  });
+
+  it('emits the full floor for a ticket with no repair orders', () => {
+    const t = ticket({ offerLaborMinutes: 300, offerLaborRate: 118 }); // 5h quoted
+    const summary = calcTicketBilling({
+      ticket: t,
+      repairOrders: [],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+    });
+    expect(summary.repairOrders).toHaveLength(1);
+    const floor = summary.repairOrders[0].positions[0];
+    expect(floor.kind).toBe('labor_floor');
+    expect(floor.quantity).toBe(5);
+    expect(floor.total).toBe(590);
+    expect(summary.laborTotal).toBe(590);
+    expect(summary.grandTotalGross).toBe(708); // 590 × 1.2
+  });
+
+  it('defaults to €118/h when offerLaborRate is null', () => {
+    const t = ticket({ offerLaborMinutes: 120, offerLaborRate: null }); // 2h, no frozen rate
+    const summary = calcTicketBilling({
+      ticket: t,
+      repairOrders: [],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+    });
+    expect(summary.repairOrders[0].positions[0].unitPrice).toBe(118);
+    expect(summary.laborTotal).toBe(236);
   });
 });

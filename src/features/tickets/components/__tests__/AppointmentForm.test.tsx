@@ -91,7 +91,9 @@ const TICKET: Ticket = {
   customerName: 'Müller GmbH', customerPhone: null, customerEmail: null,
   customerAddress: 'Musterweg 1', customerHasWartungsvertrag: false, standortId: 1,
   billable: true, closedAt: null, closedBy: null, resolutionNote: null,
-  offerId: null, mesonicBelegId: null, createdBy: null,
+  offerId: null, mesonicBelegId: null,
+  offerLaborMinutes: 0, offerLaborRate: null, offerLaborFloorBilledMinutes: 0,
+  createdBy: null,
   createdAt: '', updatedAt: '',
 };
 

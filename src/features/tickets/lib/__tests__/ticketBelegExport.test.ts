@@ -13,7 +13,7 @@ function order(seq: number, alreadyExportedKey: string | null = null, positions?
   }];
   const billing: RepairOrderBilling = {
     repairOrderId: `ro-${seq}`, seqNumber: seq, performedAt: '2026-09-01', signed: true,
-    positions: pos, laborTotal: 0, travelTotal: 0, materialTotal: 0, serviceTotal: 0, adjustmentTotal: 0, subtotal: 0,
+    positions: pos, laborTotal: 0, travelTotal: 0, materialTotal: 0, serviceTotal: 0, adjustmentTotal: 0, subtotal: 0, laborMinutes: 0,
   };
   return { billing, alreadyExportedKey };
 }
@@ -69,5 +69,29 @@ describe('exportTicketBelege', () => {
     expect(res.skipped).toEqual([{ repairOrderId: 'ro-1', reason: 'already_exported', belegKey: '272765-050' }]);
     expect(importBeleg).toHaveBeenCalledTimes(1); // nur ro-2
     expect(res.created).toEqual([{ repairOrderId: 'ro-2', seqNumber: 2, belegKey: '272765-101' }]);
+  });
+
+  it('zählt die Floor-Tally erst nach erfolgreichem Anlegen des Floor-Scheins hoch', async () => {
+    const importBeleg = vi.fn().mockResolvedValue({ ok: true });
+    const persistKey = vi.fn().mockResolvedValue(undefined);
+    const persistFloorTally = vi.fn().mockResolvedValue(undefined);
+    await exportTicketBelege(
+      { ...input([order(1), order(2)]), floorCommit: { ticketId: 't-1', repairOrderId: 'ro-2', minutes: 300 } },
+      { readMaxLaufnummer: async () => 0, importBeleg, persistKey, persistFloorTally },
+    );
+    // nur einmal, für den Floor-tragenden Schein ro-2
+    expect(persistFloorTally).toHaveBeenCalledTimes(1);
+    expect(persistFloorTally).toHaveBeenCalledWith('t-1', 300);
+  });
+
+  it('schreibt die Floor-Tally NICHT, wenn der Floor-Schein fehlschlägt', async () => {
+    const importBeleg = vi.fn().mockResolvedValue({ ok: false, error: 'nein' });
+    const persistKey = vi.fn().mockResolvedValue(undefined);
+    const persistFloorTally = vi.fn().mockResolvedValue(undefined);
+    await exportTicketBelege(
+      { ...input([order(2)]), floorCommit: { ticketId: 't-1', repairOrderId: 'ro-2', minutes: 300 } },
+      { readMaxLaufnummer: async () => 0, importBeleg, persistKey, persistFloorTally },
+    );
+    expect(persistFloorTally).not.toHaveBeenCalled();
   });
 });

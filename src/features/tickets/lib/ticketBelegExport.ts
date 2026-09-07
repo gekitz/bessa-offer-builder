@@ -13,6 +13,13 @@ export interface ExportInput {
   orders: OrderForExport[];
   employeeMesonic: Map<string, EmployeeMesonic>;
   kopfVertreternummer?: string | number;
+  // Angebot-Arbeitszeit-Untergrenze: die synthetische labor_floor-Position ist
+  // bereits in die billing.positions des letzten NEUEN Scheins gemischt
+  // (loadTicketBelegExport). Nach erfolgreichem Anlegen genau dieses Scheins
+  // wird die kumulierte Floor-Minutenzahl am Ticket hochgezählt, damit ein
+  // späterer Teil-Export nicht doppelt aufschlägt. Fehlt, wenn kein Floor
+  // greift (kein Angebot / bereits erfüllt / kein neuer Schein).
+  floorCommit?: { ticketId: string; repairOrderId: string; minutes: number };
 }
 
 export interface ExportDeps {
@@ -24,6 +31,10 @@ export interface ExportDeps {
   importBeleg: (xml: string) => Promise<{ ok: boolean; voucherNumber?: number; error?: string }>;
   // Persistiert Laufnummer + Key auf dem Reparaturschein (Idempotenz-Anker).
   persistKey: (repairOrderId: string, laufnummer: number, key: string) => Promise<void>;
+  // Zählt die kumulierte Floor-Minutenzahl am Ticket hoch (Angebot-Arbeits-
+  // zeit-Untergrenze). Wird nur im Erfolgspfad des Floor-tragenden Scheins
+  // aufgerufen. Optional — Tests ohne Floor brauchen sie nicht.
+  persistFloorTally?: (ticketId: string, addMinutes: number) => Promise<void>;
 }
 
 export interface ExportResult {
@@ -63,6 +74,14 @@ export async function exportTicketBelege(input: ExportInput, deps: ExportDeps): 
       }
       await deps.persistKey(b.repairOrderId, b.laufnummer, b.belegKey);
       created.push({ repairOrderId: b.repairOrderId, seqNumber: b.seqNumber, belegKey: b.belegKey });
+      // Floor-Tally erst NACH erfolgreichem Anlegen des Floor-tragenden
+      // Scheins hochzählen — schlägt der Export fehl, bleibt die Untergrenze
+      // offen und der nächste Lauf holt sie nach.
+      if (input.floorCommit && input.floorCommit.repairOrderId === b.repairOrderId && input.floorCommit.minutes > 0) {
+        if (deps.persistFloorTally) {
+          await deps.persistFloorTally(input.floorCommit.ticketId, input.floorCommit.minutes);
+        }
+      }
     } catch (e) {
       failed.push({ repairOrderId: b.repairOrderId, seqNumber: b.seqNumber, laufnummer: b.laufnummer, error: e instanceof Error ? e.message : String(e) });
     }

@@ -4,6 +4,9 @@ import { computeTotals, type Cart } from '../totals';
 import { computeAcceptTotals } from '../acceptTotals';
 import { computeDiscounts } from '../discounts';
 import { fmt } from '../format';
+import { price } from '../pricing';
+import { countedIds } from '../optionGroups';
+import { offerLaborFloorPosition } from '../../features/tickets/lib/billing';
 import type { Catalog } from '../pricing';
 import {
   computePlanPricing,
@@ -160,6 +163,47 @@ describe('legacy offers without a snapshot (column fallback)', () => {
     const fromSnapshot = computePlanPricing(planBasisFromOffer(row));
     const fromColumns = computePlanPricing(planBasisFromOffer(legacyRow));
     expect(fromColumns).toEqual(fromSnapshot);
+  });
+});
+
+describe('offer labor floor: the snapshot freezes exactly the quoted Arbeitszeit', () => {
+  // The labor share the builder shows for a cart = Σ counted kind:'h' lines.
+  function builderLaborAmount(cart: Cart): number {
+    const counted = countedIds(cart);
+    let amount = 0;
+    for (const [id, c] of Object.entries(cart)) {
+      const item = BUILDER_CATALOG[id];
+      if (!item || item.t !== 'h' || !counted.has(id)) continue;
+      const p = price(item, c.tier, c.mode, c.priceOverride);
+      if (p === null) continue;
+      amount += p * (c.qty ?? 0) + (p) * (c.discountQty ?? 0);
+    }
+    return amount;
+  }
+
+  for (const [name, cart] of Object.entries(CARTS)) {
+    it(`${name}: snapshot.laborAmount == builder labor share`, () => {
+      const { snapshot } = offerRowFromCart(cart);
+      expect(snapshot.laborAmount).toBeCloseTo(builderLaborAmount(cart), 10);
+    });
+  }
+
+  it('a fully-unworked ticket bills exactly the quoted labor €', () => {
+    // 'plain cart' quotes 3h Arbeitszeit @ €120 = €360.
+    const { snapshot } = offerRowFromCart(CARTS['plain cart']);
+    expect(snapshot.laborMinutes).toBe(180);
+    expect(snapshot.laborAmount).toBe(360);
+
+    // Trigger freezes the weighted rate = laborAmount / hours = 120.
+    const rate = snapshot.laborAmount / (snapshot.laborMinutes / 60);
+    // No labor logged on the ticket → floor tops up the full quoted €.
+    const floor = offerLaborFloorPosition(
+      0,
+      0,
+      { minutes: snapshot.laborMinutes, rate },
+      { repairOrderId: 'ro', repairOrderSeq: 1 },
+    );
+    expect(floor!.total).toBe(snapshot.laborAmount);
   });
 });
 

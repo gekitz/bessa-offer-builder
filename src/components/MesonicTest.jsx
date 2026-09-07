@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { ping, mesonicExport, mesonicExportRaw, mesonicImport, mesonicList, searchArticles, getArticle, baseArticleNumber, saveCustomer, validateCustomer, buildKontenImportXml, TYPES, TEMPLATES } from '../lib/mesonicApi';
 import { fetchCustomerBelege, latestHardware, isLikelyHardware } from '../features/viertl/lib/mesonicBelege';
 import { buildAngebotImportXml, PSEUDO_ARTIKEL, BELEGART, REPARATUR_BELEGART, laborArtikelnummer } from '../features/offers/lib/angebotImport';
+import { buildCrmNoteXml } from '../features/offers/lib/crmNoteImport';
 
 // Sample new-customer payload — only the fields a salesperson would enter.
 // Kontonummer is omitted on purpose so saveCustomer() defaults it to '+' (new
@@ -724,8 +725,8 @@ function AngebotImportTester() {
         </label>
         <label className="text-xs text-slate-600">Standort
           <select value={standort} onChange={(e) => setStandort(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm">
-            <option value="klagenfurt">Klagenfurt (Belegart 8, {PSEUDO_ARTIKEL.klagenfurt})</option>
-            <option value="wolfsberg">Wolfsberg (Belegart 1, {PSEUDO_ARTIKEL.wolfsberg})</option>
+            <option value="klagenfurt">Klagenfurt (Belegart {BELEGART.klagenfurt}, {PSEUDO_ARTIKEL.klagenfurt})</option>
+            <option value="wolfsberg">Wolfsberg (Belegart {BELEGART.wolfsberg}, {PSEUDO_ARTIKEL.wolfsberg})</option>
           </select>
         </label>
         <label className="text-xs text-slate-600">Vertreternummer (opt.)
@@ -749,8 +750,8 @@ function AngebotImportTester() {
   );
 }
 
-// Reparaturschein-Import-Tester — WEBAngebot mit Reparatur-Belegart (WO 12 /
-// KL 16) und Arbeitszeit-Position mit mitarbeiterspezifischer Artikelnummer.
+// Reparaturschein-Import-Tester — WEBAngebot mit Reparaturauftrag-Belegart 18
+// und Arbeitszeit-Position mit mitarbeiterspezifischer Artikelnummer.
 function ReparaturImportTester() {
   const [konto, setKonto] = useState('272765');
   const [lauf, setLauf] = useState('998');
@@ -804,8 +805,8 @@ function ReparaturImportTester() {
         </label>
         <label className="text-xs text-slate-600">Standort
           <select value={standort} onChange={(e) => setStandort(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm">
-            <option value="wolfsberg">Wolfsberg (Belegart 12)</option>
-            <option value="klagenfurt">Klagenfurt (Belegart 16)</option>
+            <option value="wolfsberg">Wolfsberg (Belegart {REPARATUR_BELEGART.wolfsberg})</option>
+            <option value="klagenfurt">Klagenfurt (Belegart {REPARATUR_BELEGART.klagenfurt})</option>
           </select>
         </label>
         <label className="text-xs text-slate-600">Vertreternummer
@@ -824,6 +825,99 @@ function ReparaturImportTester() {
         </button>
         <button onClick={() => run('validate')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-40">
           {busy === 'validate' ? '…' : 'Validieren (ActionCode=0)'}
+        </button>
+      </div>
+      {out && (
+        <pre className={`p-2 rounded text-xs overflow-auto max-h-96 whitespace-pre-wrap ${out.ok ? 'bg-slate-900 text-slate-100' : 'bg-rose-900 text-rose-100'}`}>
+          {out.text}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+// CRM-Notiz/Aktion-Tester — WEBCRM (Type 34). Legt in WinLine eine CRM-Aktion
+// an (Heri: Workflow 10241, Vorlage "CRM Notiz Verbindung"). Vorlage/Root/Felder
+// bewusst editierbar, um den exakten Kontrakt am Kunden 24998 zu ermitteln.
+function CrmNotizTester() {
+  const [template, setTemplate] = useState('WEBCRM');
+  const [rootEl, setRootEl] = useState('');
+  const [workflow, setWorkflow] = useState('10241');
+  const [konto, setKonto] = useState('24998');
+  const [kurz, setKurz] = useState('Test aus Offer-Builder');
+  const [lang, setLang] = useState('Angebot-Link: https://…');
+  const [datum, setDatum] = useState(new Date().toISOString().slice(0, 10));
+  const [out, setOut] = useState(null);
+  const [busy, setBusy] = useState(null);
+
+  const xml = buildCrmNoteXml(
+    {
+      workflowNummer: workflow || undefined,
+      kundenkonto: konto,
+      startdatum: datum || undefined,
+      kurzbeschreibung: kurz || undefined,
+      langbeschreibungIntern: lang || undefined,
+    },
+    { template, rootElement: rootEl || undefined },
+  );
+
+  async function run(mode) {
+    if (mode === 'create' && !window.confirm(`CRM-Aktion WIRKLICH anlegen? Kunde ${konto}, Vorlage "${template}".`)) return;
+    setBusy(mode);
+    setOut(null);
+    try {
+      if (mode === 'preview') {
+        setOut({ ok: true, text: xml });
+      } else {
+        const res = await mesonicImport(TYPES.CRM, template, xml, { actionCode: mode === 'create' ? 1 : 0 });
+        setOut({ ok: res.success, text: res.error || res.raw || 'OK' });
+      }
+    } catch (e) {
+      setOut({ ok: false, text: e.message });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="border border-violet-200 rounded-lg p-4 bg-violet-50/40">
+      <h2 className="text-lg font-bold mb-1 text-violet-800">CRM-Notiz/Aktion-Tester (WEBCRM, Type 34)</h2>
+      <p className="text-xs text-slate-500 mb-3">
+        „Validieren" = ActionCode=0 (prüft nur). „Anlegen" = ActionCode=1 → legt die CRM-Aktion wirklich an.
+        Vorlage/Root-Element ggf. anpassen, bis WinLine OverallSuccess=true meldet (Heri-Vorlage „CRM Notiz Verbindung", Workflow 10241).
+      </p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+        <label className="text-xs text-slate-600">Vorlage (URL + Template-Attr)
+          <input value={template} onChange={(e) => setTemplate(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Root-Element (opt., Default = Vorlage)
+          <input value={rootEl} onChange={(e) => setRootEl(e.target.value)} placeholder="auto" className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">WorkflowNummer
+          <input value={workflow} onChange={(e) => setWorkflow(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Kundenkonto
+          <input value={konto} onChange={(e) => setKonto(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Startdatum
+          <input value={datum} onChange={(e) => setDatum(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600 md:col-span-3">Kurzbeschreibung
+          <input value={kurz} onChange={(e) => setKurz(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600 md:col-span-4">Langbeschreibung intern
+          <textarea value={lang} onChange={(e) => setLang(e.target.value)} rows={2} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+      </div>
+      <div className="flex gap-2 mb-3">
+        <button onClick={() => run('preview')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-white border border-violet-300 text-violet-800 hover:bg-violet-100 disabled:opacity-40">
+          XML-Vorschau
+        </button>
+        <button onClick={() => run('validate')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40">
+          {busy === 'validate' ? '…' : 'Validieren (ActionCode=0)'}
+        </button>
+        <button onClick={() => run('create')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40">
+          {busy === 'create' ? '…' : 'Anlegen (ActionCode=1)'}
         </button>
       </div>
       {out && (
@@ -966,9 +1060,14 @@ export default function MesonicTest() {
         <AngebotImportTester />
       </div>
 
-      {/* Reparaturschein-Import tester (WEBAngebot, Belegart 12/16) */}
+      {/* Reparaturschein-Import tester (WEBAngebot, Belegart 18) */}
       <div className="mt-10">
         <ReparaturImportTester />
+      </div>
+
+      {/* CRM-Notiz/Aktion tester (WEBCRM, Type 34) */}
+      <div className="mt-10">
+        <CrmNotizTester />
       </div>
     </div>
   );

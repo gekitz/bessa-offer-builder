@@ -5,7 +5,7 @@
 
 import { fetchCustomerBelege } from '../../viertl/lib/mesonicBelege';
 import { mesonicImport, TYPES } from '../../../lib/mesonicApi';
-import { loadTicketBelegExport, setRepairOrderBelegExport } from '../api/ticketApi';
+import { loadTicketBelegExport, setRepairOrderBelegExport, incrementTicketFloorTally } from '../api/ticketApi';
 import { exportTicketBelege, type ExportResult } from './ticketBelegExport';
 
 // Höchste bereits vergebene Laufnummer eines Kontos. Scannt <konto>-<n>
@@ -33,6 +33,7 @@ export async function runTicketBelegExport(ticketId: string): Promise<ExportResu
     readMaxLaufnummer,
     importBeleg,
     persistKey: setRepairOrderBelegExport,
+    persistFloorTally: incrementTicketFloorTally,
   });
   return { ...result, ticketNumber: input.ticketNumber };
 }

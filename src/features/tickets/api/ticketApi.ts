@@ -29,7 +29,7 @@ import type {
   TicketStatus,
   TravelZone,
 } from '../types';
-import { calcRepairOrderBilling, calcTicketBilling } from '../lib/billing';
+import { calcRepairOrderBilling, calcTicketBilling, offerLaborFloorPosition } from '../lib/billing';
 import { standortFromId, type EmployeeMesonic } from '../lib/repairOrderBeleg';
 import type { OrderForExport } from '../lib/ticketBelegPlan';
 import type { ExportInput } from '../lib/ticketBelegExport';
@@ -190,6 +190,9 @@ function rowToTicket(r: any): Ticket {
     resolutionNote: r.resolution_note,
     offerId: r.offer_id,
     mesonicBelegId: r.mesonic_beleg_id,
+    offerLaborMinutes: r.offer_labor_minutes ?? 0,
+    offerLaborRate: r.offer_labor_rate ?? null,
+    offerLaborFloorBilledMinutes: r.offer_labor_floor_billed_minutes ?? 0,
     createdBy: r.created_by,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -410,7 +413,7 @@ export async function listTravelZones(): Promise<TravelZone[]> {
 // ─────────────────────────────────────────────────────────────────────
 
 const TICKET_COLS =
-  'id, ticket_number, share_code, title, description, kind, priority, status, pool_abteilung_id, assigned_to, mesonic_customer_id, customer_name, customer_phone, customer_email, customer_address, customer_has_wartungsvertrag, standort_id, billable, closed_at, closed_by, resolution_note, offer_id, mesonic_beleg_id, created_by, created_at, updated_at';
+  'id, ticket_number, share_code, title, description, kind, priority, status, pool_abteilung_id, assigned_to, mesonic_customer_id, customer_name, customer_phone, customer_email, customer_address, customer_has_wartungsvertrag, standort_id, billable, closed_at, closed_by, resolution_note, offer_id, mesonic_beleg_id, offer_labor_minutes, offer_labor_rate, offer_labor_floor_billed_minutes, created_by, created_at, updated_at';
 
 export async function listTickets(filters: TicketFilters = {}): Promise<Ticket[]> {
   const sb = requireSupabase();
@@ -1371,12 +1374,43 @@ export async function loadTicketBelegExport(ticketId: string): Promise<ExportInp
     alreadyExportedKey: d.order.mesonicBelegKey,
   }));
 
+  // Angebot-Arbeitszeit-Untergrenze (ticket-weit, kumulativ). Der Floor ist
+  // eine Ticket-Invariante, Mesonic-Belege sind aber pro Schein & nach dem
+  // Export unveränderlich. Deshalb: reale Arbeitsminuten ÜBER ALLE
+  // exportierbaren Scheine summieren (schon exportierte tragen ihre Minuten
+  // weiter, jede Minute zählt einmal), bereits verbuchte Floor-Minuten am
+  // Ticket abziehen, und den Rest genau am LETZTEN noch nicht exportierten
+  // Schein aufschlagen (nur der bekommt einen neuen Beleg).
+  let floorCommit: { ticketId: string; repairOrderId: string; minutes: number } | undefined;
+  const billedReal = orders.reduce((s, o) => s + o.billing.laborMinutes, 0);
+  const lastNew = [...orders].reverse().find((o) => !o.alreadyExportedKey);
+  if (lastNew) {
+    const floorPos = offerLaborFloorPosition(
+      billedReal,
+      ticket.offerLaborFloorBilledMinutes,
+      { minutes: ticket.offerLaborMinutes, rate: ticket.offerLaborRate },
+      { repairOrderId: lastNew.billing.repairOrderId, repairOrderSeq: lastNew.billing.seqNumber },
+    );
+    if (floorPos) {
+      lastNew.billing.positions.push(floorPos);
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+      lastNew.billing.laborTotal = r2(lastNew.billing.laborTotal + floorPos.total);
+      lastNew.billing.subtotal = r2(lastNew.billing.subtotal + floorPos.total);
+      floorCommit = {
+        ticketId: ticket.id,
+        repairOrderId: lastNew.billing.repairOrderId,
+        minutes: Math.round(floorPos.quantity * 60),
+      };
+    }
+  }
+
   return {
     konto: ticket.mesonicCustomerId ?? '',
     ticketStandort: standortFromId(ticket.standortId),
     orders,
     employeeMesonic,
     kopfVertreternummer,
+    floorCommit,
     ticketNumber: ticket.ticketNumber,
   };
 }
@@ -1397,5 +1431,26 @@ export async function setRepairOrderBelegExport(
       mesonic_beleg_created_at: new Date().toISOString(),
     })
     .eq('id', repairOrderId);
+  if (error) throw error;
+}
+
+// Zählt die kumulierte Angebot-Arbeitszeit-Untergrenze am Ticket hoch (Floor-
+// Minuten, die bereits in Mesonic-Belege geschrieben wurden). Wird nur im
+// Erfolgspfad des Floor-tragenden Scheins aufgerufen, damit ein fehlgeschlagener
+// Export die Zählung nicht vorschiebt.
+export async function incrementTicketFloorTally(ticketId: string, addMinutes: number): Promise<void> {
+  if (addMinutes <= 0) return;
+  const sb = requireSupabase();
+  const { data, error: readErr } = await sb
+    .from('tickets')
+    .select('offer_labor_floor_billed_minutes')
+    .eq('id', ticketId)
+    .single();
+  if (readErr) throw readErr;
+  const next = (data?.offer_labor_floor_billed_minutes ?? 0) + addMinutes;
+  const { error } = await sb
+    .from('tickets')
+    .update({ offer_labor_floor_billed_minutes: next })
+    .eq('id', ticketId);
   if (error) throw error;
 }

@@ -16,7 +16,7 @@ function laborPos(over: Partial<BillingPosition> = {}): BillingPosition {
 function order(seqNumber: number, positions: BillingPosition[], alreadyExportedKey: string | null = null): OrderForExport {
   const billing: RepairOrderBilling = {
     repairOrderId: `ro-${seqNumber}`, seqNumber, performedAt: '2026-09-01', signed: true,
-    positions, laborTotal: 0, travelTotal: 0, materialTotal: 0, serviceTotal: 0, adjustmentTotal: 0, subtotal: 0,
+    positions, laborTotal: 0, travelTotal: 0, materialTotal: 0, serviceTotal: 0, adjustmentTotal: 0, subtotal: 0, laborMinutes: 0,
   };
   return { billing, alreadyExportedKey };
 }
@@ -31,15 +31,15 @@ describe('planTicketBelege', () => {
     expect(plan.skipped).toEqual([]);
   });
 
-  it('baut je Beleg gültiges WEBAngebot-XML mit Belegart nach Ticket-Standort', () => {
+  it('baut je Beleg gültiges WEBAngebot-XML mit Reparaturauftrag-Belegart 18', () => {
     const kl = planTicketBelege([order(1, [laborPos()])], baseOpts);
     expect(kl.toCreate[0].xml).toContain('<MESOWebService TemplateType="30" Template="WEBAngebot"');
-    expect(kl.toCreate[0].xml).toContain('<Belegart>16</Belegart>'); // Klagenfurt-Reparatur
+    expect(kl.toCreate[0].xml).toContain('<Belegart>18</Belegart>'); // Reparaturauftrag (beide Standorte)
     expect(kl.toCreate[0].xml).toContain('<Laufnummer>100</Laufnummer>');
     expect(kl.toCreate[0].xml).toContain('<Artikelnummer>30000009WO</Artikelnummer>'); // Heri, Heimat WO
 
     const wo = planTicketBelege([order(1, [laborPos()])], { ...baseOpts, ticketStandort: 'wolfsberg' });
-    expect(wo.toCreate[0].xml).toContain('<Belegart>12</Belegart>'); // Wolfsberg-Reparatur
+    expect(wo.toCreate[0].xml).toContain('<Belegart>18</Belegart>'); // Reparaturauftrag (beide Standorte)
   });
 
   it('überspringt bereits exportierte Scheine ohne eine Laufnummer zu verbrauchen', () => {

@@ -18,6 +18,10 @@ function eur(n: number): string {
   return `€${n.toFixed(2)}`;
 }
 
+function hours(min: number): string {
+  return (min / 60).toLocaleString('de-AT', { maximumFractionDigits: 2 });
+}
+
 export default function TicketBillingPreview({
   ticket,
   currentEmployeeId = null,
@@ -130,6 +134,16 @@ export default function TicketBillingPreview({
             </div>
           ) : summary ? (
             <>
+              {ticket.offerLaborMinutes > 0 && (
+                <div
+                  className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-800 flex items-center gap-1.5"
+                  data-testid="offer-labor-floor-note"
+                >
+                  <AlertCircle size={13} className="shrink-0" />
+                  Angebot: {hours(ticket.offerLaborMinutes)} h veranschlagt ·{' '}
+                  {hours(summary.repairOrders.reduce((s, ro) => s + ro.laborMinutes, 0))} h erfasst
+                </div>
+              )}
               {summary.repairOrders.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">
                   Keine verrechenbaren Reparaturscheine. Ticket kann ohne Abrechnung geschlossen werden.
