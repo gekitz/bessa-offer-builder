@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -27,7 +27,11 @@ import {
   listActivities,
   getEmailEvents,
   listOfferCreators,
+  updateOfferMesonic,
 } from '../../../lib/offerApi';
+import { mesonicImport, TYPES, TEMPLATES } from '../../../lib/mesonicApi';
+import { postOfferCrmNote, decideCrmAction } from '../lib/offerCrmNote';
+import CustomerResolveDialog from '../components/CustomerResolveDialog';
 import { supabase } from '../../../lib/supabase';
 import { generateAcceptQr } from '../../../lib/qr';
 import { useAuth } from '../../../lib/auth';
@@ -307,6 +311,13 @@ function OfferBuilderPageInner() {
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
   const [cartOrder, setCartOrder] = useState([]);
+  // CRM-note (WinLine Aktion) resolution dialog — opened when a saved offer
+  // needs a Mesonic Kd.-Nr. before we can file the offer-link note. Holds the
+  // saved offer row the dialog resolves against.
+  const [crmResolveOffer, setCrmResolveOffer] = useState(null);
+  // Offer ids for which the user dismissed the resolve dialog this session —
+  // so a rapid re-save doesn't nag them again.
+  const crmDismissedRef = useRef(new Set());
 
   // Load the curated offer creators from the employees table once.
   useEffect(() => {
@@ -959,6 +970,75 @@ function OfferBuilderPageInner() {
     }
   }
 
+  // ── CRM-note (WinLine Aktion) auto-post ──────────────────────────────
+  // Post the offer link as a CRM Aktion to the customer's Mesonic account,
+  // once per offer (guard: offers.mesonic_crm_key). Fully best-effort — any
+  // Mesonic failure/hang is caught + logged and never blocks the save/send
+  // UX. If the offer has no Kd.-Nr. yet, open the resolve dialog instead.
+  function importOfferCrm(xml) {
+    return mesonicImport(TYPES.CRM, TEMPLATES.CRM, xml, { actionCode: 1 });
+  }
+
+  // Make sure the offer has a share_code so the CRM note can link to it.
+  // Returns the (possibly newly created) share_code, or null on failure.
+  async function ensureShareCode(offerRow) {
+    let code = offerRow.share_code || shareCode;
+    if (code) return code;
+    code = Math.random().toString(36).slice(2, 10);
+    await setShareCode(offerRow.id, code);
+    setShareCodeState(code);
+    return code;
+  }
+
+  // Post the note for a resolved Kd.-Nr. and persist the returned CRM key.
+  async function postAndPersistCrmNote(offerRow, kundenkonto) {
+    const code = await ensureShareCode(offerRow);
+    if (!code) return;
+    const res = await postOfferCrmNote(
+      { kundenkonto, offer: { ...offerRow, share_code: code } },
+      { importCrm: importOfferCrm },
+    );
+    if (res.success && res.key) {
+      await updateOfferMesonic(offerRow.id, { mesonicCrmKey: res.key });
+    } else if (!res.skipped) {
+      console.warn('[offer-crm] Notiz konnte nicht angelegt werden:', res.error);
+    }
+  }
+
+  async function maybePostOfferCrmNote(savedOffer) {
+    try {
+      const action = decideCrmAction(savedOffer, crmDismissedRef.current);
+      if (action === 'skip') return;
+      if (action === 'post') {
+        // Known WinLine customer → post silently.
+        await postAndPersistCrmNote(savedOffer, savedOffer.mesonic_customer_id);
+      } else {
+        // No Kd.-Nr. → ask the user to resolve one via the dialog.
+        setCrmResolveOffer(savedOffer);
+      }
+    } catch (err) {
+      // Best-effort: never let CRM work surface to the save/send flow.
+      console.warn('[offer-crm] übersprungen:', err?.message || err);
+    }
+  }
+
+  async function handleCrmResolved(kdNr) {
+    const offerRow = crmResolveOffer;
+    setCrmResolveOffer(null);
+    if (!offerRow || !kdNr) return;
+    try {
+      const updated = await updateOfferMesonic(offerRow.id, { mesonicCustomerId: kdNr });
+      await postAndPersistCrmNote(updated || { ...offerRow, mesonic_customer_id: kdNr }, kdNr);
+    } catch (err) {
+      console.warn('[offer-crm] Zuordnung fehlgeschlagen:', err?.message || err);
+    }
+  }
+
+  function handleCrmCancel() {
+    if (crmResolveOffer?.id) crmDismissedRef.current.add(crmResolveOffer.id);
+    setCrmResolveOffer(null);
+  }
+
   async function handleSave() {
     if (offerLocked) return;
     if (!supabase) { alert('Supabase nicht konfiguriert'); return; }
@@ -997,6 +1077,9 @@ function OfferBuilderPageInner() {
       setCurrentOfferId(result.id);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
+      // Best-effort CRM note — runs after the "Gespeichert!" feedback and
+      // never blocks or fails the save.
+      maybePostOfferCrmNote(result);
     } catch (err) {
       alert('Fehler beim Speichern: ' + err.message);
     } finally {
@@ -1017,6 +1100,7 @@ function OfferBuilderPageInner() {
     const creatorInfoForSave = creatorFor(creator);
     setSaving(true);
     let offerId;
+    let savedOffer;
     try {
       const result = await saveOffer({
         id: currentOfferId || null,
@@ -1043,6 +1127,7 @@ function OfferBuilderPageInner() {
         acceptSnapshot: buildAcceptSnapshot(),
       });
       offerId = result.id;
+      savedOffer = result;
       setCurrentOfferId(offerId);
     } catch (err) {
       alert('Fehler beim Speichern: ' + err.message);
@@ -1092,6 +1177,9 @@ function OfferBuilderPageInner() {
       try { await updateOfferStage(offerId, 'offer_sent'); } catch {}
       setShowEmailPreview(false);
       alert('Angebot erfolgreich gesendet!');
+      // Best-effort CRM note — runs after the send confirmation and never
+      // blocks or fails the send.
+      maybePostOfferCrmNote(savedOffer);
     } catch (err) {
       alert('Fehler beim Senden: ' + err.message);
     } finally {
@@ -1284,6 +1372,16 @@ function OfferBuilderPageInner() {
         <NewOfferTypeModal
           onSelect={(type) => { setShowNewOfferModal(false); handleNewOffer(type); }}
           onClose={() => setShowNewOfferModal(false)}
+        />
+      )}
+
+      {crmResolveOffer && (
+        <CustomerResolveDialog
+          open
+          customer={customer}
+          offerLabel={customer.company || customer.name || ''}
+          onResolved={handleCrmResolved}
+          onCancel={handleCrmCancel}
         />
       )}
 
