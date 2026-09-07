@@ -16,7 +16,7 @@ function laborPos(over: Partial<BillingPosition> = {}): BillingPosition {
 function order(seqNumber: number, positions: BillingPosition[], alreadyExportedKey: string | null = null): OrderForExport {
   const billing: RepairOrderBilling = {
     repairOrderId: `ro-${seqNumber}`, seqNumber, performedAt: '2026-09-01', signed: true,
-    positions, laborTotal: 0, travelTotal: 0, materialTotal: 0, serviceTotal: 0, adjustmentTotal: 0, subtotal: 0,
+    positions, laborTotal: 0, travelTotal: 0, materialTotal: 0, serviceTotal: 0, adjustmentTotal: 0, subtotal: 0, laborMinutes: 0,
   };
   return { billing, alreadyExportedKey };
 }

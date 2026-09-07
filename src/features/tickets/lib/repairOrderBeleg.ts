@@ -10,8 +10,10 @@
 //        HEIMAT-Standort — der Artikel ist eine feste Eigenschaft des Technikers)
 //   travel_flat                        → Zonen-Artikel (31000xxx, echte Nr.)
 //   material                           → echte Artikelnummer
-//   service_flat / adjustment          → Pseudoartikel 99991234{KL/WO}
-//                                        (Suffix = TICKET-Standort)
+//   service_flat / adjustment /        → Pseudoartikel 99991234{KL/WO}
+//   labor_floor                          (Suffix = TICKET-Standort)
+//       labor_floor = synthetische Mindest-Arbeitszeit laut Angebot; hat keinen
+//       Mitarbeiter, daher Pseudoartikel wie service_flat.
 // Belegart (12/16) folgt ebenfalls dem Ticket-Standort — das passiert im Kopf
 // (buildAngebotImportXml), nicht hier.
 
@@ -75,6 +77,7 @@ export function repairOrderToBelegPositions(
         break;
       case 'service_flat':
       case 'adjustment':
+      case 'labor_floor':
         artikelnummer = pseudo;
         break;
       default:

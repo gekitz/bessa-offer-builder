@@ -13,7 +13,7 @@ function billing(positions: BillingPosition[]): RepairOrderBilling {
   return {
     repairOrderId: 'ro1', seqNumber: 1, performedAt: '2026-09-01', signed: true,
     positions, laborTotal: 0, travelTotal: 0, materialTotal: 0, serviceTotal: 0,
-    adjustmentTotal: 0, subtotal: 0,
+    adjustmentTotal: 0, subtotal: 0, laborMinutes: 0,
   };
 }
 
@@ -63,6 +63,20 @@ describe('repairOrderToBelegPositions', () => {
 
     const wo = repairOrderToBelegPositions(b, { ticketStandort: 'wolfsberg', employeeMesonic });
     expect(wo.map((p) => p.artikelnummer)).toEqual(['99991234WO', '99991234WO']);
+  });
+
+  it('labor_floor → Pseudoartikel nach TICKET-Standort (kein Mitarbeiter, wirft nicht)', () => {
+    // Die synthetische Mindest-Arbeitszeit hat keinen employeeId — sie darf
+    // NICHT über den Mitarbeiter-Artikel laufen (sonst würde der Export werfen).
+    const b = billing([
+      pos({ kind: 'labor_floor', label: 'Mindest-Arbeitszeit laut Angebot', quantity: 8, unitPrice: 118, total: 944 }),
+    ]);
+    const kl = repairOrderToBelegPositions(b, { ticketStandort: 'klagenfurt', employeeMesonic });
+    expect(kl.map((p) => p.artikelnummer)).toEqual(['99991234KL']);
+    expect(kl[0]).toMatchObject({ menge: 8, einzelpreis: 118, bezeichnung: 'Mindest-Arbeitszeit laut Angebot' });
+
+    const wo = repairOrderToBelegPositions(b, { ticketStandort: 'wolfsberg', employeeMesonic });
+    expect(wo[0].artikelnummer).toBe('99991234WO');
   });
 
   it('wirft, wenn ein Arbeits-Mitarbeiter keine Vertreternummer hat', () => {
