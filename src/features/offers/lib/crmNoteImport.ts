@@ -9,14 +9,18 @@
 // Der Proxy (mesonicImport) erkennt den fertigen Envelope und wrappt NICHT
 // erneut; er setzt Type/Vorlage in der URL.
 //
-// OFFEN (empirisch am Kunden 24998 zu klären, Heri 2026-09):
-//  - Exakter Vorlagen-/Root-Element-Name von Heris Vorlage "CRM Notiz
-//    Verbindung" (Leerzeichen sind als XML-Tag unzulässig → RootElement ggf.
-//    ohne Leerzeichen, Vorlage evtl. "WEBCRM").
-//  - Genaue Feldreihenfolge/-menge der Vorlage. Heris Vorlage nutzt lt.
-//    Screenshot: Kundenkonto, Startdatum, Kurzbeschreibung, Langbeschreibung
-//    intern; WorkflowNummer = 10241 (die "Aktion").
-// Deshalb sind Vorlage, RootElement und Felder bewusst parametrierbar.
+// Kontrakt bestätigt per WinLine-Vorlagendefinition (Screenshot 2026-09-07):
+//  - Vorlage/Bezeichnung: **WebCRM** (WebService-Vorlage, Vorlagentyp CRM).
+//  - Genau 4 Felder, in DIESER Reihenfolge (Original-Bezeichnung → XML-Tag,
+//    Leerzeichen entfallen):
+//      Workflow Nummer → <WorkflowNummer>  (die Aktion, z. B. 10241)
+//      Zeilennummer    → <Zeilennummer>    (i. d. R. 1)
+//      Kundenkonto     → <Kundenkonto>
+//      Kurzbeschreibung→ <Kurzbeschreibung>
+// Root-Element = Vorlagenname (<WebCRM>). Felder, die die Vorlage NICHT kennt
+// (KontaktKunde/Startdatum/Langbeschreibung…), werden nur emittiert, wenn
+// explizit gesetzt — Default ist der 4-Felder-Kontrakt. Vorlage/Root bleiben
+// parametrierbar, falls Mesonic die Vorlage erweitert.
 
 function esc(s: string): string {
   return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
@@ -29,31 +33,37 @@ function el(tag: string, value: string | number | undefined | null): string {
 export interface CrmNoteFields {
   workflowNummer: string | number; // Heri: 10241 (die CRM-Aktion)
   kundenkonto: string;             // Mesonic Kd.-Nr., z. B. 24998
+  kurzbeschreibung?: string;       // Betreff/Text der Aktion (z. B. Angebot-Link)
+  zeilennummer?: string | number;  // Default 1
+  // Nicht Teil der WebCRM-Vorlage — nur emittiert, wenn gesetzt (für erweiterte
+  // Vorlagen). Ungefragt gesendete Felder kann WinLine ablehnen.
   startdatum?: string;             // YYYY-MM-DD
-  kurzbeschreibung?: string;       // Betreff der Aktion
-  langbeschreibungIntern?: string; // interner Notiztext (z. B. Angebot-Link)
+  langbeschreibungIntern?: string;
   langbeschreibungExtern?: string;
-  kontaktKunde?: string | number;  // Ansprechpartner-ID, Default 0
+  kontaktKunde?: string | number;
 }
 
 export interface CrmNoteXmlOpts {
-  template?: string;    // URL-Vorlage + Template-Attribut. Default 'WEBCRM'.
+  template?: string;    // URL-Vorlage + Template-Attribut. Default 'WebCRM'.
   rootElement?: string; // XML-Wurzelelement. Default = template (ohne Leerzeichen).
 }
 
-// Baut den vollständigen WEBCRM-Import-Envelope (inkl. <?xml?>-Prolog).
-// Nur nicht-leere Felder werden emittiert; WorkflowNummer + Kundenkonto sind
-// Pflicht. Reihenfolge folgt dem Whitepaper-Beispiel, ergänzt um Startdatum.
+// Baut den vollständigen WebCRM-Import-Envelope (inkl. <?xml?>-Prolog).
+// Standard = der bestätigte 4-Felder-Kontrakt (WorkflowNummer, Zeilennummer,
+// Kundenkonto, Kurzbeschreibung) in Vorlagen-Reihenfolge. Optionale Felder
+// werden nur bei explizitem Wert angehängt.
 export function buildCrmNoteXml(fields: CrmNoteFields, opts: CrmNoteXmlOpts = {}): string {
-  const template = opts.template ?? 'WEBCRM';
+  const template = opts.template ?? 'WebCRM';
   const root = (opts.rootElement ?? template).replace(/\s+/g, '');
 
   const inner =
     el('WorkflowNummer', fields.workflowNummer) +
+    el('Zeilennummer', fields.zeilennummer ?? 1) +
     el('Kundenkonto', fields.kundenkonto) +
-    el('KontaktKunde', fields.kontaktKunde ?? 0) +
-    el('Startdatum', fields.startdatum) +
     el('Kurzbeschreibung', fields.kurzbeschreibung) +
+    // Optionale Felder außerhalb der WebCRM-Vorlage (nur wenn gesetzt):
+    el('KontaktKunde', fields.kontaktKunde) +
+    el('Startdatum', fields.startdatum) +
     el('Langbeschreibungintern', fields.langbeschreibungIntern) +
     el('Langbeschreibungextern', fields.langbeschreibungExtern);
 

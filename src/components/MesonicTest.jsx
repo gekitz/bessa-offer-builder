@@ -840,23 +840,21 @@ function ReparaturImportTester() {
 // an (Heri: Workflow 10241, Vorlage "CRM Notiz Verbindung"). Vorlage/Root/Felder
 // bewusst editierbar, um den exakten Kontrakt am Kunden 24998 zu ermitteln.
 function CrmNotizTester() {
-  const [template, setTemplate] = useState('WEBCRM');
+  const [template, setTemplate] = useState('WebCRM');
   const [rootEl, setRootEl] = useState('');
   const [workflow, setWorkflow] = useState('10241');
   const [konto, setKonto] = useState('24998');
   const [kurz, setKurz] = useState('Test aus Offer-Builder');
-  const [lang, setLang] = useState('Angebot-Link: https://…');
-  const [datum, setDatum] = useState(new Date().toISOString().slice(0, 10));
   const [out, setOut] = useState(null);
   const [busy, setBusy] = useState(null);
 
+  // WebCRM-Vorlage: WorkflowNummer, Zeilennummer(=1), Kundenkonto,
+  // Kurzbeschreibung (bestätigt per Vorlagendefinition, Screenshot 2026-09-07).
   const xml = buildCrmNoteXml(
     {
       workflowNummer: workflow || undefined,
       kundenkonto: konto,
-      startdatum: datum || undefined,
       kurzbeschreibung: kurz || undefined,
-      langbeschreibungIntern: lang || undefined,
     },
     { template, rootElement: rootEl || undefined },
   );
@@ -881,10 +879,10 @@ function CrmNotizTester() {
 
   return (
     <div className="border border-violet-200 rounded-lg p-4 bg-violet-50/40">
-      <h2 className="text-lg font-bold mb-1 text-violet-800">CRM-Notiz/Aktion-Tester (WEBCRM, Type 34)</h2>
+      <h2 className="text-lg font-bold mb-1 text-violet-800">CRM-Notiz/Aktion-Tester (WebCRM, Type 34)</h2>
       <p className="text-xs text-slate-500 mb-3">
         „Validieren" = ActionCode=0 (prüft nur). „Anlegen" = ActionCode=1 → legt die CRM-Aktion wirklich an.
-        Vorlage/Root-Element ggf. anpassen, bis WinLine OverallSuccess=true meldet (Heri-Vorlage „CRM Notiz Verbindung", Workflow 10241).
+        WebCRM-Vorlage (bestätigt): Felder WorkflowNummer, Zeilennummer(=1), Kundenkonto, Kurzbeschreibung.
       </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
         <label className="text-xs text-slate-600">Vorlage (URL + Template-Attr)
@@ -899,14 +897,8 @@ function CrmNotizTester() {
         <label className="text-xs text-slate-600">Kundenkonto
           <input value={konto} onChange={(e) => setKonto(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
         </label>
-        <label className="text-xs text-slate-600">Startdatum
-          <input value={datum} onChange={(e) => setDatum(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
-        </label>
-        <label className="text-xs text-slate-600 md:col-span-3">Kurzbeschreibung
+        <label className="text-xs text-slate-600 md:col-span-4">Kurzbeschreibung
           <input value={kurz} onChange={(e) => setKurz(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
-        </label>
-        <label className="text-xs text-slate-600 md:col-span-4">Langbeschreibung intern
-          <textarea value={lang} onChange={(e) => setLang(e.target.value)} rows={2} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
         </label>
       </div>
       <div className="flex gap-2 mb-3">
