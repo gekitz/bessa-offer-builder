@@ -7,7 +7,13 @@
 // key (parsed from the import response's <KeyValue>) is stored on
 // offers.mesonic_crm_key as the "already posted" idempotency anchor.
 
-import { buildCrmNoteXml } from './crmNoteImport';
+import { buildCrmNoteXml, parseCrmKey } from './crmNoteImport';
+
+// The generic CRM helpers now live in crmNoteImport.ts (the CRM home).
+// Re-export them here so existing offer imports (OfferBuilderPage, tests)
+// stay untouched.
+export { parseCrmKey, decideCrmAction } from './crmNoteImport';
+export type { CrmAction } from './crmNoteImport';
 
 // Public offer link base — mirrors the send-offer edge function
 // (`${PUBLIC_APP_URL}/?a=<code>`). The app is a HashRouter SPA that reads the
@@ -57,33 +63,6 @@ export function buildOfferCrmFields(
     kurzbeschreibung: `Angebot ${label}`,
     langbeschreibungIntern: `Angebot-Link: ${shareUrl}`,
   };
-}
-
-// Parse the created Aktion key (<KeyValue>CRM0-…</KeyValue>) from the import
-// response XML, or null if absent.
-export function parseCrmKey(rawXml: string | null | undefined): string | null {
-  if (!rawXml) return null;
-  const m = String(rawXml).match(/<KeyValue>(.*?)<\/KeyValue>/);
-  return m ? m[1].trim() || null : null;
-}
-
-// Decide what the save-flow should do with a freshly saved offer, given the
-// set of offer ids the user already dismissed the resolve dialog for this
-// session. Pure — the wiring in OfferBuilderPage just acts on the verb.
-//   'skip'    — already posted (mesonic_crm_key) or dismissed this session
-//   'post'    — has a Kd.-Nr. (mesonic_customer_id) → post silently
-//   'resolve' — no Kd.-Nr. → open the resolve dialog
-export type CrmAction = 'skip' | 'post' | 'resolve';
-
-export function decideCrmAction(
-  offer: { id?: string; mesonic_crm_key?: string | null; mesonic_customer_id?: string | null } | null | undefined,
-  dismissedOfferIds: Set<string> = new Set(),
-): CrmAction {
-  if (!offer || !offer.id) return 'skip';
-  if (offer.mesonic_crm_key) return 'skip';
-  if (dismissedOfferIds.has(offer.id)) return 'skip';
-  if (offer.mesonic_customer_id) return 'post';
-  return 'resolve';
 }
 
 export interface ImportResult {

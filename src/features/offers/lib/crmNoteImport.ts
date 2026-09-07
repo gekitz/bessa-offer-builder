@@ -62,3 +62,35 @@ export function buildCrmNoteXml(fields: CrmNoteFields, opts: CrmNoteXmlOpts = {}
     `</MESOWebService>`
   );
 }
+
+// ─── Generic CRM helpers (entity-agnostic) ───
+// Shared by the offer and ticket/repair-order CRM flows. Kept here (the CRM
+// home) and re-exported from offerCrmNote.ts so existing offer imports keep
+// working.
+
+// Parse the created Aktion key (<KeyValue>CRM0-…</KeyValue>) from the import
+// response XML, or null if absent.
+export function parseCrmKey(rawXml: string | null | undefined): string | null {
+  if (!rawXml) return null;
+  const m = String(rawXml).match(/<KeyValue>(.*?)<\/KeyValue>/);
+  return m ? m[1].trim() || null : null;
+}
+
+// Decide what the caller should do with an entity that may need a CRM note,
+// given the set of ids the user already dismissed the resolve dialog for this
+// session. Pure — the wiring just acts on the verb.
+//   'skip'    — already posted (mesonic_crm_key) or dismissed this session
+//   'post'    — has a Kd.-Nr. (mesonic_customer_id) → post silently
+//   'resolve' — no Kd.-Nr. → open the resolve dialog
+export type CrmAction = 'skip' | 'post' | 'resolve';
+
+export function decideCrmAction(
+  entity: { id?: string; mesonic_crm_key?: string | null; mesonic_customer_id?: string | null } | null | undefined,
+  dismissedIds: Set<string> = new Set(),
+): CrmAction {
+  if (!entity || !entity.id) return 'skip';
+  if (entity.mesonic_crm_key) return 'skip';
+  if (dismissedIds.has(entity.id)) return 'skip';
+  if (entity.mesonic_customer_id) return 'post';
+  return 'resolve';
+}
