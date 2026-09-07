@@ -9,18 +9,15 @@
 // Der Proxy (mesonicImport) erkennt den fertigen Envelope und wrappt NICHT
 // erneut; er setzt Type/Vorlage in der URL.
 //
-// Kontrakt bestätigt per WinLine-Vorlagendefinition (Screenshot 2026-09-07):
-//  - Vorlage/Bezeichnung: **WebCRM** (WebService-Vorlage, Vorlagentyp CRM).
-//  - Genau 4 Felder, in DIESER Reihenfolge (Original-Bezeichnung → XML-Tag,
-//    Leerzeichen entfallen):
-//      Workflow Nummer → <WorkflowNummer>  (die Aktion, z. B. 10241)
-//      Zeilennummer    → <Zeilennummer>    (i. d. R. 1)
-//      Kundenkonto     → <Kundenkonto>
-//      Kurzbeschreibung→ <Kurzbeschreibung>
-// Root-Element = Vorlagenname (<WebCRM>). Felder, die die Vorlage NICHT kennt
-// (KontaktKunde/Startdatum/Langbeschreibung…), werden nur emittiert, wenn
-// explizit gesetzt — Default ist der 4-Felder-Kontrakt. Vorlage/Root bleiben
-// parametrierbar, falls Mesonic die Vorlage erweitert.
+// Kontrakt bestätigt per WebCRM-XSD (Heri 2026-09-07, live OverallSuccess=true):
+//   Vorlage/Bezeichnung: **WebCRM** (WebService-Vorlage, Vorlagentyp CRM).
+//   Root-Element = <WebCRM>. xs:sequence (Reihenfolge Pflicht), alle optional:
+//     <WorkflowNummer>   xs:integer  (die Aktion, z. B. 10241)
+//     <Zeilennummer>     xs:integer  (i. d. R. 1)
+//     <Kundenkonto>      xs:string
+//     <Kurzbeschreibung> xs:string   (kurzer Betreff/Label)
+//     <Langbeschreibungintern> xs:string (langer Notiztext, z. B. Angebot-Link)
+// Vorlage/Root bleiben parametrierbar, falls Mesonic die Vorlage umbenennt.
 
 function esc(s: string): string {
   return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
@@ -30,17 +27,13 @@ function el(tag: string, value: string | number | undefined | null): string {
   return `  <${tag}>${esc(String(value))}</${tag}>\n`;
 }
 
+// Felder = WebCRM-XSD (xs:sequence), alle optional (minOccurs=0):
 export interface CrmNoteFields {
-  workflowNummer: string | number; // Heri: 10241 (die CRM-Aktion)
-  kundenkonto: string;             // Mesonic Kd.-Nr., z. B. 24998
-  kurzbeschreibung?: string;       // Betreff/Text der Aktion (z. B. Angebot-Link)
-  zeilennummer?: string | number;  // Default 1
-  // Nicht Teil der WebCRM-Vorlage — nur emittiert, wenn gesetzt (für erweiterte
-  // Vorlagen). Ungefragt gesendete Felder kann WinLine ablehnen.
-  startdatum?: string;             // YYYY-MM-DD
-  langbeschreibungIntern?: string;
-  langbeschreibungExtern?: string;
-  kontaktKunde?: string | number;
+  workflowNummer: string | number; // xs:integer — Heri: 10241 (die CRM-Aktion)
+  zeilennummer?: string | number;  // xs:integer — Default 1
+  kundenkonto: string;             // xs:string — Mesonic Kd.-Nr., z. B. 24998
+  kurzbeschreibung?: string;       // xs:string — Betreff/Label der Aktion
+  langbeschreibungIntern?: string; // xs:string — interner Notiztext (Angebot-Link)
 }
 
 export interface CrmNoteXmlOpts {
@@ -49,9 +42,8 @@ export interface CrmNoteXmlOpts {
 }
 
 // Baut den vollständigen WebCRM-Import-Envelope (inkl. <?xml?>-Prolog).
-// Standard = der bestätigte 4-Felder-Kontrakt (WorkflowNummer, Zeilennummer,
-// Kundenkonto, Kurzbeschreibung) in Vorlagen-Reihenfolge. Optionale Felder
-// werden nur bei explizitem Wert angehängt.
+// Feldreihenfolge = XSD xs:sequence (Pflicht bei WinLine-Schemaprüfung). Nur
+// nicht-leere Felder werden emittiert; Zeilennummer defaultet auf 1.
 export function buildCrmNoteXml(fields: CrmNoteFields, opts: CrmNoteXmlOpts = {}): string {
   const template = opts.template ?? 'WebCRM';
   const root = (opts.rootElement ?? template).replace(/\s+/g, '');
@@ -61,11 +53,7 @@ export function buildCrmNoteXml(fields: CrmNoteFields, opts: CrmNoteXmlOpts = {}
     el('Zeilennummer', fields.zeilennummer ?? 1) +
     el('Kundenkonto', fields.kundenkonto) +
     el('Kurzbeschreibung', fields.kurzbeschreibung) +
-    // Optionale Felder außerhalb der WebCRM-Vorlage (nur wenn gesetzt):
-    el('KontaktKunde', fields.kontaktKunde) +
-    el('Startdatum', fields.startdatum) +
-    el('Langbeschreibungintern', fields.langbeschreibungIntern) +
-    el('Langbeschreibungextern', fields.langbeschreibungExtern);
+    el('Langbeschreibungintern', fields.langbeschreibungIntern);
 
   return (
     `<?xml version="1.0" encoding="UTF-8"?>\n` +

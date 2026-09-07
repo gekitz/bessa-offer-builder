@@ -16,7 +16,7 @@ describe('buildCrmNoteXml (WebCRM, confirmed 4-field contract)', () => {
     expect(xml.trim().endsWith('</MESOWebService>')).toBe(true);
   });
 
-  it('emits exactly the 4 template fields in definition order', () => {
+  it('emits fields in the XSD xs:sequence order', () => {
     const order = ['WorkflowNummer', 'Zeilennummer', 'Kundenkonto', 'Kurzbeschreibung'];
     const positions = order.map((t) => xml.indexOf(`<${t}>`));
     expect(positions.every((p) => p >= 0)).toBe(true);
@@ -27,24 +27,32 @@ describe('buildCrmNoteXml (WebCRM, confirmed 4-field contract)', () => {
     expect(xml).toContain('<Kurzbeschreibung>Angebot erstellt</Kurzbeschreibung>');
   });
 
-  it('does NOT emit fields absent from the WebCRM template by default', () => {
-    expect(xml).not.toContain('<KontaktKunde>');
-    expect(xml).not.toContain('<Startdatum>');
-    expect(xml).not.toContain('<Langbeschreibungintern>');
-  });
-
-  it('appends optional extra fields only when explicitly provided (for extended templates)', () => {
+  it('never emits elements outside the WebCRM XSD', () => {
     const x = buildCrmNoteXml({
       workflowNummer: 10241,
       kundenkonto: '24998',
       kurzbeschreibung: 'x',
-      startdatum: '2026-09-07',
-      langbeschreibungIntern: 'Details',
+      langbeschreibungIntern: 'y',
     });
-    expect(x).toContain('<Startdatum>2026-09-07</Startdatum>');
-    expect(x).toContain('<Langbeschreibungintern>Details</Langbeschreibungintern>');
-    // extras come after the core 4 fields
-    expect(x.indexOf('<Startdatum>')).toBeGreaterThan(x.indexOf('<Kurzbeschreibung>'));
+    // Only the 5 XSD elements may appear (plus the MESOWebService/WebCRM wrappers).
+    const allowed = new Set(['MESOWebService', 'WebCRM', 'WorkflowNummer', 'Zeilennummer', 'Kundenkonto', 'Kurzbeschreibung', 'Langbeschreibungintern']);
+    const tags = [...x.matchAll(/<([A-Za-z]+)[ >]/g)].map((m) => m[1]);
+    for (const t of tags) expect(allowed.has(t)).toBe(true);
+  });
+
+  it('places Langbeschreibungintern last (after Kurzbeschreibung) per XSD', () => {
+    const x = buildCrmNoteXml({
+      workflowNummer: 10241,
+      kundenkonto: '24998',
+      kurzbeschreibung: 'label',
+      langbeschreibungIntern: 'Angebot-Link: https://…',
+    });
+    expect(x).toContain('<Langbeschreibungintern>Angebot-Link: https://…</Langbeschreibungintern>');
+    expect(x.indexOf('<Langbeschreibungintern>')).toBeGreaterThan(x.indexOf('<Kurzbeschreibung>'));
+  });
+
+  it('omits Langbeschreibungintern when not provided', () => {
+    expect(xml).not.toContain('<Langbeschreibungintern>');
   });
 
   it('honours a custom template/root and strips spaces from the XML tag', () => {

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!--
+  WinLine WebCRM import schema (Type 34, Vorlage "WebCRM"), provided by
+  Mesonic (Heri) 2026-09-07. Authoritative field contract for CRM-Aktion
+  imports. Mirrored in code by src/features/offers/lib/crmNoteImport.ts
+  (buildCrmNoteXml). Field order = xs:sequence (enforced by WinLine's
+  Schemaprüfung). Live-verified: OverallSuccess=true, KeyValue CRM0-33490.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<xs:element name="MESOWebService">
+<xs:complexType>
+<xs:sequence>
+<xs:element name="WebCRM" minOccurs="1" maxOccurs="unbounded">
+<xs:complexType>
+<xs:sequence>
+<xs:element name="WorkflowNummer" minOccurs="0" maxOccurs="1">
+<xs:simpleType>
+<xs:restriction base="xs:integer">
+<xs:totalDigits value="12"/>
+</xs:restriction>
+</xs:simpleType>
+</xs:element>
+<xs:element name="Zeilennummer" minOccurs="0" maxOccurs="1">
+<xs:simpleType>
+<xs:restriction base="xs:integer">
+<xs:totalDigits value="12"/>
+</xs:restriction>
+</xs:simpleType>
+</xs:element>
+<xs:element name="Kundenkonto" minOccurs="0" maxOccurs="1">
+<xs:simpleType>
+<xs:restriction base="xs:string">
+</xs:restriction>
+</xs:simpleType>
+</xs:element>
+<xs:element name="Kurzbeschreibung" minOccurs="0" maxOccurs="1">
+<xs:simpleType>
+<xs:restriction base="xs:string">
+</xs:restriction>
+</xs:simpleType>
+</xs:element>
+<xs:element name="Langbeschreibungintern" type="xs:string" minOccurs="0" maxOccurs="1"/>
+</xs:sequence>
+</xs:complexType>
+</xs:element>
+</xs:sequence>
+<xs:attribute name="TemplateType" type="xs:integer" use="optional" />
+<xs:attribute name="Template" type="xs:string" use="optional" />
+</xs:complexType>
+</xs:element>
+</xs:schema>

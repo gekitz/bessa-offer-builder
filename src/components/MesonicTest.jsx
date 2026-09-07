@@ -845,16 +845,18 @@ function CrmNotizTester() {
   const [workflow, setWorkflow] = useState('10241');
   const [konto, setKonto] = useState('24998');
   const [kurz, setKurz] = useState('Test aus Offer-Builder');
+  const [lang, setLang] = useState('');
   const [out, setOut] = useState(null);
   const [busy, setBusy] = useState(null);
 
-  // WebCRM-Vorlage: WorkflowNummer, Zeilennummer(=1), Kundenkonto,
-  // Kurzbeschreibung (bestätigt per Vorlagendefinition, Screenshot 2026-09-07).
+  // WebCRM-Vorlage (bestätigt live 2026-09-07): WorkflowNummer, Zeilennummer(=1),
+  // Kundenkonto, Kurzbeschreibung, Langbeschreibungintern (170/19).
   const xml = buildCrmNoteXml(
     {
       workflowNummer: workflow || undefined,
       kundenkonto: konto,
       kurzbeschreibung: kurz || undefined,
+      langbeschreibungIntern: lang || undefined,
     },
     { template, rootElement: rootEl || undefined },
   );
@@ -899,6 +901,9 @@ function CrmNotizTester() {
         </label>
         <label className="text-xs text-slate-600 md:col-span-4">Kurzbeschreibung
           <input value={kurz} onChange={(e) => setKurz(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600 md:col-span-4">Langbeschreibung intern (z. B. Angebot-Link)
+          <textarea value={lang} onChange={(e) => setLang(e.target.value)} rows={2} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
         </label>
       </div>
       <div className="flex gap-2 mb-3">
