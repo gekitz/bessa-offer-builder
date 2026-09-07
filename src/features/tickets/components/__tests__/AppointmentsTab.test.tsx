@@ -32,7 +32,9 @@ const TICKET: Ticket = {
   customerName: 'Müller', customerPhone: null, customerEmail: null,
   customerAddress: null, customerHasWartungsvertrag: false, standortId: null,
   billable: true, closedAt: null, closedBy: null, resolutionNote: null,
-  offerId: null, mesonicBelegId: null, createdBy: null,
+  offerId: null, mesonicBelegId: null,
+  offerLaborMinutes: 0, offerLaborRate: null, offerLaborFloorBilledMinutes: 0,
+  createdBy: null,
   createdAt: '', updatedAt: '',
 };
 
