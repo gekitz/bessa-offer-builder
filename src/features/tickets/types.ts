@@ -75,6 +75,11 @@ export interface Ticket {
   resolutionNote: string | null;
   offerId: string | null;
   mesonicBelegId: string | null;
+  // Frozen labor-hours floor from the accepted offer's accept snapshot.
+  // The finished ticket never bills fewer labor hours than the offer quoted.
+  offerLaborMinutes: number;       // quoted labor minutes (0 = no floor)
+  offerLaborRate: number | null;   // frozen weighted rate €/h (null = no labor)
+  offerLaborFloorBilledMinutes: number; // floor minutes already exported to Belege
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -353,7 +358,7 @@ export interface TicketAttachment {
 
 export interface BillingPosition {
   // Type of position for grouping/sort
-  kind: 'labor' | 'travel_flat' | 'travel_km' | 'travel_wegzeit' | 'material' | 'service_flat' | 'adjustment';
+  kind: 'labor' | 'labor_floor' | 'travel_flat' | 'travel_km' | 'travel_wegzeit' | 'material' | 'service_flat' | 'adjustment';
   label: string;
   quantity: number;       // hours, km, units
   unit: string;           // 'h', 'km', 'Stk', 'pauschale'
@@ -379,6 +384,10 @@ export interface RepairOrderBilling {
   serviceTotal: number;
   adjustmentTotal: number; // signed sum of corrections
   subtotal: number; // sum of above (net)
+  // Real hourly-labor minutes behind this order's billing (rate.unit === 'hour'
+  // work entries only — excludes Wegzeit/pauschale). Lets the ticket-level pass
+  // size the offer labor floor without re-resolving rates.
+  laborMinutes: number;
 }
 
 export interface BillingSummary {

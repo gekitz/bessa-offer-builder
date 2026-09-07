@@ -92,6 +92,9 @@ export function calcRepairOrderBilling(args: CalcRepairOrderArgs): RepairOrderBi
   let laborTotal = 0;
   let travelTotal = 0;
   let serviceTotal = 0;
+  // Real hourly-labor minutes (rate.unit === 'hour' work entries only). Feeds
+  // the ticket-level offer labor floor. Excludes Wegzeit + pauschale + floor.
+  let laborMinutes = 0;
 
   for (const entry of entries) {
     const rate = rateMap.get(entry.serviceRateCode);
@@ -115,6 +118,7 @@ export function calcRepairOrderBilling(args: CalcRepairOrderArgs): RepairOrderBi
           employeeName: employeeNameById?.get(entry.employeeId),
         });
         laborTotal += total;
+        laborMinutes += entry.workMinutes;
       } else if (rate.unit === 'pauschale') {
         // Flat-fee service (Fernwartung, Kostenvoranschlag)
         const total = round2(rate.rate);
@@ -260,6 +264,48 @@ export function calcRepairOrderBilling(args: CalcRepairOrderArgs): RepairOrderBi
     serviceTotal: round2(serviceTotal),
     adjustmentTotal,
     subtotal: round2(laborTotal + travelTotal + materialTotal + serviceTotal + adjustmentTotal),
+    laborMinutes,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Offer labor-hours floor: when the accepted offer quoted Arbeitszeit, the
+// ticket must never bill fewer labor hours than quoted. This pure helper
+// sizes the synthetic top-up so preview and Mesonic export apply an identical
+// floor. See docs/plans/offer-labor-floor.md.
+
+export interface OfferLaborFloor {
+  minutes: number;
+  rate: number | null;
+}
+
+// billedLaborMinutes    = real hourly labor already billed for the ticket.
+// alreadyFlooredMinutes = floor minutes previously committed (0 for the
+//                         on-screen preview; the ticket's exported-floor tally
+//                         for the Mesonic export).
+// Returns the synthetic top-up position, or null when the floor is already met.
+export function offerLaborFloorPosition(
+  billedLaborMinutes: number,
+  alreadyFlooredMinutes: number,
+  floor: OfferLaborFloor,
+  ctx: { repairOrderId: string; repairOrderSeq: number },
+): BillingPosition | null {
+  if (floor.minutes <= 0) return null;
+  const shortfallMin = floor.minutes - billedLaborMinutes - alreadyFlooredMinutes;
+  if (shortfallMin <= 0) return null;
+  const rate = floor.rate ?? 118;
+  const hours = round2(shortfallMin / 60);
+  const total = round2(hours * rate);
+  return {
+    kind: 'labor_floor',
+    label: 'Mindest-Arbeitszeit laut Angebot',
+    quantity: hours,
+    unit: 'h',
+    unitPrice: rate,
+    total,
+    repairOrderId: ctx.repairOrderId,
+    repairOrderSeq: ctx.repairOrderSeq,
+    // No employeeId — the export bills it against the standort pseudo-artikel.
   };
 }
 
@@ -295,11 +341,54 @@ export function calcTicketBilling(args: CalcTicketArgs): BillingSummary {
       }),
     );
 
-  const laborTotal = round2(billings.reduce((s, b) => s + b.laborTotal, 0));
+  let laborTotal = round2(billings.reduce((s, b) => s + b.laborTotal, 0));
   const travelTotal = round2(billings.reduce((s, b) => s + b.travelTotal, 0));
   const materialTotal = round2(billings.reduce((s, b) => s + b.materialTotal, 0));
   const serviceTotal = round2(billings.reduce((s, b) => s + b.serviceTotal, 0));
   const adjustmentTotal = round2(billings.reduce((s, b) => s + b.adjustmentTotal, 0));
+
+  // Offer labor floor (on-screen preview → alreadyFloored = 0): top up the
+  // ticket-level labor to the quoted minimum. Attach to the latest included
+  // repair order; when there are none, emit a synthetic summary line so a
+  // not-yet-worked ticket still shows the full quoted floor.
+  const billedLaborMinutes = billings.reduce((s, b) => s + b.laborMinutes, 0);
+  const latest = billings.reduce<RepairOrderBilling | null>(
+    (best, b) => (best === null || b.seqNumber > best.seqNumber ? b : best),
+    null,
+  );
+  const floorCtx = latest
+    ? { repairOrderId: latest.repairOrderId, repairOrderSeq: latest.seqNumber }
+    : { repairOrderId: '', repairOrderSeq: 0 };
+  const floorPos = offerLaborFloorPosition(
+    billedLaborMinutes,
+    0,
+    { minutes: ticket.offerLaborMinutes, rate: ticket.offerLaborRate },
+    floorCtx,
+  );
+  if (floorPos) {
+    if (latest) {
+      latest.positions.push(floorPos);
+      latest.laborTotal = round2(latest.laborTotal + floorPos.total);
+      latest.subtotal = round2(latest.subtotal + floorPos.total);
+    } else {
+      billings.push({
+        repairOrderId: '',
+        seqNumber: 0,
+        performedAt: ticket.createdAt.slice(0, 10),
+        signed: false,
+        positions: [floorPos],
+        laborTotal: floorPos.total,
+        travelTotal: 0,
+        materialTotal: 0,
+        serviceTotal: 0,
+        adjustmentTotal: 0,
+        subtotal: floorPos.total,
+        laborMinutes: 0,
+      });
+    }
+    laborTotal = round2(laborTotal + floorPos.total);
+  }
+
   const subtotalNet = round2(laborTotal + travelTotal + materialTotal + serviceTotal + adjustmentTotal);
   const vatAmount = round2((subtotalNet * VAT_PERCENT) / 100);
   const grandTotalGross = round2(subtotalNet + vatAmount);
