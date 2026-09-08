@@ -1,4 +1,4 @@
-// Reparaturschein-Abrechnung → WinLine-Angebot-Positionen (Belegart 12/16).
+// Reparaturschein-Abrechnung → WinLine-Angebot-Positionen (Belegart 18).
 //
 // Reiner Datentransform, keine Supabase-/Netzwerk-Aufrufe — die Mesonic-Mechanik
 // (Envelope, XSD-Reihenfolge, Belegart) steckt in offers/lib/angebotImport.ts,
@@ -14,8 +14,9 @@
 //   labor_floor                          (Suffix = TICKET-Standort)
 //       labor_floor = synthetische Mindest-Arbeitszeit laut Angebot; hat keinen
 //       Mitarbeiter, daher Pseudoartikel wie service_flat.
-// Belegart (12/16) folgt ebenfalls dem Ticket-Standort — das passiert im Kopf
-// (buildAngebotImportXml), nicht hier.
+// Belegart ist 18 (Reparaturauftrag, standortübergreifend) — gesetzt im Kopf
+// (buildAngebotImportXml), nicht hier. Nur der Pseudoartikel-Suffix folgt dem
+// Standort.
 
 import { PSEUDO_ARTIKEL, laborArtikelnummer, type AngebotPosition } from '../../offers/lib/angebotImport';
 import type { RepairOrderBilling } from '../types';

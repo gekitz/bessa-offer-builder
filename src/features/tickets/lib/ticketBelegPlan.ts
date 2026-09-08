@@ -1,5 +1,5 @@
 // Plant den Mesonic-Export eines Tickets: aus den Reparaturschein-Abrechnungen
-// (BillingPosition[]) je Schein einen WEBAngebot-Beleg (Belegart 12/16). Rein &
+// (BillingPosition[]) je Schein einen WEBAngebot-Beleg (Belegart 18). Rein &
 // testbar — die eigentlichen Mesonic-Calls (Laufnummer lesen, Beleg anlegen,
 // Key speichern) macht der Orchestrator (ticketBelegExport). Siehe
 // docs/ticket-mesonic-verrechnung.md.
@@ -15,7 +15,7 @@ export interface OrderForExport {
 
 export interface PlanOpts {
   konto: string;                          // ticket.mesonic_customer_id (WinLine-Konto)
-  ticketStandort: MesonicStandort;        // → Belegart (12/16) + Pseudoartikel-Suffix
+  ticketStandort: MesonicStandort;        // → Pseudoartikel-Suffix (KL/WO); Belegart ist 18 (standortübergreifend)
   startLaufnummer: number;                // höchste bestehende Laufnummer des Kontos + 1
   employeeMesonic: Map<string, EmployeeMesonic>;
   kopfVertreternummer?: string | number;  // verantwortlicher Rep am Beleg-Kopf (Ticket-Assignee)

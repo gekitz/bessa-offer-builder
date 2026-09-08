@@ -268,7 +268,7 @@ export default function TicketBillingPreview({
                         disabled={belegBusy}
                         className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
                         data-testid="create-belege"
-                        title="Je Reparaturschein einen WinLine-Beleg (Belegart 12/16) anlegen. Mesonic fasst sie zur Sammel-Faktura zusammen."
+                        title="Je Reparaturschein einen WinLine-Beleg (Belegart 18) anlegen. Mesonic fasst sie zur Sammel-Faktura zusammen."
                       >
                         {belegBusy ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
                         Belege in WinLine anlegen
