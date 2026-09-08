@@ -1,10 +1,15 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // mesonicApi.js imports ./supabase at module load; stub it so the import graph
-// resolves in the test environment. buildKontenImportXml itself is pure.
-vi.mock('../supabase', () => ({ supabase: {} }));
+// resolves in the test environment. buildKontenImportXml itself is pure; the
+// import/saveCustomer tests exercise proxyRequest, which needs a session.
+vi.mock('../supabase', () => ({
+  supabase: {
+    auth: { getSession: async () => ({ data: { session: { access_token: 'test-token' } } }) },
+  },
+}));
 
-import { buildKontenImportXml } from '../mesonicApi';
+import { buildKontenImportXml, mesonicImport, saveCustomer, TYPES, TEMPLATES } from '../mesonicApi';
 
 // The WebKontenImport XSD declares its fields in an xs:sequence, so the order
 // below is the contract the endpoint validates against.
@@ -140,5 +145,54 @@ describe('buildKontenImportXml', () => {
     // Order is still schema-valid.
     const emitted = tagsOf(xml);
     expect(emitted).toEqual(SCHEMA_ORDER.filter(t => emitted.includes(t)));
+  });
+});
+
+describe('mesonicImport / saveCustomer — KeyValue parsing', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stubProxyResult(result: string) {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ result }),
+    })));
+  }
+
+  const wrap = (details: string) =>
+    `<?xml version="1.0" encoding="UTF-8"?><MESOWebServiceResult>` +
+    `<OverallSuccess>true</OverallSuccess><ResultDetails>${details}</ResultDetails>` +
+    `</MESOWebServiceResult>`;
+
+  it('extracts the assigned Kontonummer from <KeyValue> on create', async () => {
+    stubProxyResult(wrap('<KeyValue>238584</KeyValue><ImportRecordID>+</ImportRecordID><Success>true</Success>'));
+    const res = await saveCustomer({ Name: 'Foo GmbH' });
+    expect(res.success).toBe(true);
+    expect(res.keyValue).toBe('238584');
+    expect(res.kundennummer).toBe('238584');
+  });
+
+  it('treats a "+" KeyValue (validate-only) as no assigned number', async () => {
+    stubProxyResult(wrap('<KeyValue>+</KeyValue><Success>true</Success>'));
+    const res = await saveCustomer({ Name: 'Foo GmbH' });
+    expect(res.success).toBe(true);
+    expect(res.kundennummer).toBeNull();
+  });
+
+  it('echoes the existing Kontonummer on an edit', async () => {
+    stubProxyResult(wrap('<KeyValue>29385</KeyValue><Success>true</Success>'));
+    const res = await saveCustomer({ Kontonummer: '29385', Name: 'Foo GmbH' });
+    expect(res.kundennummer).toBe('29385');
+  });
+
+  it('surfaces WinLine errors without a KeyValue', async () => {
+    stubProxyResult(
+      `<MESOWebServiceResult><OverallSuccess>false</OverallSuccess><ResultDetails>` +
+      `<ErrorCode>000161</ErrorCode><ErrorText>Kein Datensatz</ErrorText></ResultDetails></MESOWebServiceResult>`,
+    );
+    const res = await mesonicImport(TYPES.CUSTOMER, TEMPLATES.CUSTOMER_IMPORT, '<WebKontenImport><Name>x</Name></WebKontenImport>');
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('000161');
+    expect(res.keyValue).toBeUndefined();
   });
 });

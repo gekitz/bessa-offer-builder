@@ -305,6 +305,12 @@ async function mesonicImport(params: {
   const cfg = getMesonicConfig();
   const body = wrapImportEnvelope(params.xmlData, params.type, params.template);
 
+  // Compact the envelope (drop inter-tag whitespace/newlines) to keep the GET
+  // request URL short — the import is sent with `data` in the query string
+  // (see doImport). This only strips whitespace *between* tags, never inside
+  // element text values.
+  const compactBody = body.replace(/>\s+</g, "><").trim();
+
   const doImport = async (session: string) => {
     const queryParams = new URLSearchParams({
       Session: session,
@@ -316,30 +322,36 @@ async function mesonicImport(params: {
     if (params.option !== undefined) {
       queryParams.set("option", String(params.option));
     }
-    const url = `${cfg.url}/ewlservice/import?${queryParams.toString()}`;
-    console.log(`[mesonic] import URL: ${url}`);
-    console.log(`[mesonic] import body: ${body}`);
+    // IMPORTANT: the import is sent over GET, not POST. A network device in
+    // front of the WinLine host silently DROPS POST requests from the Supabase
+    // edge IPs — every POST variant (chunked, Content-Length, Connection:close,
+    // browser User-Agent, string/bytes body) times out, while GET goes through
+    // (exports already work over GET). A server-side probe confirmed WinLine
+    // accepts the import record as the `data` query parameter on GET and
+    // returns OverallSuccess=true. So we send `data` in the query string.
+    // The MDP webservice normally takes `data` as a urlencoded form field on
+    // POST (whitepaper) — it accepts the same value as a GET query param.
+    //
+    // Proper long-term fix: allow POST from the Supabase edge IP ranges on the
+    // WinLine firewall/WAF; then this can go back to POST (no URL-length cap).
+    const url = `${cfg.url}/ewlservice/import?${queryParams.toString()}&data=${encodeURIComponent(compactBody)}`;
+    console.log(`[mesonic] import URL (GET): ${url.replace(session, session.substring(0, 8) + "...")}`);
+
+    // GET has a URL-length ceiling. Customer records fit easily; a large Beleg
+    // (many positions) could exceed it — fail loudly rather than mysteriously.
+    if (url.length > 7500) {
+      throw new Error(`Mesonic import: Record zu groß für den GET-Workaround (URL ${url.length} Zeichen). POST wird von der WinLine-Firewall geblockt — bitte POST von den Supabase-Edge-IPs freischalten.`);
+    }
 
     // Timeout after 30s to avoid Supabase Edge Function 60s hard limit
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
     try {
-      // The MDP webservice expects the XML as a form field named `data`
-      // (application/x-www-form-urlencoded) — NOT a raw text/xml body. The
-      // whitepaper drives the import via an HTML <form><textarea name="data">.
-      // Sending a raw body makes the server report "Missing Parameter".
-      const form = new URLSearchParams();
-      form.set("data", body);
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: form.toString(),
-        signal: controller.signal,
-      });
+      const res = await fetch(url, { method: "GET", signal: controller.signal });
       return await res.text();
     } catch (err) {
       if (err.name === 'AbortError') {
-        throw new Error('Mesonic import timeout nach 30 Sekunden — die WinLine API antwortet nicht. Bitte prüfen ob das Template "WebKontenImport" korrekt konfiguriert ist.');
+        throw new Error('Mesonic import timeout nach 30 Sekunden — die WinLine API hat nicht geantwortet.');
       }
       throw err;
     } finally {

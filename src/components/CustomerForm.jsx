@@ -45,6 +45,8 @@ export default function CustomerForm({ initialData, onSaved, onCancel }) {
   const [validating, setValidating] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  // The Kontonummer WinLine assigned (new customer) or echoed (edit).
+  const [savedNumber, setSavedNumber] = useState(null);
 
   function updateField(key, value) {
     setFields(f => ({ ...f, [key]: value }));
@@ -90,6 +92,7 @@ export default function CustomerForm({ initialData, onSaved, onCancel }) {
         setError(`Mesonic-Fehler: ${result.error || 'Unbekannter Fehler'}`);
       } else {
         // Show success screen first — user can navigate back manually
+        setSavedNumber(result.kundennummer ?? null);
         setSuccess(true);
       }
     } catch (err) {
@@ -109,19 +112,25 @@ export default function CustomerForm({ initialData, onSaved, onCancel }) {
           <h2 className="font-bold text-slate-800 mb-2" style={{ fontSize: 18 }}>
             {isEdit ? 'Kunde aktualisiert' : 'Kunde angelegt'}
           </h2>
-          <p className="text-slate-500 mb-6" style={{ fontSize: 13 }}>
+          <p className="text-slate-500 mb-4" style={{ fontSize: 13 }}>
             {fields.Name} wurde erfolgreich {isEdit ? 'in Mesonic aktualisiert' : 'in Mesonic angelegt'}.
           </p>
+          {savedNumber && (
+            <div className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2 mb-6">
+              <span className="text-emerald-700" style={{ fontSize: 13 }}>Kundennummer</span>
+              <span className="font-bold text-emerald-800" style={{ fontSize: 15 }}>{savedNumber}</span>
+            </div>
+          )}
           <div className="flex items-center justify-center gap-3">
             <button
-              onClick={() => { if (onSaved) onSaved(); else onCancel(); }}
+              onClick={() => { if (onSaved) onSaved({ kundennummer: savedNumber }); else onCancel(); }}
               className="rounded-lg bg-slate-100 text-slate-600 px-4 py-2 hover:bg-slate-200 transition-colors"
               style={{ fontSize: 13 }}
             >
               Zurück zur Suche
             </button>
             <button
-              onClick={() => { setSuccess(false); setFields({}); FORM_FIELDS.forEach(f => setFields(prev => ({...prev, [f.key]: ''}))); }}
+              onClick={() => { setSuccess(false); setSavedNumber(null); setFields({}); FORM_FIELDS.forEach(f => setFields(prev => ({...prev, [f.key]: ''}))); }}
               className="rounded-lg bg-red-600 text-white px-4 py-2 hover:bg-red-700 transition-colors"
               style={{ fontSize: 13 }}
             >

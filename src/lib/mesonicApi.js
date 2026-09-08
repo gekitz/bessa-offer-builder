@@ -168,7 +168,14 @@ export async function mesonicImport(type, template, xmlData, opts = {}) {
     return { success: false, error: `${errorCode}: ${errorText}`, raw: xml };
   }
 
-  return { success: true, raw: xml };
+  // WinLine echoes the record's key in <KeyValue>. For a new record created
+  // with Kontonummer '+', this is the freshly assigned number (customer:
+  // Kontonummer; Beleg: Belegnummer). '+' means "not assigned" (e.g. a
+  // validate-only ActionCode=0 run just echoes the input key).
+  const keyMatch = xml.match(/<KeyValue>(.*?)<\/KeyValue>/);
+  const keyValue = keyMatch ? keyMatch[1].trim() : null;
+
+  return { success: true, keyValue, raw: xml };
 }
 
 // ═══════════════════════════════════════════════════════
@@ -314,9 +321,18 @@ export function buildKontenImportXml(fields = {}) {
 export async function saveCustomer(fields, opts = {}) {
   const xmlData = buildKontenImportXml(fields);
 
-  return mesonicImport(TYPES.CUSTOMER, TEMPLATES.CUSTOMER_IMPORT, xmlData, {
+  const result = await mesonicImport(TYPES.CUSTOMER, TEMPLATES.CUSTOMER_IMPORT, xmlData, {
     actionCode: opts.actionCode ?? 1,
   });
+
+  // Surface the assigned Kontonummer. For a new customer (Kontonummer '+')
+  // WinLine returns the freshly assigned number in <KeyValue>; for an edit it
+  // echoes the existing number. '+' (validate-only / unassigned) → null.
+  const kundennummer = result.keyValue && result.keyValue !== '+'
+    ? result.keyValue
+    : (fields.Kontonummer && fields.Kontonummer !== '+' ? fields.Kontonummer : null);
+
+  return { ...result, kundennummer };
 }
 
 /** Validate customer data without saving */
