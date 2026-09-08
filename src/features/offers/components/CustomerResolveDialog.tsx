@@ -52,9 +52,12 @@ const F = {
 };
 
 // Parse the WinLine-assigned Kontonummer from a WebKontenImport response.
+// WinLine returns the freshly assigned account number in <KeyValue>; the
+// response has NO <Kontonummer> element (kept as a legacy fallback).
 export function parseAssignedKontonummer(rawXml: string | null | undefined): string | null {
   if (!rawXml) return null;
-  const m = String(rawXml).match(/<Kontonummer>(.*?)<\/Kontonummer>/);
+  const m = String(rawXml).match(/<KeyValue>(.*?)<\/KeyValue>/)
+    || String(rawXml).match(/<Kontonummer>(.*?)<\/Kontonummer>/);
   const val = m ? m[1].trim() : '';
   // '+' is the request placeholder, never the assigned number.
   return val && val !== '+' ? val : null;
@@ -107,12 +110,12 @@ export default function CustomerResolveDialog({
           Strasse: customer.address || '',
         },
         { actionCode: 1 },
-      )) as { success?: boolean; error?: string; raw?: string };
+      )) as { success?: boolean; error?: string; raw?: string; kundennummer?: string | null };
       if (!res?.success) {
         setCreateError(res?.error || 'Anlegen fehlgeschlagen.');
         return;
       }
-      const kdNr = parseAssignedKontonummer(res.raw);
+      const kdNr = res.kundennummer || parseAssignedKontonummer(res.raw);
       if (!kdNr) {
         setCreateError('Kunde angelegt, aber keine Kd.-Nr. erhalten.');
         return;

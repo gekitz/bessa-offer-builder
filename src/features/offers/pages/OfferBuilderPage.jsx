@@ -449,6 +449,7 @@ function OfferBuilderPageInner() {
           email: offer.customer_email || '',
           phone: offer.customer_phone || '',
           address: data.address || '',
+          mesonicId: offer.mesonic_customer_id || undefined,
         });
         setCreator(offer.creator_id || ssoCreatorId() || '');
         setNotes(data.notes || '');
@@ -1026,6 +1027,9 @@ function OfferBuilderPageInner() {
     const offerRow = crmResolveOffer;
     setCrmResolveOffer(null);
     if (!offerRow || !kdNr) return;
+    // Reflect the resolved Kd.-Nr. in the in-memory customer immediately so the
+    // "Mesonic #…" badge shows without a reload (this is what drives the badge).
+    setCustomer(prev => ({ ...prev, mesonicId: kdNr }));
     try {
       const updated = await updateOfferMesonic(offerRow.id, { mesonicCustomerId: kdNr });
       await postAndPersistCrmNote(updated || { ...offerRow, mesonic_customer_id: kdNr }, kdNr);
@@ -1247,6 +1251,7 @@ function OfferBuilderPageInner() {
         email: offer.customer_email || '',
         phone: offer.customer_phone || '',
         address: data.address || '',
+        mesonicId: offer.mesonic_customer_id || undefined,
       });
       setCreator(offer.creator_id || ssoCreatorId() || '');
       setNotes(data.notes || '');

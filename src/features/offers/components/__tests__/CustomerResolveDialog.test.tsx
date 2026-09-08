@@ -20,10 +20,17 @@ beforeEach(() => {
 });
 
 describe('parseAssignedKontonummer', () => {
-  it('extracts the assigned Kontonummer', () => {
+  it('extracts the assigned number from <KeyValue> (real WinLine response)', () => {
+    expect(parseAssignedKontonummer(
+      '<MESOWebServiceResult><OverallSuccess>true</OverallSuccess><ResultDetails>' +
+      '<KeyValue>238584</KeyValue><Success>true</Success></ResultDetails></MESOWebServiceResult>',
+    )).toBe('238584');
+  });
+  it('falls back to a legacy <Kontonummer> element', () => {
     expect(parseAssignedKontonummer('<r><Kontonummer>29999</Kontonummer></r>')).toBe('29999');
   });
   it('ignores the "+" placeholder and missing values', () => {
+    expect(parseAssignedKontonummer('<KeyValue>+</KeyValue>')).toBeNull();
     expect(parseAssignedKontonummer('<Kontonummer>+</Kontonummer>')).toBeNull();
     expect(parseAssignedKontonummer('<r/>')).toBeNull();
     expect(parseAssignedKontonummer(null)).toBeNull();
@@ -60,9 +67,13 @@ describe('CustomerResolveDialog', () => {
   it('Neu anlegen creates a customer and resolves with the new Kd.-Nr.', async () => {
     const onResolved = vi.fn();
     searchCustomers.mockResolvedValue({ records: [] });
+    // saveCustomer returns the assigned number in `kundennummer` (parsed from
+    // the real <KeyValue> response).
     saveCustomer.mockResolvedValue({
       success: true,
-      raw: '<r><Kontonummer>29999</Kontonummer></r>',
+      kundennummer: '29999',
+      keyValue: '29999',
+      raw: '<MESOWebServiceResult><ResultDetails><KeyValue>29999</KeyValue></ResultDetails></MESOWebServiceResult>',
     });
     render(
       <CustomerResolveDialog open customer={CUSTOMER} onResolved={onResolved} onCancel={vi.fn()} />,
