@@ -108,6 +108,20 @@ export function splitAddress(address: string | null | undefined): {
   return { Strasse: streetPart, Postleitzahl, Ort };
 }
 
+// Split the offer's single "Ansprechpartner" field into WinLine's Vorname /
+// Nachname. Last token = Nachname, everything before = Vorname; a lone token is
+// treated as the Nachname (surname is the field WinLine keys on).
+//   "Max Mustermann"    → { Vorname: 'Max',       Nachname: 'Mustermann' }
+//   "Anna Maria Huber"  → { Vorname: 'Anna Maria', Nachname: 'Huber' }
+//   "Max"               → { Vorname: '',          Nachname: 'Max' }
+export function splitName(fullName: string | null | undefined): { Vorname: string; Nachname: string } {
+  const raw = (fullName || '').trim().replace(/\s+/g, ' ');
+  if (!raw) return { Vorname: '', Nachname: '' };
+  const parts = raw.split(' ');
+  if (parts.length === 1) return { Vorname: '', Nachname: parts[0] };
+  return { Vorname: parts.slice(0, -1).join(' '), Nachname: parts[parts.length - 1] };
+}
+
 export default function CustomerResolveDialog({
   open, customer, offerLabel, onResolved, onCancel,
 }: CustomerResolveDialogProps) {
@@ -148,9 +162,15 @@ export default function CustomerResolveDialog({
     setCreateError(null);
     try {
       const addr = splitAddress(customer.address);
+      // Carry the contact (Ansprechpartner) into Vorname/Nachname. When there's
+      // no company, the person is the account Name — still set Vorname/Nachname
+      // so the contact fields are populated too.
+      const nm = splitName(customer.name);
       const res = (await saveCustomer(
         {
           Name: customer.company || customer.name || '',
+          Vorname: nm.Vorname,
+          Nachname: nm.Nachname,
           'E-Mail': customer.email || '',
           Telefon: customer.phone || '',
           Strasse: addr.Strasse,

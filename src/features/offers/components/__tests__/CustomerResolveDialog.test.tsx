@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import CustomerResolveDialog, { parseAssignedKontonummer, splitAddress } from '../CustomerResolveDialog';
+import CustomerResolveDialog, { parseAssignedKontonummer, splitAddress, splitName } from '../CustomerResolveDialog';
 
 // Mock the Mesonic client — no live network calls.
 const searchCustomers = vi.fn();
@@ -12,7 +12,7 @@ vi.mock('../../../../lib/mesonicApi', () => ({
   saveCustomer: (...args: unknown[]) => saveCustomer(...args),
 }));
 
-const CUSTOMER = { company: 'Firma GmbH', name: 'Max', email: 'm@x.at', phone: '0660', address: 'Hauptstr. 1, 9020 Klagenfurt' };
+const CUSTOMER = { company: 'Firma GmbH', name: 'Max Mustermann', email: 'm@x.at', phone: '0660', address: 'Hauptstr. 1, 9020 Klagenfurt' };
 
 beforeEach(() => {
   searchCustomers.mockReset();
@@ -69,6 +69,22 @@ describe('splitAddress', () => {
   });
 });
 
+describe('splitName', () => {
+  it('splits first + last name', () => {
+    expect(splitName('Max Mustermann')).toEqual({ Vorname: 'Max', Nachname: 'Mustermann' });
+  });
+  it('keeps multiple given names in Vorname', () => {
+    expect(splitName('Anna Maria Huber')).toEqual({ Vorname: 'Anna Maria', Nachname: 'Huber' });
+  });
+  it('treats a single token as the Nachname', () => {
+    expect(splitName('Max')).toEqual({ Vorname: '', Nachname: 'Max' });
+  });
+  it('returns empty fields for an empty name', () => {
+    expect(splitName('')).toEqual({ Vorname: '', Nachname: '' });
+    expect(splitName(null)).toEqual({ Vorname: '', Nachname: '' });
+  });
+});
+
 describe('CustomerResolveDialog', () => {
   it('runs the prefilled search on open and renders results', async () => {
     searchCustomers.mockResolvedValue({
@@ -114,7 +130,8 @@ describe('CustomerResolveDialog', () => {
     await waitFor(() => expect(onResolved).toHaveBeenCalledWith('29999'));
     expect(saveCustomer).toHaveBeenCalledWith(
       expect.objectContaining({
-        Name: 'Firma GmbH', 'E-Mail': 'm@x.at', Telefon: '0660',
+        Name: 'Firma GmbH', Vorname: 'Max', Nachname: 'Mustermann',
+        'E-Mail': 'm@x.at', Telefon: '0660',
         Strasse: 'Hauptstr. 1', Postleitzahl: '9020', Ort: 'Klagenfurt',
       }),
       { actionCode: 1 },
