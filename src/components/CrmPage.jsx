@@ -5,6 +5,7 @@ import { searchCustomers, getCustomer, listCustomers, getCustomerContacts, saveC
 import CustomerForm from './CustomerForm';
 import BelegePanel from '../features/viertl/components/BelegePanel';
 import ContactsPanel from './ContactsPanel';
+import NextcloudPanel from './NextcloudPanel';
 
 // ═══════════════════════════════════════════════════════
 // CRM Page — Customer Search & Detail
@@ -257,6 +258,13 @@ function CustomerDetail({ record, onBack, onEdit, onCreateTicket }) {
       {number && (
         <div className="bg-white rounded-xl border border-slate-200 p-4 mt-4">
           <ContactsPanel kdnr={number} />
+        </div>
+      )}
+
+      {/* Nextcloud-Dokumentation (WebDAV, Ordner mit Kd.Nr. als Suffix) */}
+      {number && (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 mt-4">
+          <NextcloudPanel kdnr={number} />
         </div>
       )}
 
