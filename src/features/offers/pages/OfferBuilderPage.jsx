@@ -980,23 +980,12 @@ function OfferBuilderPageInner() {
     return mesonicImport(TYPES.CRM, TEMPLATES.CRM, xml, { actionCode: 1 });
   }
 
-  // Make sure the offer has a share_code so the CRM note can link to it.
-  // Returns the (possibly newly created) share_code, or null on failure.
-  async function ensureShareCode(offerRow) {
-    let code = offerRow.share_code || shareCode;
-    if (code) return code;
-    code = Math.random().toString(36).slice(2, 10);
-    await setShareCode(offerRow.id, code);
-    setShareCodeState(code);
-    return code;
-  }
-
   // Post the note for a resolved Kd.-Nr. and persist the returned CRM key.
+  // The note links to the INTERNAL offer deep-link (?offer=<id>), so it only
+  // needs the offer id — no share_code required.
   async function postAndPersistCrmNote(offerRow, kundenkonto) {
-    const code = await ensureShareCode(offerRow);
-    if (!code) return;
     const res = await postOfferCrmNote(
-      { kundenkonto, offer: { ...offerRow, share_code: code } },
+      { kundenkonto, offer: offerRow },
       { importCrm: importOfferCrm },
     );
     if (res.success && res.key) {
