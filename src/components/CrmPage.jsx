@@ -6,6 +6,7 @@ import CustomerForm from './CustomerForm';
 import BelegePanel from '../features/viertl/components/BelegePanel';
 import ContactsPanel from './ContactsPanel';
 import NextcloudPanel from './NextcloudPanel';
+import TeamViewerPanel from './TeamViewerPanel';
 
 // ═══════════════════════════════════════════════════════
 // CRM Page — Customer Search & Detail
@@ -265,6 +266,13 @@ function CustomerDetail({ record, onBack, onEdit, onCreateTicket }) {
       {number && (
         <div className="bg-white rounded-xl border border-slate-200 p-4 mt-4">
           <NextcloudPanel kdnr={number} />
+        </div>
+      )}
+
+      {/* TeamViewer-Geräte (Kd.Nr. als Suffix an Alias oder Gruppe) */}
+      {number && (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 mt-4">
+          <TeamViewerPanel kdnr={number} />
         </div>
       )}
 
