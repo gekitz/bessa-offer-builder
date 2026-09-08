@@ -63,6 +63,51 @@ export function parseAssignedKontonummer(rawXml: string | null | undefined): str
   return val && val !== '+' ? val : null;
 }
 
+// Split the offer's single free-text address into WinLine's separate Strasse /
+// Postleitzahl / Ort fields. The picked-customer format is "Straße, PLZ Ort"
+// (see CustomerPicker); manual entries vary, so fall back gracefully:
+//   "Hauptstr. 1, 9020 Klagenfurt" → { Strasse: 'Hauptstr. 1', Postleitzahl: '9020', Ort: 'Klagenfurt' }
+//   "9020 Klagenfurt"              → { Strasse: '',            Postleitzahl: '9020', Ort: 'Klagenfurt' }
+//   "Hauptstr. 1"                  → { Strasse: 'Hauptstr. 1', Postleitzahl: '',     Ort: '' }
+// PLZ = a 4–5 digit group (AT 4, DE 5).
+export function splitAddress(address: string | null | undefined): {
+  Strasse: string; Postleitzahl: string; Ort: string;
+} {
+  const raw = (address || '').trim();
+  if (!raw) return { Strasse: '', Postleitzahl: '', Ort: '' };
+
+  // Separate the street part from the locality part: prefer a comma; otherwise
+  // split just before the first PLZ (4–5 digit group).
+  let streetPart = '';
+  let localityPart = '';
+  const comma = raw.indexOf(',');
+  if (comma >= 0) {
+    streetPart = raw.slice(0, comma).trim();
+    localityPart = raw.slice(comma + 1).trim();
+  } else {
+    const m = raw.match(/\b\d{4,5}\b/);
+    if (m && m.index !== undefined) {
+      streetPart = raw.slice(0, m.index).trim();
+      localityPart = raw.slice(m.index).trim();
+    } else {
+      streetPart = raw; // no PLZ → treat the whole string as the street
+    }
+  }
+
+  // Pull the PLZ out of the locality part; the remainder is the Ort.
+  let Postleitzahl = '';
+  let Ort = localityPart;
+  const zip = localityPart.match(/\b\d{4,5}\b/);
+  if (zip && zip.index !== undefined) {
+    Postleitzahl = zip[0];
+    Ort = (localityPart.slice(0, zip.index) + localityPart.slice(zip.index + zip[0].length))
+      .replace(/[,\s]+/g, ' ')
+      .trim();
+  }
+
+  return { Strasse: streetPart, Postleitzahl, Ort };
+}
+
 export default function CustomerResolveDialog({
   open, customer, offerLabel, onResolved, onCancel,
 }: CustomerResolveDialogProps) {
@@ -102,12 +147,15 @@ export default function CustomerResolveDialog({
     setCreating(true);
     setCreateError(null);
     try {
+      const addr = splitAddress(customer.address);
       const res = (await saveCustomer(
         {
           Name: customer.company || customer.name || '',
           'E-Mail': customer.email || '',
           Telefon: customer.phone || '',
-          Strasse: customer.address || '',
+          Strasse: addr.Strasse,
+          Postleitzahl: addr.Postleitzahl,
+          Ort: addr.Ort,
         },
         { actionCode: 1 },
       )) as { success?: boolean; error?: string; raw?: string; kundennummer?: string | null };

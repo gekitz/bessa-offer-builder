@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import CustomerResolveDialog, { parseAssignedKontonummer } from '../CustomerResolveDialog';
+import CustomerResolveDialog, { parseAssignedKontonummer, splitAddress } from '../CustomerResolveDialog';
 
 // Mock the Mesonic client — no live network calls.
 const searchCustomers = vi.fn();
@@ -12,7 +12,7 @@ vi.mock('../../../../lib/mesonicApi', () => ({
   saveCustomer: (...args: unknown[]) => saveCustomer(...args),
 }));
 
-const CUSTOMER = { company: 'Firma GmbH', name: 'Max', email: 'm@x.at', phone: '0660', address: 'Weg 1' };
+const CUSTOMER = { company: 'Firma GmbH', name: 'Max', email: 'm@x.at', phone: '0660', address: 'Hauptstr. 1, 9020 Klagenfurt' };
 
 beforeEach(() => {
   searchCustomers.mockReset();
@@ -34,6 +34,38 @@ describe('parseAssignedKontonummer', () => {
     expect(parseAssignedKontonummer('<Kontonummer>+</Kontonummer>')).toBeNull();
     expect(parseAssignedKontonummer('<r/>')).toBeNull();
     expect(parseAssignedKontonummer(null)).toBeNull();
+  });
+});
+
+describe('splitAddress', () => {
+  it('splits the picked-customer format "Straße, PLZ Ort"', () => {
+    expect(splitAddress('Hauptstr. 1, 9020 Klagenfurt')).toEqual({
+      Strasse: 'Hauptstr. 1', Postleitzahl: '9020', Ort: 'Klagenfurt',
+    });
+  });
+  it('handles a locality-only string (no street)', () => {
+    expect(splitAddress('9020 Klagenfurt')).toEqual({
+      Strasse: '', Postleitzahl: '9020', Ort: 'Klagenfurt',
+    });
+  });
+  it('handles a street-only string (no PLZ)', () => {
+    expect(splitAddress('Hauptstr. 1')).toEqual({
+      Strasse: 'Hauptstr. 1', Postleitzahl: '', Ort: '',
+    });
+  });
+  it('splits without a comma by locating the PLZ', () => {
+    expect(splitAddress('Moorweg 30 9330 Althofen')).toEqual({
+      Strasse: 'Moorweg 30', Postleitzahl: '9330', Ort: 'Althofen',
+    });
+  });
+  it('supports a 5-digit (DE) PLZ', () => {
+    expect(splitAddress('Musterweg 5, 80331 München')).toEqual({
+      Strasse: 'Musterweg 5', Postleitzahl: '80331', Ort: 'München',
+    });
+  });
+  it('returns empty fields for an empty address', () => {
+    expect(splitAddress('')).toEqual({ Strasse: '', Postleitzahl: '', Ort: '' });
+    expect(splitAddress(null)).toEqual({ Strasse: '', Postleitzahl: '', Ort: '' });
   });
 });
 
@@ -81,7 +113,10 @@ describe('CustomerResolveDialog', () => {
     await userEvent.click(await screen.findByRole('button', { name: /Neu in WinLine anlegen/ }));
     await waitFor(() => expect(onResolved).toHaveBeenCalledWith('29999'));
     expect(saveCustomer).toHaveBeenCalledWith(
-      expect.objectContaining({ Name: 'Firma GmbH', 'E-Mail': 'm@x.at', Telefon: '0660', Strasse: 'Weg 1' }),
+      expect.objectContaining({
+        Name: 'Firma GmbH', 'E-Mail': 'm@x.at', Telefon: '0660',
+        Strasse: 'Hauptstr. 1', Postleitzahl: '9020', Ort: 'Klagenfurt',
+      }),
       { actionCode: 1 },
     );
   });
