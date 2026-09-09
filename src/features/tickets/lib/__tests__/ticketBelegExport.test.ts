@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { exportTicketBelege, type ExportInput } from '../ticketBelegExport';
 import type { OrderForExport } from '../ticketBelegPlan';
+import type { DeliveryNoteForExport } from '../deliveryNoteBelegPlan';
 import type { EmployeeMesonic } from '../repairOrderBeleg';
-import type { BillingPosition, RepairOrderBilling } from '../../types';
+import type { BillingPosition, DeliveryNote, DeliveryNoteItem, RepairOrderBilling } from '../../types';
 
 const employeeMesonic = new Map<string, EmployeeMesonic>([['e-heri', { vertreternummer: '9', standort: 'wolfsberg' }]]);
 
@@ -20,6 +21,21 @@ function order(seq: number, alreadyExportedKey: string | null = null, positions?
 
 function input(orders: OrderForExport[]): ExportInput {
   return { konto: '272765', ticketStandort: 'klagenfurt', orders, employeeMesonic };
+}
+
+function deliveryNote(id: string, seq: number, alreadyExportedKey: string | null = null): DeliveryNoteForExport {
+  const dn: DeliveryNote = {
+    id, ticketId: 't-1', seqNumber: seq, status: 'signed', note: null,
+    signatureData: null, signedAt: null, signedByName: null, performedAt: '2026-09-05',
+    mesonicBelegLaufnummer: null, mesonicBelegKey: null, mesonicBelegCreatedAt: null,
+    createdBy: null, createdAt: '', updatedAt: '',
+  };
+  const item: DeliveryNoteItem = {
+    id: `${id}-i`, deliveryNoteId: id, productId: 'p', mesonicArtikelNr: 'ART-1',
+    bezeichnung: 'Sunmi L3', quantity: 1, unitPrice: 599, isFreetext: false,
+    serialNumbers: [], sort: 0, createdAt: '',
+  };
+  return { deliveryNote: dn, items: [item], alreadyExportedKey };
 }
 
 describe('exportTicketBelege', () => {
@@ -93,5 +109,47 @@ describe('exportTicketBelege', () => {
       { readMaxLaufnummer: async () => 0, importBeleg, persistKey, persistFloorTally },
     );
     expect(persistFloorTally).not.toHaveBeenCalled();
+  });
+
+  // ── Lieferscheine (Belegart 19) ──────────────────────────────────────
+
+  it('vergibt Lieferschein-Laufnummern NACH den Reparaturschein-Belegen (geteilte Konto-Sequenz)', async () => {
+    const importBeleg = vi.fn().mockResolvedValue({ ok: true });
+    const persistKey = vi.fn().mockResolvedValue(undefined);
+    const persistDeliveryKey = vi.fn().mockResolvedValue(undefined);
+    const res = await exportTicketBelege(
+      { ...input([order(1), order(2)]), deliveryNotes: [deliveryNote('dn-1', 1), deliveryNote('dn-2', 2)] },
+      { readMaxLaufnummer: async () => 100, importBeleg, persistKey, persistDeliveryKey },
+    );
+    // Rep-Belege: 101, 102 → Lieferscheine starten bei 103, 104.
+    expect(res.created.map((c) => c.belegKey)).toEqual(['272765-101', '272765-102']);
+    expect(res.deliveryCreated).toEqual([
+      { deliveryNoteId: 'dn-1', seqNumber: 1, belegKey: '272765-103' },
+      { deliveryNoteId: 'dn-2', seqNumber: 2, belegKey: '272765-104' },
+    ]);
+    expect(persistDeliveryKey).toHaveBeenCalledWith('dn-1', 103, '272765-103');
+    expect(importBeleg).toHaveBeenCalledTimes(4);
+  });
+
+  it('exportiert Lieferscheine auch ohne Reparaturscheine ab max+1', async () => {
+    const importBeleg = vi.fn().mockResolvedValue({ ok: true });
+    const persistDeliveryKey = vi.fn().mockResolvedValue(undefined);
+    const res = await exportTicketBelege(
+      { ...input([]), deliveryNotes: [deliveryNote('dn-1', 1)] },
+      { readMaxLaufnummer: async () => 25, importBeleg, persistKey: vi.fn(), persistDeliveryKey },
+    );
+    expect(res.deliveryCreated).toEqual([{ deliveryNoteId: 'dn-1', seqNumber: 1, belegKey: '272765-26' }]);
+  });
+
+  it('überspringt bereits exportierte Lieferscheine und meldet Import-Fehler', async () => {
+    const importBeleg = vi.fn().mockResolvedValue({ ok: false, error: 'WinLine nein' });
+    const persistDeliveryKey = vi.fn().mockResolvedValue(undefined);
+    const res = await exportTicketBelege(
+      { ...input([]), deliveryNotes: [deliveryNote('dn-1', 1, '272765-9'), deliveryNote('dn-2', 2)] },
+      { readMaxLaufnummer: async () => 25, importBeleg, persistKey: vi.fn(), persistDeliveryKey },
+    );
+    expect(res.deliverySkipped).toEqual([{ deliveryNoteId: 'dn-1', reason: 'already_exported', belegKey: '272765-9' }]);
+    expect(res.deliveryFailed).toEqual([{ deliveryNoteId: 'dn-2', seqNumber: 2, laufnummer: 26, error: 'WinLine nein' }]);
+    expect(persistDeliveryKey).not.toHaveBeenCalled();
   });
 });

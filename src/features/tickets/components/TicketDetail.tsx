@@ -27,6 +27,7 @@ import type { Ticket, TicketPriority, TicketStatus } from '../types';
 import TicketForm from './TicketForm';
 import TicketComments from './TicketComments';
 import RepairOrdersTab from './RepairOrdersTab';
+import DeliveryNotesTab from './DeliveryNotesTab';
 import AppointmentsTab from './AppointmentsTab';
 import AttachmentsPanel from './AttachmentsPanel';
 import TicketBillingPreview from './TicketBillingPreview';
@@ -42,12 +43,13 @@ interface TicketDetailProps {
   onOpenOffer?: (offerId: string, ticketId: string) => void;
 }
 
-type DetailTab = 'overview' | 'appointments' | 'repair_orders' | 'history';
+type DetailTab = 'overview' | 'appointments' | 'repair_orders' | 'delivery_notes' | 'history';
 
 const TABS: Array<{ id: DetailTab; label: string }> = [
   { id: 'overview', label: 'Übersicht' },
   { id: 'appointments', label: 'Termine' },
   { id: 'repair_orders', label: 'Reparaturscheine' },
+  { id: 'delivery_notes', label: 'Lieferscheine' },
   { id: 'history', label: 'Verlauf' },
 ];
 
@@ -597,6 +599,13 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
 
       {tab === 'repair_orders' && (
         <RepairOrdersTab
+          ticket={ticket}
+          currentEmployeeId={currentEmployeeId}
+        />
+      )}
+
+      {tab === 'delivery_notes' && (
+        <DeliveryNotesTab
           ticket={ticket}
           currentEmployeeId={currentEmployeeId}
         />

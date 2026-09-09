@@ -328,6 +328,72 @@ export interface RepairOrderAdjustmentInput {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Lieferscheine (delivery notes) — gelieferte Ware pro Ticket.
+// Spiegelt repair_orders; mirrors supabase/migrations/
+// 20260909120000_create_delivery_notes.sql. Siehe docs/ticket-lieferschein.md.
+
+export type DeliveryNoteStatus = 'draft' | 'signed' | 'cancelled';
+
+export interface DeliveryNote {
+  id: string;
+  ticketId: string;
+  seqNumber: number;
+  status: DeliveryNoteStatus;
+  note: string | null;
+  signatureData: string | null;
+  signedAt: string | null;
+  signedByName: string | null;
+  performedAt: IsoDate; // Lieferdatum
+  // Mesonic-Beleg-Export: gesetzt sobald der Lieferschein beim Ticket-Abschluss
+  // als WinLine-Beleg angelegt wurde. mesonicBelegKey (<konto>-<n>) ist der
+  // Idempotenz-Anker — ist er gesetzt, wird nicht erneut exportiert.
+  mesonicBelegLaufnummer: number | null;
+  mesonicBelegKey: string | null;
+  mesonicBelegCreatedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // Populated by joins
+  items?: DeliveryNoteItem[];
+}
+
+export interface DeliveryNoteInput {
+  ticketId: string;
+  note?: string | null;
+  performedAt?: IsoDate;
+  createdBy?: string | null;
+}
+
+export interface DeliveryNoteItem {
+  id: string;
+  deliveryNoteId: string;
+  // Herkunfts-Produkt (UI-Lookups wie is_serialized). null = Freitext.
+  productId: string | null;
+  // Snapshot der Mesonic-Artikelnummer; null/leer = Freitext (Datentyp 3).
+  mesonicArtikelNr: string | null;
+  bezeichnung: string;
+  quantity: number;
+  unitPrice: number;
+  isFreetext: boolean;
+  // Eine Seriennummer je physischer Einheit; beim Export in die Bezeichnung
+  // gefaltet ("4x Sunmi L3 <s1>, <s2>, …").
+  serialNumbers: string[];
+  sort: number;
+  createdAt: string;
+}
+
+export interface DeliveryNoteItemInput {
+  productId?: string | null;
+  mesonicArtikelNr?: string | null;
+  bezeichnung: string;
+  quantity: number;
+  unitPrice: number;
+  isFreetext?: boolean;
+  serialNumbers?: string[];
+  sort?: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────
 
 export interface TicketComment {
   id: string;

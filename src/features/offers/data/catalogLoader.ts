@@ -38,6 +38,7 @@ interface ProductRow {
   pricing: { price?: number; tiers?: Record<string, number>; servicePercent?: number; discount?: unknown } | null;
   attrs: Record<string, unknown> | null;
   auto_add: unknown;
+  is_serialized: boolean | null;
   sort: number;
 }
 
@@ -59,6 +60,7 @@ function rowToItem(r: ProductRow): Item {
     ...(p.discount ? { discount: p.discount } : {}),
     ...(r.attrs || {}),
     ...(r.auto_add ? { autoAdd: r.auto_add } : {}),
+    ...(r.is_serialized ? { isSerialized: true } : {}),
   };
   return item as unknown as Item;
 }
@@ -102,7 +104,7 @@ async function fetchAndSwap(): Promise<boolean> {
   try {
     const { data, error } = await supabase
       .from('products')
-      .select('id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, sort')
+      .select('id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, is_serialized, sort')
       .eq('active', true);
     if (error) throw new Error(error.message || 'Unbekannter Datenbankfehler');
     rows = (data ?? []) as ProductRow[];

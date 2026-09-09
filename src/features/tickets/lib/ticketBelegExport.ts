@@ -5,6 +5,11 @@
 // Siehe docs/ticket-mesonic-verrechnung.md.
 
 import { planTicketBelege, type OrderForExport, type SkipReason } from './ticketBelegPlan';
+import {
+  planDeliveryNoteBelege,
+  type DeliveryNoteForExport,
+  type DeliverySkipReason,
+} from './deliveryNoteBelegPlan';
 import type { EmployeeMesonic, MesonicStandort } from './repairOrderBeleg';
 
 export interface ExportInput {
@@ -20,6 +25,10 @@ export interface ExportInput {
   // späterer Teil-Export nicht doppelt aufschlägt. Fehlt, wenn kein Floor
   // greift (kein Angebot / bereits erfüllt / kein neuer Schein).
   floorCommit?: { ticketId: string; repairOrderId: string; minutes: number };
+  // Lieferscheine des Tickets (gelieferte Ware, Belegart 19). Optional — leer
+  // wenn keine vorhanden. Teilen sich die Laufnummer-Sequenz des Kontos mit den
+  // Reparaturschein-Belegen (siehe unten). Siehe docs/ticket-lieferschein.md.
+  deliveryNotes?: DeliveryNoteForExport[];
 }
 
 export interface ExportDeps {
@@ -35,12 +44,19 @@ export interface ExportDeps {
   // zeit-Untergrenze). Wird nur im Erfolgspfad des Floor-tragenden Scheins
   // aufgerufen. Optional — Tests ohne Floor brauchen sie nicht.
   persistFloorTally?: (ticketId: string, addMinutes: number) => Promise<void>;
+  // Persistiert Laufnummer + Key auf dem Lieferschein (Idempotenz-Anker).
+  // Erforderlich, sobald input.deliveryNotes gesetzt ist.
+  persistDeliveryKey?: (deliveryNoteId: string, laufnummer: number, key: string) => Promise<void>;
 }
 
 export interface ExportResult {
   created: { repairOrderId: string; seqNumber: number; belegKey: string }[];
   skipped: { repairOrderId: string; reason: SkipReason; belegKey?: string }[];
   failed: { repairOrderId: string; seqNumber: number; laufnummer: number; error: string }[];
+  // Lieferschein-Belege (Belegart 19), analog zu den Reparaturschein-Feldern.
+  deliveryCreated: { deliveryNoteId: string; seqNumber: number; belegKey: string }[];
+  deliverySkipped: { deliveryNoteId: string; reason: DeliverySkipReason; belegKey?: string }[];
+  deliveryFailed: { deliveryNoteId: string; seqNumber: number; laufnummer: number; error: string }[];
 }
 
 export async function exportTicketBelege(input: ExportInput, deps: ExportDeps): Promise<ExportResult> {
@@ -87,5 +103,40 @@ export async function exportTicketBelege(input: ExportInput, deps: ExportDeps): 
     }
   }
 
-  return { created, skipped: plan.skipped, failed };
+  // ── Lieferscheine (Belegart 19) ──────────────────────────────────────
+  // Die Laufnummern teilen sich die Konto-Sequenz mit den Reparaturscheinen:
+  // sie starten NACH der höchsten für Reparaturscheine reservierten Nummer
+  // (max + Anzahl der zu erstellenden Rep-Belege), damit nichts kollidiert.
+  // Fehlgeschlagene Rep-Belege hinterlassen nur eine (unkritische) Lücke.
+  const deliveryCreated: ExportResult['deliveryCreated'] = [];
+  const deliveryFailed: ExportResult['deliveryFailed'] = [];
+  let deliverySkipped: ExportResult['deliverySkipped'] = [];
+
+  if (input.deliveryNotes && input.deliveryNotes.length > 0) {
+    const dplan = planDeliveryNoteBelege(input.deliveryNotes, {
+      konto: input.konto,
+      ticketStandort: input.ticketStandort,
+      startLaufnummer: max + 1 + plan.toCreate.length,
+      kopfVertreternummer: input.kopfVertreternummer,
+    });
+    deliverySkipped = dplan.skipped;
+
+    for (const b of dplan.toCreate) {
+      try {
+        const res = await deps.importBeleg(b.xml);
+        if (!res.ok) {
+          deliveryFailed.push({ deliveryNoteId: b.deliveryNoteId, seqNumber: b.seqNumber, laufnummer: b.laufnummer, error: res.error ?? 'Import fehlgeschlagen' });
+          continue;
+        }
+        if (deps.persistDeliveryKey) {
+          await deps.persistDeliveryKey(b.deliveryNoteId, b.laufnummer, b.belegKey);
+        }
+        deliveryCreated.push({ deliveryNoteId: b.deliveryNoteId, seqNumber: b.seqNumber, belegKey: b.belegKey });
+      } catch (e) {
+        deliveryFailed.push({ deliveryNoteId: b.deliveryNoteId, seqNumber: b.seqNumber, laufnummer: b.laufnummer, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+  }
+
+  return { created, skipped: plan.skipped, failed, deliveryCreated, deliverySkipped, deliveryFailed };
 }

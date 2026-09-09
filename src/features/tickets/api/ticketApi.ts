@@ -32,7 +32,9 @@ import type {
 import { calcRepairOrderBilling, calcTicketBilling, offerLaborFloorPosition } from '../lib/billing';
 import { standortFromId, type EmployeeMesonic } from '../lib/repairOrderBeleg';
 import type { OrderForExport } from '../lib/ticketBelegPlan';
+import type { DeliveryNoteForExport } from '../lib/deliveryNoteBelegPlan';
 import type { ExportInput } from '../lib/ticketBelegExport';
+import { listDeliveryNotes, getDeliveryNote } from './deliveryNoteApi';
 
 function requireSupabase(): NonNullable<typeof supabase> {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -1434,6 +1436,19 @@ export async function loadTicketBelegExport(ticketId: string): Promise<ExportInp
     }
   }
 
+  // Lieferscheine (gelieferte Ware, Belegart 19). Alle nicht-stornierten gehen
+  // über — kein Unterschrift-Filter (fixiert mit Georg). Idempotenz über den
+  // mesonic_beleg_key je Lieferschein.
+  const allDeliveryNotes = await listDeliveryNotes(ticketId);
+  const deliveryNotes: DeliveryNoteForExport[] = await Promise.all(
+    allDeliveryNotes
+      .filter((d) => d.status !== 'cancelled')
+      .map(async (d) => {
+        const detail = await getDeliveryNote(d.id);
+        return { deliveryNote: d, items: detail?.items ?? [], alreadyExportedKey: d.mesonicBelegKey };
+      }),
+  );
+
   return {
     konto: ticket.mesonicCustomerId ?? '',
     ticketStandort: standortFromId(ticket.standortId),
@@ -1441,6 +1456,7 @@ export async function loadTicketBelegExport(ticketId: string): Promise<ExportInp
     employeeMesonic,
     kopfVertreternummer,
     floorCommit,
+    deliveryNotes,
     ticketNumber: ticket.ticketNumber,
   };
 }

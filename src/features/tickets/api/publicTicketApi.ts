@@ -10,6 +10,7 @@
 
 import { supabase } from '../../../lib/supabase';
 import { getRepairOrder, listServiceRates, listTravelZones } from './ticketApi';
+import { getDeliveryNote } from './deliveryNoteApi';
 import { calcRepairOrderBilling, VAT_PERCENT } from '../lib/billing';
 
 function requireSupabase(): NonNullable<typeof supabase> {
@@ -244,6 +245,79 @@ export async function getPublicSignedRepairOrder(
     vatPercent: VAT_PERCENT,
     vatAmount,
     grossTotal: Math.round((billing.subtotal + vatAmount) * 100) / 100,
+  };
+}
+
+// ── Signed Lieferschein (delivery note) — customer portal ────────────
+
+export interface PublicSignedDeliveryItem {
+  bezeichnung: string;
+  mesonicArtikelNr: string | null;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  serialNumbers: string[];
+}
+
+// Normalised shape shared with DeliveryNotePdfDocument (see
+// generateDeliveryNotePdf). A Lieferschein carries no internal-only data,
+// so the same projection serves the portal view AND the PDF.
+export interface PublicSignedDeliveryNote {
+  seqNumber: number;
+  performedAt: string;
+  ticketNumber: string;
+  customerName: string | null;
+  note: string | null;
+  signedByName: string | null;
+  signedAt: string | null;
+  signatureData: string | null;
+  items: PublicSignedDeliveryItem[];
+  totalNet: number;
+}
+
+// The signed Lieferschein exactly as the customer confirmed it — gated by RLS
+// (anon reads only SIGNED notes of a shareable ticket) and re-verified here
+// against the share_code + signed status.
+export async function getPublicSignedDeliveryNote(
+  shareCode: string,
+  deliveryNoteId: string,
+): Promise<PublicSignedDeliveryNote | null> {
+  const sb = requireSupabase();
+  const { data: t, error } = await sb
+    .from('tickets')
+    .select('id, ticket_number, customer_name')
+    .eq('share_code', shareCode)
+    .maybeSingle();
+  if (error) throw error;
+  if (!t) return null;
+  const ticket = t as { id: string; ticket_number: string; customer_name: string | null };
+
+  const detail = await getDeliveryNote(deliveryNoteId);
+  if (!detail) return null;
+  const { deliveryNote, items } = detail;
+  // Defence in depth on top of RLS: must belong to this ticket + be signed.
+  if (deliveryNote.ticketId !== ticket.id || deliveryNote.status !== 'signed') return null;
+
+  const projected = items.map((i) => ({
+    bezeichnung: i.bezeichnung,
+    mesonicArtikelNr: i.mesonicArtikelNr,
+    quantity: i.quantity,
+    unitPrice: i.unitPrice,
+    total: Math.round(i.quantity * i.unitPrice * 100) / 100,
+    serialNumbers: i.serialNumbers,
+  }));
+
+  return {
+    seqNumber: deliveryNote.seqNumber,
+    performedAt: deliveryNote.performedAt,
+    ticketNumber: ticket.ticket_number,
+    customerName: ticket.customer_name,
+    note: deliveryNote.note,
+    signedByName: deliveryNote.signedByName,
+    signedAt: deliveryNote.signedAt,
+    signatureData: deliveryNote.signatureData,
+    items: projected,
+    totalNet: Math.round(projected.reduce((s, p) => s + p.total, 0) * 100) / 100,
   };
 }
 
