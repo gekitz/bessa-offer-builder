@@ -26,6 +26,11 @@ export const BELEGART = { klagenfurt: '17', wolfsberg: '17' } as const;
 // Reparaturauftrag-Import → Belegart 18 (beide Standorte).
 export const REPARATUR_BELEGART = { klagenfurt: '18', wolfsberg: '18' } as const;
 
+// Lieferschein-Import → Belegart 19 (beide Standorte, fixiert mit Georg
+// 2026-09-09). Gelieferte Ware; landet neben den Reparaturschein-Belegen
+// (17/18) auf der Sammel-Faktura des Kontos.
+export const LIEFERSCHEIN_BELEGART = { klagenfurt: '19', wolfsberg: '19' } as const;
+
 // Arbeitszeit-Artikelnummer je Mitarbeiter: 300000 + 2-stellige
 // Vertreternummer (führende Null) + WO/KL. z. B. Vertreter 9 in Wolfsberg
 // → 30000009WO, Vertreter 26 in Klagenfurt → 30000026KL. Zum Buchen der

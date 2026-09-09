@@ -10,6 +10,11 @@ vi.mock('../../api/ticketApi', () => ({
   setTicketStatus: (id: string, status: string, opts?: unknown) => setTicketStatusMock(id, status, opts),
 }));
 
+const listDeliveryNotesMock = vi.hoisted(() => vi.fn());
+vi.mock('../../api/deliveryNoteApi', () => ({
+  listDeliveryNotes: (id: string) => listDeliveryNotesMock(id),
+}));
+
 // isAdmin steuerbar; Default false → die bestehenden Tests sehen die
 // Export-UI nicht.
 const authState = vi.hoisted(() => ({ isAdmin: false }));
@@ -109,6 +114,7 @@ const summary: BillingSummary = {
 beforeEach(() => {
   calculateTicketBillingMock.mockReset().mockResolvedValue(summary);
   setTicketStatusMock.mockReset().mockResolvedValue({ ...ticket, status: 'closed' });
+  listDeliveryNotesMock.mockReset().mockResolvedValue([]);
   authState.isAdmin = false;
   runMock.mockReset();
 });
@@ -195,6 +201,9 @@ describe('TicketBillingPreview', () => {
       created: [{ repairOrderId: 'ro-1', seqNumber: 1, belegKey: '272765-26' }],
       skipped: [],
       failed: [],
+      deliveryCreated: [],
+      deliverySkipped: [],
+      deliveryFailed: [],
     });
     const u = userEvent.setup();
     render(<TicketBillingPreview ticket={{ ...ticket, mesonicCustomerId: '272765' }} onClosed={vi.fn()} onCancel={vi.fn()} />);
@@ -205,5 +214,39 @@ describe('TicketBillingPreview', () => {
     await screen.findByTestId('beleg-export-result');
     expect(runMock).toHaveBeenCalledWith('t-1');
     expect(screen.getByText(/272765-26/)).toBeInTheDocument();
+  });
+
+  it('offers the export even with only delivery notes (no repair orders)', async () => {
+    authState.isAdmin = true;
+    calculateTicketBillingMock.mockResolvedValue({ ...summary, repairOrders: [], laborTotal: 0, materialTotal: 0, subtotalNet: 0, vatAmount: 0, grandTotalGross: 0 });
+    listDeliveryNotesMock.mockResolvedValue([
+      { id: 'dn-1', status: 'signed', ticketId: 't-1', seqNumber: 1, note: null, signatureData: null, signedAt: null, signedByName: null, performedAt: '2026-09-05', mesonicBelegLaufnummer: null, mesonicBelegKey: null, mesonicBelegCreatedAt: null, createdBy: null, createdAt: '', updatedAt: '' },
+    ]);
+    render(<TicketBillingPreview ticket={{ ...ticket, mesonicCustomerId: '272765' }} onClosed={vi.fn()} onCancel={vi.fn()} />);
+    await screen.findByText(/Keine verrechenbaren Reparaturscheine/);
+    expect(screen.getByTestId('create-belege')).toBeInTheDocument();
+  });
+
+  it('shows delivery-note Beleg-Keys in the result', async () => {
+    authState.isAdmin = true;
+    runMock.mockResolvedValue({
+      ticketNumber: '26-0000001',
+      created: [],
+      skipped: [],
+      failed: [],
+      deliveryCreated: [{ deliveryNoteId: 'dn-1', seqNumber: 1, belegKey: '272765-27' }],
+      deliverySkipped: [],
+      deliveryFailed: [],
+    });
+    listDeliveryNotesMock.mockResolvedValue([
+      { id: 'dn-1', status: 'signed', ticketId: 't-1', seqNumber: 1, note: null, signatureData: null, signedAt: null, signedByName: null, performedAt: '2026-09-05', mesonicBelegLaufnummer: null, mesonicBelegKey: null, mesonicBelegCreatedAt: null, createdBy: null, createdAt: '', updatedAt: '' },
+    ]);
+    const u = userEvent.setup();
+    render(<TicketBillingPreview ticket={{ ...ticket, mesonicCustomerId: '272765' }} onClosed={vi.fn()} onCancel={vi.fn()} />);
+    await screen.findByTestId('billing-summary');
+    await u.click(screen.getByTestId('create-belege'));
+    await screen.findByTestId('beleg-export-result');
+    expect(screen.getByText(/Lieferschein-Beleg/)).toBeInTheDocument();
+    expect(screen.getByText(/272765-27/)).toBeInTheDocument();
   });
 });

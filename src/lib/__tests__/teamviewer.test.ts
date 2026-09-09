@@ -38,9 +38,9 @@ describe('matchesKundennummer', () => {
 });
 
 describe('buildConnectUrl', () => {
-  it('builds a teamviewer:// deep link from the remotecontrol id', () => {
-    expect(buildConnectUrl('r936809945')).toBe('teamviewer://control?device=r936809945');
-    expect(buildConnectUrl('r936809945')).toBe(`${TV_CONNECT_SCHEME}r936809945`);
+  it('builds a teamviewer8:// deep link from the plain numeric id', () => {
+    expect(buildConnectUrl('936809945')).toBe('teamviewer8://control?device=936809945');
+    expect(buildConnectUrl('936809945')).toBe(`${TV_CONNECT_SCHEME}936809945`);
   });
 });
 
@@ -55,12 +55,12 @@ const GROUPS = {
 const DEVICES = {
   devices: [
     // ETRON product group: one tagged device (customer), the rest untagged.
-    { remotecontrol_id: 'r1006881172', alias: 'Aichholzer KFZ - 233679', groupid: 'g71673181', online_state: 'Offline' },
-    { remotecontrol_id: 'r936809945', alias: 'Pansi TomTailor St.Veit', groupid: 'g71673181', online_state: 'Offline' },
-    { remotecontrol_id: 'r994764076', alias: 'Cimenti KG', groupid: 'g71673181', online_state: 'Online' },
+    { remotecontrol_id: 'r1006881172', teamviewer_id: 1006881172, alias: 'Aichholzer KFZ - 233679', groupid: 'g71673181', online_state: 'Offline' },
+    { remotecontrol_id: 'r936809945', teamviewer_id: 936809945, alias: 'Pansi TomTailor St.Veit', groupid: 'g71673181', online_state: 'Offline' },
+    { remotecontrol_id: 'r994764076', teamviewer_id: 994764076, alias: 'Cimenti KG', groupid: 'g71673181', online_state: 'Online' },
     // Customer group: alias is generic, the number is on the GROUP name.
-    { remotecontrol_id: 'r191693668', alias: 'Kassa 1', groupid: 'g119760321', online_state: 'Online' },
-    { remotecontrol_id: 'r191693669', alias: 'Büro PC', groupid: 'g119760321', online_state: 'Offline' },
+    { remotecontrol_id: 'r191693668', teamviewer_id: 191693668, alias: 'Kassa 1', groupid: 'g119760321', online_state: 'Online' },
+    { remotecontrol_id: 'r191693669', teamviewer_id: 191693669, alias: 'Büro PC', groupid: 'g119760321', online_state: 'Offline' },
   ],
 };
 
@@ -97,10 +97,11 @@ describe('findCustomerDevices', () => {
     expect(res.some((d) => !d.online)).toBe(true);
   });
 
-  it('attaches a ready connect link', () => {
+  it('attaches a ready connect link built from the numeric id', () => {
     const res = findCustomerDevices(snap, '233679');
     const kassa = res.find((d) => d.alias === 'Kassa 1');
-    expect(kassa?.url).toBe('teamviewer://control?device=r191693668');
+    expect(kassa?.teamviewerId).toBe('191693668');
+    expect(kassa?.url).toBe('teamviewer8://control?device=191693668');
   });
 
   it('returns nothing for an untagged customer (no fuzzy fallback)', () => {

@@ -48,7 +48,17 @@ vi.mock('../ticketApi', () => ({
   listTravelZones: () => listTravelZonesMock(),
 }));
 
-import { addPublicComment, getPublicSignedRepairOrder, getPublicTicketView } from '../publicTicketApi';
+const getDeliveryNoteMock = vi.fn<AnyFn>();
+vi.mock('../deliveryNoteApi', () => ({
+  getDeliveryNote: (...a: unknown[]) => getDeliveryNoteMock(...a),
+}));
+
+import {
+  addPublicComment,
+  getPublicSignedDeliveryNote,
+  getPublicSignedRepairOrder,
+  getPublicTicketView,
+} from '../publicTicketApi';
 
 beforeEach(() => {
   fromMock.mockReset();
@@ -294,5 +304,62 @@ describe('getPublicSignedRepairOrder', () => {
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
     expect(await getPublicSignedRepairOrder('bad', 'ro-1')).toBeNull();
     expect(getRepairOrderMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('getPublicSignedDeliveryNote', () => {
+  const TICKET = { id: 't-1', ticket_number: '26-0000001', customer_name: 'Müller GmbH' };
+
+  function signedDelivery(over: Record<string, unknown> = {}) {
+    return {
+      deliveryNote: {
+        ticketId: 't-1',
+        status: 'signed',
+        seqNumber: 2,
+        performedAt: '2026-09-05',
+        note: 'Teillieferung 1/2',
+        signedByName: 'Max Mustermann',
+        signedAt: '2026-09-05T10:00:00Z',
+        signatureData: 'data:image/png;base64,abc',
+        ...over,
+      },
+      items: [
+        { id: 'i1', bezeichnung: 'Sunmi L3', mesonicArtikelNr: 'ART-L3', quantity: 2, unitPrice: 599, serialNumbers: ['SN1', 'SN2'] },
+        { id: 'i2', bezeichnung: 'Bondrucker', mesonicArtikelNr: null, quantity: 1, unitPrice: 199, serialNumbers: [] },
+      ],
+    };
+  }
+
+  beforeEach(() => getDeliveryNoteMock.mockReset());
+
+  it('returns the signed note with per-line totals and net sum', async () => {
+    fromMock.mockReturnValue(makeChain({ data: TICKET, error: null }));
+    getDeliveryNoteMock.mockResolvedValue(signedDelivery());
+
+    const doc = await getPublicSignedDeliveryNote('sc-1', 'dn-1');
+    expect(doc).not.toBeNull();
+    expect(doc!.seqNumber).toBe(2);
+    expect(doc!.ticketNumber).toBe('26-0000001');
+    expect(doc!.items[0]).toMatchObject({ bezeichnung: 'Sunmi L3', total: 1198, serialNumbers: ['SN1', 'SN2'] });
+    expect(doc!.totalNet).toBe(1198 + 199);
+    expect(doc!.signatureData).toBe('data:image/png;base64,abc');
+  });
+
+  it('returns null for a delivery note that is not signed', async () => {
+    fromMock.mockReturnValue(makeChain({ data: TICKET, error: null }));
+    getDeliveryNoteMock.mockResolvedValue(signedDelivery({ status: 'draft' }));
+    expect(await getPublicSignedDeliveryNote('sc-1', 'dn-1')).toBeNull();
+  });
+
+  it('returns null when the note belongs to a different ticket', async () => {
+    fromMock.mockReturnValue(makeChain({ data: TICKET, error: null }));
+    getDeliveryNoteMock.mockResolvedValue(signedDelivery({ ticketId: 't-OTHER' }));
+    expect(await getPublicSignedDeliveryNote('sc-1', 'dn-1')).toBeNull();
+  });
+
+  it('returns null when the share code matches no ticket', async () => {
+    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+    expect(await getPublicSignedDeliveryNote('bad', 'dn-1')).toBeNull();
+    expect(getDeliveryNoteMock).not.toHaveBeenCalled();
   });
 });

@@ -23,6 +23,8 @@
 
 export interface TvDevice {
   remotecontrol_id: string;
+  /** Plain numeric TeamViewer ID (what the connect URI needs, no "r" prefix). */
+  teamviewerId: string;
   alias: string;
   groupid: string;
   groupName: string;
@@ -35,12 +37,17 @@ export interface CustomerDevice {
   groupName: string;
   online: boolean;
   lastSeen?: string;
+  /** Plain numeric TeamViewer ID (for building an OS-specific link if needed). */
+  teamviewerId: string;
   /** Deep link that launches the technician's local TeamViewer client. */
   url: string;
 }
 
-/** Native URI scheme that launches the installed TeamViewer client. */
-export const TV_CONNECT_SCHEME = "teamviewer://control?device=";
+// Native URI scheme that launches the installed TeamViewer full client. Current
+// clients register `teamviewer8://` on BOTH Windows and macOS (the bare
+// `teamviewer://` is not registered on Windows). The device parameter must be
+// the PLAIN NUMERIC id — NOT the API's "r"-prefixed remotecontrol_id.
+export const TV_CONNECT_SCHEME = "teamviewer8://control?device=";
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -58,9 +65,9 @@ export function matchesKundennummer(text: string, customerNumber: string): boole
   return re.test(String(text).trim());
 }
 
-/** Build the "connect" deep link for a device. */
-export function buildConnectUrl(remotecontrolId: string, scheme: string = TV_CONNECT_SCHEME): string {
-  return `${scheme}${remotecontrolId}`;
+/** Build the "connect" deep link from the plain numeric TeamViewer id. */
+export function buildConnectUrl(teamviewerId: string, scheme: string = TV_CONNECT_SCHEME): string {
+  return `${scheme}${teamviewerId}`;
 }
 
 /**
@@ -81,9 +88,12 @@ export function normalizeSnapshot(
   for (const d of devicesPayload?.devices ?? []) {
     const remotecontrol_id = String(d.remotecontrol_id ?? "").trim();
     if (!remotecontrol_id) continue;
+    // Prefer the numeric teamviewer_id; fall back to stripping the "r" prefix.
+    const teamviewerId = String(d.teamviewer_id ?? "").trim() || remotecontrol_id.replace(/^r/i, "");
     const groupid = String(d.groupid ?? "").trim();
     out.push({
       remotecontrol_id,
+      teamviewerId,
       alias: String(d.alias ?? "").trim(),
       groupid,
       groupName: groupNameById.get(groupid) ?? "",
@@ -115,6 +125,7 @@ export function findCustomerDevices(
       groupName: d.groupName,
       online: d.online,
       lastSeen: d.lastSeen,
-      url: buildConnectUrl(d.remotecontrol_id, scheme),
+      teamviewerId: d.teamviewerId,
+      url: buildConnectUrl(d.teamviewerId, scheme),
     }));
 }

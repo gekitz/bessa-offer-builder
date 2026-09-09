@@ -28,6 +28,9 @@ export interface Item {
   autoAdd?: { productId: string; qty: number };
   /** Optional multi-line article description (one spec per line) shown on the PDF. */
   description?: string;
+  /** Delivered as a serialised device — drives per-unit serial-number capture
+   *  on the Lieferschein. Mirrors products.is_serialized. */
+  isSerialized?: boolean;
 
   // --- Copier / MFP fields (t === 'copier'), consumed by copierOffer.ts.
   // The device's pricing is NOT expressed via p/price/buy/rent — a copier

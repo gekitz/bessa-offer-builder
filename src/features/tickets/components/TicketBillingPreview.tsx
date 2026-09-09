@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, FileText, Loader2, Receipt, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, FileText, Loader2, Receipt, Truck, X } from 'lucide-react';
 import { calculateTicketBilling, setTicketStatus } from '../api/ticketApi';
+import { listDeliveryNotes } from '../api/deliveryNoteApi';
 import { runTicketBelegExport } from '../lib/runTicketBelegExport';
 import { useAuth } from '../../../lib/auth';
 import type { BillingSummary, Ticket } from '../types';
@@ -30,6 +31,7 @@ export default function TicketBillingPreview({
 }: TicketBillingPreviewProps) {
   const { isAdmin } = useAuth() as { isAdmin: boolean };
   const [summary, setSummary] = useState<BillingSummary | null>(null);
+  const [deliveryCount, setDeliveryCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,9 +65,11 @@ export default function TicketBillingPreview({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    calculateTicketBilling(ticket.id)
-      .then((s) => {
-        if (!cancelled) setSummary(s);
+    Promise.all([calculateTicketBilling(ticket.id), listDeliveryNotes(ticket.id)])
+      .then(([s, notes]) => {
+        if (cancelled) return;
+        setSummary(s);
+        setDeliveryCount(notes.filter((n) => n.status !== 'cancelled').length);
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -233,53 +237,71 @@ export default function TicketBillingPreview({
                     </div>
                   </div>
 
-                  {isAdmin && (
-                    !ticket.mesonicCustomerId ? (
-                      <div className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs">
-                        <AlertCircle size={14} />
-                        Kein WinLine-Konto am Ticket — Kunde erst verknüpfen, um Belege anzulegen.
+                </div>
+              )}
+
+              {/* Mesonic-Beleg-Export — Reparaturscheine (Belegart 18) UND
+                  Lieferscheine (Belegart 19). Auch bei reiner Warenlieferung
+                  ohne Reparaturschein sichtbar. Admin-only, Konto-Guard. */}
+              {isAdmin && (summary.repairOrders.length > 0 || deliveryCount > 0) && (
+                !ticket.mesonicCustomerId ? (
+                  <div className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs">
+                    <AlertCircle size={14} />
+                    Kein WinLine-Konto am Ticket — Kunde erst verknüpfen, um Belege anzulegen.
+                  </div>
+                ) : belegResult ? (
+                  <div className="w-full rounded-lg border border-slate-200 px-3 py-2 space-y-1 text-xs" data-testid="beleg-export-result">
+                    {belegResult.created.length > 0 && (
+                      <div className="flex items-start gap-1.5 text-emerald-700">
+                        <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+                        <span>
+                          {belegResult.created.length} Reparaturschein-Beleg{belegResult.created.length === 1 ? '' : 'e'}:{' '}
+                          <span className="font-mono">{belegResult.created.map((c) => c.belegKey).join(', ')}</span>
+                        </span>
                       </div>
-                    ) : belegResult ? (
-                      <div className="w-full rounded-lg border border-slate-200 px-3 py-2 space-y-1 text-xs" data-testid="beleg-export-result">
-                        {belegResult.created.length > 0 && (
-                          <div className="flex items-start gap-1.5 text-emerald-700">
-                            <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
-                            <span>
-                              {belegResult.created.length} Beleg{belegResult.created.length === 1 ? '' : 'e'} in WinLine angelegt:{' '}
-                              <span className="font-mono">{belegResult.created.map((c) => c.belegKey).join(', ')}</span>
-                            </span>
-                          </div>
-                        )}
-                        {belegResult.skipped.length > 0 && (
-                          <div className="text-slate-500">
-                            {belegResult.skipped.length} übersprungen (bereits verrechnet / leer)
-                          </div>
-                        )}
-                        {belegResult.failed.length > 0 && (
-                          <div className="text-rose-700">
-                            {belegResult.failed.map((f) => `Rep.schein #${f.seqNumber}: ${f.error}`).join(' · ')}
-                          </div>
-                        )}
+                    )}
+                    {belegResult.deliveryCreated.length > 0 && (
+                      <div className="flex items-start gap-1.5 text-emerald-700">
+                        <Truck size={14} className="mt-0.5 shrink-0" />
+                        <span>
+                          {belegResult.deliveryCreated.length} Lieferschein-Beleg{belegResult.deliveryCreated.length === 1 ? '' : 'e'}:{' '}
+                          <span className="font-mono">{belegResult.deliveryCreated.map((c) => c.belegKey).join(', ')}</span>
+                        </span>
                       </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => void handleCreateBelege()}
-                        disabled={belegBusy}
-                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
-                        data-testid="create-belege"
-                        title="Je Reparaturschein einen WinLine-Beleg (Belegart 18) anlegen. Mesonic fasst sie zur Sammel-Faktura zusammen."
-                      >
-                        {belegBusy ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-                        Belege in WinLine anlegen
-                      </button>
-                    )
-                  )}
-                  {belegError && (
-                    <div className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs">
-                      <AlertCircle size={14} /> {belegError}
-                    </div>
-                  )}
+                    )}
+                    {(belegResult.skipped.length > 0 || belegResult.deliverySkipped.length > 0) && (
+                      <div className="text-slate-500">
+                        {belegResult.skipped.length + belegResult.deliverySkipped.length} übersprungen (bereits verrechnet / leer)
+                      </div>
+                    )}
+                    {belegResult.failed.length > 0 && (
+                      <div className="text-rose-700">
+                        {belegResult.failed.map((f) => `Rep.schein #${f.seqNumber}: ${f.error}`).join(' · ')}
+                      </div>
+                    )}
+                    {belegResult.deliveryFailed.length > 0 && (
+                      <div className="text-rose-700">
+                        {belegResult.deliveryFailed.map((f) => `Lieferschein #${f.seqNumber}: ${f.error}`).join(' · ')}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateBelege()}
+                    disabled={belegBusy}
+                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+                    data-testid="create-belege"
+                    title="Reparaturscheine (Belegart 18) und Lieferscheine (Belegart 19) als WinLine-Belege anlegen. Mesonic fasst sie zur Sammel-Faktura zusammen."
+                  >
+                    {belegBusy ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+                    Belege in WinLine anlegen
+                  </button>
+                )
+              )}
+              {belegError && (
+                <div className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                  <AlertCircle size={14} /> {belegError}
                 </div>
               )}
 
