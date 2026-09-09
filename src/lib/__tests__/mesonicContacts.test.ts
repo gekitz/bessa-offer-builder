@@ -8,7 +8,7 @@ vi.mock('../mesonicApi', () => ({
   saveContact: saveContactMock,
 }));
 
-import { mapContact, contactDisplayName, combineCompanyContact, createContact } from '../mesonicContacts';
+import { mapContact, contactDisplayName, combineCompanyContact, createContact, updateContact } from '../mesonicContacts';
 
 describe('mapContact', () => {
   it('maps T045 column keys', () => {
@@ -81,5 +81,39 @@ describe('createContact', () => {
       Kontaktnummer: '29385-+', Vorname: 'Anna', Name: 'Huber',
     }));
     expect(res).toEqual({ success: true, kontaktnummer: '7' });
+  });
+});
+
+describe('updateContact', () => {
+  beforeEach(() => saveContactMock.mockReset().mockResolvedValue({ success: true, kontaktnummer: '29385-7' }));
+
+  const original = mapContact({
+    T045_C063: '29385-7', T045_C001: 'Huber', T045_C002: 'Anna',
+    T045_C025: 'anna@wirt.at', T045_C058: 'Einkauf', T045_C020: '1234567',
+  });
+
+  it('keys the update on the existing Kontaktnummer and always sends Name', async () => {
+    await updateContact(original, { vorname: 'Anna', name: 'Huber', email: 'neu@wirt.at' });
+    const arg = saveContactMock.mock.calls[0][0];
+    expect(arg.Kontaktnummer).toBe('29385-7');
+    expect(arg.Name).toBe('Huber');
+  });
+
+  it('sends only the optional fields that actually changed', async () => {
+    await updateContact(original, {
+      vorname: 'Anna', name: 'Huber', email: 'neu@wirt.at', mobil: '1234567', abteilung: 'Einkauf',
+    });
+    const arg = saveContactMock.mock.calls[0][0];
+    // email changed → included; vorname/abteilung/mobil unchanged → omitted
+    expect(arg.eMailadresse).toBe('neu@wirt.at');
+    expect(arg).not.toHaveProperty('Vorname');
+    expect(arg).not.toHaveProperty('Abteilung');
+    expect(arg).not.toHaveProperty('MobiltelefonNummer');
+  });
+
+  it('throws when the contact has no Kontaktnummer (no update key)', async () => {
+    const keyless = mapContact({ Name: 'Huber' });
+    await expect(updateContact(keyless, { name: 'Huber', vorname: '' })).rejects.toThrow(/Kontaktnummer/);
+    expect(saveContactMock).not.toHaveBeenCalled();
   });
 });

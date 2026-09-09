@@ -940,9 +940,13 @@ function KontaktImportTester() {
   const [out, setOut] = useState(null);
   const [busy, setBusy] = useState(null);
 
-  // Genau die Felder, die createContact() schickt — Kontaktnummer trägt das Konto.
+  // Kontaktnummer trägt die Konto-Verknüpfung. Enthält die Eingabe schon ein "-"
+  // (z. B. "230A001-7"), wird sie als bestehende Kontaktnummer verwendet →
+  // WinLine aktualisiert diesen Kontakt (Edit). Sonst "<Konto>-+" → Neuanlage.
+  const isEdit = konto.includes('-');
+  const kontaktnummer = isEdit ? konto.trim() : `${konto.trim()}-+`;
   const fields = {
-    Kontaktnummer: `${konto.trim()}-+`,
+    Kontaktnummer: kontaktnummer,
     Name: name.trim(),
     Vorname: vorname.trim(),
     eMailadresse: email.trim(),
@@ -952,7 +956,7 @@ function KontaktImportTester() {
   const xml = buildKontaktImportXml(fields);
 
   async function run(mode) {
-    if (mode === 'create' && !window.confirm(`Ansprechpartner WIRKLICH anlegen? Kunde ${konto}, "${vorname} ${name}".`)) return;
+    if (mode === 'create' && !window.confirm(`Ansprechpartner WIRKLICH ${isEdit ? 'ändern' : 'anlegen'}? ${kontaktnummer}, "${vorname} ${name}".`)) return;
     setBusy(mode);
     setOut(null);
     try {
@@ -978,11 +982,12 @@ function KontaktImportTester() {
     <div className="border border-teal-200 rounded-lg p-4 bg-teal-50/40">
       <h2 className="text-lg font-bold mb-1 text-teal-800">Ansprechpartner-Import-Tester (WEBKontakt, Type 7)</h2>
       <p className="text-xs text-slate-500 mb-3">
-        Konto-Verknüpfung über Kontaktnummer <span className="font-mono">&lt;Konto&gt;-+</span>. „Validieren" = ActionCode=0
-        (kein Schreiben) → prüft, ob WinLine <span className="font-mono">{konto.trim()}-+</span> akzeptiert. „Anlegen" = ActionCode=1.
+        Neuanlage: nur Kontonummer eingeben → <span className="font-mono">&lt;Konto&gt;-+</span>. Bearbeiten: volle
+        Kontaktnummer mit „-" eingeben (z. B. <span className="font-mono">230A001-7</span>) → WinLine aktualisiert den Kontakt.
+        „Validieren" = ActionCode=0 (kein Schreiben) → prüft <span className="font-mono">{kontaktnummer}</span>. „Anlegen/Speichern" = ActionCode=1.
       </p>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
-        <label className="text-xs text-slate-600">Kontonummer
+        <label className="text-xs text-slate-600">Kontonummer (oder Kontaktnummer für Edit)
           <input value={konto} onChange={(e) => setKonto(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
         </label>
         <label className="text-xs text-slate-600">Vorname
@@ -1009,7 +1014,7 @@ function KontaktImportTester() {
           {busy === 'validate' ? '…' : 'Validieren (ActionCode=0)'}
         </button>
         <button onClick={() => run('create')} disabled={!!busy || !canRun} className="px-3 py-1.5 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40">
-          {busy === 'create' ? '…' : 'Anlegen (ActionCode=1)'}
+          {busy === 'create' ? '…' : isEdit ? 'Speichern (ActionCode=1)' : 'Anlegen (ActionCode=1)'}
         </button>
       </div>
       {out && (
