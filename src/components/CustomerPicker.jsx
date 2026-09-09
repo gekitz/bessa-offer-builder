@@ -24,6 +24,7 @@ const F = {
   email:  (r) => f(r, 'Email', 'E-Mail', 'EMail', 'T055_C013', 'T055.C013'),
   number: (r) => f(r, 'Kontonummer', 'Kundennummer', 'KontoNr', 'T055_C023', 'T055.C023'),
   contact:(r) => f(r, 'Ansprechpartner', 'Kontakt', 'T055_C061', 'T055.C061'),
+  uid:    (r) => f(r, 'UID', 'UID-Nummer', 'UID-Nr.', 'UIDNr', 'T058_C022', 'T058.C022'),
 };
 
 function useDebounce(value, delay) {
@@ -81,6 +82,7 @@ export default function CustomerPicker({ onSelect, onClose }) {
       email: F.email(record),
       phone: F.phone(record),
       address,
+      uid: F.uid(record),
       mesonicId: F.number(record),
     });
   }

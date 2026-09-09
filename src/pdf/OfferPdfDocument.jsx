@@ -773,6 +773,9 @@ export default function OfferPdfDocument({
           {customer.phone && (
             <Text style={styles.customerDetail}>Tel: {customer.phone}</Text>
           )}
+          {customer.uid && (
+            <Text style={styles.customerDetail}>UID: {customer.uid}</Text>
+          )}
           {!customer.company &&
             !customer.name &&
             !customer.address &&

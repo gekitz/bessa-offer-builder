@@ -269,7 +269,7 @@ function OfferBuilderPageInner() {
   const [showNewOfferModal, setShowNewOfferModal] = useState(false);
   const [globalTier, setGlobalTier] = useState('12mo');
   const [cart, setCart] = useState({});
-  const [customer, setCustomer] = useState({ name: '', company: '', email: '', phone: '', address: '' });
+  const [customer, setCustomer] = useState({ name: '', company: '', email: '', phone: '', address: '', uid: '' });
   const [creator, setCreator] = useState('');
   // Offer creators (sales reps), loaded from the employees table — the
   // single source of truth. Shape matches the old TEAM catalog so the
@@ -449,6 +449,7 @@ function OfferBuilderPageInner() {
           email: offer.customer_email || '',
           phone: offer.customer_phone || '',
           address: data.address || '',
+          uid: offer.customer_uid || '',
           mesonicId: offer.mesonic_customer_id || undefined,
         });
         setCreator(offer.creator_id || ssoCreatorId() || '');
@@ -498,7 +499,7 @@ function OfferBuilderPageInner() {
       const { cart: validCart, cartOrder: validOrder } = sanitizeCart(savedOffer.cart || {}, savedOffer.cartOrder || []);
       setCart(validCart);
       setCartOrder(validOrder);
-      setCustomer(savedOffer.customer || { name: '', company: '', email: '', phone: '', address: '' });
+      setCustomer(savedOffer.customer || { name: '', company: '', email: '', phone: '', address: '', uid: '' });
       setCreator(savedOffer.creator || ssoCreatorId() || '');
       setNotes(savedOffer.notes || '');
       setRaten(savedOffer.raten || 12);
@@ -1240,6 +1241,7 @@ function OfferBuilderPageInner() {
         email: offer.customer_email || '',
         phone: offer.customer_phone || '',
         address: data.address || '',
+        uid: offer.customer_uid || '',
         mesonicId: offer.mesonic_customer_id || undefined,
       });
       setCreator(offer.creator_id || ssoCreatorId() || '');

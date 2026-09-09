@@ -40,6 +40,7 @@ const SCHEMA_ORDER = [
   'Ort',
   'Land',
   'Mobiltelefonnummer',
+  'IDNr',
 ];
 
 /** Extract emitted tag names in document order. */
@@ -116,6 +117,14 @@ describe('buildKontenImportXml', () => {
     expect(xml).toContain('<Mobiltelefonnummer>0660 123</Mobiltelefonnummer>');
     expect(xml).not.toContain('<Email>');
     expect(xml).not.toContain('<Mobiltelefon>');
+  });
+
+  it('maps UID onto the IDNr import element, emitted last in the sequence', () => {
+    const xml = buildKontenImportXml({ Name: 'Foo GmbH', UID: 'ATU12345678' });
+    expect(xml).toContain('<IDNr>ATU12345678</IDNr>');
+    expect(xml).not.toContain('<UID>');
+    const emitted = tagsOf(xml);
+    expect(emitted[emitted.length - 1]).toBe('IDNr');
   });
 
   it('escapes XML-special characters in values', () => {

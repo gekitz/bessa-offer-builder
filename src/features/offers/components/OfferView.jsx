@@ -281,6 +281,8 @@ export default function OfferView({
         </div>
         <input placeholder="Adresse (Straße, PLZ Ort)" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })}
           className="w-full mt-2 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+        <input placeholder="UID-Nummer (z.B. ATU12345678)" value={customer.uid || ''} onChange={e => setCustomer({ ...customer, uid: e.target.value })}
+          className="w-full mt-2 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
         {customer.mesonicId && (
           <div className="mt-2">
             <ContactSelect
@@ -297,7 +299,7 @@ export default function OfferView({
         {showCustomerPicker && (
           <CustomerPicker
             onSelect={(c) => {
-              setCustomer({ name: c.name, company: c.company, email: c.email, phone: c.phone, address: c.address, mesonicId: c.mesonicId });
+              setCustomer({ name: c.name, company: c.company, email: c.email, phone: c.phone, address: c.address, uid: c.uid || '', mesonicId: c.mesonicId });
               setShowCustomerPicker(false);
             }}
             onClose={() => setShowCustomerPicker(false)}
