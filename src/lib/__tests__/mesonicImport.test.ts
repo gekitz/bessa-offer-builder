@@ -167,6 +167,7 @@ const KONTAKT_SCHEMA_ORDER = [
   'MobiltelefonLand',
   'MobiltelefonVorwahl',
   'MobiltelefonNummer',
+  'FibuKontonummer',
 ];
 
 function kontaktTagsOf(xml: string): string[] {
@@ -195,6 +196,7 @@ describe('buildKontaktImportXml', () => {
 
   it('emits fields in XSD sequence order regardless of input order', () => {
     const xml = buildKontaktImportXml({
+      FibuKontonummer: '29385',
       MobiltelefonNummer: '1234567',
       Name: 'Huber',
       eMailadresse: 'a@b.at',
@@ -202,6 +204,11 @@ describe('buildKontaktImportXml', () => {
     });
     const emitted = kontaktTagsOf(xml);
     expect(emitted).toEqual(KONTAKT_SCHEMA_ORDER.filter(t => emitted.includes(t)));
+  });
+
+  it('carries the FibuKontonummer account link', () => {
+    const xml = buildKontaktImportXml({ Kontaktnummer: '29385-+', Name: 'Huber', FibuKontonummer: '29385' });
+    expect(xml).toContain('<FibuKontonummer>29385</FibuKontonummer>');
   });
 
   it('omits empty optional fields', () => {

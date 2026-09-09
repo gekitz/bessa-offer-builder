@@ -61,12 +61,13 @@ describe('combineCompanyContact', () => {
 describe('createContact', () => {
   beforeEach(() => saveContactMock.mockReset().mockResolvedValue({ success: true, kontaktnummer: '7' }));
 
-  it('links the contact to the account via Kontaktnummer "<kdnr>-+" and maps fields', async () => {
+  it('links the contact to the account via Kontaktnummer + FibuKontonummer and maps fields', async () => {
     await createContact('29385', {
       vorname: 'Anna', name: 'Huber', email: 'a@b.at', mobil: '0664 111', abteilung: 'Einkauf',
     });
     expect(saveContactMock).toHaveBeenCalledWith({
       Kontaktnummer: '29385-+',
+      FibuKontonummer: '29385',
       Name: 'Huber',
       Vorname: 'Anna',
       eMailadresse: 'a@b.at',
@@ -78,7 +79,7 @@ describe('createContact', () => {
   it('trims the account number and forwards the save result', async () => {
     const res = await createContact('  29385  ', { vorname: ' Anna ', name: ' Huber ' });
     expect(saveContactMock).toHaveBeenCalledWith(expect.objectContaining({
-      Kontaktnummer: '29385-+', Vorname: 'Anna', Name: 'Huber',
+      Kontaktnummer: '29385-+', FibuKontonummer: '29385', Vorname: 'Anna', Name: 'Huber',
     }));
     expect(res).toEqual({ success: true, kontaktnummer: '7' });
   });
@@ -92,10 +93,11 @@ describe('updateContact', () => {
     T045_C025: 'anna@wirt.at', T045_C058: 'Einkauf', T045_C020: '1234567',
   });
 
-  it('keys the update on the existing Kontaktnummer and always sends Name', async () => {
+  it('keys the update on the existing Kontaktnummer, keeps the account link, always sends Name', async () => {
     await updateContact(original, { vorname: 'Anna', name: 'Huber', email: 'neu@wirt.at' });
     const arg = saveContactMock.mock.calls[0][0];
     expect(arg.Kontaktnummer).toBe('29385-7');
+    expect(arg.FibuKontonummer).toBe('29385'); // aus dem Kontaktnummer-Präfix abgeleitet
     expect(arg.Name).toBe('Huber');
   });
 

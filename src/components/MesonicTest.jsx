@@ -945,6 +945,9 @@ function KontaktImportTester() {
   // WinLine aktualisiert diesen Kontakt (Edit). Sonst "<Konto>-+" → Neuanlage.
   const isEdit = konto.includes('-');
   const kontaktnummer = isEdit ? konto.trim() : `${konto.trim()}-+`;
+  // Konto-Verknüpfung (Pflicht für Persistenz): bei Edit aus der Kontaktnummer
+  // ableiten, bei Neuanlage die eingegebene Kontonummer.
+  const fibuKonto = isEdit ? konto.slice(0, konto.lastIndexOf('-')) : konto.trim();
   const fields = {
     Kontaktnummer: kontaktnummer,
     Name: name.trim(),
@@ -952,6 +955,7 @@ function KontaktImportTester() {
     eMailadresse: email.trim(),
     Abteilung: abteilung.trim(),
     MobiltelefonNummer: mobil.trim(),
+    FibuKontonummer: fibuKonto,
   };
   const xml = buildKontaktImportXml(fields);
 

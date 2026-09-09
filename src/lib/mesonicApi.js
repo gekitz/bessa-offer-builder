@@ -450,14 +450,14 @@ export async function getCustomerContacts(customerNumber) {
 // WEBKontakt (Tabelle T045). Die xs:sequence erzwingt die Reihenfolge; Extra-
 // Elemente würden abgelehnt. Pflicht (minOccurs=1): Kontaktnummer + Name.
 //
-// Die Konto-Verknüpfung (T045.C039) hat KEIN eigenes Feld — sie steckt in der
-// Kontaktnummer, Format "<Kontonummer>-<Laufnummer>" (z. B. "230A001-7",
-// MESOWIKI Ansprechpartner + Whitepaper Beleg-Konvention). Für einen neuen
-// Kontakt eines Kontos gilt daher "<Kontonummer>-+" (+ = nächste freie
-// Laufnummer, Whitepaper §3.6.1). Ein blankes "+" (Default) legt einen
-// kontenlosen Kontakt an — nur als Fallback.
+// Die Konto-Verknüpfung ist das Feld FibuKontonummer (T045.C039, dem Template
+// nachträglich hinzugefügt). OHNE dieses Feld quittiert der Import zwar Erfolg
+// und vergibt eine Nummer, legt aber KEINEN persistenten Kontakt an. Zusätzlich
+// trägt die Kontaktnummer das Konto als Präfix: Format "<Kontonummer>-<Laufnummer>"
+// (z. B. "230A001-7"). Für einen neuen Kontakt gilt "<Kontonummer>-+" (+ =
+// nächste freie Laufnummer, Whitepaper §3.6.1).
 const KONTAKT_IMPORT_ORDER = [
-  'Kontaktnummer',        // req — '+' = neu (T045.C063)
+  'Kontaktnummer',        // req — "<Konto>-+" = neu (T045.C063)
   'Name',                 // req — Nachname (T045.C001)
   'Vorname',              // (T045.C002)
   'eMailadresse',         // (T045.C025)
@@ -465,6 +465,7 @@ const KONTAKT_IMPORT_ORDER = [
   'MobiltelefonLand',     // (T045.C018)
   'MobiltelefonVorwahl',  // (T045.C019)
   'MobiltelefonNummer',   // (T045.C020)
+  'FibuKontonummer',      // Konto-Verknüpfung (T045.C039) — Pflicht für Persistenz
 ];
 
 const KONTAKT_IMPORT_DEFAULTS = {
