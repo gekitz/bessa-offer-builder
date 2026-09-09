@@ -130,11 +130,11 @@ export default function CustomerForm({ initialData, onSaved, onCancel }) {
           )}
           <div className="flex items-center justify-center gap-3">
             <button
-              onClick={() => { if (onSaved) onSaved({ kundennummer: savedNumber }); else onCancel(); }}
+              onClick={() => { if (onSaved) onSaved({ kundennummer: savedNumber ?? fields.Kontonummer ?? null, isEdit }); else onCancel(); }}
               className="rounded-lg bg-slate-100 text-slate-600 px-4 py-2 hover:bg-slate-200 transition-colors"
               style={{ fontSize: 13 }}
             >
-              Zurück zur Suche
+              {isEdit ? 'Zurück zum Kunden' : 'Zurück zur Suche'}
             </button>
             <button
               onClick={() => { setSuccess(false); setSavedNumber(null); setFields({}); FORM_FIELDS.forEach(f => setFields(prev => ({...prev, [f.key]: ''}))); }}
