@@ -409,8 +409,22 @@ export default function CrmPage() {
     setView('edit');
   }
 
-  function handleFormSaved(result) {
-    // After save, go back to search so user can find the new/updated customer
+  async function handleFormSaved(result) {
+    // After an edit: reload the customer fresh from Mesonic and return to its
+    // detail view — otherwise we'd show stale pre-edit data (looks like a bug).
+    // Fetch first (the form's success screen stays up meanwhile), then switch in
+    // one step so the detail never renders without a record.
+    const kdnr = result?.kundennummer;
+    if (result?.isEdit && kdnr) {
+      try {
+        const data = await getCustomer(kdnr);
+        const record = data?.records?.[0];
+        if (record) { setSelectedCustomer(record); setView('detail'); return; }
+      } catch (e) {
+        setError(e.message);
+      }
+    }
+    // Create (or edit fallback): back to search to find the new/updated customer.
     setSelectedCustomer(null);
     setView('search');
   }
