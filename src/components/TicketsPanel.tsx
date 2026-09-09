@@ -43,7 +43,7 @@ export default function TicketsPanel({ kdnr }: { kdnr: string }) {
   function Row({ t }: { t: Ticket }) {
     return (
       <button
-        onClick={() => navigate(`/tickets/${t.id}`, { state: { from: 'crm' } })}
+        onClick={() => navigate(`/tickets/${t.id}?from=crm&kdnr=${encodeURIComponent(kdnr)}`)}
         className="w-full text-left rounded-lg border border-slate-200 px-3 py-2 hover:border-red-300 hover:bg-red-50 transition-colors"
       >
         <div className="flex items-center gap-2">
