@@ -83,11 +83,20 @@ function contactFields(input: NewContactInput) {
   };
 }
 
+// Konto aus der Kontaktnummer "<Konto>-<Laufnummer>" (z. B. "232467-2" → "232467",
+// "230A001-COMP" → "230A001"). Für die FibuKontonummer beim Bearbeiten.
+function accountFromKontaktnummer(kontaktnummer: string): string {
+  const k = String(kontaktnummer).trim();
+  const i = k.lastIndexOf('-');
+  return i > 0 ? k.slice(0, i) : k;
+}
+
 // Legt einen Ansprechpartner in Mesonic an (Type 7, Vorlage WEBKontakt). Die
-// Verknüpfung zum Konto steckt in der Kontaktnummer "<Kontonummer>-+"
-// (+ = nächste freie Laufnummer).
+// Verknüpfung zum Konto läuft über FibuKontonummer (Pflicht für Persistenz);
+// die Kontaktnummer "<Kontonummer>-+" vergibt die nächste freie Laufnummer.
 export async function createContact(kdnr: string, input: NewContactInput) {
-  return saveContact({ Kontaktnummer: `${String(kdnr).trim()}-+`, ...contactFields(input) });
+  const konto = String(kdnr).trim();
+  return saveContact({ Kontaktnummer: `${konto}-+`, FibuKontonummer: konto, ...contactFields(input) });
 }
 
 // Ändert einen bestehenden Ansprechpartner. Schlüssel ist die vorhandene
@@ -103,6 +112,8 @@ export async function updateContact(original: Contact, input: NewContactInput) {
   }
   const fields: Record<string, string | undefined> = {
     Kontaktnummer: original.kontaktnummer.trim(),
+    // Konto-Verknüpfung mitschicken, damit sie beim Update erhalten bleibt.
+    FibuKontonummer: accountFromKontaktnummer(original.kontaktnummer),
     Name: (input.name ?? '').trim(),
   };
   const vorname = (input.vorname ?? '').trim();
