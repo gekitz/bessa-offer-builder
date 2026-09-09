@@ -9,7 +9,15 @@ vi.mock('../supabase', () => ({
   },
 }));
 
-import { buildKontenImportXml, mesonicImport, saveCustomer, TYPES, TEMPLATES } from '../mesonicApi';
+import {
+  buildKontenImportXml,
+  buildKontaktImportXml,
+  mesonicImport,
+  saveCustomer,
+  saveContact,
+  TYPES,
+  TEMPLATES,
+} from '../mesonicApi';
 
 // The WebKontenImport XSD declares its fields in an xs:sequence, so the order
 // below is the contract the endpoint validates against.
@@ -145,6 +153,128 @@ describe('buildKontenImportXml', () => {
     // Order is still schema-valid.
     const emitted = tagsOf(xml);
     expect(emitted).toEqual(SCHEMA_ORDER.filter(t => emitted.includes(t)));
+  });
+});
+
+// Ansprechpartner-Import (Type 7, Vorlage WEBKontakt). Feldnamen/Reihenfolge
+// stammen 1:1 aus dem gelieferten XSD (xs:sequence → Reihenfolge erzwungen).
+const KONTAKT_SCHEMA_ORDER = [
+  'Kontaktnummer',
+  'Name',
+  'Vorname',
+  'eMailadresse',
+  'Abteilung',
+  'MobiltelefonLand',
+  'MobiltelefonVorwahl',
+  'MobiltelefonNummer',
+];
+
+function kontaktTagsOf(xml: string): string[] {
+  return [...xml.matchAll(/<([A-Za-z0-9-]+)>/g)]
+    .map(m => m[1])
+    .filter(t => t !== 'WEBKontakt');
+}
+
+describe('buildKontaktImportXml', () => {
+  it('wraps records in <WEBKontakt>', () => {
+    const xml = buildKontaktImportXml({ Name: 'Huber' });
+    expect(xml.startsWith('<WEBKontakt>')).toBe(true);
+    expect(xml.trimEnd().endsWith('</WEBKontakt>')).toBe(true);
+  });
+
+  it('defaults Kontaktnummer to "+" for a new (accountless) contact', () => {
+    const xml = buildKontaktImportXml({ Name: 'Huber' });
+    expect(xml).toContain('<Kontaktnummer>+</Kontaktnummer>');
+  });
+
+  it('carries an account-scoped Kontaktnummer "<Konto>-+" through unchanged', () => {
+    const xml = buildKontaktImportXml({ Kontaktnummer: '29385-+', Name: 'Huber' });
+    expect(xml).toContain('<Kontaktnummer>29385-+</Kontaktnummer>');
+    expect(xml).not.toContain('<Kontaktnummer>+</Kontaktnummer>');
+  });
+
+  it('emits fields in XSD sequence order regardless of input order', () => {
+    const xml = buildKontaktImportXml({
+      MobiltelefonNummer: '1234567',
+      Name: 'Huber',
+      eMailadresse: 'a@b.at',
+      Vorname: 'Anna',
+    });
+    const emitted = kontaktTagsOf(xml);
+    expect(emitted).toEqual(KONTAKT_SCHEMA_ORDER.filter(t => emitted.includes(t)));
+  });
+
+  it('omits empty optional fields', () => {
+    const xml = buildKontaktImportXml({ Name: 'Huber', eMailadresse: '', Abteilung: '   ' });
+    expect(xml).not.toContain('<eMailadresse>');
+    expect(xml).not.toContain('<Abteilung>');
+  });
+
+  it('maps aliases (E-Mail/Email/Nachname) onto canonical XSD tag names', () => {
+    const xml = buildKontaktImportXml({ Nachname: 'Huber', 'E-Mail': 'a@b.at' });
+    expect(xml).toContain('<Name>Huber</Name>');
+    expect(xml).toContain('<eMailadresse>a@b.at</eMailadresse>');
+    expect(xml).not.toContain('<Nachname>');
+    expect(xml).not.toContain('<E-Mail>');
+  });
+
+  it('keeps the three mobile fields separate', () => {
+    const xml = buildKontaktImportXml({
+      Name: 'Huber', MobiltelefonLand: '43', MobiltelefonVorwahl: '664', MobiltelefonNummer: '1234567',
+    });
+    expect(xml).toContain('<MobiltelefonLand>43</MobiltelefonLand>');
+    expect(xml).toContain('<MobiltelefonVorwahl>664</MobiltelefonVorwahl>');
+    expect(xml).toContain('<MobiltelefonNummer>1234567</MobiltelefonNummer>');
+  });
+
+  it('escapes XML-special characters in values', () => {
+    const xml = buildKontaktImportXml({ Name: 'Müller & <Co>' });
+    expect(xml).toContain('<Name>Müller &amp; &lt;Co&gt;</Name>');
+  });
+});
+
+describe('mesonicImport / saveContact — KeyValue parsing', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stubProxyResult(result: string) {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ result }),
+    })));
+  }
+
+  const wrap = (details: string) =>
+    `<?xml version="1.0" encoding="UTF-8"?><MESOWebServiceResult>` +
+    `<OverallSuccess>true</OverallSuccess><ResultDetails>${details}</ResultDetails>` +
+    `</MESOWebServiceResult>`;
+
+  it('throws when the mandatory Name is missing', async () => {
+    await expect(saveContact({ Vorname: 'Anna' })).rejects.toThrow(/Name/);
+  });
+
+  it('returns the assigned Kontaktnummer from <KeyValue> on create', async () => {
+    stubProxyResult(wrap('<KeyValue>7</KeyValue><Success>true</Success>'));
+    const res = await saveContact({ Vorname: 'Anna', Name: 'Huber' });
+    expect(res.success).toBe(true);
+    expect(res.kontaktnummer).toBe('7');
+  });
+
+  it('treats a "+" KeyValue (validate-only) as no assigned number', async () => {
+    stubProxyResult(wrap('<KeyValue>+</KeyValue><Success>true</Success>'));
+    const res = await saveContact({ Name: 'Huber' }, { actionCode: 0 });
+    expect(res.success).toBe(true);
+    expect(res.kontaktnummer).toBeNull();
+  });
+
+  it('surfaces WinLine errors from the import', async () => {
+    stubProxyResult(
+      `<MESOWebServiceResult><OverallSuccess>false</OverallSuccess><ResultDetails>` +
+      `<ErrorCode>000161</ErrorCode><ErrorText>Kein Datensatz</ErrorText></ResultDetails></MESOWebServiceResult>`,
+    );
+    const res = await saveContact({ Name: 'Huber' });
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('000161');
   });
 });
 

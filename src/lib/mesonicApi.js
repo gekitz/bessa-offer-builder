@@ -28,7 +28,10 @@ export const TEMPLATES = {
   ARTICLE_IMPORT: 'WebArtikelImport',
   PRICE_EXPORT: 'WEBArtikelPreise', // Type 5, Key = Artikelnummer → T043 (Preisart/Preisliste/Preis)
   CONTACT_EXPORT: 'WEBKontakt',
-  CONTACT_IMPORT: 'WebKontakteImport',
+  // Ansprechpartner-Import läuft laut Georg über dieselbe Vorlage wie der
+  // Export (WEBKontakt), NICHT über den White-Paper-Default 'WebKontakteImport'.
+  // Beim ersten Live-Import gegen das echte Template gegenchecken.
+  CONTACT_IMPORT: 'WEBKontakt',
   BELEG_DETAIL: 'WEBBelege', // Type 30, Key <Konto>-<n> (WebBelegExport existierte nie → 000116)
   BELEG_LIST: 'WebBelegListe',
   BELEG_IMPORT: 'WebBelegImport',
@@ -439,4 +442,98 @@ export async function getCustomerContacts(customerNumber) {
     TEMPLATES.CONTACT_EXPORT,
     `where T045.C039 = '${customerNumber}'`
   );
+}
+
+// ─── WEBKontakt (Type 7) import schema ───
+//
+// Feldnamen und Reihenfolge stammen 1:1 aus dem gelieferten XSD der Vorlage
+// WEBKontakt (Tabelle T045). Die xs:sequence erzwingt die Reihenfolge; Extra-
+// Elemente würden abgelehnt. Pflicht (minOccurs=1): Kontaktnummer + Name.
+//
+// Die Konto-Verknüpfung (T045.C039) hat KEIN eigenes Feld — sie steckt in der
+// Kontaktnummer, Format "<Kontonummer>-<Laufnummer>" (z. B. "230A001-7",
+// MESOWIKI Ansprechpartner + Whitepaper Beleg-Konvention). Für einen neuen
+// Kontakt eines Kontos gilt daher "<Kontonummer>-+" (+ = nächste freie
+// Laufnummer, Whitepaper §3.6.1). Ein blankes "+" (Default) legt einen
+// kontenlosen Kontakt an — nur als Fallback.
+const KONTAKT_IMPORT_ORDER = [
+  'Kontaktnummer',        // req — '+' = neu (T045.C063)
+  'Name',                 // req — Nachname (T045.C001)
+  'Vorname',              // (T045.C002)
+  'eMailadresse',         // (T045.C025)
+  'Abteilung',            // (T045.C058)
+  'MobiltelefonLand',     // (T045.C018)
+  'MobiltelefonVorwahl',  // (T045.C019)
+  'MobiltelefonNummer',   // (T045.C020)
+];
+
+const KONTAKT_IMPORT_DEFAULTS = {
+  Kontaktnummer: '+',
+};
+
+// Gängige Aliasse auf die kanonischen XSD-Tag-Namen abbilden.
+const KONTAKT_IMPORT_ALIASES = {
+  Email: 'eMailadresse',
+  'E-Mail': 'eMailadresse',
+  EMail: 'eMailadresse',
+  eMail: 'eMailadresse',
+  Nachname: 'Name',
+};
+
+/**
+ * Build the <WEBKontakt> import XML for one Ansprechpartner record.
+ *
+ * Applies the '+' Kontaktnummer default, normalises a few field aliases and
+ * emits the elements in the XSD's xs:sequence order, skipping empty optional
+ * values. Pure — no network — so it can be inspected and unit-tested.
+ *
+ * @param {Object} fields — key/value pairs; canonical XSD tag names (aliases mapped)
+ * @returns {string} the <WEBKontakt>…</WEBKontakt> fragment
+ */
+export function buildKontaktImportXml(fields = {}) {
+  const provided = {};
+  for (const [rawKey, rawVal] of Object.entries(fields)) {
+    if (rawVal === undefined || rawVal === null || String(rawVal).trim() === '') continue;
+    const key = KONTAKT_IMPORT_ALIASES[rawKey] || rawKey;
+    provided[key] = rawVal;
+  }
+
+  const merged = { ...KONTAKT_IMPORT_DEFAULTS, ...provided };
+
+  const lines = [];
+  for (const key of KONTAKT_IMPORT_ORDER) {
+    const val = merged[key];
+    if (val === undefined || val === null || String(val).trim() === '') continue;
+    lines.push(`  <${key}>${escapeXml(String(val).trim())}</${key}>`);
+  }
+
+  return `<WEBKontakt>\n${lines.join('\n')}\n</WEBKontakt>`;
+}
+
+/**
+ * Create an Ansprechpartner (contact) in Mesonic (Type 7, Vorlage WEBKontakt).
+ *
+ * @param {Object} fields — canonical XSD field names: { Name (req), Vorname,
+ *   eMailadresse, Abteilung, MobiltelefonLand, MobiltelefonVorwahl,
+ *   MobiltelefonNummer }. Kontaktnummer is assigned by WinLine ('+').
+ * @param {Object} opts
+ * @param {number} opts.actionCode — 0 = validate only, 1 = validate + import (default)
+ * @returns {Promise<Object>} import response with the assigned `kontaktnummer`
+ */
+export async function saveContact(fields, opts = {}) {
+  if (!fields || !String(fields.Name ?? '').trim()) {
+    throw new Error('saveContact: Name (Nachname) ist ein Pflichtfeld');
+  }
+
+  const xmlData = buildKontaktImportXml(fields);
+
+  const result = await mesonicImport(TYPES.CONTACT, TEMPLATES.CONTACT_IMPORT, xmlData, {
+    actionCode: opts.actionCode ?? 1,
+  });
+
+  // WinLine echoes the assigned Kontaktnummer in <KeyValue>. '+' (validate-only
+  // / unassigned) → null.
+  const kontaktnummer = result.keyValue && result.keyValue !== '+' ? result.keyValue : null;
+
+  return { ...result, kontaktnummer };
 }

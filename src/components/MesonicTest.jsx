@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ping, mesonicExport, mesonicExportRaw, mesonicImport, mesonicList, searchArticles, getArticle, baseArticleNumber, saveCustomer, validateCustomer, buildKontenImportXml, TYPES, TEMPLATES } from '../lib/mesonicApi';
+import { ping, mesonicExport, mesonicExportRaw, mesonicImport, mesonicList, searchArticles, getArticle, baseArticleNumber, saveCustomer, validateCustomer, buildKontenImportXml, buildKontaktImportXml, saveContact, TYPES, TEMPLATES } from '../lib/mesonicApi';
 import { fetchCustomerBelege, latestHardware, isLikelyHardware } from '../features/viertl/lib/mesonicBelege';
 import { buildAngebotImportXml, PSEUDO_ARTIKEL, BELEGART, REPARATUR_BELEGART, laborArtikelnummer } from '../features/offers/lib/angebotImport';
 import { buildCrmNoteXml } from '../features/offers/lib/crmNoteImport';
@@ -926,6 +926,101 @@ function CrmNotizTester() {
   );
 }
 
+// Ansprechpartner-Import-Tester (WEBKontakt, Type 7). Legt einen Kontakt für
+// ein Konto an. Die Konto-Verknüpfung steckt in der Kontaktnummer
+// "<Kontonummer>-+" (+ = nächste freie Laufnummer, MESOWIKI + Whitepaper).
+// „Validieren" (ActionCode=0) prüft nur, „Anlegen" (ActionCode=1) schreibt.
+function KontaktImportTester() {
+  const [konto, setKonto] = useState('272765');
+  const [vorname, setVorname] = useState('Max');
+  const [name, setName] = useState('Mustermann');
+  const [email, setEmail] = useState('max@example.at');
+  const [mobil, setMobil] = useState('0664 1234567');
+  const [abteilung, setAbteilung] = useState('Einkauf');
+  const [out, setOut] = useState(null);
+  const [busy, setBusy] = useState(null);
+
+  // Genau die Felder, die createContact() schickt — Kontaktnummer trägt das Konto.
+  const fields = {
+    Kontaktnummer: `${konto.trim()}-+`,
+    Name: name.trim(),
+    Vorname: vorname.trim(),
+    eMailadresse: email.trim(),
+    Abteilung: abteilung.trim(),
+    MobiltelefonNummer: mobil.trim(),
+  };
+  const xml = buildKontaktImportXml(fields);
+
+  async function run(mode) {
+    if (mode === 'create' && !window.confirm(`Ansprechpartner WIRKLICH anlegen? Kunde ${konto}, "${vorname} ${name}".`)) return;
+    setBusy(mode);
+    setOut(null);
+    try {
+      if (mode === 'preview') {
+        setOut({ ok: true, text: xml });
+      } else {
+        const res = await saveContact(fields, { actionCode: mode === 'create' ? 1 : 0 });
+        const info = res.success
+          ? `OK · zugewiesene Kontaktnummer: ${res.kontaktnummer ?? '(keine — validate-only)'}\n\n${res.raw ?? ''}`
+          : res.error;
+        setOut({ ok: res.success, text: info });
+      }
+    } catch (e) {
+      setOut({ ok: false, text: e.message });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const canRun = !!name.trim() && !!konto.trim();
+
+  return (
+    <div className="border border-teal-200 rounded-lg p-4 bg-teal-50/40">
+      <h2 className="text-lg font-bold mb-1 text-teal-800">Ansprechpartner-Import-Tester (WEBKontakt, Type 7)</h2>
+      <p className="text-xs text-slate-500 mb-3">
+        Konto-Verknüpfung über Kontaktnummer <span className="font-mono">&lt;Konto&gt;-+</span>. „Validieren" = ActionCode=0
+        (kein Schreiben) → prüft, ob WinLine <span className="font-mono">{konto.trim()}-+</span> akzeptiert. „Anlegen" = ActionCode=1.
+      </p>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-2">
+        <label className="text-xs text-slate-600">Kontonummer
+          <input value={konto} onChange={(e) => setKonto(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Vorname
+          <input value={vorname} onChange={(e) => setVorname(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Nachname (Pflicht)
+          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">E-Mail
+          <input value={email} onChange={(e) => setEmail(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Mobil
+          <input value={mobil} onChange={(e) => setMobil(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+        <label className="text-xs text-slate-600">Abteilung
+          <input value={abteilung} onChange={(e) => setAbteilung(e.target.value)} className="w-full mt-0.5 px-2 py-1 border rounded text-sm" />
+        </label>
+      </div>
+      <div className="flex gap-2 mb-3">
+        <button onClick={() => run('preview')} disabled={!!busy} className="px-3 py-1.5 text-sm rounded bg-white border border-teal-300 text-teal-800 hover:bg-teal-100 disabled:opacity-40">
+          XML-Vorschau
+        </button>
+        <button onClick={() => run('validate')} disabled={!!busy || !canRun} className="px-3 py-1.5 text-sm rounded bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40">
+          {busy === 'validate' ? '…' : 'Validieren (ActionCode=0)'}
+        </button>
+        <button onClick={() => run('create')} disabled={!!busy || !canRun} className="px-3 py-1.5 text-sm rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40">
+          {busy === 'create' ? '…' : 'Anlegen (ActionCode=1)'}
+        </button>
+      </div>
+      {out && (
+        <pre className={`p-2 rounded text-xs overflow-auto max-h-96 whitespace-pre-wrap ${out.ok ? 'bg-slate-900 text-slate-100' : 'bg-rose-900 text-rose-100'}`}>
+          {out.text}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 export default function MesonicTest() {
   const [results, setResults] = useState({});
   const [running, setRunning] = useState({});
@@ -1065,6 +1160,11 @@ export default function MesonicTest() {
       {/* CRM-Notiz/Aktion tester (WEBCRM, Type 34) */}
       <div className="mt-10">
         <CrmNotizTester />
+      </div>
+
+      {/* Ansprechpartner-Import tester (WEBKontakt, Type 7) */}
+      <div className="mt-10">
+        <KontaktImportTester />
       </div>
     </div>
   );

@@ -7,7 +7,7 @@
 // Die Antwort-Elementnamen sind nicht 100 % sicher (Klartext vs. T045_Cxxx),
 // daher greift jeder Zugriff über eine Alias-Kette — wie bei den Konten.
 
-import { getCustomerContacts } from './mesonicApi';
+import { getCustomerContacts, saveContact } from './mesonicApi';
 
 export interface Contact {
   kontaktnummer: string;
@@ -16,6 +16,14 @@ export interface Contact {
   email: string;
   abteilung: string;
   mobil: string;
+}
+
+export interface NewContactInput {
+  vorname: string;
+  name: string;
+  email?: string;
+  mobil?: string;
+  abteilung?: string;
 }
 
 function pick(r: Record<string, unknown>, ...keys: string[]): string {
@@ -44,9 +52,38 @@ export function contactDisplayName(c: Contact): string {
   return [c.vorname, c.name].filter(Boolean).join(' ') || c.email || c.kontaktnummer || 'Kontakt';
 }
 
+// Kombiniert einen bestehenden Firmen-/Namenswert mit einem Ansprechpartner,
+// ohne Doppelungen — für Felder, die (anders als das Angebot) Firma UND Person
+// in einer Zeile führen (z. B. das Ticket-Feld "Name / Firma").
+export function combineCompanyContact(existing: string | null | undefined, person: string): string {
+  const e = (existing ?? '').trim();
+  const p = (person ?? '').trim();
+  if (!p) return e;
+  if (!e || e === p || e.includes(p)) return e || p;
+  return `${e} · ${p}`;
+}
+
 export async function fetchContacts(kdnr: string): Promise<Contact[]> {
   const res = (await getCustomerContacts(kdnr)) as { records?: Record<string, unknown>[] } | null;
   return (res?.records ?? [])
     .map(mapContact)
     .filter((c) => c.name || c.vorname || c.email || c.mobil);
+}
+
+// Legt einen Ansprechpartner in Mesonic an (Type 7, Vorlage WEBKontakt). Dünne
+// Hülle um saveContact, die die UI-Feldnamen auf die XSD-Tag-Namen abbildet.
+//
+// Die Verknüpfung zum Konto steckt in der Kontaktnummer "<Kontonummer>-+"
+// (+ = nächste freie Laufnummer). Ein einzelnes Mobil-Feld der UI landet in
+// MobiltelefonNummer (Land/Vorwahl bleiben leer — freier Text lässt sich nicht
+// verlässlich zerlegen).
+export async function createContact(kdnr: string, input: NewContactInput) {
+  return saveContact({
+    Kontaktnummer: `${String(kdnr).trim()}-+`,
+    Name: input.name?.trim(),
+    Vorname: input.vorname?.trim(),
+    eMailadresse: input.email?.trim(),
+    Abteilung: input.abteilung?.trim(),
+    MobiltelefonNummer: input.mobil?.trim(),
+  });
 }

@@ -34,6 +34,8 @@ import {
 
 import { supabase } from '../../../lib/supabase';
 import CustomerPicker from '../../../components/CustomerPicker';
+import ContactSelect from '../../../components/ContactSelect';
+import { contactDisplayName } from '../../../lib/mesonicContacts';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
 import SortableOfferRow from './SortableOfferRow';
@@ -279,6 +281,19 @@ export default function OfferView({
         </div>
         <input placeholder="Adresse (Straße, PLZ Ort)" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })}
           className="w-full mt-2 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" />
+        {customer.mesonicId && (
+          <div className="mt-2">
+            <ContactSelect
+              mesonicId={customer.mesonicId}
+              onPick={(c) => setCustomer({
+                ...customer,
+                name: contactDisplayName(c),
+                email: c.email || customer.email,
+                phone: c.mobil || customer.phone,
+              })}
+            />
+          </div>
+        )}
         {showCustomerPicker && (
           <CustomerPicker
             onSelect={(c) => {
