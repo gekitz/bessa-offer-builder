@@ -1,14 +1,22 @@
 import { useState } from 'react';
-import { Loader2, Mail, Phone, Download, RefreshCw } from 'lucide-react';
-import { fetchContacts, contactDisplayName } from '../lib/mesonicContacts';
+import { Loader2, Mail, Phone, Download, RefreshCw, Plus, X } from 'lucide-react';
+import { fetchContacts, contactDisplayName, createContact } from '../lib/mesonicContacts';
 
-// Ansprechpartner eines Kontos (Mesonic Type 7, WEBKontakte). Auf Abruf —
+const EMPTY_FORM = { vorname: '', name: '', email: '', mobil: '', abteilung: '' };
+
+// Ansprechpartner eines Kontos (Mesonic Type 7, WEBKontakt). Anzeige auf Abruf —
 // ein Export-Call liefert alle Kontakte des Kunden (wenige), daher ohne
-// Cache/Pagination. Keyed by Kontonummer, überall wiederverwendbar.
+// Cache/Pagination. Neue Ansprechpartner werden über dieselbe Vorlage (Type 7)
+// nach Mesonic geschrieben. Keyed by Kontonummer, überall wiederverwendbar.
 export default function ContactsPanel({ kdnr }) {
   const [contacts, setContacts] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -22,16 +30,102 @@ export default function ContactsPanel({ kdnr }) {
     }
   }
 
+  function updateForm(patch) {
+    setForm((f) => ({ ...f, ...patch }));
+  }
+
+  async function save() {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const res = await createContact(kdnr, form);
+      if (res && res.success === false) {
+        setSaveError(res.error || 'Speichern fehlgeschlagen.');
+        return;
+      }
+      setForm(EMPTY_FORM);
+      setShowForm(false);
+      await load(); // frisch geladene Liste zeigt den neuen Kontakt
+    } catch (e) {
+      setSaveError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Name (Nachname) ist im WEBKontakt-XSD Pflichtfeld.
+  const canSave = !saving && form.name.trim();
+
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Ansprechpartner</span>
-        {contacts !== null && !loading && (
-          <button onClick={load} className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">
-            <RefreshCw className="w-3.5 h-3.5" /> Aktualisieren
+        <div className="flex items-center gap-3">
+          {contacts !== null && !loading && (
+            <button onClick={load} className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">
+              <RefreshCw className="w-3.5 h-3.5" /> Aktualisieren
+            </button>
+          )}
+          <button
+            onClick={() => { setShowForm((v) => !v); setSaveError(null); }}
+            className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
+          >
+            {showForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+            {showForm ? 'Abbrechen' : 'Neuer Ansprechpartner'}
           </button>
-        )}
+        </div>
       </div>
+
+      {showForm && (
+        <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              placeholder="Vorname"
+              value={form.vorname}
+              onChange={(e) => updateForm({ vorname: e.target.value })}
+              className="w-full min-w-0 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+            />
+            <input
+              placeholder="Nachname *"
+              value={form.name}
+              onChange={(e) => updateForm({ name: e.target.value })}
+              className="w-full min-w-0 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+            />
+            <input
+              type="email"
+              placeholder="E-Mail"
+              value={form.email}
+              onChange={(e) => updateForm({ email: e.target.value })}
+              className="w-full min-w-0 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+            />
+            <input
+              type="tel"
+              placeholder="Mobil"
+              value={form.mobil}
+              onChange={(e) => updateForm({ mobil: e.target.value })}
+              className="w-full min-w-0 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+            />
+          </div>
+          <input
+            placeholder="Abteilung"
+            value={form.abteilung}
+            onChange={(e) => updateForm({ abteilung: e.target.value })}
+            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+          />
+          {saveError && <p className="text-xs text-rose-600">{saveError}</p>}
+          <div className="flex justify-end">
+            <button
+              onClick={save}
+              disabled={!canSave}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg ${
+                canSave ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Speichern
+            </button>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-slate-400 text-sm"><Loader2 className="w-4 h-4 animate-spin inline" /></div>

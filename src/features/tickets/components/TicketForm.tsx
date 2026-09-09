@@ -9,6 +9,8 @@ import {
   type Standort,
 } from '../../vacation/api/vacationApi';
 import CustomerPicker from '../../../components/CustomerPicker';
+import ContactSelect from '../../../components/ContactSelect';
+import { contactDisplayName, combineCompanyContact } from '../../../lib/mesonicContacts';
 import Select from '../../../components/Select';
 import type { Employee } from '../../vacation/types';
 import type { Ticket, TicketKind, TicketPriority } from '../types';
@@ -306,6 +308,17 @@ export default function TicketForm({
               placeholder="Adresse"
               className="w-full px-2.5 py-1.5 rounded border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-red-500/30"
             />
+            {mesonicCustomerId && (
+              <ContactSelect
+                mesonicId={mesonicCustomerId}
+                size="sm"
+                onPick={(c) => {
+                  setCustomerName((prev) => combineCompanyContact(prev, contactDisplayName(c)));
+                  if (c.email) setCustomerEmail(c.email);
+                  if (c.mobil) setCustomerPhone(c.mobil);
+                }}
+              />
+            )}
             <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
               <input
                 type="checkbox"
