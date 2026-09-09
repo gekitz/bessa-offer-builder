@@ -329,11 +329,16 @@ export default function TicketsPage({
         <TicketDetail
           ticketId={detailId}
           currentEmployeeId={currentEmployeeId}
-          onBack={() =>
-            new URLSearchParams(location.search).get('from') === 'uebersicht'
-              ? navigate('/dashboard')
-              : navigate('/tickets')
-          }
+          onBack={() => {
+            const params = new URLSearchParams(location.search);
+            const from = params.get('from');
+            if (from === 'uebersicht') return navigate('/dashboard');
+            if (from === 'crm') {
+              const kdnr = params.get('kdnr');
+              return navigate(kdnr ? `/crm?kdnr=${encodeURIComponent(kdnr)}` : '/crm');
+            }
+            return navigate('/tickets');
+          }}
           onOpenOffer={onOpenOffer}
         />
       </div>

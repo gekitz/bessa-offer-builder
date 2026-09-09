@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, X, Loader2, ArrowLeft, Building2, Phone, Mail, MapPin, User, FileText, ChevronRight, AlertCircle, RefreshCw, Plus, Pen, Save, CheckCircle2, Wrench } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { searchCustomers, getCustomer, listCustomers, getCustomerContacts, saveCustomer, validateCustomer, TYPES, TEMPLATES, mesonicExport } from '../lib/mesonicApi';
 import CustomerForm from './CustomerForm';
 import BelegePanel from '../features/viertl/components/BelegePanel';
 import ContactsPanel from './ContactsPanel';
+import TicketsPanel from './TicketsPanel';
 import NextcloudPanel from './NextcloudPanel';
 import TeamViewerPanel from './TeamViewerPanel';
 
@@ -262,6 +263,13 @@ function CustomerDetail({ record, onBack, onEdit, onCreateTicket }) {
         </div>
       )}
 
+      {/* Tickets des Kunden (Supabase, keyed by Kd.Nr. = mesonic_customer_id) */}
+      {number && (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 mt-4">
+          <TicketsPanel kdnr={number} />
+        </div>
+      )}
+
       {/* Nextcloud-Dokumentation (WebDAV, Ordner mit Kd.Nr. als Suffix) */}
       {number && (
         <div className="bg-white rounded-xl border border-slate-200 p-4 mt-4">
@@ -297,6 +305,36 @@ export default function CrmPage() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const inputRef = useRef(null);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Deep-link zurück aus einem Ticket: "/crm?kdnr=<Nr>" öffnet direkt die
+  // Detailansicht dieses Kunden (statt der Suche). Danach wird der Parameter
+  // entfernt, damit ein späterer Wechsel zur Suche nicht wieder aufspringt.
+  useEffect(() => {
+    const kdnr = searchParams.get('kdnr');
+    if (!kdnr) return undefined;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getCustomer(kdnr)
+      .then((data) => {
+        if (cancelled) return;
+        const record = data?.records?.[0];
+        if (record) {
+          setSelectedCustomer(record);
+          setView('detail');
+        }
+      })
+      .catch((e) => { if (!cancelled) setError(e.message); })
+      .finally(() => {
+        if (cancelled) return;
+        setLoading(false);
+        // Erst nach dem Laden entfernen — ein früheres Clearen würde den
+        // Cleanup auslösen und den laufenden Abruf abbrechen.
+        setSearchParams({}, { replace: true });
+      });
+    return () => { cancelled = true; };
+  }, [searchParams, setSearchParams]);
 
   // Map a Mesonic customer record to the shape TicketForm expects
   // as initialCustomer. Same projection CustomerPicker emits.
