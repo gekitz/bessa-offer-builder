@@ -9,11 +9,11 @@ import { saveCustomer, validateCustomer } from '../lib/mesonicApi';
 // The fields we show in the form. Keys are the canonical WebKontenImport /
 // WebKontenExport tag names, so edit-prefill (from an export record) and
 // create both map straight through saveCustomer() → buildKontenImportXml().
-// Fields NOT in the WebKontenImport XSD (Anrede, Fax, Homepage, UID) are
-// intentionally omitted — Mesonic would silently drop them. UID can return
-// once the import template supports it. The mandatory ERP fields (Kennzeichen,
-// BKZ1, Preisliste, …) are filled by buildKontenImportXml defaults, so they're
-// not part of the form.
+// UID uses the form key 'UID'; buildKontenImportXml aliases it to the import
+// element 'IDNr' (T058.C022). Fields NOT in the WebKontenImport XSD (Anrede,
+// Fax, Homepage) stay omitted — Mesonic would silently drop them. The mandatory
+// ERP fields (Kennzeichen, BKZ1, Preisliste, …) are filled by
+// buildKontenImportXml defaults, so they're not part of the form.
 const FORM_FIELDS = [
   { key: 'Name', label: 'Firmenname', required: true, placeholder: 'z.B. KITZ Computer + Office GmbH', colSpan: 2 },
   { key: 'Vorname', label: 'Vorname (Ansprechpartner)', placeholder: 'z.B. Max' },
@@ -25,6 +25,7 @@ const FORM_FIELDS = [
   { key: 'Telefon', label: 'Telefon', placeholder: '+43 ...' },
   { key: 'Mobiltelefonnummer', label: 'Mobiltelefon', placeholder: '+43 ...' },
   { key: 'E-Mail', label: 'E-Mail', placeholder: 'name@firma.at', type: 'email' },
+  { key: 'UID', label: 'UID-Nummer', placeholder: 'z.B. ATU12345678', colSpan: 2 },
 ];
 
 export default function CustomerForm({ initialData, onSaved, onCancel }) {
@@ -36,6 +37,12 @@ export default function CustomerForm({ initialData, onSaved, onCancel }) {
     FORM_FIELDS.forEach(f => {
       initial[f.key] = (initialData && initialData[f.key]) || '';
     });
+    // UID kommt im Export als 'UID'/'T058_C022' (nicht als Import-Tag 'IDNr') —
+    // Prefill über die Export-Aliaskette überbrücken.
+    if (initialData && !initial.UID) {
+      initial.UID = initialData['UID-Nummer'] || initialData['UID-Nr.'] || initialData['UIDNr']
+        || initialData['T058_C022'] || initialData['T058.C022'] || '';
+    }
     // For edit, also keep the Kontonummer
     if (initialData?.Kontonummer) initial.Kontonummer = initialData.Kontonummer;
     return initial;

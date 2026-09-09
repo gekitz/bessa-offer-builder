@@ -94,9 +94,19 @@ describe('saveOffer', () => {
     expect(inserted.creator_email).toBe('g.kitz@kitz.co.at');
     expect(inserted.briefing).toBe('Kunde sucht 3 Kassen für neuen Standort, Eröffnung Juli');
     expect(inserted.customer_company).toBe('ACME');
+    expect(inserted.customer_uid).toBeNull();
     expect(inserted.total_monthly).toBe(30);
     expect(inserted.offer_data.cart).toEqual({ kassa: { qty: 1, tier: '12mo' } });
     expect(result).toEqual({ id: 'new-uuid' });
+  });
+
+  it('persists the customer UID-Nummer', async () => {
+    const chain = makeChain({ data: { id: 'uid-uuid' }, error: null });
+    fromMock.mockReturnValue(chain);
+
+    await saveOffer({ ...baseOfferArgs, customer: { ...baseOfferArgs.customer, uid: 'ATU12345678' } });
+
+    expect(chain.insert.mock.calls[0][0].customer_uid).toBe('ATU12345678');
   });
 
   it('trims whitespace from briefing and writes null when empty', async () => {

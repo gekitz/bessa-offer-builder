@@ -237,6 +237,7 @@ const KONTEN_IMPORT_ORDER = [
   'Ort',
   'Land',
   'Mobiltelefonnummer',
+  'IDNr',                  // UID-Nummer (T058.C022) — letztes Element der XSD-Sequenz
 ];
 
 const KONTEN_IMPORT_REQUIRED = new Set(KONTEN_IMPORT_ORDER.slice(0, 9));
@@ -265,6 +266,9 @@ const KONTEN_IMPORT_ALIASES = {
   Email: 'E-Mail',
   EMail: 'E-Mail',
   Mobiltelefon: 'Mobiltelefonnummer',
+  UID: 'IDNr',
+  'UID-Nummer': 'IDNr',
+  UIDNummer: 'IDNr',
 };
 
 /**

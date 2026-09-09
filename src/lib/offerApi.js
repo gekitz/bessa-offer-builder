@@ -27,6 +27,7 @@ export async function saveOffer({ id, customer, creator, creatorName, creatorEma
     customer_email: customer.email || null,
     customer_phone: customer.phone || null,
     customer_address: customer.address || null,
+    customer_uid: customer.uid || null,
     mesonic_customer_id: customer.mesonicId || null,
     creator_id: creator,
     creator_name: creatorName,
