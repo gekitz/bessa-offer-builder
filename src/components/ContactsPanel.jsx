@@ -1,19 +1,21 @@
 import { useState } from 'react';
-import { Loader2, Mail, Phone, Download, RefreshCw, Plus, X } from 'lucide-react';
-import { fetchContacts, contactDisplayName, createContact } from '../lib/mesonicContacts';
+import { Loader2, Mail, Phone, Download, RefreshCw, Plus, X, Pencil } from 'lucide-react';
+import { fetchContacts, contactDisplayName, createContact, updateContact } from '../lib/mesonicContacts';
 
 const EMPTY_FORM = { vorname: '', name: '', email: '', mobil: '', abteilung: '' };
 
 // Ansprechpartner eines Kontos (Mesonic Type 7, WEBKontakt). Anzeige auf Abruf —
 // ein Export-Call liefert alle Kontakte des Kunden (wenige), daher ohne
 // Cache/Pagination. Neue Ansprechpartner werden über dieselbe Vorlage (Type 7)
-// nach Mesonic geschrieben. Keyed by Kontonummer, überall wiederverwendbar.
+// nach Mesonic geschrieben, bestehende über ihre Kontaktnummer aktualisiert.
+// Keyed by Kontonummer, überall wiederverwendbar.
 export default function ContactsPanel({ kdnr }) {
   const [contacts, setContacts] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null); // Contact | null (null = Neuanlage)
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
@@ -30,7 +32,28 @@ export default function ContactsPanel({ kdnr }) {
     }
   }
 
-  function updateForm(patch) {
+  function openCreate() {
+    setEditing(null);
+    setForm(EMPTY_FORM);
+    setSaveError(null);
+    setShowForm(true);
+  }
+
+  function openEdit(c) {
+    setEditing(c);
+    setForm({ vorname: c.vorname, name: c.name, email: c.email, mobil: c.mobil, abteilung: c.abteilung });
+    setSaveError(null);
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditing(null);
+    setForm(EMPTY_FORM);
+    setSaveError(null);
+  }
+
+  function updateFormField(patch) {
     setForm((f) => ({ ...f, ...patch }));
   }
 
@@ -38,14 +61,13 @@ export default function ContactsPanel({ kdnr }) {
     setSaving(true);
     setSaveError(null);
     try {
-      const res = await createContact(kdnr, form);
+      const res = editing ? await updateContact(editing, form) : await createContact(kdnr, form);
       if (res && res.success === false) {
         setSaveError(res.error || 'Speichern fehlgeschlagen.');
         return;
       }
-      setForm(EMPTY_FORM);
-      setShowForm(false);
-      await load(); // frisch geladene Liste zeigt den neuen Kontakt
+      closeForm();
+      await load(); // frisch geladene Liste zeigt die Änderung
     } catch (e) {
       setSaveError(e.message);
     } finally {
@@ -67,7 +89,7 @@ export default function ContactsPanel({ kdnr }) {
             </button>
           )}
           <button
-            onClick={() => { setShowForm((v) => !v); setSaveError(null); }}
+            onClick={() => (showForm ? closeForm() : openCreate())}
             className="inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
           >
             {showForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
@@ -78,42 +100,48 @@ export default function ContactsPanel({ kdnr }) {
 
       {showForm && (
         <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+          <div className="text-xs font-medium text-slate-500">
+            {editing ? `Ansprechpartner bearbeiten · ${editing.kontaktnummer}` : 'Neuer Ansprechpartner'}
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <input
               placeholder="Vorname"
               value={form.vorname}
-              onChange={(e) => updateForm({ vorname: e.target.value })}
+              onChange={(e) => updateFormField({ vorname: e.target.value })}
               className="w-full min-w-0 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
             />
             <input
               placeholder="Nachname *"
               value={form.name}
-              onChange={(e) => updateForm({ name: e.target.value })}
+              onChange={(e) => updateFormField({ name: e.target.value })}
               className="w-full min-w-0 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
             />
             <input
               type="email"
               placeholder="E-Mail"
               value={form.email}
-              onChange={(e) => updateForm({ email: e.target.value })}
+              onChange={(e) => updateFormField({ email: e.target.value })}
               className="w-full min-w-0 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
             />
             <input
               type="tel"
               placeholder="Mobil"
               value={form.mobil}
-              onChange={(e) => updateForm({ mobil: e.target.value })}
+              onChange={(e) => updateFormField({ mobil: e.target.value })}
               className="w-full min-w-0 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
             />
           </div>
           <input
             placeholder="Abteilung"
             value={form.abteilung}
-            onChange={(e) => updateForm({ abteilung: e.target.value })}
+            onChange={(e) => updateFormField({ abteilung: e.target.value })}
             className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
           />
           {saveError && <p className="text-xs text-rose-600">{saveError}</p>}
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <button onClick={closeForm} className="px-3 py-1.5 text-xs rounded-lg text-slate-500 hover:bg-slate-200">
+              Abbrechen
+            </button>
             <button
               onClick={save}
               disabled={!canSave}
@@ -143,8 +171,17 @@ export default function ContactsPanel({ kdnr }) {
       ) : (
         <ul className="space-y-2">
           {contacts.map((c, i) => (
-            <li key={i} className="rounded-lg border border-slate-200 px-3 py-2">
-              <div className="text-sm font-medium text-slate-800">
+            <li key={i} className="group relative rounded-lg border border-slate-200 px-3 py-2">
+              {c.kontaktnummer && (
+                <button
+                  onClick={() => openEdit(c)}
+                  title="Bearbeiten"
+                  className="absolute right-2 top-2 text-slate-300 hover:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <div className="text-sm font-medium text-slate-800 pr-6">
                 {contactDisplayName(c)}
                 {c.abteilung && <span className="ml-1 font-normal text-slate-400">· {c.abteilung}</span>}
               </div>

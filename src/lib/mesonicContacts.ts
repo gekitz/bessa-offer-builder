@@ -70,20 +70,48 @@ export async function fetchContacts(kdnr: string): Promise<Contact[]> {
     .filter((c) => c.name || c.vorname || c.email || c.mobil);
 }
 
-// Legt einen Ansprechpartner in Mesonic an (Type 7, Vorlage WEBKontakt). Dünne
-// Hülle um saveContact, die die UI-Feldnamen auf die XSD-Tag-Namen abbildet.
-//
-// Die Verknüpfung zum Konto steckt in der Kontaktnummer "<Kontonummer>-+"
-// (+ = nächste freie Laufnummer). Ein einzelnes Mobil-Feld der UI landet in
+// UI-Feldnamen → XSD-Tag-Namen. Ein einzelnes Mobil-Feld der UI landet in
 // MobiltelefonNummer (Land/Vorwahl bleiben leer — freier Text lässt sich nicht
 // verlässlich zerlegen).
-export async function createContact(kdnr: string, input: NewContactInput) {
-  return saveContact({
-    Kontaktnummer: `${String(kdnr).trim()}-+`,
+function contactFields(input: NewContactInput) {
+  return {
     Name: input.name?.trim(),
     Vorname: input.vorname?.trim(),
     eMailadresse: input.email?.trim(),
     Abteilung: input.abteilung?.trim(),
     MobiltelefonNummer: input.mobil?.trim(),
-  });
+  };
+}
+
+// Legt einen Ansprechpartner in Mesonic an (Type 7, Vorlage WEBKontakt). Die
+// Verknüpfung zum Konto steckt in der Kontaktnummer "<Kontonummer>-+"
+// (+ = nächste freie Laufnummer).
+export async function createContact(kdnr: string, input: NewContactInput) {
+  return saveContact({ Kontaktnummer: `${String(kdnr).trim()}-+`, ...contactFields(input) });
+}
+
+// Ändert einen bestehenden Ansprechpartner. Schlüssel ist die vorhandene
+// Kontaktnummer (z. B. "230A001-7") — ein konkreter Wert statt "-+" bedeutet
+// für WinLine "diesen Datensatz aktualisieren" (analog Konten/Belege).
+//
+// Es werden NUR tatsächlich geänderte optionale Felder mitgeschickt; unveränderte
+// bleiben in WinLine unangetastet (leere Werte können via XML ohnehin nicht
+// gelöscht werden). Name (Pflicht) wird immer gesetzt.
+export async function updateContact(original: Contact, input: NewContactInput) {
+  if (!original.kontaktnummer?.trim()) {
+    throw new Error('updateContact: Kontaktnummer fehlt – Bearbeiten nicht möglich');
+  }
+  const fields: Record<string, string | undefined> = {
+    Kontaktnummer: original.kontaktnummer.trim(),
+    Name: (input.name ?? '').trim(),
+  };
+  const vorname = (input.vorname ?? '').trim();
+  const email = (input.email ?? '').trim();
+  const abteilung = (input.abteilung ?? '').trim();
+  const mobil = (input.mobil ?? '').trim();
+  if (vorname !== original.vorname) fields.Vorname = vorname;
+  if (email !== original.email) fields.eMailadresse = email;
+  if (abteilung !== original.abteilung) fields.Abteilung = abteilung;
+  if (mobil !== original.mobil) fields.MobiltelefonNummer = mobil;
+  return saveContact(fields);
 }
