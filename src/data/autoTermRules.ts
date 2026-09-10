@@ -1,3 +1,5 @@
+import { formatKmRate } from '../lib/rates';
+
 export type CartLike = Record<string, unknown>;
 
 export interface AutoTermRule {
@@ -20,7 +22,7 @@ export const AUTO_TERM_RULES: readonly AutoTermRule[] = [
   {
     id: 'travel-billing',
     condition: () => true,
-    text: 'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
+    text: `Arbeitszeit, Wegzeit und KM-Geld (à ${formatKmRate()}) werden nach tatsächlichem Aufwand verrechnet.`,
   },
   {
     id: 'network-cabling',
