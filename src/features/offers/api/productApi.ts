@@ -36,6 +36,9 @@ export interface Product {
   ean: string | null;
   // Pulsa-Bestellnummer (von "Abgleichen" gesetzt) — analog jarltechItemId.
   pulsaBestellnummer: string | null;
+  // Als serialisiertes Gerät geliefert → treibt die Seriennummer-Erfassung
+  // (pro Stück) auf dem Lieferschein. Siehe docs/ticket-lieferschein.md.
+  isSerialized: boolean;
 }
 
 export interface ProductInput {
@@ -58,9 +61,10 @@ export interface ProductInput {
   manufacturerSku?: string | null;
   ean?: string | null;
   pulsaBestellnummer?: string | null;
+  isSerialized?: boolean;
 }
 
-const COLS = 'id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, active, sort, supplier_id, alt_supplier_ids, jarltech_item_id, supplier_article_no, manufacturer_sku, ean, pulsa_bestellnummer';
+const COLS = 'id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, active, sort, supplier_id, alt_supplier_ids, jarltech_item_id, supplier_article_no, manufacturer_sku, ean, pulsa_bestellnummer, is_serialized';
 
 function requireSb(): NonNullable<typeof supabase> {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -89,6 +93,7 @@ function rowToProduct(r: Record<string, unknown>): Product {
     manufacturerSku: (r.manufacturer_sku as string) ?? null,
     ean: (r.ean as string) ?? null,
     pulsaBestellnummer: (r.pulsa_bestellnummer as string) ?? null,
+    isSerialized: !!r.is_serialized,
   };
 }
 
@@ -129,6 +134,7 @@ export async function updateProduct(
   if (patch.manufacturerSku !== undefined) db.manufacturer_sku = patch.manufacturerSku;
   if (patch.ean !== undefined) db.ean = patch.ean;
   if (patch.pulsaBestellnummer !== undefined) db.pulsa_bestellnummer = patch.pulsaBestellnummer;
+  if (patch.isSerialized !== undefined) db.is_serialized = patch.isSerialized;
   const { data, error } = await sb.from('products').update(db).eq('id', id).select(COLS).single();
   if (error) throw new Error(error.message);
   return rowToProduct(data);
@@ -164,6 +170,7 @@ export async function createProduct(input: ProductInput): Promise<Product> {
       manufacturer_sku: input.manufacturerSku ?? null,
       ean: input.ean ?? null,
       pulsa_bestellnummer: input.pulsaBestellnummer ?? null,
+      is_serialized: input.isSerialized ?? false,
     })
     .select(COLS)
     .single();
