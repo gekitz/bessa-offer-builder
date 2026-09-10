@@ -159,7 +159,7 @@ export function calcRepairOrderBilling(args: CalcRepairOrderArgs): RepairOrderBi
         travelTotal += total;
       }
     } else if (entry.travelMode === 'km_plus_wegzeit' && entry.travelKm != null) {
-      // KM-Geld €0.57 + Wegzeit zum Stundensatz
+      // KM-Geld (rate aus service_rates, aktuell €0.75) + Wegzeit zum Stundensatz
       const kmRate = rateMap.get('KM_PLUS_WEGZEIT');
       if (kmRate) {
         const total = round2(entry.travelKm * kmRate.rate);
