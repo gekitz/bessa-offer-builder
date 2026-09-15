@@ -23,6 +23,11 @@ interface Customer {
   company?: string;
 }
 
+interface TakeBack {
+  name?: string;
+  value?: number;
+}
+
 interface SignModalProps {
   customer: Customer;
   totals: OfferTotals;
@@ -30,17 +35,19 @@ interface SignModalProps {
   globalTier: TierKey;
   rabattActive?: boolean;
   skontoActive?: boolean;
+  takeBack?: TakeBack | null;
   onConfirm: (signatures: SignSignatures) => Promise<void> | void;
   onClose: () => void;
 }
 
-export default function SignModal({ customer, totals, finanzOpen, globalTier, rabattActive = false, skontoActive = false, onConfirm, onClose }: SignModalProps) {
+export default function SignModal({ customer, totals, finanzOpen, globalTier, rabattActive = false, skontoActive = false, takeBack = null, onConfirm, onClose }: SignModalProps) {
   const offerPadRef = useRef<SignaturePadHandle>(null);
   const sepaPadRef = useRef<SignaturePadHandle>(null);
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const showSepa = finanzOpen && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0);
-  const discount = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive });
+  const takeBackNet = Number(takeBack?.value) > 0 ? Number(takeBack!.value) : 0;
+  const discount = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive, takeBack: takeBackNet });
 
   async function handleConfirm() {
     if (offerPadRef.current?.isEmpty()) { setError('Bitte Auftragsbestätigung unterschreiben.'); return; }
@@ -98,11 +105,19 @@ export default function SignModal({ customer, totals, finanzOpen, globalTier, ra
               <div className="font-bold text-slate-800">{TIER_LABEL_MAP[globalTier] || globalTier}</div>
             </div>
           </div>
-          {(rabattActive || skontoActive) && (
+          {(rabattActive || skontoActive || takeBackNet > 0) && (
             <div className="mt-3 pt-3 border-t border-slate-200 text-sm space-y-1">
-              {rabattActive && (
+              {takeBackNet > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-slate-500">inkl. 2% Rabatt (erstes Jahr)</span>
+                  <span className="text-slate-500">abzgl. {takeBack?.name || 'Hardware-Rücknahme'}</span>
+                  <span className="font-semibold text-emerald-600">− € {fmt(discount.takeBack)} netto</span>
+                </div>
+              )}
+              {(rabattActive || takeBackNet > 0) && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">
+                    Gesamt (erstes Jahr){rabattActive ? ', inkl. 2% Rabatt' : ''}
+                  </span>
                   <span className="font-semibold text-emerald-600">€ {fmt(discount.brutto)} brutto</span>
                 </div>
               )}

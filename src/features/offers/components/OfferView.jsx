@@ -90,6 +90,8 @@ export default function OfferView({
   setRabattActive,
   skontoActive,
   setSkontoActive,
+  takeBack = null,
+  setTakeBack = () => {},
   serviceStartDate,
   setServiceStartDate,
   billingEnabled = false,
@@ -166,10 +168,13 @@ export default function OfferView({
   }
 
   const periodNetto = totals.periodTotal;
+  // Hardware take-back (Hardware-Rücknahme): a net credit for used hardware the
+  // customer hands back, deducted from the total after the Rabatt.
+  const takeBackNet = Number(takeBack?.value) > 0 ? Number(takeBack.value) : 0;
   // Rabatt (2%) is a real reduction of the first-year deal and flows into the
   // financing figures; Skonto (3%) is a pay-in-full incentive shown as a note
   // and never affects financing. See src/lib/discounts.ts.
-  const discount = computeDiscounts(periodNetto, { rabattActive, skontoActive });
+  const discount = computeDiscounts(periodNetto, { rabattActive, skontoActive, takeBack: takeBackNet });
   const periodBrutto = discount.brutto;
   // Financing figures via the shared module the Stripe charge also uses.
   const planPricing = computePlanPricing({
@@ -178,6 +183,7 @@ export default function OfferView({
     yearlyNet: totals.yearly,
     periodNet: totals.periodTotal,
     rabattActive,
+    takeBack: takeBackNet,
     months: totals.maxMonths,
     raten,
   });
@@ -562,7 +568,7 @@ export default function OfferView({
                 )}
               </div>
               <div className="text-right">
-                {rabattActive ? (
+                {(rabattActive || takeBackNet > 0) ? (
                   <>
                     <div className="text-xs text-slate-500 line-through">€ {fmt(discount.baseNetto * 1.2)} brutto</div>
                     <div className="text-sm text-slate-400">€ {fmt(discount.netto)} netto</div>
@@ -580,6 +586,12 @@ export default function OfferView({
               <div className="flex justify-between items-center text-xs text-slate-300 -mt-1">
                 <span>inkl. 2% Rabatt</span>
                 <span className="text-emerald-400">− € {fmt(discount.rabattAmount)} netto</span>
+              </div>
+            )}
+            {takeBackNet > 0 && (
+              <div className="flex justify-between items-center text-xs text-slate-300 -mt-1">
+                <span>abzgl. {takeBack.name || 'Hardware-Rücknahme'}</span>
+                <span className="text-emerald-400">− € {fmt(discount.takeBack)} netto</span>
               </div>
             )}
             {(totals.monthly > 0 && totals.once > 0) || totals.yearly > 0 ? (
@@ -713,6 +725,56 @@ export default function OfferView({
           <ul className="list-disc pl-5 text-amber-900 space-y-1" style={{ fontSize: 12 }}>
             {autoTerms.map((t, i) => <li key={i}>{t}</li>)}
           </ul>
+        </div>
+      )}
+
+      {/* Hardware take-back (Hardware-Rücknahme) — a net credit for used
+          hardware handed back by the customer. Reduces the offer total; for
+          copier offers it lowers the Kauf net and the leasing base. Shown for
+          all sale offer types (not for a one-off Leihstellung). */}
+      {!isRental && (
+        <div className="bg-white rounded-xl border-2 border-slate-200 mb-4" style={{ padding: '16px' }}>
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-slate-700 block" style={{ fontSize: 13 }}>Hardware-Rücknahme</span>
+            {!locked && (
+              <button
+                type="button"
+                onClick={() => setTakeBack(takeBack ? null : { name: '', value: 0 })}
+                className={`px-2.5 py-1 rounded-full font-medium transition-colors ${takeBack ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                style={{ fontSize: 11 }}
+              >
+                {takeBack ? 'Aktiv' : 'Hinzufügen'}
+              </button>
+            )}
+          </div>
+          {takeBack && (
+            <>
+              <div className="flex gap-2 mt-3">
+                <input
+                  type="text"
+                  value={takeBack.name || ''}
+                  disabled={locked}
+                  onChange={e => setTakeBack({ ...takeBack, name: e.target.value })}
+                  placeholder="Bezeichnung (z.B. Alte Kassa)"
+                  className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 disabled:bg-slate-50"
+                />
+                <div className="relative w-36">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">€</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={takeBack.value || ''}
+                    disabled={locked}
+                    onChange={e => setTakeBack({ ...takeBack, value: parseFloat(e.target.value) || 0 })}
+                    placeholder="0"
+                    className="w-full border border-slate-200 rounded-lg pl-7 pr-3 py-2 text-sm text-right focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 disabled:bg-slate-50"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 mt-1.5">Netto-Gutschrift — wird vom Gesamtbetrag abgezogen.</p>
+            </>
+          )}
         </div>
       )}
 

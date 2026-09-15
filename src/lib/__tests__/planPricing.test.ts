@@ -65,6 +65,32 @@ describe('computePlanPricing', () => {
     expect(discounted.miete.depositBrutto).toBe(MIETE_DEPOSIT_BRUTTO);
   });
 
+  it('Hardware-Rücknahme reduces the financing base and the standard once amount', () => {
+    const plain = computePlanPricing(BASIS);
+    const withTakeBack = computePlanPricing({ ...BASIS, takeBack: 300 });
+
+    // Standard: the one-time credit lands on the once bucket only.
+    expect(withTakeBack.standard.onceBrutto).toBeCloseTo((500 - 300) * VAT, 10);
+    expect(withTakeBack.standard.monthlyBrutto).toBeCloseTo(plain.standard.monthlyBrutto, 10);
+    expect(withTakeBack.standard.yearlyBrutto).toBeCloseTo(plain.standard.yearlyBrutto, 10);
+
+    // Financed plans price off (periodNet − takeBack).
+    expect(withTakeBack.ratenzahlung.totalBrutto).toBeCloseTo((1750 - 300) * VAT * FIN_SURCHARGE, 10);
+    expect(withTakeBack.miete.monthlyBrutto).toBeCloseTo((((1750 - 300) * VAT) / 12) * FIN_SURCHARGE, 10);
+  });
+
+  it('stacks Rabatt (on goods) then Hardware-Rücknahme on the financing base', () => {
+    const p = computePlanPricing({ ...BASIS, rabattActive: true, takeBack: 300 });
+    // financedNet = 1750 × (1 − 2%) − 300 = 1415
+    expect(p.ratenzahlung.totalBrutto).toBeCloseTo(1415 * VAT * FIN_SURCHARGE, 10);
+  });
+
+  it('treats a non-positive take-back as a no-op', () => {
+    const plain = computePlanPricing(BASIS);
+    expect(computePlanPricing({ ...BASIS, takeBack: 0 })).toEqual(plain);
+    expect(computePlanPricing({ ...BASIS, takeBack: -50 })).toEqual(plain);
+  });
+
   it('guards against zero months/raten instead of dividing by zero', () => {
     const p = computePlanPricing({ ...BASIS, months: 0, raten: 0 });
     expect(Number.isFinite(p.miete.monthlyBrutto)).toBe(true);
@@ -87,6 +113,7 @@ describe('planBasisFromOffer', () => {
       onceNet: 500,
       yearlyNet: 50,
       periodNet: 1750,
+      takeBack: 0,
       months: 12,
       raten: 6,
       rabattActive: true,
@@ -124,10 +151,18 @@ describe('planBasisFromOffer', () => {
       onceNet: 0,
       yearlyNet: 0,
       periodNet: 0,
+      takeBack: 0,
       months: 12,
       raten: 12,
       rabattActive: false,
     });
+  });
+
+  it('reads the frozen take-back from the acceptSnapshot', () => {
+    const basis = planBasisFromOffer({
+      offer_data: { acceptSnapshot: { ...snapshot, takeBack: 300 } },
+    });
+    expect(basis.takeBack).toBe(300);
   });
 });
 

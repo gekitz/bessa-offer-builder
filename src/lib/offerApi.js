@@ -1,13 +1,16 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', lieferung = undefined, zahlungsziel = undefined, rental = null, paymentEnabled = false, acceptSnapshot = undefined }) {
+export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, takeBack = null, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', lieferung = undefined, zahlungsziel = undefined, rental = null, paymentEnabled = false, acceptSnapshot = undefined }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   // offer_type lives in a top-level column (source of truth for the
   // list filter) but is also mirrored into offer_data so the share /
   // URL load path — which only reads offer_data — restores it too.
   const offerData = { cart, globalTier, notes, raten, finanzOpen, rabattActive: !!rabattActive, skontoActive: !!skontoActive, address: customer.address || '', mandatsRef: mandatsRef || '', offerType };
+  // Hardware take-back (Hardware-Rücknahme) — a net credit for used hardware
+  // handed back. Persisted only when set so untouched offers stay unchanged.
+  if (takeBack && Number(takeBack.value) > 0) offerData.takeBack = { name: takeBack.name || '', value: Number(takeBack.value) };
   // Brother-only delivery/payment picks — persisted so the auto-terms restore
   // on reload. Omitted for other offer types (they use the fixed defaults).
   if (lieferung) offerData.lieferung = lieferung;
