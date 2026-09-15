@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { AUTO_TERM_RULES, computeAutoTerms } from '../autoTermRules';
+import { formatKmRate } from '../../lib/rates';
+
+// Derived from the single km-rate source so this test never drifts from the
+// actual figure printed on offers.
+const TRAVEL_TERM = `Arbeitszeit, Wegzeit und KM-Geld (à ${formatKmRate()}) werden nach tatsächlichem Aufwand verrechnet.`;
 
 describe('AUTO_TERM_RULES', () => {
   it('exposes unique ids', () => {
@@ -21,7 +26,7 @@ describe('computeAutoTerms', () => {
     expect(computeAutoTerms({})).toEqual([
       'Lieferzeit: 2 Wochen',
       'Zahlungsziel: 10 Tage netto Kassa',
-      'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
+      TRAVEL_TERM,
     ]);
   });
 
@@ -42,7 +47,7 @@ describe('computeAutoTerms', () => {
     expect(computeAutoTerms(cart)).toEqual([
       'Lieferzeit: 2 Wochen',
       'Zahlungsziel: 10 Tage netto Kassa',
-      'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
+      TRAVEL_TERM,
       'Kabel müssen vom Kunden eigenständig verlegt werden',
     ]);
   });
@@ -53,7 +58,7 @@ describe('computeAutoTerms', () => {
     ).toEqual([
       'Lieferzeit: 2 Wochen',
       'Zahlungsziel: 10 Tage netto Kassa',
-      'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
+      TRAVEL_TERM,
     ]);
   });
 
@@ -62,7 +67,7 @@ describe('computeAutoTerms', () => {
       expect(computeAutoTerms({}, { offerType: 'brother' })).toEqual([
         'Lieferzeit: lagernd',
         'Zahlungsziel: netto Kassa',
-        'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
+        TRAVEL_TERM,
       ]);
     });
 

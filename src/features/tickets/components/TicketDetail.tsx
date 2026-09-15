@@ -617,7 +617,7 @@ export default function TicketDetail({ ticketId, onBack, currentEmployeeId = nul
             <MessageSquare size={14} className="text-slate-500" />
             <span className="text-xs font-medium text-slate-600">Verlauf & Kommentare</span>
           </div>
-          <TicketComments ticketId={ticket.id} currentEmployeeId={currentEmployeeId} />
+          <TicketComments ticketId={ticket.id} currentEmployeeId={currentEmployeeId} employees={employees} />
         </div>
       )}
 

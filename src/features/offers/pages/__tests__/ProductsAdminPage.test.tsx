@@ -39,6 +39,7 @@ function makeProduct(over: Partial<productApi.Product>): productApi.Product {
     manufacturerSku: null,
     ean: null,
     pulsaBestellnummer: null,
+    isSerialized: false,
     ...over,
   };
 }
@@ -102,6 +103,18 @@ describe('ProductsAdminPage — Kategorie picker', () => {
       expect(productApi.updateProduct).toHaveBeenCalledWith(
         'p3',
         expect.objectContaining({ category: 'Kassa – Gastro' }),
+      ),
+    );
+  });
+
+  it('saves the serialized flag from the editor toggle', async () => {
+    await openEditor('Freies Produkt');
+    fireEvent.click(screen.getByLabelText(/Serialisiertes Gerät/i));
+    fireEvent.click(screen.getByRole('button', { name: /speichern/i }));
+    await waitFor(() =>
+      expect(productApi.updateProduct).toHaveBeenCalledWith(
+        'p3',
+        expect.objectContaining({ isSerialized: true }),
       ),
     );
   });
