@@ -44,3 +44,9 @@ verify_jwt = true
 
 [functions.stripe-complete-acceptance]
 verify_jwt = true
+
+# Invoked by logged-in staff from the Kampagnen back-office to send a wave.
+# Gateway-level JWT enforcement stays ON (the authed client forwards the SSO
+# session JWT via functions.invoke, like mesonic-proxy / notify-viertl-closure).
+[functions.send-campaign]
+verify_jwt = true
