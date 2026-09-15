@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { AUTO_TERM_RULES, computeAutoTerms } from '../autoTermRules';
 import { formatKmRate } from '../../lib/rates';
+import { RENTAL_LINE_ID } from '../../lib/rentalOffer';
+
+const CLEANING_TERM =
+  'Die Geräte sind vollständig inkl Netzteilen gesäubert zu retounieren. ' +
+  'Sollten wir nachträglich eine Reinigung durchführen müssen wird die Reinigungspauschale verrechnet.';
 
 // Derived from the single km-rate source so this test never drifts from the
 // actual figure printed on offers.
@@ -40,6 +45,15 @@ describe('computeAutoTerms', () => {
     expect(computeAutoTerms(cart)).not.toContain(
       'Kabel müssen vom Kunden eigenständig verlegt werden',
     );
+  });
+
+  it('appends the cleaning condition when the rental line is in the cart', () => {
+    const cart = { [RENTAL_LINE_ID]: { qty: 1 } };
+    expect(computeAutoTerms(cart)).toContain(CLEANING_TERM);
+  });
+
+  it('does not append the cleaning condition for a non-rental cart', () => {
+    expect(computeAutoTerms({ 'kassa-pro': { qty: 1 } })).not.toContain(CLEANING_TERM);
   });
 
   it('preserves insertion order from AUTO_TERM_RULES', () => {
