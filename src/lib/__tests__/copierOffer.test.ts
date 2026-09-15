@@ -140,6 +140,47 @@ describe('buildCopierOffer — Leasing (Grenke factor)', () => {
   });
 });
 
+describe('buildCopierOffer — offer-level Hardware-Rücknahme (take-back)', () => {
+  it('folds an offer-level take-back into the trade-in credit and the Kauf net', () => {
+    const cart: Cart = { [BP51C26]: { qty: 1, priceOverride: 3180, saleMode: 'kauf' } };
+    const offer = buildCopierOffer(cart, ALL, { takeBack: { name: 'Alte Kassa', value: 650 } });
+    expect(offer.assetBase).toBe(3624.73); // 3180 + 194,73 + 250
+    expect(offer.tradeInTotal).toBe(650);
+    expect(offer.net).toBe(2974.73); // same figure as the per-device sample
+    const tradein = offer.lines.find((l) => l.kind === 'tradein');
+    expect(tradein?.unitPrice).toBe(-650);
+    expect(tradein?.name).toBe('Alte Kassa');
+  });
+
+  it('reduces the leasing financed base (and the rate) like a trade-in', () => {
+    const cart: Cart = { [BP51C26]: { qty: 1, priceOverride: 3180, saleMode: 'leasing' } };
+    const offer = buildCopierOffer(cart, ALL, { takeBack: { name: 'Alte Kassa', value: 650 } });
+    // 3624,73 − 650 = 2974,73 financed → €58,90/mo (same as the sample trade-in).
+    expect(offer.financedBase).toBe(2974.73);
+    expect(offer.leasing.rate).toBe(58.9);
+  });
+
+  it('stacks the offer-level take-back on top of a per-device trade-in', () => {
+    const cart: Cart = {
+      [BP51C26]: { qty: 1, saleMode: 'kauf', tradeIn: { name: 'Sharp MX', value: 400 } },
+    };
+    const offer = buildCopierOffer(cart, ALL, { takeBack: { name: 'Alte Kassa', value: 250 } });
+    expect(offer.tradeInTotal).toBe(650); // 400 + 250
+    expect(offer.net).toBe(2944.73); // 3594,73 (list price) − 650
+    const tradeins = offer.lines.filter((l) => l.kind === 'tradein');
+    expect(tradeins).toHaveLength(2);
+  });
+
+  it('is a no-op when the take-back is absent, zero or negative', () => {
+    const cart: Cart = { [BP51C26]: { qty: 1, saleMode: 'kauf' } };
+    const base = buildCopierOffer(cart, ALL);
+    expect(buildCopierOffer(cart, ALL, {}).net).toBe(base.net);
+    expect(buildCopierOffer(cart, ALL, { takeBack: { value: 0 } }).net).toBe(base.net);
+    expect(buildCopierOffer(cart, ALL, { takeBack: { value: -50 } }).net).toBe(base.net);
+    expect(buildCopierOffer(cart, ALL, { takeBack: { value: 0 } }).lines.some((l) => l.kind === 'tradein')).toBe(false);
+  });
+});
+
 describe('buildCopierOffer — accessories', () => {
   it('adds Sharp accessories to the base and as one-time lines', () => {
     const cart: Cart = {

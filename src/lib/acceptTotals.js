@@ -41,17 +41,20 @@ function computeLabor(cart, catalog) {
 // excluded). Custom items aren't in the passed catalog, so they're merged
 // in; a catalog entry wins over a stale custom copy of the same id.
 //
-// offerData: { cart, customItems } (offer.offer_data)
+// offerData: { cart, customItems, takeBack } (offer.offer_data)
 // catalog:   the product lookup (ALL)
-// returns:   { monthly, once, yearly, periodTotal, maxMonths,
-//              laborMinutes, laborAmount } — all NET. laborMinutes/laborAmount
-//              freeze the quoted Arbeitszeit (kind:'h') for the fulfillment
-//              ticket's labor-hours floor.
+// returns:   { monthly, once, yearly, periodTotal, maxMonths, takeBack,
+//              laborMinutes, laborAmount } — all NET. takeBack freezes the
+//              Hardware-Rücknahme net credit so the accept page / Stripe charge
+//              the reduced total. laborMinutes/laborAmount freeze the quoted
+//              Arbeitszeit (kind:'h') for the fulfillment ticket's labor floor.
 export function computeAcceptTotals(offerData, catalog) {
   const data = offerData || {};
   const merged = { ...(data.customItems || {}), ...catalog };
   const cart = data.cart || {};
   const { monthly, once, yearly, periodTotal, maxMonths } = computeTotals(cart, merged);
   const { laborMinutes, laborAmount } = computeLabor(cart, merged);
-  return { monthly, once, yearly, periodTotal, maxMonths, laborMinutes, laborAmount };
+  const tb = Number(data.takeBack?.value);
+  const takeBack = Number.isFinite(tb) && tb > 0 ? round2(tb) : 0;
+  return { monthly, once, yearly, periodTotal, maxMonths, takeBack, laborMinutes, laborAmount };
 }
