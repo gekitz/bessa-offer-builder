@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { attributeCampaignEvent } from './campaignAttribution.ts';
 
 async function verifyWebhookSignature(
   body: string,
@@ -97,6 +98,26 @@ serve(async (req: Request) => {
     if (!resendEmailId) {
       return new Response(JSON.stringify({ error: 'no email_id' }), {
         status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Campaign attribution — additive and MUST run BEFORE the
+    // email_events 404 below. A campaign email has NO email_events row,
+    // so it would otherwise hit "offer not found for email_id" and the
+    // campaign funnel would never be stamped. resend_id namespaces are
+    // disjoint: campaign sends write it only onto campaign_recipients;
+    // offer sends only into email_events.metadata. On a hit we early-
+    // return so the offers.status path is never reached for campaigns.
+    const nowIso = new Date().toISOString();
+    const campaignResult = await attributeCampaignEvent(
+      supabase,
+      resendEmailId,
+      eventType,
+      nowIso,
+    );
+    if (campaignResult.matched) {
+      return new Response(JSON.stringify({ success: true, campaign: true }), {
         headers: { 'Content-Type': 'application/json' },
       });
     }
