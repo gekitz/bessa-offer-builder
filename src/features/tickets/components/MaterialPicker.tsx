@@ -1,46 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, Loader2, Package, Search, X } from 'lucide-react';
-import { searchArticles } from '../../../lib/mesonicApi';
+import { baseArticleNumber, searchArticles } from '../../../lib/mesonicApi';
+import { normaliseArticle, type MesonicArticle } from '../../../lib/mesonicArticles';
 import type { RepairOrderMaterialInput } from '../types';
 
 interface MaterialPickerProps {
   onSelect: (input: RepairOrderMaterialInput) => Promise<void> | void;
   onClose: () => void;
-}
-
-interface MesonicArticle {
-  raw: Record<string, unknown>;
-  number: string;
-  name: string;
-  group?: string;
-  hintedPrice?: number;
-}
-
-// Mesonic articles come back with verbose / inconsistent field names —
-// either `Artikelbezeichnung`, `Bezeichnung`, the raw `T024_C003`
-// alias, or the dotted `T024.C003`. We probe in order.
-function pickField(rec: Record<string, unknown>, ...candidates: string[]): string {
-  for (const c of candidates) {
-    const v = rec[c];
-    if (v != null && v !== '') return String(v);
-  }
-  return '';
-}
-
-function normaliseArticle(raw: Record<string, unknown>): MesonicArticle | null {
-  const name = pickField(raw, 'Artikelbezeichnung', 'Bezeichnung', 'Name', 'T024_C003', 'T024.C003');
-  const number = pickField(raw, 'Artikelnummer', 'ArtikelNr', 'Nummer', 'T024_C001', 'T024.C001');
-  if (!number) return null;
-  const group = pickField(raw, 'Artikelgruppe', 'Gruppe', 'T024_C004') || undefined;
-  const hintedPriceRaw = pickField(raw, 'Preis', 'VKPreis', 'T024_C020');
-  const hintedPrice = hintedPriceRaw ? Number(hintedPriceRaw.replace(',', '.')) : undefined;
-  return {
-    raw,
-    number,
-    name: name || number,
-    group,
-    hintedPrice: Number.isFinite(hintedPrice ?? NaN) ? hintedPrice : undefined,
-  };
 }
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -132,7 +98,10 @@ export default function MaterialPicker({ onSelect, onClose }: MaterialPickerProp
     setError(null);
     try {
       await onSelect({
-        mesonicArtikelNr: picked.number,
+        // Store the BASE number — the Beleg build appends the KL/WO variant from
+        // the ticket Standort (repairOrderToBelegPositions), so it doesn't matter
+        // which Ausprägung the tech clicked in the search results.
+        mesonicArtikelNr: baseArticleNumber(picked.number),
         bezeichnung: picked.name,
         quantity: qty,
         unitPrice: price,

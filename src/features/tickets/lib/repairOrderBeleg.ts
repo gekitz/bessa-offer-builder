@@ -8,8 +8,9 @@
 //   labor / travel_wegzeit / travel_km → Mitarbeiter-Artikel 30000XX{WO/KL}
 //       (XX = Vertreternummer des Entry-Mitarbeiters, Suffix = dessen
 //        HEIMAT-Standort — der Artikel ist eine feste Eigenschaft des Technikers)
-//   travel_flat                        → Zonen-Artikel (31000xxx, echte Nr.)
-//   material                           → echte Artikelnummer
+//   travel_flat                        → Zonen-Artikel (31000xxx, echte Nr., OHNE Suffix)
+//   material                           → echte Artikelnummer inkl. KL/WO-Ausprägung
+//       nach TICKET-Standort (Lagerbuchung; mesonicArtikelForStandort)
 //   service_flat / adjustment /        → Pseudoartikel 99991234{KL/WO}
 //   labor_floor                          (Suffix = TICKET-Standort)
 //       labor_floor = synthetische Mindest-Arbeitszeit laut Angebot; hat keinen
@@ -18,7 +19,7 @@
 // (buildAngebotImportXml), nicht hier. Nur der Pseudoartikel-Suffix folgt dem
 // Standort.
 
-import { PSEUDO_ARTIKEL, laborArtikelnummer, type AngebotPosition } from '../../offers/lib/angebotImport';
+import { PSEUDO_ARTIKEL, laborArtikelnummer, mesonicArtikelForStandort, type AngebotPosition } from '../../offers/lib/angebotImport';
 import type { RepairOrderBilling } from '../types';
 
 export type MesonicStandort = 'klagenfurt' | 'wolfsberg';
@@ -72,9 +73,16 @@ export function repairOrderToBelegPositions(
         break;
       }
       case 'travel_flat':
-      case 'material':
-        // Zonen-/echter Artikel; Pseudo nur als Sicherheitsnetz, wenn keine Nr.
+        // Zonen-Artikel (31000xxx) — echte Nr. OHNE Standort-Suffix. Pseudo nur
+        // als Sicherheitsnetz, wenn keine Nr.
         artikelnummer = p.mesonicArtikelNr || pseudo;
+        break;
+      case 'material':
+        // Echter Lagerartikel → KL/WO-Ausprägung nach Ticket-Standort, damit
+        // vom richtigen Lager abgebucht wird. Pseudo nur als Sicherheitsnetz.
+        artikelnummer = p.mesonicArtikelNr
+          ? mesonicArtikelForStandort(p.mesonicArtikelNr, opts.ticketStandort)
+          : pseudo;
         break;
       case 'service_flat':
       case 'adjustment':

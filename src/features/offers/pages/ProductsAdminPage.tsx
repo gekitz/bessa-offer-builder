@@ -15,6 +15,7 @@ import {
 } from '../api/productApi';
 import { listSuppliers, matchPulsaItems } from '../../procurement/api/procurementApi';
 import { fetchJarltechPrices, resolveJarltechId } from '../../procurement/api/jarltechApi';
+import MesonicArticleField from '../components/MesonicArticleField';
 import type { JarltechItemInfo } from '../../procurement/lib/jarltechNormalize';
 import type { PulsaMatch, Supplier } from '../../procurement/types';
 
@@ -447,6 +448,16 @@ function SortableProductRow({
       )}
       {p.code && <span className="font-mono text-xs text-slate-400 w-12 flex-shrink-0">{p.code}</span>}
       <span className="font-medium text-slate-800 truncate flex-1">{p.name}</span>
+      {/* Mesonic-Verknüpfung: amber pill wenn eine Basis-Artikelnummer hinterlegt
+          ist (echte Beleg-Position statt Freitext). Nummer im Tooltip. */}
+      {p.mesonicArtikelNr && (
+        <span
+          title={`Mesonic ${p.mesonicArtikelNr}`}
+          className="text-[10px] px-1.5 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-700 whitespace-nowrap flex-shrink-0"
+        >
+          Mesonic
+        </span>
+      )}
       {/* One badge per linked supplier — name, extended with the EK price
           where we have one. No badge means no supplier (header count +
           "Ohne Lieferant" filter surface the gaps). */}
@@ -550,6 +561,8 @@ function ProductEditModal({
   const [pulsaBestellnummer, setPulsaBestellnummer] = useState(product?.pulsaBestellnummer ?? '');
   // Serialisiert = auf dem Lieferschein wird pro Stück eine Seriennummer erfasst.
   const [isSerialized, setIsSerialized] = useState(product?.isSerialized ?? false);
+  // Mesonic-Basis-Artikelnummer (ohne KL/WO) — für den Beleg-Export.
+  const [mesonicArtikelNr, setMesonicArtikelNr] = useState<string | null>(product?.mesonicArtikelNr ?? null);
   const [matching, setMatching] = useState(false);
   // Result of "Abgleichen": one line per supplier (found / not found).
   const [abgleich, setAbgleich] = useState<
@@ -658,6 +671,7 @@ function ProductEditModal({
         ean: ean.trim() || null,
         pulsaBestellnummer: pulsaBestellnummer.trim() || null,
         isSerialized,
+        mesonicArtikelNr: mesonicArtikelNr || null,
         ...(attrs !== undefined ? { attrs } : {}),
       };
       const saved = isNew ? await createProduct(patch) : await updateProduct(product!.id, patch);
@@ -827,6 +841,19 @@ function ProductEditModal({
             </Checkbox>
             <p className="text-[11px] text-slate-400 mt-1 ml-6">
               Bei Hardware mit Seriennummer aktivieren — auf dem Lieferschein wird dann je geliefertem Stück ein Seriennummer-Feld (mit Scan) vorbereitet.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 space-y-2">
+            <div className="text-xs font-semibold text-slate-600">Mesonic-Artikel</div>
+            <MesonicArticleField
+              value={mesonicArtikelNr}
+              onChange={setMesonicArtikelNr}
+              productName={name}
+            />
+            <p className="text-[10px] text-slate-400">
+              Verknüpft das Produkt mit der Mesonic-Basis-Artikelnummer. Ohne Verknüpfung
+              landet die Position als Freitext auf dem Beleg (keine Lagerbuchung/DB-Preis).
             </p>
           </div>
 

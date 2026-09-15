@@ -30,10 +30,10 @@ describe('foldSerialsIntoBezeichnung', () => {
 });
 
 describe('deliveryNoteToBelegPositions', () => {
-  it('maps a real article to Datentyp 1 with its Artikelnummer', () => {
-    const [p] = deliveryNoteToBelegPositions([item({ quantity: 2, unitPrice: 599 })]);
+  it('maps a real article to Datentyp 1 with its Artikelnummer inkl. Standort-Ausprägung', () => {
+    const [p] = deliveryNoteToBelegPositions([item({ quantity: 2, unitPrice: 599 })], 'klagenfurt');
     expect(p).toEqual({
-      artikelnummer: 'ART-1',
+      artikelnummer: 'ART-1KL',
       datentyp: '1',
       menge: 2,
       einzelpreis: 599,
@@ -41,30 +41,47 @@ describe('deliveryNoteToBelegPositions', () => {
     });
   });
 
-  it('maps freetext / missing article to Datentyp 3 with artikelnummer TEXT', () => {
-    const [p] = deliveryNoteToBelegPositions([item({ mesonicArtikelNr: null, isFreetext: true, bezeichnung: 'Sonderposition' })]);
+  it('appends WO on a Wolfsberg delivery', () => {
+    const [p] = deliveryNoteToBelegPositions([item()], 'wolfsberg');
+    expect(p.artikelnummer).toBe('ART-1WO');
+  });
+
+  it('normalises an already-suffixed base to the delivery Standort', () => {
+    const [p] = deliveryNoteToBelegPositions([item({ mesonicArtikelNr: 'ART-1KL' })], 'wolfsberg');
+    expect(p.artikelnummer).toBe('ART-1WO');
+  });
+
+  it('maps freetext / missing article to Datentyp 3 with artikelnummer TEXT (kein Suffix)', () => {
+    const [p] = deliveryNoteToBelegPositions(
+      [item({ mesonicArtikelNr: null, isFreetext: true, bezeichnung: 'Sonderposition' })],
+      'klagenfurt',
+    );
     expect(p.datentyp).toBe('3');
     expect(p.artikelnummer).toBe('TEXT');
     expect(p.bezeichnung).toBe('Sonderposition');
   });
 
   it('folds serials into the Bezeichnung while keeping Menge numeric', () => {
-    const [p] = deliveryNoteToBelegPositions([
-      item({ quantity: 4, serialNumbers: ['A1', 'A2', 'A3', 'A4'] }),
-    ]);
+    const [p] = deliveryNoteToBelegPositions(
+      [item({ quantity: 4, serialNumbers: ['A1', 'A2', 'A3', 'A4'] })],
+      'klagenfurt',
+    );
     expect(p.menge).toBe(4);
     expect(p.bezeichnung).toBe('4x Sunmi L3 A1, A2, A3, A4');
   });
 
   it('skips zero-quantity lines', () => {
-    expect(deliveryNoteToBelegPositions([item({ quantity: 0 })])).toEqual([]);
+    expect(deliveryNoteToBelegPositions([item({ quantity: 0 })], 'klagenfurt')).toEqual([]);
   });
 
   it('maps several items in order', () => {
-    const out = deliveryNoteToBelegPositions([
-      item({ id: 'a', bezeichnung: 'A', mesonicArtikelNr: 'ART-A' }),
-      item({ id: 'b', bezeichnung: 'B', mesonicArtikelNr: null, isFreetext: true }),
-    ]);
-    expect(out.map((p) => p.artikelnummer)).toEqual(['ART-A', 'TEXT']);
+    const out = deliveryNoteToBelegPositions(
+      [
+        item({ id: 'a', bezeichnung: 'A', mesonicArtikelNr: 'ART-A' }),
+        item({ id: 'b', bezeichnung: 'B', mesonicArtikelNr: null, isFreetext: true }),
+      ],
+      'klagenfurt',
+    );
+    expect(out.map((p) => p.artikelnummer)).toEqual(['ART-AKL', 'TEXT']);
   });
 });

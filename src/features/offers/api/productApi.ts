@@ -39,6 +39,9 @@ export interface Product {
   // Als serialisiertes Gerät geliefert → treibt die Seriennummer-Erfassung
   // (pro Stück) auf dem Lieferschein. Siehe docs/ticket-lieferschein.md.
   isSerialized: boolean;
+  // Mesonic Basis-Artikelnummer (ohne KL/WO-Suffix) für den Beleg-Export
+  // (Lieferschein/Reparaturschein). NULL = nicht verknüpft → Freitext.
+  mesonicArtikelNr: string | null;
 }
 
 export interface ProductInput {
@@ -62,9 +65,10 @@ export interface ProductInput {
   ean?: string | null;
   pulsaBestellnummer?: string | null;
   isSerialized?: boolean;
+  mesonicArtikelNr?: string | null;
 }
 
-const COLS = 'id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, active, sort, supplier_id, alt_supplier_ids, jarltech_item_id, supplier_article_no, manufacturer_sku, ean, pulsa_bestellnummer, is_serialized';
+const COLS = 'id, code, name, catalog, category, kind, note, info, pricing, attrs, auto_add, active, sort, supplier_id, alt_supplier_ids, jarltech_item_id, supplier_article_no, manufacturer_sku, ean, pulsa_bestellnummer, is_serialized, mesonic_artikel_nr';
 
 function requireSb(): NonNullable<typeof supabase> {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
@@ -94,6 +98,7 @@ function rowToProduct(r: Record<string, unknown>): Product {
     ean: (r.ean as string) ?? null,
     pulsaBestellnummer: (r.pulsa_bestellnummer as string) ?? null,
     isSerialized: !!r.is_serialized,
+    mesonicArtikelNr: (r.mesonic_artikel_nr as string) ?? null,
   };
 }
 
@@ -135,6 +140,7 @@ export async function updateProduct(
   if (patch.ean !== undefined) db.ean = patch.ean;
   if (patch.pulsaBestellnummer !== undefined) db.pulsa_bestellnummer = patch.pulsaBestellnummer;
   if (patch.isSerialized !== undefined) db.is_serialized = patch.isSerialized;
+  if (patch.mesonicArtikelNr !== undefined) db.mesonic_artikel_nr = patch.mesonicArtikelNr;
   const { data, error } = await sb.from('products').update(db).eq('id', id).select(COLS).single();
   if (error) throw new Error(error.message);
   return rowToProduct(data);
@@ -171,6 +177,7 @@ export async function createProduct(input: ProductInput): Promise<Product> {
       ean: input.ean ?? null,
       pulsa_bestellnummer: input.pulsaBestellnummer ?? null,
       is_serialized: input.isSerialized ?? false,
+      mesonic_artikel_nr: input.mesonicArtikelNr ?? null,
     })
     .select(COLS)
     .single();
