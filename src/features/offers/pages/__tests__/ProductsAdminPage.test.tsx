@@ -9,6 +9,12 @@ import type { Supplier } from '../../../procurement/types';
 vi.mock('../../api/productApi');
 vi.mock('../../../procurement/api/procurementApi');
 vi.mock('../../../procurement/api/jarltechApi');
+// The Mesonic-Artikel field auto-searches when a product edit modal opens for an
+// unlinked product — keep that off the network in the component test.
+vi.mock('../../../../lib/mesonicApi', () => ({
+  searchArticles: vi.fn().mockResolvedValue({ records: [] }),
+  baseArticleNumber: (s: string) => String(s).trim().replace(/(KL|WO)$/i, ''),
+}));
 
 function makeSupplier(over: Partial<Supplier>): Supplier {
   return {
@@ -39,6 +45,7 @@ function makeProduct(over: Partial<productApi.Product>): productApi.Product {
     manufacturerSku: null,
     ean: null,
     pulsaBestellnummer: null,
+    mesonicArtikelNr: null,
     ...over,
   };
 }

@@ -2,13 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { buildDeliveryItemsFromOffer, ARBEITSZEIT_PRODUCT_ID, type OfferDataForSeed } from '../deliveryNoteSeed';
 import type { Catalog, Item } from '../../../../lib/pricing';
 
-// Minimal hydrated catalog for the transform.
+// Minimal hydrated catalog for the transform. Note: `code` (internal) differs
+// from `mesonicArtikelNr` (base article number) — the seed must snapshot the
+// latter. hw2 is deliberately mesonic-unlinked (code but no article number).
 const catalog: Catalog = {
-  hw1: { id: 'hw1', name: 'Sunmi L3', t: 'h', price: 599, code: 'ART-L3' } as Item,
+  hw1: { id: 'hw1', name: 'Sunmi L3', t: 'h', price: 599, code: 'ART-L3', mesonicArtikelNr: '16030051' } as Item,
   hw2: { id: 'hw2', name: 'Bondrucker', t: 'h', p: { o: 199 }, code: 'ART-BON' } as Item,
-  mod1: { id: 'mod1', name: 'Lagerverwaltung', t: 'm', p: { y: 15, s: 18, m: 20, e: 30 }, code: '022' } as Item,
+  mod1: { id: 'mod1', name: 'Lagerverwaltung', t: 'm', p: { y: 15, s: 18, m: 20, e: 30 }, code: '022', mesonicArtikelNr: '022' } as Item,
   [ARBEITSZEIT_PRODUCT_ID]: { id: ARBEITSZEIT_PRODUCT_ID, name: 'Arbeitszeit', t: 'h', price: 118 } as Item,
-  cop1: { id: 'cop1', name: 'Sharp BP-51C26', t: 'copier', vk: 4200, code: 'ART-SHARP' } as Item,
+  cop1: { id: 'cop1', name: 'Sharp BP-51C26', t: 'copier', vk: 4200, code: 'ART-SHARP', mesonicArtikelNr: 'SHARP-1' } as Item,
 };
 
 describe('buildDeliveryItemsFromOffer', () => {
@@ -18,18 +20,24 @@ describe('buildDeliveryItemsFromOffer', () => {
     expect(buildDeliveryItemsFromOffer({ cart: {} }, catalog)).toEqual([]);
   });
 
-  it('maps a hardware line: code snapshot, name, qty, net unit price', () => {
+  it('maps a hardware line: Mesonic article snapshot (NOT the internal code), name, qty, net unit price', () => {
     const offer: OfferDataForSeed = { cart: { hw1: { qty: 2 } } };
     const [line] = buildDeliveryItemsFromOffer(offer, catalog);
     expect(line).toMatchObject({
       productId: 'hw1',
-      mesonicArtikelNr: 'ART-L3',
+      mesonicArtikelNr: '16030051', // the base article number, not code 'ART-L3'
       bezeichnung: 'Sunmi L3',
       quantity: 2,
       unitPrice: 599,
       isFreetext: false,
       serialNumbers: [],
     });
+  });
+
+  it('leaves mesonicArtikelNr null for a product with no Mesonic link (→ freetext on the Beleg)', () => {
+    const offer: OfferDataForSeed = { cart: { hw2: { qty: 1 } } };
+    const [line] = buildDeliveryItemsFromOffer(offer, catalog);
+    expect(line).toMatchObject({ productId: 'hw2', mesonicArtikelNr: null, isFreetext: false });
   });
 
   it('excludes the Arbeitszeit product (tracked via Reparaturschein)', () => {

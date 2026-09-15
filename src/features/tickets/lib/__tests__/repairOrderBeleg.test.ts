@@ -43,13 +43,28 @@ describe('repairOrderToBelegPositions', () => {
     expect(out[2]).toMatchObject({ menge: 12, einzelpreis: 0.57 });
   });
 
-  it('travel_flat → Zonen-Artikel, material → echte Artikelnummer', () => {
+  it('travel_flat → Zonen-Artikel (kein Suffix), material → echter Artikel inkl. TICKET-Standort-Ausprägung', () => {
     const b = billing([
       pos({ kind: 'travel_flat', label: 'Anfahrt bis 10 km', quantity: 1, unitPrice: 84, mesonicArtikelNr: '31000002' }),
       pos({ kind: 'material', label: 'Switch', quantity: 1, unitPrice: 50, mesonicArtikelNr: '17008108' }),
     ]);
-    const out = repairOrderToBelegPositions(b, { ticketStandort: 'wolfsberg', employeeMesonic });
-    expect(out.map((p) => p.artikelnummer)).toEqual(['31000002', '17008108']);
+    const wo = repairOrderToBelegPositions(b, { ticketStandort: 'wolfsberg', employeeMesonic });
+    // Zonen-Artikel bleibt ohne Suffix; Lagerartikel bekommt WO.
+    expect(wo.map((p) => p.artikelnummer)).toEqual(['31000002', '17008108WO']);
+    const kl = repairOrderToBelegPositions(b, { ticketStandort: 'klagenfurt', employeeMesonic });
+    expect(kl.map((p) => p.artikelnummer)).toEqual(['31000002', '17008108KL']);
+  });
+
+  it('material: bereits suffixierte Artikelnummer wird auf den TICKET-Standort normalisiert', () => {
+    const b = billing([pos({ kind: 'material', label: 'Switch', quantity: 1, unitPrice: 50, mesonicArtikelNr: '17008108KL' })]);
+    const wo = repairOrderToBelegPositions(b, { ticketStandort: 'wolfsberg', employeeMesonic });
+    expect(wo[0].artikelnummer).toBe('17008108WO');
+  });
+
+  it('material ohne Artikelnummer → Pseudoartikel (Sicherheitsnetz)', () => {
+    const b = billing([pos({ kind: 'material', label: 'Diverses', quantity: 1, unitPrice: 5 })]);
+    const kl = repairOrderToBelegPositions(b, { ticketStandort: 'klagenfurt', employeeMesonic });
+    expect(kl[0].artikelnummer).toBe('99991234KL');
   });
 
   it('service_flat + adjustment → Pseudoartikel nach TICKET-Standort', () => {

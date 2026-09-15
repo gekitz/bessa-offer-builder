@@ -58,7 +58,11 @@ export function buildDeliveryItemsFromOffer(
     const isFreetext = Object.prototype.hasOwnProperty.call(custom, id);
     out.push({
       productId: isFreetext ? null : id,
-      mesonicArtikelNr: isFreetext ? null : item.code ?? null,
+      // Snapshot the Mesonic BASE article number (KL/WO suffix is applied at
+      // Beleg-build time from the ticket Standort). NOT item.code — that's the
+      // internal catalog code, which Mesonic can't resolve. Unmapped → null →
+      // the line falls back to freetext (Datentyp 3).
+      mesonicArtikelNr: isFreetext ? null : item.mesonicArtikelNr ?? null,
       bezeichnung: item.name,
       quantity: qty,
       unitPrice: unitPriceFor(item, c),

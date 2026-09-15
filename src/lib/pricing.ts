@@ -20,6 +20,10 @@ export interface Item {
   servicePercent?: number;
   discount?: ItemDiscount;
   code?: string;
+  /** Mesonic base article number (no KL/WO suffix). Populated from
+   *  products.mesonic_artikel_nr; drives real-article Beleg lines on the
+   *  Lieferschein (else the line falls back to freetext). */
+  mesonicArtikelNr?: string | null;
   cat?: string;
   note?: string;
   info?: string;

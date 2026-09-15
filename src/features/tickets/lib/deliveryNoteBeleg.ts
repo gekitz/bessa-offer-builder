@@ -6,6 +6,8 @@
 //
 // Mapping (fixiert mit Georg):
 //   echtes Produkt (mesonicArtikelNr gesetzt) → Datentyp 1, echte Artikelnummer
+//       inkl. Standort-Ausprägung (KL/WO) — die gelieferte Ware muss vom
+//       richtigen Lager abgebucht werden (mesonicArtikelForStandort).
 //   Freitext / Produkt ohne Artikelnummer      → Datentyp 3, Artikelnummer 'TEXT'
 //   Menge = quantity, Einzelpreis = unitPrice (NETTO).
 //   Seriennummern werden in die Bezeichnung gefaltet:
@@ -13,7 +15,8 @@
 //   (Menge bleibt separat im Mengegeliefert-Feld; das "4x" im Text ist so mit
 //    Georg fixiert.)
 
-import type { AngebotPosition } from '../../offers/lib/angebotImport';
+import { mesonicArtikelForStandort, type AngebotPosition } from '../../offers/lib/angebotImport';
+import type { MesonicStandort } from './repairOrderBeleg';
 import type { DeliveryNoteItem } from '../types';
 
 // Menge ohne unnötige Nachkommastellen für das "{qty}x"-Präfix.
@@ -29,14 +32,18 @@ export function foldSerialsIntoBezeichnung(item: Pick<DeliveryNoteItem, 'bezeich
 }
 
 // Ein Lieferschein (DeliveryNoteItem[]) → Angebot-Positionen. Leere/0-Mengen-
-// Positionen werden übersprungen.
-export function deliveryNoteToBelegPositions(items: DeliveryNoteItem[]): AngebotPosition[] {
+// Positionen werden übersprungen. Der Standort bestimmt die KL/WO-Ausprägung
+// der echten Artikelnummern (Lagerbuchung).
+export function deliveryNoteToBelegPositions(
+  items: DeliveryNoteItem[],
+  standort: MesonicStandort,
+): AngebotPosition[] {
   const out: AngebotPosition[] = [];
   for (const item of items) {
     if (!item.quantity || item.quantity <= 0) continue;
     const hasArtikel = !!item.mesonicArtikelNr;
     out.push({
-      artikelnummer: hasArtikel ? item.mesonicArtikelNr! : 'TEXT',
+      artikelnummer: hasArtikel ? mesonicArtikelForStandort(item.mesonicArtikelNr!, standort) : 'TEXT',
       datentyp: hasArtikel ? '1' : '3',
       menge: item.quantity,
       einzelpreis: item.unitPrice,

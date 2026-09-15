@@ -40,6 +40,17 @@ export function laborArtikelnummer(vertreternummer: string | number, standort: '
   return `300000${num}${standort === 'wolfsberg' ? 'WO' : 'KL'}`;
 }
 
+// Stocked articles exist per Standort as KL/WO variants of one base number
+// (16030051KL / 16030051WO). Products store the BASE (see products
+// .mesonic_artikel_nr); the delivered/repaired line resolves the concrete
+// variant from the ticket/delivery Standort so Mesonic decrements the right
+// Lager. Strip-then-append is idempotent — a base or an already-suffixed number
+// both map to the correct variant. Mirrors baseArticleNumber() in mesonicApi.
+export function mesonicArtikelForStandort(artikelNr: string, standort: 'klagenfurt' | 'wolfsberg'): string {
+  const base = String(artikelNr).trim().replace(/(KL|WO)$/i, '');
+  return `${base}${standort === 'wolfsberg' ? 'WO' : 'KL'}`;
+}
+
 export interface AngebotKopf {
   kontonummer: string;
   laufnummer: string | number;    // eindeutig pro Konto (wir vergeben max+1)

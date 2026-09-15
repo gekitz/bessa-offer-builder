@@ -1,5 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { buildAngebotImportXml, laborArtikelnummer, REPARATUR_BELEGART } from '../angebotImport';
+import { buildAngebotImportXml, laborArtikelnummer, mesonicArtikelForStandort, REPARATUR_BELEGART } from '../angebotImport';
+
+describe('mesonicArtikelForStandort (KL/WO-Ausprägung für Lagerartikel)', () => {
+  it('appends KL / WO from the Standort', () => {
+    expect(mesonicArtikelForStandort('16030051', 'klagenfurt')).toBe('16030051KL');
+    expect(mesonicArtikelForStandort('16030051', 'wolfsberg')).toBe('16030051WO');
+  });
+  it('is idempotent — strips an existing suffix before re-appending', () => {
+    expect(mesonicArtikelForStandort('16030051KL', 'wolfsberg')).toBe('16030051WO');
+    expect(mesonicArtikelForStandort('16030051WO', 'klagenfurt')).toBe('16030051KL');
+  });
+  it('trims surrounding whitespace', () => {
+    expect(mesonicArtikelForStandort('  16030051  ', 'klagenfurt')).toBe('16030051KL');
+  });
+});
 
 describe('laborArtikelnummer (Reparaturschein Arbeitszeit)', () => {
   it('builds 300000 + 2-digit Vertreternummer (leading zero) + WO/KL', () => {
