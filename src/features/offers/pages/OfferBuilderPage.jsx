@@ -291,6 +291,10 @@ function OfferBuilderPageInner() {
   // for payment within 14 days. See src/lib/discounts.ts.
   const [rabattActive, setRabattActive] = useState(false);
   const [skontoActive, setSkontoActive] = useState(false);
+  // Hardware take-back (Hardware-Rücknahme): a single net credit for used
+  // hardware handed back by the customer, deducted from the offer total. null
+  // when off. See src/lib/discounts.ts / copierOffer.ts.
+  const [takeBack, setTakeBack] = useState(null);
   // Brother-only delivery/payment terms — feed the auto-generated Bedingungen.
   const [lieferung, setLieferung] = useState(DEFAULT_LIEFERUNG);
   const [zahlungsziel, setZahlungsziel] = useState(DEFAULT_ZAHLUNGSZIEL);
@@ -459,6 +463,7 @@ function OfferBuilderPageInner() {
         setFinanzOpen(data.finanzOpen || false);
         setRabattActive(data.rabattActive || false);
         setSkontoActive(data.skontoActive || false);
+        setTakeBack(data.takeBack || null);
         setGlobalTier(data.globalTier || '12mo');
         setOfferType(offer.offer_type || data.offerType || 'pos');
         setLieferung(data.lieferung || DEFAULT_LIEFERUNG);
@@ -506,6 +511,7 @@ function OfferBuilderPageInner() {
       setFinanzOpen(savedOffer.finanzOpen || false);
       setRabattActive(savedOffer.rabattActive || false);
       setSkontoActive(savedOffer.skontoActive || false);
+      setTakeBack(savedOffer.takeBack || null);
       setGlobalTier(savedOffer.globalTier || '12mo');
       setOfferType(savedOffer.offerType || 'pos');
       setRental(savedOffer.rental || emptyRentalState());
@@ -650,7 +656,7 @@ function OfferBuilderPageInner() {
   // Sharp/MFP copier breakdown (device + Grenke leasing + maintenance). Empty
   // (isCopierOffer=false) for ordinary PoS carts, in which case the PDF falls
   // back to the standard monthly/once tables.
-  const copierOffer = useMemo(() => buildCopierOffer(cart, ALL), [cart]);
+  const copierOffer = useMemo(() => buildCopierOffer(cart, ALL, { takeBack }), [cart, takeBack]);
 
   // Totals persisted to the offers row (and shown in the list / CRM / accept
   // page / email preview). computeTotals is 0 for copier carts, so for a Sharp
@@ -673,7 +679,7 @@ function OfferBuilderPageInner() {
   // page + Stripe charge read this snapshot — it must exist and match what
   // the builder showed at the moment the offer left the house.
   function buildAcceptSnapshot() {
-    return computeAcceptTotals({ cart, customItems: getCustomItemsFromCart() }, ALL);
+    return computeAcceptTotals({ cart, customItems: getCustomItemsFromCart(), takeBack }, ALL);
   }
 
   const builderTabs = builderTabsFor(offerType, offerLocked);
@@ -776,14 +782,20 @@ function OfferBuilderPageInner() {
       lines.push('');
     }
 
-    if (!copierOffer.isCopierOffer && (rabattActive || skontoActive) && totals.periodTotal > 0) {
-      const d2 = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive });
+    const takeBackNet = Number(takeBack?.value) > 0 ? Number(takeBack.value) : 0;
+    if (!copierOffer.isCopierOffer && (rabattActive || skontoActive || takeBackNet > 0) && totals.periodTotal > 0) {
+      const d2 = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive, takeBack: takeBackNet });
       lines.push('----------------------------------------');
       lines.push('GESAMT (erstes Jahr)');
       lines.push('----------------------------------------');
       lines.push(`  Netto:         EUR ${fmt(d2.baseNetto)}`);
       if (rabattActive) {
         lines.push(`  abzgl. 2% Rabatt: -EUR ${fmt(d2.rabattAmount)}`);
+      }
+      if (takeBackNet > 0) {
+        lines.push(`  abzgl. ${takeBack.name || 'Hardware-Rücknahme'}: -EUR ${fmt(d2.takeBack)}`);
+      }
+      if (rabattActive || takeBackNet > 0) {
         lines.push(`  Netto neu:     EUR ${fmt(d2.netto)}`);
       }
       lines.push(`  Brutto:        EUR ${fmt(d2.brutto)}`);
@@ -833,7 +845,7 @@ function OfferBuilderPageInner() {
             creatorName: creatorInfo?.name || creator,
             creatorEmail: creatorInfo?.email || null,
             briefing,
-            cart, globalTier, notes, raten, finanzOpen, rabattActive, skontoActive,
+            cart, globalTier, notes, raten, finanzOpen, rabattActive, skontoActive, takeBack,
             totalMonthly: persistTotals.monthly,
             totalOnce: persistTotals.once,
             totalPeriod: persistTotals.periodTotal,
@@ -871,6 +883,7 @@ function OfferBuilderPageInner() {
         raten,
         rabattActive,
         skontoActive,
+        takeBack,
         showFinancing: finanzOpen,
         creator: creatorInfo,
         mandatsRef,
@@ -940,6 +953,7 @@ function OfferBuilderPageInner() {
         finanzOpen,
         rabattActive,
         skontoActive,
+        takeBack,
         totalMonthly: persistTotals.monthly,
         totalOnce: persistTotals.once,
         totalPeriod: persistTotals.periodTotal,
@@ -1054,6 +1068,7 @@ function OfferBuilderPageInner() {
         finanzOpen,
         rabattActive,
         skontoActive,
+        takeBack,
         totalMonthly: persistTotals.monthly,
         totalOnce: persistTotals.once,
         totalPeriod: persistTotals.periodTotal,
@@ -1103,7 +1118,7 @@ function OfferBuilderPageInner() {
         creatorName: creatorInfoForSave?.name || creator,
         creatorEmail: creatorInfoForSave?.email || null,
         briefing,
-        cart, globalTier, notes, raten, finanzOpen, rabattActive, skontoActive,
+        cart, globalTier, notes, raten, finanzOpen, rabattActive, skontoActive, takeBack,
         totalMonthly: persistTotals.monthly,
         totalOnce: persistTotals.once,
         totalPeriod: persistTotals.periodTotal,
@@ -1149,7 +1164,7 @@ function OfferBuilderPageInner() {
       const acceptQrDataUrl = acceptEnabled ? await generateAcceptQr(effectiveShareCode) : null;
       const pdfBlob = await generateOfferPdfBlob({
         customer, monthlyItems, onceItems, wartungItems, autoTerms,
-        totals, notes, raten, rabattActive, skontoActive,
+        totals, notes, raten, rabattActive, skontoActive, takeBack,
         showFinancing: finanzOpen, creator: creatorInfo,
         mandatsRef, acceptQrDataUrl, serviceStartDate, copierOffer,
         isRental: offerType === 'rental',
@@ -1251,6 +1266,7 @@ function OfferBuilderPageInner() {
       setFinanzOpen(data.finanzOpen || false);
       setRabattActive(data.rabattActive || false);
       setSkontoActive(data.skontoActive || false);
+      setTakeBack(data.takeBack || null);
       setGlobalTier(data.globalTier || '12mo');
       setOfferType(offer.offer_type || data.offerType || 'pos');
       setLieferung(data.lieferung || DEFAULT_LIEFERUNG);
@@ -1286,6 +1302,7 @@ function OfferBuilderPageInner() {
     setFinanzOpen(false);
     setRabattActive(false);
     setSkontoActive(false);
+    setTakeBack(null);
     setGlobalTier('12mo');
     setOfferType(type);
     setLieferung(DEFAULT_LIEFERUNG);
@@ -1572,6 +1589,7 @@ function OfferBuilderPageInner() {
                       cart={cart} copierOffer={copierOffer} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} creators={creators} notes={notes} setNotes={setNotes} briefing={briefing} setBriefing={setBriefing}
                       totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
                       rabattActive={rabattActive} setRabattActive={setRabattActive} skontoActive={skontoActive} setSkontoActive={setSkontoActive}
+                      takeBack={takeBack} setTakeBack={setTakeBack}
                       serviceStartDate={serviceStartDate} setServiceStartDate={setServiceStartDate}
                       billingEnabled={billingEnabled}
                       paymentEnabled={paymentEnabled} setPaymentEnabled={setPaymentEnabled}
@@ -1598,7 +1616,7 @@ function OfferBuilderPageInner() {
                     )}
                     {showSignModal && (
                       <SignModal customer={customer} totals={totals} finanzOpen={finanzOpen} globalTier={globalTier}
-                        rabattActive={rabattActive} skontoActive={skontoActive}
+                        rabattActive={rabattActive} skontoActive={skontoActive} takeBack={takeBack}
                         onConfirm={handleSign} onClose={() => setShowSignModal(false)}
                       />
                     )}

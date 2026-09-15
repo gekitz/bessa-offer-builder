@@ -68,6 +68,16 @@ describe('rental catalog integrity', () => {
     expect(byId['fiskalisierung']).toBe(190);
     expect(byId['arbeitszeit']).toBe(120);
   });
+
+  it('offers a "Reinigung Leihstellung" service priced at 2h Arbeitszeit', () => {
+    const reinigung = RENTAL_SERVICES.find((s) => s.id === 'reinigung')!;
+    const arbeitszeit = RENTAL_SERVICES.find((s) => s.id === 'arbeitszeit')!;
+    expect(reinigung.name).toBe('Reinigung Leihstellung');
+    expect(reinigung.price).toBe(2 * arbeitszeit.price);
+    // Carries the return-condition text as its calculator hint.
+    expect(reinigung.hint).toMatch(/gesäubert zu retounieren/);
+    expect(reinigung.hint).toMatch(/Reinigungspauschale verrechnet/);
+  });
 });
 
 describe('software pricing derives from the bessa tiers', () => {
@@ -161,8 +171,17 @@ describe('buildRentalOffer reproduces the spreadsheet totals', () => {
 });
 
 describe('rentalLineFields — the single offer line', () => {
-  it('returns null for an empty rental', () => {
-    expect(rentalLineFields(emptyRentalState())).toBeNull();
+  it('returns null for a rental with nothing selected', () => {
+    expect(
+      rentalLineFields({ term: '6mo', hardware: {}, services: {}, software: {} }),
+    ).toBeNull();
+  });
+
+  it('pre-adds the cleaning service to a fresh rental', () => {
+    const line = rentalLineFields(emptyRentalState())!;
+    expect(line).not.toBeNull();
+    expect(line.description).toContain('1× Reinigung Leihstellung');
+    expect(line.price).toBe(240); // 2h Arbeitszeit, nothing else selected
   });
 
   it('names the line with the timespan and prices it at the netto', () => {
@@ -262,8 +281,8 @@ describe('email total matches the PDF total (regression)', () => {
 });
 
 describe('edge cases', () => {
-  it('an empty rental is all zeros', () => {
-    const r = buildRentalOffer(emptyRentalState());
+  it('a rental with nothing selected is all zeros', () => {
+    const r = buildRentalOffer({ term: '6mo', hardware: {}, services: {}, software: {} });
     expect(r.hardwareSum).toBe(0);
     expect(r.hardwareRental).toBe(0);
     expect(r.netto).toBe(0);

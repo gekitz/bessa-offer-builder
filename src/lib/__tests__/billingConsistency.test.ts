@@ -55,14 +55,15 @@ interface RowOpts {
   globalTier?: string;
   raten?: number;
   rabattActive?: boolean;
+  takeBack?: { name?: string; value: number } | null;
 }
 
 /** Build the offer row exactly like the app: computeTotals → total_* columns
  *  (OfferBuilderPage persistTotals), computeAcceptTotals → acceptSnapshot
  *  (buildAcceptSnapshot on every save path). */
-function offerRowFromCart(cart: Cart, { globalTier = '12mo', raten = 12, rabattActive = false }: RowOpts = {}) {
+function offerRowFromCart(cart: Cart, { globalTier = '12mo', raten = 12, rabattActive = false, takeBack = null }: RowOpts = {}) {
   const totals = computeTotals(cart, BUILDER_CATALOG);
-  const snapshot = computeAcceptTotals({ cart, customItems: CUSTOM_ITEMS }, CATALOG);
+  const snapshot = computeAcceptTotals({ cart, customItems: CUSTOM_ITEMS, takeBack }, CATALOG);
   const row = {
     total_monthly: totals.monthly,
     total_once: totals.once,
@@ -212,6 +213,46 @@ describe('the PDF GESAMTÜBERSICHT figure matches the financed total', () => {
     const { totals, row } = offerRowFromCart(CARTS['plain cart'], { rabattActive: true });
     // OfferPdfDocument / OfferView derive the financing base via computeDiscounts.
     const discount = computeDiscounts(totals.periodTotal, { rabattActive: true });
+    const charged = computePlanPricing(planBasisFromOffer(row));
+    expect(toCents(discount.brutto * 1.08)).toBe(toCents(charged.ratenzahlung.totalBrutto));
+  });
+});
+
+describe('Hardware-Rücknahme stays consistent from builder to Stripe', () => {
+  const takeBack = { name: 'Alte Kassa', value: 400 };
+
+  for (const rabattActive of [false, true]) {
+    it(`what OfferView/PDF show is what Stripe charges${rabattActive ? ' + 2% Rabatt' : ''}`, () => {
+      const { totals, row } = offerRowFromCart(CARTS['plain cart'], { rabattActive, takeBack });
+
+      // The take-back net is frozen into the snapshot → basis.
+      const basis = planBasisFromOffer(row);
+      expect(basis.takeBack).toBe(400);
+
+      const shown = computePlanPricing({
+        monthlyNet: totals.monthly,
+        onceNet: totals.once,
+        yearlyNet: totals.yearly,
+        periodNet: totals.periodTotal,
+        rabattActive,
+        takeBack: takeBack.value,
+        months: totals.maxMonths,
+        raten: 12,
+      });
+      const charged = computePlanPricing(basis);
+
+      const asRecords = (p: PlanPricing) => p as unknown as Record<string, Record<string, number>>;
+      for (const [plan, fields] of Object.entries(asRecords(shown))) {
+        for (const [field, euro] of Object.entries(fields)) {
+          expect(toCents(asRecords(charged)[plan][field]), `${plan}.${field}`).toBe(toCents(euro));
+        }
+      }
+    });
+  }
+
+  it('the PDF GESAMTÜBERSICHT brutto × 1.08 equals the charged Ratenzahlung total', () => {
+    const { totals, row } = offerRowFromCart(CARTS['plain cart'], { rabattActive: true, takeBack });
+    const discount = computeDiscounts(totals.periodTotal, { rabattActive: true, takeBack: takeBack.value });
     const charged = computePlanPricing(planBasisFromOffer(row));
     expect(toCents(discount.brutto * 1.08)).toBe(toCents(charged.ratenzahlung.totalBrutto));
   });

@@ -68,16 +68,29 @@ export const RENTAL_HARDWARE: readonly RentalHardware[] = [
   { id: 'kuechenmonitor', name: 'Küchenmonitor', einstand: 1190 },
 ] as const;
 
+// The cleaning service is "2h Arbeitszeit" (2 × the Arbeitszeit unit price).
+const ARBEITSZEIT_PRICE = 120;
+
 export interface RentalService {
   id: string;
   name: string;
   /** Fixed net price per unit, independent of the timespan. */
   price: number;
+  /** Optional override for the calculator hint (defaults to "€ price / Stk"). */
+  hint?: string;
 }
 
 export const RENTAL_SERVICES: readonly RentalService[] = [
   { id: 'fiskalisierung', name: 'Fiskalisierung pro Hauptkasse', price: 190 },
-  { id: 'arbeitszeit', name: 'Arbeitszeit', price: 120 },
+  { id: 'arbeitszeit', name: 'Arbeitszeit', price: ARBEITSZEIT_PRICE },
+  {
+    id: 'reinigung',
+    name: 'Reinigung Leihstellung',
+    price: 2 * ARBEITSZEIT_PRICE,
+    hint:
+      'Die Geräte sind vollständig inkl Netzteilen gesäubert zu retounieren. ' +
+      'Sollten wir nachträglich eine Reinigung durchführen müssen wird die Reinigungspauschale verrechnet',
+  },
 ] as const;
 
 // The rental software list is the bessa Kassa catalog, referenced by id so the
@@ -110,7 +123,8 @@ export interface RentalState {
 }
 
 export function emptyRentalState(): RentalState {
-  return { term: '6mo', hardware: {}, services: {}, software: {} };
+  // Every rental gets the cleaning service pre-added (rep can remove it).
+  return { term: '6mo', hardware: {}, services: { reinigung: 1 }, software: {} };
 }
 
 export interface RentalLine {

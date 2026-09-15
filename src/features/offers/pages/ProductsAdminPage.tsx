@@ -4,6 +4,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type D
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import Select from '../../../components/Select';
+import Checkbox from '../../../components/Checkbox';
 import {
   createProduct,
   deleteProduct,
@@ -558,6 +559,8 @@ function ProductEditModal({
   const [manufacturerSku, setManufacturerSku] = useState(product?.manufacturerSku ?? '');
   const [ean, setEan] = useState(product?.ean ?? '');
   const [pulsaBestellnummer, setPulsaBestellnummer] = useState(product?.pulsaBestellnummer ?? '');
+  // Serialisiert = auf dem Lieferschein wird pro Stück eine Seriennummer erfasst.
+  const [isSerialized, setIsSerialized] = useState(product?.isSerialized ?? false);
   // Mesonic-Basis-Artikelnummer (ohne KL/WO) — für den Beleg-Export.
   const [mesonicArtikelNr, setMesonicArtikelNr] = useState<string | null>(product?.mesonicArtikelNr ?? null);
   const [matching, setMatching] = useState(false);
@@ -667,6 +670,7 @@ function ProductEditModal({
         manufacturerSku: manufacturerSku.trim() || null,
         ean: ean.trim() || null,
         pulsaBestellnummer: pulsaBestellnummer.trim() || null,
+        isSerialized,
         mesonicArtikelNr: mesonicArtikelNr || null,
         ...(attrs !== undefined ? { attrs } : {}),
       };
@@ -829,6 +833,15 @@ function ProductEditModal({
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Info</label>
             <input value={info} onChange={(e) => setInfo(e.target.value)} placeholder="optional" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+          </div>
+
+          <div>
+            <Checkbox checked={isSerialized} onChange={setIsSerialized}>
+              <span className="text-sm text-slate-700">Serialisiertes Gerät (Seriennummer je Stück am Lieferschein)</span>
+            </Checkbox>
+            <p className="text-[11px] text-slate-400 mt-1 ml-6">
+              Bei Hardware mit Seriennummer aktivieren — auf dem Lieferschein wird dann je geliefertem Stück ein Seriennummer-Feld (mit Scan) vorbereitet.
+            </p>
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 space-y-2">

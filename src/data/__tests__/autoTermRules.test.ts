@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { AUTO_TERM_RULES, computeAutoTerms } from '../autoTermRules';
+import { formatKmRate } from '../../lib/rates';
+import { RENTAL_LINE_ID } from '../../lib/rentalOffer';
+
+const CLEANING_TERM =
+  'Die Geräte sind vollständig inkl Netzteilen gesäubert zu retounieren. ' +
+  'Sollten wir nachträglich eine Reinigung durchführen müssen wird die Reinigungspauschale verrechnet.';
+
+// Derived from the single km-rate source so this test never drifts from the
+// actual figure printed on offers.
+const TRAVEL_TERM = `Arbeitszeit, Wegzeit und KM-Geld (à ${formatKmRate()}) werden nach tatsächlichem Aufwand verrechnet.`;
 
 describe('AUTO_TERM_RULES', () => {
   it('exposes unique ids', () => {
@@ -21,7 +31,7 @@ describe('computeAutoTerms', () => {
     expect(computeAutoTerms({})).toEqual([
       'Lieferzeit: 2 Wochen',
       'Zahlungsziel: 10 Tage netto Kassa',
-      'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
+      TRAVEL_TERM,
     ]);
   });
 
@@ -37,12 +47,21 @@ describe('computeAutoTerms', () => {
     );
   });
 
+  it('appends the cleaning condition when the rental line is in the cart', () => {
+    const cart = { [RENTAL_LINE_ID]: { qty: 1 } };
+    expect(computeAutoTerms(cart)).toContain(CLEANING_TERM);
+  });
+
+  it('does not append the cleaning condition for a non-rental cart', () => {
+    expect(computeAutoTerms({ 'kassa-pro': { qty: 1 } })).not.toContain(CLEANING_TERM);
+  });
+
   it('preserves insertion order from AUTO_TERM_RULES', () => {
     const cart = { 'unify-switch-8': { qty: 1 } };
     expect(computeAutoTerms(cart)).toEqual([
       'Lieferzeit: 2 Wochen',
       'Zahlungsziel: 10 Tage netto Kassa',
-      'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
+      TRAVEL_TERM,
       'Kabel müssen vom Kunden eigenständig verlegt werden',
     ]);
   });
@@ -53,7 +72,7 @@ describe('computeAutoTerms', () => {
     ).toEqual([
       'Lieferzeit: 2 Wochen',
       'Zahlungsziel: 10 Tage netto Kassa',
-      'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
+      TRAVEL_TERM,
     ]);
   });
 
@@ -62,7 +81,7 @@ describe('computeAutoTerms', () => {
       expect(computeAutoTerms({}, { offerType: 'brother' })).toEqual([
         'Lieferzeit: lagernd',
         'Zahlungsziel: netto Kassa',
-        'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
+        TRAVEL_TERM,
       ]);
     });
 

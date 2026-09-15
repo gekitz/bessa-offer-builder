@@ -53,8 +53,16 @@ describe('computeAcceptTotals', () => {
   it('returns zeros for an empty cart', () => {
     expect(computeAcceptTotals({ cart: {} }, CATALOG)).toEqual({
       monthly: 0, once: 0, yearly: 0, periodTotal: 0, maxMonths: 12,
-      laborMinutes: 0, laborAmount: 0,
+      takeBack: 0, laborMinutes: 0, laborAmount: 0,
     });
+  });
+
+  it('freezes the Hardware-Rücknahme net credit (0 when absent/non-positive)', () => {
+    const cart = { hw: { qty: 1 } };
+    expect(computeAcceptTotals({ cart }, CATALOG).takeBack).toBe(0);
+    expect(computeAcceptTotals({ cart, takeBack: { name: 'Alt', value: 300 } }, CATALOG).takeBack).toBe(300);
+    expect(computeAcceptTotals({ cart, takeBack: { value: 0 } }, CATALOG).takeBack).toBe(0);
+    expect(computeAcceptTotals({ cart, takeBack: { value: -5 } }, CATALOG).takeBack).toBe(0);
   });
 
   it('freezes the quoted labor hours + amount (kind:h)', () => {

@@ -465,12 +465,22 @@ function ItemRow({ item, locked, serialized, onPatch, onRemove }: ItemRowProps) 
   const [qty, setQty] = useState(String(item.quantity));
   const [unitPrice, setUnitPrice] = useState(String(item.unitPrice));
 
+  // Serial capture is shown automatically for serialised products (or lines
+  // that already carry serials), and can be revealed on demand for any other
+  // line — the technician can always capture a serial the device happens to have.
+  const [showSerials, setShowSerials] = useState(serialized || item.serialNumbers.length > 0);
+
   useEffect(() => setBezeichnung(item.bezeichnung), [item.bezeichnung]);
   useEffect(() => setQty(String(item.quantity)), [item.quantity]);
   useEffect(() => setUnitPrice(String(item.unitPrice)), [item.unitPrice]);
+  // The catalog hydrates async — open the serial section once the flag resolves.
+  useEffect(() => {
+    if (serialized) setShowSerials(true);
+  }, [serialized]);
 
-  // One serial slot per delivered unit (at least what's already captured).
-  const slotCount = serialized ? Math.max(Math.round(item.quantity) || 0, item.serialNumbers.length) : 0;
+  // One serial slot per delivered unit (at least one when revealed, and never
+  // fewer than what's already captured).
+  const slotCount = showSerials ? Math.max(Math.round(item.quantity) || 0, item.serialNumbers.length, 1) : 0;
 
   function setSerialAt(idx: number, value: string) {
     const next = [...item.serialNumbers];
@@ -539,7 +549,19 @@ function ItemRow({ item, locked, serialized, onPatch, onRemove }: ItemRowProps) 
         )}
       </div>
 
-      {/* Per-unit serial numbers (serialised products). */}
+      {/* Reveal serial capture on demand for lines that aren't auto-serialised. */}
+      {!locked && slotCount === 0 && (
+        <button
+          type="button"
+          onClick={() => setShowSerials(true)}
+          className="mt-1.5 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+        >
+          <Hash size={11} />
+          Seriennummer erfassen
+        </button>
+      )}
+
+      {/* Per-unit serial numbers (auto for serialised products, or revealed). */}
       {slotCount > 0 && (
         <div className="mt-2 pl-1 space-y-1.5">
           <div className="flex items-center gap-1 text-xs text-slate-500">

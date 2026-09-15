@@ -98,14 +98,22 @@ export interface CopierOffer {
 
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
+/** Whole-offer options that aren't carried on a cart entry. */
+export interface CopierOfferOptions {
+  /** Offer-level hardware take-back (Hardware-Rücknahme): a device-independent
+   *  net credit that reduces the asset/financed base like a trade-in. */
+  takeBack?: { name?: string; value?: number } | null;
+}
+
 /**
  * Build the full copier/MFP offer breakdown from a cart. Pure — no I/O. Reads
  * sale mode, trade-in, Mietsonderzahlung and the leasing-rate override off the
  * copier device cart entries (whole-offer settings are taken from the first
  * device). Entries that aren't copier devices or one-time accessories are
- * ignored.
+ * ignored. An offer-level Hardware-Rücknahme (opts.takeBack) is folded into the
+ * trade-in credit so it lowers both the Kauf net and the leasing base.
  */
-export function buildCopierOffer(cart: Cart, catalog: Catalog): CopierOffer {
+export function buildCopierOffer(cart: Cart, catalog: Catalog, opts: CopierOfferOptions = {}): CopierOffer {
   const entries = Object.entries(cart);
 
   type Device = { id: string; item: NonNullable<Catalog[string]>; c: CartItem; qty: number; vk: number };
@@ -147,8 +155,14 @@ export function buildCopierOffer(cart: Cart, catalog: Catalog): CopierOffer {
   for (const a of accessories) assetBase += a.unit * a.qty;
   assetBase = round2(assetBase);
 
+  // Offer-level Hardware-Rücknahme (device-independent) — treated as an extra
+  // trade-in credit alongside any per-device trade-ins. Only a positive credit
+  // counts (a blank/negative field must never inflate the base).
+  const offerTakeBack = Math.max(0, numOr0(opts.takeBack?.value));
+
   let tradeInTotal = 0;
   for (const d of devices) tradeInTotal += numOr0(d.c.tradeIn?.value);
+  tradeInTotal += offerTakeBack;
   tradeInTotal = round2(tradeInTotal);
 
   // --- Lines, in the sample's order: per device (device + included), then
@@ -185,6 +199,9 @@ export function buildCopierOffer(cart: Cart, catalog: Catalog): CopierOffer {
       const credit = numOr0(d.c.tradeIn.value);
       lines.push({ kind: 'tradein', name: d.c.tradeIn.name || 'Eintauschgerät', qty: 1, unitPrice: -credit, lineTotal: -credit });
     }
+  }
+  if (offerTakeBack > 0) {
+    lines.push({ kind: 'tradein', name: opts.takeBack?.name || 'Hardware-Rücknahme', qty: 1, unitPrice: -offerTakeBack, lineTotal: -offerTakeBack });
   }
 
   // --- Kauf totals ---

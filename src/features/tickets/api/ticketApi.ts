@@ -50,7 +50,8 @@ type NotifyEvent =
   | { event: 'ticket_assigned'; ticketId: string; triggeredBy?: string | null }
   | { event: 'status_changed'; ticketId: string; previousStatus: string; newStatus: string; triggeredBy?: string | null }
   | { event: 'ticket_closed'; ticketId: string; triggeredBy?: string | null }
-  | { event: 'appointment_scheduled'; ticketId: string; appointmentId: string; triggeredBy?: string | null };
+  | { event: 'appointment_scheduled'; ticketId: string; appointmentId: string; triggeredBy?: string | null }
+  | { event: 'comment_added'; ticketId: string; commentId: string; triggeredBy?: string | null };
 
 function fireNotify(payload: NotifyEvent): void {
   const sb = supabase;
@@ -1156,9 +1157,14 @@ export async function listComments(ticketId: string): Promise<TicketComment[]> {
 export async function addComment(
   ticketId: string,
   body: string,
-  opts: { createdBy?: string; isInternal?: boolean } = {},
+  opts: { createdBy?: string; isInternal?: boolean; mentions?: string[] } = {},
 ): Promise<TicketComment> {
   const sb = requireSupabase();
+  // Mentioned employee ids (from the @-autocomplete), deduped and stripped
+  // of the author — you can't mention yourself into your own watch list in
+  // a way that matters. Stored on the comment so the notify fan-out and the
+  // UI highlight can both read them back.
+  const mentions = [...new Set((opts.mentions ?? []).filter((id) => id && id !== opts.createdBy))];
   const { data, error } = await sb
     .from('ticket_comments')
     .insert({
@@ -1169,11 +1175,77 @@ export async function addComment(
       // New staff comments are internal by default — customer visibility
       // is opt-in via the Intern/Extern toggle in the composer.
       is_internal: opts.isInternal ?? true,
+      metadata: mentions.length ? { mentions } : null,
     })
     .select(COMMENT_COLS)
     .single();
   if (error) throw error;
+
+  // Auto-subscribe the author and everyone they mentioned. The mention is
+  // the "watch" action — from here on they get every comment_added +
+  // status change on this ticket. Best-effort: a watcher-write failure
+  // must never lose the comment that already committed.
+  const watcherIds = [...new Set([opts.createdBy, ...mentions].filter((id): id is string => !!id))];
+  if (watcherIds.length) {
+    await addWatchers(ticketId, watcherIds).catch((e) =>
+      console.warn('addWatchers after comment failed:', e),
+    );
+  }
+
+  // Notify assignee ∪ watchers ∪ mentions (minus the author) — email + push.
+  fireNotify({ event: 'comment_added', ticketId, commentId: data.id, triggeredBy: opts.createdBy ?? null });
+
   return rowToComment(data);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Watchers — internal staff following a ticket (mirror ticket_watchers)
+// ─────────────────────────────────────────────────────────────────────
+
+export interface TicketWatcher {
+  employeeId: string;
+  name: string | null;
+  createdAt: string;
+}
+
+export async function listWatchers(ticketId: string): Promise<TicketWatcher[]> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('ticket_watchers')
+    .select('employee_id, created_at, employees:employee_id(name)')
+    .eq('ticket_id', ticketId)
+    .order('created_at');
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({
+    employeeId: r.employee_id,
+    name: r.employees?.name ?? null,
+    createdAt: r.created_at,
+  }));
+}
+
+// Idempotent subscribe — upsert ignores anyone already watching, so
+// re-mentioning or re-commenting never errors on the (ticket, employee) PK.
+export async function addWatchers(ticketId: string, employeeIds: string[]): Promise<void> {
+  const ids = [...new Set(employeeIds.filter(Boolean))];
+  if (!ids.length) return;
+  const sb = requireSupabase();
+  const { error } = await sb
+    .from('ticket_watchers')
+    .upsert(
+      ids.map((employee_id) => ({ ticket_id: ticketId, employee_id })),
+      { onConflict: 'ticket_id,employee_id', ignoreDuplicates: true },
+    );
+  if (error) throw error;
+}
+
+export async function removeWatcher(ticketId: string, employeeId: string): Promise<void> {
+  const sb = requireSupabase();
+  const { error } = await sb
+    .from('ticket_watchers')
+    .delete()
+    .eq('ticket_id', ticketId)
+    .eq('employee_id', employeeId);
+  if (error) throw error;
 }
 
 // ─────────────────────────────────────────────────────────────────────
