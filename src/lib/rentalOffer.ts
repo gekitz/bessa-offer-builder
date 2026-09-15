@@ -123,7 +123,8 @@ export interface RentalState {
 }
 
 export function emptyRentalState(): RentalState {
-  return { term: '6mo', hardware: {}, services: {}, software: {} };
+  // Every rental gets the cleaning service pre-added (rep can remove it).
+  return { term: '6mo', hardware: {}, services: { reinigung: 1 }, software: {} };
 }
 
 export interface RentalLine {
