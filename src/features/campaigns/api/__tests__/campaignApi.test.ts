@@ -57,6 +57,7 @@ import {
   recordOutcome,
   saveRecipientPayload,
   sendCampaign,
+  submitOutcome,
 } from '../campaignApi';
 import type { CampaignRecipient } from '../../types';
 
@@ -294,5 +295,37 @@ describe('sendCampaign', () => {
     });
     await expect(sendCampaign({ campaignId: 'c1', recipientIds: ['a'], batch: 'w1' }))
       .rejects.toThrow('Kampagne archiviert');
+  });
+});
+
+describe('submitOutcome (campaign-outcome edge fn)', () => {
+  it('invokes campaign-outcome with the token/outcome/payload body and maps the returned row', async () => {
+    invokeMock.mockResolvedValue({
+      data: { ok: true, idempotent: false, recipient: recipientRow({ outcome: 'authorized', outcome_at: 'X' }) },
+      error: null,
+    });
+    const r = await submitOutcome({ token: 'tok', outcome: 'authorized', payload: { signedByName: 'Max' } });
+    expect(invokeMock).toHaveBeenCalledWith('campaign-outcome', {
+      body: { token: 'tok', outcome: 'authorized', payload: { signedByName: 'Max' } },
+    });
+    expect(r.outcome).toBe('authorized');
+    expect(r.outcomeAt).toBe('X');
+  });
+
+  it('defaults an empty payload when none is given', async () => {
+    invokeMock.mockResolvedValue({ data: { ok: true, recipient: recipientRow() }, error: null });
+    await submitOutcome({ token: 'tok', outcome: 'soft_check' });
+    expect(invokeMock).toHaveBeenCalledWith('campaign-outcome', {
+      body: { token: 'tok', outcome: 'soft_check', payload: {} },
+    });
+  });
+
+  it('unwraps the error text from the edge-function response body', async () => {
+    invokeMock.mockResolvedValue({
+      data: null,
+      error: { message: 'Edge Function returned a non-2xx status code', context: { body: JSON.stringify({ error: 'Empfänger nicht gefunden.' }) } },
+    });
+    await expect(submitOutcome({ token: 'nope', outcome: 'authorized' }))
+      .rejects.toThrow('Empfänger nicht gefunden.');
   });
 });

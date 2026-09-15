@@ -13,7 +13,10 @@
 //   • hardwareNeeded   — viertl_licenses.hardware_needed
 // Der Wizard fragt nur, was wir NICHT berechnen können.
 
-export const VERSION_THRESHOLD = 67.25;
+// Versions-Helfer leben jetzt in rksvVersion.ts (geteilt mit dem Enroll-
+// Snapshot), werden hier aber re-exportiert, damit bestehende Importe
+// (rksvWizard.test.ts) unverändert grün bleiben.
+export { VERSION_THRESHOLD, parseVersion, versionOk } from './rksvVersion';
 
 export interface RksvKnown {
   hardwareNeeded?: boolean;   // aus viertl_licenses.hardware_needed (undefined = unbekannt)
@@ -70,23 +73,4 @@ export function nextStep(known: RksvKnown, answers: RksvAnswers): RksvStep {
 
   // 'weiss_nicht' — erstklassig: Remote-OS-Check + Rückruf (soft auth).
   return { kind: 'terminal', id: 'soft_check' };
-}
-
-// Parst die frei-Text Gastrotouch-Version (z. B. '67.24', '66.00', NULL,
-// Müll) in eine Zahl. NULL/nicht-numerisch → null (= unbekannt), damit der
-// Aufrufer versionOk als undefined behandeln kann.
-export function parseVersion(raw: string | null | undefined): number | null {
-  if (raw == null) return null;
-  const m = String(raw).trim().match(/^\d+(\.\d+)?/);
-  if (!m) return null;
-  const n = Number(m[0]);
-  return Number.isFinite(n) ? n : null;
-}
-
-// versionOk = Version >= VERSION_THRESHOLD. null-Version → undefined
-// (unbekannt), sodass der Wizard nicht auf einer Vermutung verzweigt.
-export function versionOk(raw: string | null | undefined): boolean | undefined {
-  const v = parseVersion(raw);
-  if (v == null) return undefined;
-  return v >= VERSION_THRESHOLD;
 }

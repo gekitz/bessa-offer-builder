@@ -2,8 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 
 import SignaturePad, { type SignaturePadHandle } from '../../../offers/components/SignaturePad';
-import { saveRecipientPayload } from '../../api/campaignApi';
-import { authorize, requestQuote, softCheck } from '../../lib/rksvHandler';
+import { saveRecipientPayload, submitOutcome } from '../../api/campaignApi';
 import { nextStep, type RksvAnswers, type RksvKnown } from '../../lib/rksvWizard';
 import type { Campaign, CampaignRecipient, RksvPayload } from '../../types';
 
@@ -11,7 +10,8 @@ import type { Campaign, CampaignRecipient, RksvPayload } from '../../types';
 // Hält answers-State (RksvPayload), berechnet nextStep(known, answers) pro
 // Render, rendert den Schritt und ruft bei jeder Antwort
 // saveRecipientPayload (stempelt started_at). Auf einem Terminal-Schritt
-// ruft es die Handler-Aktion (rksvHandler.ts).
+// ruft es submitOutcome() → die campaign-outcome Edge-Funktion, die den
+// Outcome + Viertl-Write-back server-seitig + idempotent macht (M2/M3).
 //
 // Die 2-Optionen-Fragen sind Pill-Buttons (ein Tap), nicht Select — per
 // Design-Memo (Pills für ≤7 oft-geschaltete Optionen). Der Select-Zwang
@@ -42,9 +42,8 @@ export default function RksvWizard({
   recipient: CampaignRecipient;
   campaign: Campaign;
 }) {
-  // known aus dem Enroll-Snapshot in recipient.payload (siehe rksvHandler /
-  // Enroll). Die Seite ist eine reine Funktion des Snapshots — kein
-  // Live-Viertl-Read.
+  // known aus dem Enroll-Snapshot in recipient.payload (siehe rksvEnroll).
+  // Die Seite ist eine reine Funktion des Snapshots — kein Live-Viertl-Read.
   const known: RksvKnown = useMemo(() => {
     const p = recipient.payload as RksvPayload;
     return { hardwareNeeded: p.knownHardwareNeeded, versionOk: p.versionOk };
@@ -96,7 +95,11 @@ export default function RksvWizard({
     setError(null);
     setBusy(true);
     try {
-      await authorize(recipient, { signatureData: sigRef.current.toDataURL(), signedByName: signedName.trim() });
+      await submitOutcome({
+        token: recipient.token,
+        outcome: 'authorized',
+        payload: { signatureData: sigRef.current.toDataURL(), signedByName: signedName.trim() },
+      });
       setDone('authorize');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Speichern');
@@ -110,7 +113,11 @@ export default function RksvWizard({
     setBusy(true);
     setError(null);
     try {
-      await requestQuote(recipient, { setupSize: answers.setupSize });
+      await submitOutcome({
+        token: recipient.token,
+        outcome: 'quote_requested',
+        payload: { hasWin10: 'nein', setupSize: answers.setupSize },
+      });
       setDone('request_quote');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Speichern');
@@ -123,7 +130,11 @@ export default function RksvWizard({
     setBusy(true);
     setError(null);
     try {
-      await softCheck(recipient);
+      await submitOutcome({
+        token: recipient.token,
+        outcome: 'soft_check',
+        payload: { hasWin10: 'weiss_nicht' },
+      });
       setDone('soft_check');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Speichern');

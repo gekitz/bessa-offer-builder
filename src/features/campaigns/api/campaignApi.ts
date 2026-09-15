@@ -3,7 +3,8 @@
 //
 // Konvention wie viertlApi.ts / procurementApi.ts: requireSupabase(),
 // rowTo* Mapper, *ToRow für Updates, ISO-Strings für Zeitstempel. KEINE
-// Typ-A-Logik hier — die lebt im Handler (rksvHandler.ts).
+// Typ-A-Logik hier — die lebt im Wizard (rksvWizard.ts) + der
+// campaign-outcome Edge-Funktion (Terminal-Write-back).
 //
 // Die Funnel-schreibenden Funktionen (markLanded/saveRecipientPayload/
 // recordOutcome) arbeiten PER TOKEN und sind anon-sicher (permissive RLS),
@@ -330,7 +331,12 @@ export async function saveRecipientPayload(
 // Terminaler Outcome von der Landing-Page (öffentlich). Stempelt outcome +
 // outcome_at, merged finalen payload (z. B. Signatur). Stempelt started_at
 // mit, falls null — damit auch Null-Fragen-Pfade als "gestartet" zählen.
-// Der typ-spezifische Write-back macht der Handler (rksvHandler.ts).
+//
+// HINWEIS: Der Produktions-Aufrufer ist jetzt die campaign-outcome Edge-
+// Funktion (submitOutcome), die den Outcome + den Viertl-Write-back
+// server-seitig (Service-Role) + idempotent macht (M2/M3). Diese
+// client-seitige Funktion bleibt für Tests/Referenz erhalten, wird aber
+// vom Landing-Pfad nicht mehr aufgerufen.
 export async function recordOutcome(
   token: string,
   outcome: CampaignOutcome,
@@ -357,6 +363,32 @@ export async function recordOutcome(
     .single();
   if (error) throw error;
   return rowToRecipient(data);
+}
+
+// Terminaler Outcome von der öffentlichen Landing-Page — ruft die
+// campaign-outcome Edge-Funktion (verify_jwt=false) auf. Diese stempelt das
+// Outcome + führt den Viertl-Write-back (Flag + Notiz) mit dem
+// SERVICE-ROLE-Key + idempotent aus (M2/M3). Der anon-Client passiert das
+// Gateway (fn ist public), der Token im Body ist das Credential — wie die
+// Stripe-Accept-Fns. Fehlertext aus dem Response-Body auspacken, exakt wie
+// sendCampaign / notifyViertlClosure.
+export async function submitOutcome(input: {
+  token: string;
+  outcome: 'authorized' | 'quote_requested' | 'soft_check';
+  payload?: Record<string, unknown>;
+}): Promise<CampaignRecipient> {
+  const sb = requireSupabase();
+  const { data, error } = await sb.functions.invoke('campaign-outcome', {
+    body: { token: input.token, outcome: input.outcome, payload: input.payload ?? {} },
+  });
+  if (error) {
+    const ctx = (error as { context?: { body?: string } }).context;
+    let msg = error.message;
+    try { msg = ctx?.body ? (JSON.parse(ctx.body).error ?? msg) : msg; } catch { /* keep msg */ }
+    throw new Error(msg);
+  }
+  const res = data as { ok: true; recipient: unknown };
+  return rowToRecipient(res.recipient);
 }
 
 // ─────────────────────────────────────────────────────────────────────

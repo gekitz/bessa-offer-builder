@@ -50,3 +50,10 @@ verify_jwt = true
 # session JWT via functions.invoke, like mesonic-proxy / notify-viertl-closure).
 [functions.send-campaign]
 verify_jwt = true
+
+# Called from the anonymous campaign landing page (?c={token}, no login).
+# The recipient token is the credential; the fn loads the row by token and
+# refuses anything else, then records the outcome + Viertl write-back with the
+# SERVICE ROLE key (so the public client never touches viertl_* directly).
+[functions.campaign-outcome]
+verify_jwt = false
