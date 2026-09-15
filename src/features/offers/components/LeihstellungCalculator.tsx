@@ -189,7 +189,7 @@ export default function LeihstellungCalculator({ rental, onChange }: Props) {
                 <Row
                   key={sv.id}
                   name={sv.name}
-                  hint={`€ ${fmt(sv.price)} / Stk`}
+                  hint={sv.hint ?? `€ ${fmt(sv.price)} / Stk`}
                   qty={qty}
                   onStep={(d) => step('services', sv.id, d)}
                   lineTotal={qty * sv.price}

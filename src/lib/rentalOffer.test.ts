@@ -68,6 +68,16 @@ describe('rental catalog integrity', () => {
     expect(byId['fiskalisierung']).toBe(190);
     expect(byId['arbeitszeit']).toBe(120);
   });
+
+  it('offers a "Reinigung Leihstellung" service priced at 2h Arbeitszeit', () => {
+    const reinigung = RENTAL_SERVICES.find((s) => s.id === 'reinigung')!;
+    const arbeitszeit = RENTAL_SERVICES.find((s) => s.id === 'arbeitszeit')!;
+    expect(reinigung.name).toBe('Reinigung Leihstellung');
+    expect(reinigung.price).toBe(2 * arbeitszeit.price);
+    // Carries the return-condition text as its calculator hint.
+    expect(reinigung.hint).toMatch(/gesäubert zu retounieren/);
+    expect(reinigung.hint).toMatch(/Reinigungspauschale verrechnet/);
+  });
 });
 
 describe('software pricing derives from the bessa tiers', () => {
