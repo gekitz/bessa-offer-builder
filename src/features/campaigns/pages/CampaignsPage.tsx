@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Loader2, Mail, Megaphone, Phone, RefreshCw, Send } from 'lucide-react';
+import { Cpu, Download, Loader2, Mail, Megaphone, Phone, Plus, RefreshCw, Search, Send, UserPlus } from 'lucide-react';
 
 import { useAuth } from '../../../lib/auth';
 import Select from '../../../components/Select';
 import {
+  createCampaign,
   dryRunSend,
+  enrollRecipients,
   getFunnelCounts,
   listCampaigns,
   listRecipients,
   sendCampaign,
 } from '../api/campaignApi';
+import { filterLicensesForSegment, licenseToEnrollSubject, type ViertlSegmentFilter } from '../lib/rksvEnroll';
+import { listLicenses } from '../../viertl/api/viertlApi';
+import type { ViertlCustomerStatus, ViertlLicense } from '../../viertl/types';
 import type {
   Campaign,
   CampaignActor,
@@ -66,7 +71,37 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
+  // ── Neue Kampagne (M1) ──
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newKey, setNewKey] = useState('');
+  const [newTitle, setNewTitle] = useState('');
+  const [newSubject, setNewSubject] = useState('');
+  const [newTemplate, setNewTemplate] = useState('');
+
+  // ── Enrol aus dem Viertl-Segment (M1) ──
+  const [enrollOpen, setEnrollOpen] = useState(false);
+  const [licenses, setLicenses] = useState<ViertlLicense[] | null>(null);
+  const [enrollBusy, setEnrollBusy] = useState(false);
+  const [segSearch, setSegSearch] = useState('');
+  const [segCustomer, setSegCustomer] = useState<ViertlCustomerStatus | 'all'>('active');
+  const [segHwOnly, setSegHwOnly] = useState(false);
+  const [segWithEmail, setSegWithEmail] = useState(false); // default false → Druck-Segment mit erfassen (C3)
+  const [enrollBatch, setEnrollBatch] = useState<string>(() => new Date().toISOString().slice(0, 10));
+
   const campaign = useMemo(() => campaigns.find((c) => c.id === campaignId) ?? null, [campaigns, campaignId]);
+
+  const segmentFilter = useMemo<ViertlSegmentFilter>(() => ({
+    search: segSearch,
+    customerStatus: segCustomer,
+    hardwareNeeded: segHwOnly,
+    withEmailOnly: segWithEmail,
+  }), [segSearch, segCustomer, segHwOnly, segWithEmail]);
+
+  const segment = useMemo(
+    () => (licenses ? filterLicensesForSegment(licenses, segmentFilter) : []),
+    [licenses, segmentFilter],
+  );
+  const segmentNoEmail = useMemo(() => segment.filter((l) => !l.email).length, [segment]);
 
   // Distinct Batches der geladenen Empfänger (für den Wellen-Picker).
   const batches = useMemo(() => {
@@ -177,6 +212,79 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
     URL.revokeObjectURL(url);
   }
 
+  // ── Neue Kampagne anlegen (Type A) ──
+  async function handleCreateCampaign() {
+    if (!newKey.trim() || !newTitle.trim()) {
+      setError('Key und Titel sind erforderlich.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      // Type ist in diesem Scope fix rksv_signature (Type B out of scope).
+      const created = await createCampaign(
+        {
+          type: 'rksv_signature',
+          key: newKey.trim(),
+          title: newTitle.trim(),
+          emailSubject: newSubject.trim() || null,
+          emailTemplate: newTemplate.trim() || null,
+        },
+        actor,
+      );
+      setCreateOpen(false);
+      setNewKey(''); setNewTitle(''); setNewSubject(''); setNewTemplate('');
+      await loadCampaigns();
+      setCampaignId(created.id);
+      setFlash(`Kampagne „${created.title}" angelegt.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Anlegen fehlgeschlagen');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ── Enrol-Panel öffnen: Lizenzen laden ──
+  async function openEnroll() {
+    setEnrollOpen(true);
+    if (licenses) return;
+    setEnrollBusy(true);
+    setError(null);
+    try {
+      setLicenses(await listLicenses());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Viertl-Lizenzen konnten nicht geladen werden');
+    } finally {
+      setEnrollBusy(false);
+    }
+  }
+
+  // ── Segment enrollen: pro Lizenz payload-Snapshot (knownHardwareNeeded +
+  //    versionOk), dann idempotenter upsert (enrollRecipients). ──
+  async function handleEnroll() {
+    if (!campaign) return;
+    const batch = enrollBatch.trim() || new Date().toISOString().slice(0, 10);
+    const subjects = segment.map((l) => licenseToEnrollSubject(l, batch));
+    const ok = window.confirm(
+      `Enrolle ${subjects.length} Empfänger (${segmentNoEmail} ohne E-Mail) in Welle „${batch}".\nBereits enrollte werden per Idempotenz übersprungen.\n\nFortfahren?`,
+    );
+    if (!ok) return;
+    setEnrollBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await enrollRecipients(campaign.id, subjects);
+      setFlash(`Enrolled: ${res.enrolled.length} · übersprungen: ${res.skipped}`);
+      setEnrollOpen(false);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Enrol fehlgeschlagen');
+    } finally {
+      setEnrollBusy(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center py-12">
@@ -191,12 +299,31 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
         <div className="flex items-center gap-2 mb-4">
           <Megaphone className="text-red-500" size={22} />
           <h1 className="text-xl font-bold text-slate-800">Kampagnen</h1>
+          <button
+            onClick={() => { setCreateOpen((v) => !v); setEnrollOpen(false); }}
+            className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-50"
+          >
+            <Plus size={14} /> Neue Kampagne
+          </button>
         </div>
+
+        {createOpen && (
+          <CreateCampaignPanel
+            newKey={newKey} setNewKey={setNewKey}
+            newTitle={newTitle} setNewTitle={setNewTitle}
+            newSubject={newSubject} setNewSubject={setNewSubject}
+            newTemplate={newTemplate} setNewTemplate={setNewTemplate}
+            busy={busy}
+            onSubmit={() => void handleCreateCampaign()}
+            onCancel={() => setCreateOpen(false)}
+          />
+        )}
 
         {campaigns.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-6 text-slate-500 text-sm">
-            Noch keine Kampagne angelegt. Kampagnen werden über eine Migration bzw. das
-            Enrolment (Viertl-Segment) erstellt.
+            Noch keine Kampagne angelegt. Legen Sie oben eine <strong>Neue Kampagne</strong> an
+            (Type A: RKSV-Signaturkarte) und enrollen Sie anschließend Empfänger aus dem
+            Viertl-Segment.
           </div>
         ) : (
           <>
@@ -226,6 +353,15 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
                 <RefreshCw size={14} className={busy ? 'animate-spin' : ''} /> Aktualisieren
               </button>
               <div className="ml-auto flex items-center gap-2">
+                {campaign?.type === 'rksv_signature' && (
+                  <button
+                    onClick={() => void openEnroll()}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-50"
+                    title="Empfänger aus dem Viertl-Segment enrollen"
+                  >
+                    <UserPlus size={14} /> Empfänger enrollen
+                  </button>
+                )}
                 <button
                   onClick={exportPrintList}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-50"
@@ -245,6 +381,22 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
 
             {flash && <div className="mb-3 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">{flash}</div>}
             {error && <div className="mb-3 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{error}</div>}
+
+            {enrollOpen && campaign?.type === 'rksv_signature' && (
+              <EnrollPanel
+                segSearch={segSearch} setSegSearch={setSegSearch}
+                segCustomer={segCustomer} setSegCustomer={setSegCustomer}
+                segHwOnly={segHwOnly} setSegHwOnly={setSegHwOnly}
+                segWithEmail={segWithEmail} setSegWithEmail={setSegWithEmail}
+                enrollBatch={enrollBatch} setEnrollBatch={setEnrollBatch}
+                loading={enrollBusy && licenses === null}
+                busy={enrollBusy}
+                segmentCount={segment.length}
+                segmentNoEmail={segmentNoEmail}
+                onEnroll={() => void handleEnroll()}
+                onClose={() => setEnrollOpen(false)}
+              />
+            )}
 
             {/* Funnel-Rollup */}
             {counts && (
@@ -334,6 +486,172 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Neue-Kampagne-Panel (inline, im ViertlPage-Stil) ──
+const CAMPAIGN_TYPE_OPTIONS = [{ value: 'rksv_signature', label: 'RKSV-Signaturkarte (Type A)' }];
+
+function CreateCampaignPanel({
+  newKey, setNewKey,
+  newTitle, setNewTitle,
+  newSubject, setNewSubject,
+  newTemplate, setNewTemplate,
+  busy,
+  onSubmit,
+  onCancel,
+}: {
+  newKey: string; setNewKey: (v: string) => void;
+  newTitle: string; setNewTitle: (v: string) => void;
+  newSubject: string; setNewSubject: (v: string) => void;
+  newTemplate: string; setNewTemplate: (v: string) => void;
+  busy: boolean;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  const inputCls = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none';
+  return (
+    <div className="mb-4 bg-white rounded-xl border border-slate-200 p-4">
+      <h2 className="font-semibold text-slate-800 mb-3">Neue Kampagne</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="block">
+          <span className="block text-xs font-medium text-slate-500 mb-1">Typ</span>
+          {/* Nur Type A anbieten; Type B (PoS) ist in diesem Scope ausgeschlossen. */}
+          <Select value="rksv_signature" onChange={() => {}} options={CAMPAIGN_TYPE_OPTIONS} ariaLabel="Kampagnentyp" />
+        </label>
+        <label className="block">
+          <span className="block text-xs font-medium text-slate-500 mb-1">Key (eindeutig)</span>
+          <input value={newKey} onChange={(e) => setNewKey(e.target.value)} placeholder="z. B. 2026-acos" className={inputCls} />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="block text-xs font-medium text-slate-500 mb-1">Titel</span>
+          <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="RKSV-Signaturkartentausch 2026" className={inputCls} />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="block text-xs font-medium text-slate-500 mb-1">E-Mail-Betreff</span>
+          <input value={newSubject} onChange={(e) => setNewSubject(e.target.value)} placeholder="Ihre RKSV-Signaturkarte muss getauscht werden" className={inputCls} />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="block text-xs font-medium text-slate-500 mb-1">E-Mail-Text (HTML, {'{name}'} wird ersetzt)</span>
+          <textarea value={newTemplate} onChange={(e) => setNewTemplate(e.target.value)} rows={4} placeholder="<p>Guten Tag {name},</p> …" className={inputCls} />
+        </label>
+      </div>
+      <div className="mt-3 flex justify-end gap-2">
+        <button onClick={onCancel} disabled={busy} className="px-3 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm disabled:opacity-40">Abbrechen</button>
+        <button onClick={onSubmit} disabled={busy} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
+          {busy && <Loader2 className="animate-spin" size={14} />} Anlegen
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const CUSTOMER_SEG_OPTIONS: { value: ViertlCustomerStatus | 'all'; label: string }[] = [
+  { value: 'active', label: 'Aktiv' },
+  { value: 'closing', label: 'Sperrt zu' },
+  { value: 'closed', label: 'Geschlossen' },
+  { value: 'all', label: 'Alle Kunden' },
+];
+
+// ── Enrol-aus-Viertl-Panel (inline) ──
+function EnrollPanel({
+  segSearch, setSegSearch,
+  segCustomer, setSegCustomer,
+  segHwOnly, setSegHwOnly,
+  segWithEmail, setSegWithEmail,
+  enrollBatch, setEnrollBatch,
+  loading,
+  busy,
+  segmentCount,
+  segmentNoEmail,
+  onEnroll,
+  onClose,
+}: {
+  segSearch: string; setSegSearch: (v: string) => void;
+  segCustomer: ViertlCustomerStatus | 'all'; setSegCustomer: (v: ViertlCustomerStatus | 'all') => void;
+  segHwOnly: boolean; setSegHwOnly: (v: boolean) => void;
+  segWithEmail: boolean; setSegWithEmail: (v: boolean) => void;
+  enrollBatch: string; setEnrollBatch: (v: string) => void;
+  loading: boolean;
+  busy: boolean;
+  segmentCount: number;
+  segmentNoEmail: number;
+  onEnroll: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="mb-4 bg-white rounded-xl border border-slate-200 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold text-slate-800">Empfänger aus Viertl-Segment enrollen</h2>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-sm">Schließen</button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-slate-400 text-sm py-4">
+          <Loader2 className="animate-spin" size={16} /> Viertl-Lizenzen laden …
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                value={segSearch}
+                onChange={(e) => setSegSearch(e.target.value)}
+                placeholder="Name, Ort, Kd.Nr., Hardware …"
+                className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-red-100"
+              />
+            </div>
+            <Select
+              value={segCustomer}
+              onChange={(v) => setSegCustomer(v as ViertlCustomerStatus | 'all')}
+              options={CUSTOMER_SEG_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+              className="inline-block min-w-[150px]"
+              ariaLabel="Kundenstatus"
+            />
+            <button
+              onClick={() => setSegHwOnly(!segHwOnly)}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border ${
+                segHwOnly ? 'bg-rose-50 border-rose-200 text-rose-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Cpu className="w-4 h-4" /> Neue HW nötig
+            </button>
+            <button
+              onClick={() => setSegWithEmail(!segWithEmail)}
+              title="Nur Lizenzen mit hinterlegter E-Mail"
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border ${
+                segWithEmail ? 'bg-sky-50 border-sky-200 text-sky-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Mail className="w-4 h-4" /> Nur mit E-Mail
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="block">
+              <span className="block text-xs font-medium text-slate-500 mb-1">Welle</span>
+              <input
+                value={enrollBatch}
+                onChange={(e) => setEnrollBatch(e.target.value)}
+                className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none"
+              />
+            </label>
+            <div className="text-sm text-slate-500">
+              Segment: <strong className="text-slate-800">{segmentCount}</strong> Lizenzen · {segmentNoEmail} ohne E-Mail
+            </div>
+            <button
+              onClick={onEnroll}
+              disabled={busy || segmentCount === 0}
+              className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50"
+            >
+              {busy && <Loader2 className="animate-spin" size={14} />}
+              <UserPlus size={14} /> {segmentCount} enrollen
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
