@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
 import BarcodeScanButton from '../../tickets/components/BarcodeScanButton';
+import ProductPicker from './ProductPicker';
 import type { Product } from '../../offers/api/productApi';
 import { createDevice, updateDevice } from '../api/loanerApi';
 import type { LoanerDevice, LoanerDeviceStatus, MesonicStandort } from '../types';
@@ -50,21 +51,13 @@ export default function DeviceFormModal({ device, products, onClose, onSaved }: 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const productOptions = [
-    { value: '', label: '— kein Produkt —' },
-    ...products
-      .filter((p) => p.active)
-      .map((p) => ({ value: p.id, label: p.name, hint: p.catalog })),
-  ];
-
   // Picking a product prefills the name when the field is still empty or still
   // shows the previously-picked product's name (so manual edits are kept).
-  function handleProductChange(id: string) {
+  function handleProductSelect(id: string, product: Product | null) {
     const prev = products.find((p) => p.id === productId);
     setProductId(id);
-    const next = products.find((p) => p.id === id);
-    if (next && (!bezeichnung.trim() || bezeichnung === prev?.name)) {
-      setBezeichnung(next.name);
+    if (product && (!bezeichnung.trim() || bezeichnung === prev?.name)) {
+      setBezeichnung(product.name);
     }
   }
 
@@ -117,8 +110,8 @@ export default function DeviceFormModal({ device, products, onClose, onSaved }: 
 
         <div className="p-5 space-y-4 overflow-y-auto">
           <div>
-            <label className={labelCls}>Produkt (optional)</label>
-            <Select value={productId} onChange={handleProductChange} options={productOptions} placeholder="— kein Produkt —" />
+            <label className={labelCls}>Produkt (optional, nur Hardware)</label>
+            <ProductPicker products={products} value={productId} onChange={handleProductSelect} />
           </div>
           <div>
             <label className={labelCls}>Bezeichnung *</label>
