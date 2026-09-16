@@ -148,7 +148,8 @@ export default function LeihgeraetePage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
+    <div className="flex-1 overflow-auto">
+     <div className="max-w-5xl mx-auto px-4 py-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Leihgeräte</h1>
@@ -311,6 +312,7 @@ export default function LeihgeraetePage() {
           }}
         />
       )}
+     </div>
     </div>
   );
 }
