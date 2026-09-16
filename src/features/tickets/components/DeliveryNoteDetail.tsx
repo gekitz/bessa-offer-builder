@@ -476,7 +476,8 @@ interface ItemRowProps {
   serialized: boolean;
   onPatch: (patch: { bezeichnung?: string; quantity?: number; unitPrice?: number; serialNumbers?: string[] }) => void;
   onRemove: () => void;
-  // Fired with the raw value each time a serial is scanned (loaner recognition).
+  // Fired with the raw value each time a serial is entered — scanned or typed —
+  // so loaner recognition behaves the same either way.
   onSerialScanned?: (serial: string) => void;
 }
 
@@ -600,9 +601,13 @@ function ItemRow({ item, locked, serialized, onPatch, onRemove, onSerialScanned 
                   disabled={locked}
                   placeholder="Seriennummer"
                   onBlur={(e) => {
-                    if ((e.target.value ?? '') !== (item.serialNumbers[idx] ?? '')) {
-                      setSerialAt(idx, e.target.value);
+                    const v = e.target.value;
+                    if ((v ?? '') !== (item.serialNumbers[idx] ?? '')) {
+                      setSerialAt(idx, v);
                     }
+                    // Same loaner recognition as scanning — a typed serial that
+                    // belongs to the loaner pool surfaces the banner too.
+                    if (v.trim()) onSerialScanned?.(v);
                   }}
                   className="flex-1 min-w-0 px-2 py-1.5 rounded border border-slate-200 text-sm font-mono disabled:bg-slate-50 disabled:text-slate-500"
                 />
