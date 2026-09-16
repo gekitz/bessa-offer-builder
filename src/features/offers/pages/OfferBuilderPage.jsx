@@ -96,6 +96,7 @@ const DashboardPage = lazyWithReload(() => import('../../dashboard/pages/Dashboa
 const ProductsAdminPage = lazyWithReload(() => import('./ProductsAdminPage'));
 const ProcurementPage = lazyWithReload(() => import('../../procurement/pages/ProcurementPage'));
 const ViertlPage = lazyWithReload(() => import('../../viertl/pages/ViertlPage'));
+const LeihgeraetePage = lazyWithReload(() => import('../../loaners/pages/LeihgeraetePage'));
 const MesonicTestPage = lazyWithReload(() => import('../../../components/MesonicTest.jsx'));
 import { useApproverPendingCount } from '../../vacation/hooks/useApproverPendingCount';
 import { useMyTicketCount } from '../../tickets/hooks/useMyTicketCount';
@@ -1734,6 +1735,13 @@ function OfferBuilderPageInner() {
               });
             }}
           />
+        </React.Suspense>
+      )}
+
+      {/* ═══ LEIHGERÄTE SECTION ═══ */}
+      {section === 'leihgeraete' && (
+        <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
+          <LeihgeraetePage />
         </React.Suspense>
       )}
 
