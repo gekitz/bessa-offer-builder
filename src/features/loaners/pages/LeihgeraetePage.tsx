@@ -149,12 +149,12 @@ export default function LeihgeraetePage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Leihgeräte</h1>
           <p className="text-sm text-slate-400">{devices.length} Geräte im Bestand</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => openCheckOut(null)}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700"
@@ -179,7 +179,7 @@ export default function LeihgeraetePage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
+      <div className="space-y-2 mb-4">
         <div className="flex flex-wrap gap-1.5">
           {(['all', ...STATUS_ORDER] as StatusFilter[]).map((s) => {
             const active = statusFilter === s;
@@ -188,7 +188,7 @@ export default function LeihgeraetePage() {
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                className={`text-xs font-medium px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0 transition-colors ${
                   active ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
@@ -197,24 +197,24 @@ export default function LeihgeraetePage() {
             );
           })}
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
           <Select
             value={standortFilter}
             onChange={setStandortFilter}
-            className="inline-block w-40"
+            className="w-full sm:w-40"
             options={[
               { value: '', label: 'Alle Standorte' },
               { value: 'klagenfurt', label: 'Klagenfurt' },
               { value: 'wolfsberg', label: 'Wolfsberg' },
             ]}
           />
-          <div className="relative">
+          <div className="relative w-full sm:w-48">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Suche…"
-              className="w-48 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+              className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
             />
           </div>
         </div>
@@ -240,8 +240,8 @@ export default function LeihgeraetePage() {
             <p className="text-sm">{devices.length === 0 ? 'Füge dein erstes Leihgerät hinzu.' : 'Kein Treffer für die aktuellen Filter.'}</p>
           </div>
         ) : (
-          <div className="border border-slate-100 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="border border-slate-100 rounded-xl overflow-x-auto">
+            <table className="w-full text-sm min-w-[32rem]">
               <thead className="bg-slate-50 text-slate-400 text-xs">
                 <tr>
                   <th className="text-left font-medium px-4 py-2">Gerät</th>

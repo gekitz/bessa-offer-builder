@@ -27,6 +27,50 @@ const FORMATS = [
   'qr_code', 'data_matrix', 'itf', 'codabar',
 ];
 
+// Video constraints tuned for close-range barcode scanning. A high ideal
+// resolution nudges Android toward the main sensor (not the low-res ultra-wide),
+// and continuous focus keeps a close barcode sharp. focusMode isn't in the TS
+// DOM lib, so the constraint set is built loosely and cast.
+function videoConstraints(deviceId?: string): MediaTrackConstraints {
+  const c: Record<string, unknown> = {
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    advanced: [{ focusMode: 'continuous' }],
+  };
+  if (deviceId) c.deviceId = { exact: deviceId };
+  else c.facingMode = { ideal: 'environment' };
+  return c as MediaTrackConstraints;
+}
+
+// Pick the main rear lens. Android exposes several back cameras and often maps
+// facingMode:environment to the FIXED-FOCUS ultra-wide, which can't focus on a
+// close barcode. Labels only populate after camera permission is granted, so
+// this runs after the first getUserMedia. Returns null when there's nothing
+// better to switch to (single camera / no labels).
+async function pickRearCameraId(): Promise<string | null> {
+  try {
+    const cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+    if (cams.length <= 1) return null;
+    const back = cams.filter((c) => /back|rear|rück|environment/i.test(c.label));
+    const pool = back.length ? back : cams;
+    // Skip the fixed-focus ultra-wide / tele / depth / macro lenses.
+    const main = pool.find((c) => !/wide|ultra|tele|depth|macro|zoom|weit/i.test(c.label));
+    return (main ?? pool[0])?.deviceId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Best-effort continuous autofocus on an already-open track (some browsers only
+// honour focusMode via applyConstraints, not the initial getUserMedia).
+async function enableAutofocus(stream: MediaStream): Promise<void> {
+  try {
+    await stream.getVideoTracks()[0]?.applyConstraints({ advanced: [{ focusMode: 'continuous' }] } as unknown as MediaTrackConstraints);
+  } catch {
+    /* unsupported — ignore */
+  }
+}
+
 export default function BarcodeScanButton({
   onScan,
   disabled = false,
@@ -78,18 +122,27 @@ function ScannerModal({ onScan, onClose }: { onScan: (v: string) => void; onClos
       onScan(value.trim());
     }
 
-    const constraints: MediaStreamConstraints = {
-      video: { facingMode: { ideal: 'environment' } },
-      audio: false,
-    };
-
     async function start() {
       try {
         const Ctor = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
         if (Ctor) {
           // Native path: we own the stream and poll the detector on each frame.
-          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(), audio: false });
           if (stopped) return;
+          // Switch to the main rear lens if a better one exists (avoids Android's
+          // fixed-focus ultra-wide, which can't focus on a close barcode).
+          try {
+            const id = await pickRearCameraId();
+            const currentId = stream.getVideoTracks()[0]?.getSettings().deviceId;
+            if (id && id !== currentId) {
+              stream.getTracks().forEach((t) => t.stop());
+              stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(id), audio: false });
+            }
+          } catch {
+            /* keep the first stream */
+          }
+          if (stopped) return;
+          await enableAutofocus(stream);
           const video = videoRef.current;
           if (!video) return;
           video.srcObject = stream;
@@ -113,12 +166,15 @@ function ScannerModal({ onScan, onClose }: { onScan: (v: string) => void; onClos
           if (stopped || !videoRef.current) return;
           const reader = new BrowserMultiFormatReader();
           zxingControls = await reader.decodeFromConstraints(
-            constraints,
+            { video: videoConstraints(), audio: false },
             videoRef.current,
             (result) => {
               if (result) handleHit(result.getText());
             },
           );
+          if (videoRef.current.srcObject instanceof MediaStream) {
+            void enableAutofocus(videoRef.current.srcObject);
+          }
           setStarting(false);
         }
       } catch (e) {
