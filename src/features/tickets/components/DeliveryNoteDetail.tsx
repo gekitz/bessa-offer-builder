@@ -26,6 +26,7 @@ import { ALL } from '../../offers/data/catalogs';
 import type { DeliveryNote, DeliveryNoteItem, Ticket } from '../types';
 import SignatureCapture from './SignatureCapture';
 import BarcodeScanButton from './BarcodeScanButton';
+import LoanerScanBanner from '../../loaners/components/LoanerScanBanner';
 
 interface DeliveryNoteDetailProps {
   ticket: Ticket;
@@ -76,6 +77,10 @@ export default function DeliveryNoteDetail({
   const [draftPerformedAt, setDraftPerformedAt] = useState('');
   const [draftNote, setDraftNote] = useState('');
   const [savingMeta, setSavingMeta] = useState(false);
+
+  // Loaner recognition: last scanned serial, checked against the loaner
+  // inventory so a scanned Leihgerät surfaces its status + check-out/in inline.
+  const [scannedSerial, setScannedSerial] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -354,6 +359,18 @@ export default function DeliveryNoteDetail({
         </div>
       )}
 
+      {/* Loaner recognition banner (a scanned serial that belongs to the loaner pool) */}
+      {scannedSerial && (
+        <LoanerScanBanner
+          serial={scannedSerial}
+          customerName={ticket.customerName}
+          customerKdnr={ticket.mesonicCustomerId ? String(ticket.mesonicCustomerId) : null}
+          ticketId={ticket.id}
+          createdBy={currentEmployeeId}
+          onDismiss={() => setScannedSerial(null)}
+        />
+      )}
+
       {/* Positions */}
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between mb-2">
@@ -386,6 +403,7 @@ export default function DeliveryNoteDetail({
                 serialized={isSerialized(item)}
                 onPatch={(patch) => patchItem(item.id, patch)}
                 onRemove={() => handleRemoveItem(item.id)}
+                onSerialScanned={setScannedSerial}
               />
             ))}
           </ul>
@@ -458,9 +476,11 @@ interface ItemRowProps {
   serialized: boolean;
   onPatch: (patch: { bezeichnung?: string; quantity?: number; unitPrice?: number; serialNumbers?: string[] }) => void;
   onRemove: () => void;
+  // Fired with the raw value each time a serial is scanned (loaner recognition).
+  onSerialScanned?: (serial: string) => void;
 }
 
-function ItemRow({ item, locked, serialized, onPatch, onRemove }: ItemRowProps) {
+function ItemRow({ item, locked, serialized, onPatch, onRemove, onSerialScanned }: ItemRowProps) {
   const [bezeichnung, setBezeichnung] = useState(item.bezeichnung);
   const [qty, setQty] = useState(String(item.quantity));
   const [unitPrice, setUnitPrice] = useState(String(item.unitPrice));
@@ -586,7 +606,14 @@ function ItemRow({ item, locked, serialized, onPatch, onRemove }: ItemRowProps) 
                   }}
                   className="flex-1 min-w-0 px-2 py-1.5 rounded border border-slate-200 text-sm font-mono disabled:bg-slate-50 disabled:text-slate-500"
                 />
-                {!locked && <BarcodeScanButton onScan={(v) => setSerialAt(idx, v)} />}
+                {!locked && (
+                  <BarcodeScanButton
+                    onScan={(v) => {
+                      setSerialAt(idx, v);
+                      onSerialScanned?.(v);
+                    }}
+                  />
+                )}
               </div>
             ))}
           </div>

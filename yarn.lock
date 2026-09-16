@@ -1620,6 +1620,7 @@ __metadata:
     "@zxing/library": ^0.23.0
     autoprefixer: ^10.4.16
     gh-pages: ^6.1.0
+    jsbarcode: ^3.12.3
     jsdom: ^25.0.1
     lucide-react: ^0.263.1
     postcss: ^8.4.32
@@ -2864,6 +2865,13 @@ __metadata:
   version: 4.0.0
   resolution: "js-tokens@npm:4.0.0"
   checksum: 8a95213a5a77deb6cbe94d86340e8d9ace2b93bc367790b260101d2f36a2eaf4e4e22d9fa9cf459b38af3a32fb4190e638024cf82ec95ef708680e405ea7cc78
+  languageName: node
+  linkType: hard
+
+"jsbarcode@npm:^3.12.3":
+  version: 3.12.3
+  resolution: "jsbarcode@npm:3.12.3"
+  checksum: 06eb034155e19f683e0e31e08d973a32433b213de9d3d86dc334c75a89832fe2f90cfe9c7e30de004b4706c21b456dcf627c612636af6ce66c0c1061f5b3ac4a
   languageName: node
   linkType: hard
 
