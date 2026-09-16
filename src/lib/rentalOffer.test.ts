@@ -5,6 +5,8 @@ import {
   rentalTerm,
   rentalLineFields,
   rentalLineName,
+  rentalNetto,
+  hasNettoOverride,
   emptyRentalState,
   RENTAL_TERMS,
   RENTAL_HARDWARE,
@@ -220,6 +222,55 @@ describe('rentalLineFields — the single offer line', () => {
         '2× Anbindung Kartenzahlungsterminal',
       ].join('\n'),
     );
+  });
+});
+
+describe('manual net override', () => {
+  it('hasNettoOverride only accepts a finite value ≥ 0', () => {
+    expect(hasNettoOverride(sheetState('6mo'))).toBe(false);
+    expect(hasNettoOverride({ ...sheetState('6mo'), nettoOverride: 1500 })).toBe(true);
+    expect(hasNettoOverride({ ...sheetState('6mo'), nettoOverride: 0 })).toBe(true);
+    expect(hasNettoOverride({ ...sheetState('6mo'), nettoOverride: -5 })).toBe(false);
+    expect(hasNettoOverride({ ...sheetState('6mo'), nettoOverride: NaN })).toBe(false);
+    expect(hasNettoOverride({ ...sheetState('6mo'), nettoOverride: Infinity })).toBe(false);
+  });
+
+  it('rentalNetto returns the calculated netto when no override is set', () => {
+    expect(rentalNetto(sheetState('6mo'))).toBeCloseTo(1618, 2);
+  });
+
+  it('rentalNetto returns the override when set', () => {
+    expect(rentalNetto({ ...sheetState('6mo'), nettoOverride: 1500 })).toBe(1500);
+    expect(rentalNetto({ ...sheetState('6mo'), nettoOverride: 1500.555 })).toBe(1500.56); // round2
+  });
+
+  it('prices the offer line at the override, keeping name and description', () => {
+    const base = sheetState('6mo');
+    const line = rentalLineFields({ ...base, nettoOverride: 1500 })!;
+    expect(line.price).toBe(1500);
+    // Everything else is untouched — same title and item breakdown.
+    expect(line.name).toBe(rentalLineFields(base)!.name);
+    expect(line.description).toBe(rentalLineFields(base)!.description);
+  });
+
+  it('the override, not the calculation, drives the offer totals', () => {
+    const fields = rentalLineFields({ ...sheetState('6mo'), nettoOverride: 1500 })!;
+    ALL[RENTAL_LINE_ID] = { id: RENTAL_LINE_ID, name: fields.name, price: fields.price, t: 'o' } as never;
+    const cart: Cart = {
+      [RENTAL_LINE_ID]: { qty: 1, discountQty: 0, priceOverride: fields.price },
+    };
+    try {
+      expect(computeTotals(cart, ALL).once).toBeCloseTo(1500, 2);
+    } finally {
+      delete ALL[RENTAL_LINE_ID];
+    }
+  });
+
+  it('still returns null for an empty rental even with an override set', () => {
+    // The override only prices an actual rental; nothing selected → no line.
+    expect(
+      rentalLineFields({ term: '6mo', hardware: {}, services: {}, software: {}, nettoOverride: 1500 }),
+    ).toBeNull();
   });
 });
 
