@@ -1,54 +1,43 @@
 import React from 'react';
-import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
+import { Document, Page, StyleSheet, Svg, Rect, Text, View } from '@react-pdf/renderer';
 import { COLORS } from './pdfStyles';
-import { paginateStickers, STICKERS_PER_PAGE } from '../features/loaners/lib/stickerLayout';
+import { LABEL_SIZE } from '../features/loaners/lib/labelFormat';
 
-// Etikettenbogen für Leihgeräte: 3 × 8 Code128-Etiketten je A4-Seite. Jedes
-// Etikett zeigt die Bezeichnung, den Code128-Barcode der Seriennummer und die
-// menschenlesbare Seriennummer (+ optionale Inventarnr.). Der Barcode kommt als
-// vorgerenderte PNG-Data-URL herein (siehe features/loaners/lib/barcode.ts), da
-// @react-pdf keinen Barcode nativ erzeugt. Siehe docs/leihstellungen.md.
+// Leihgeräte-Etiketten für den Etikettendrucker: EINE Seite je Etikett in
+// exakter Etikettengröße (50 × 27 mm) — kein Zuschnitt nötig. Der Code128-
+// Barcode wird als Vektor (<Rect>-Balken) gezeichnet, daher kein Pixeln beim
+// Drucken. Balken kommen vorgerechnet herein (features/loaners/lib/barcode.ts),
+// da @react-pdf keinen Barcode nativ erzeugt. Siehe docs/leihstellungen.md.
 //
 // `items`: [{ bezeichnung, serialNumber, inventoryNo, barcode }]
+//   barcode = { width, height, bars:[{x,width}] } | null
 
 const s = StyleSheet.create({
-  page: { padding: 18, backgroundColor: COLORS.white },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: {
-    width: '33.33%',
-    height: 88,
-    padding: 6,
-    borderWidth: 0.5,
-    borderColor: COLORS.border,
-    justifyContent: 'space-between',
-  },
-  name: { fontSize: 7, fontWeight: 'bold', color: COLORS.dark, maxLines: 2, textOverflow: 'ellipsis' },
-  barcode: { width: '100%', height: 34, objectFit: 'contain' },
-  serial: { fontSize: 7, color: COLORS.dark, textAlign: 'center', letterSpacing: 0.5 },
-  inv: { fontSize: 6, color: COLORS.medium, textAlign: 'center' },
+  // Etikett: horizontaler Rand = Ruhezone für den Barcode.
+  page: { paddingHorizontal: 7, paddingVertical: 4, backgroundColor: COLORS.white },
+  frame: { flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
+  name: { fontSize: 6, fontWeight: 'bold', color: COLORS.dark, textAlign: 'center', maxLines: 1, textOverflow: 'ellipsis', marginBottom: 2 },
+  barcode: { width: '100%', height: 30 },
+  serial: { fontSize: 8, color: COLORS.dark, textAlign: 'center', letterSpacing: 0.6, marginTop: 2 },
+  inv: { fontSize: 5, color: COLORS.medium, textAlign: 'center' },
 });
 
 export default function LoanerStickerSheet({ items }) {
-  const pages = paginateStickers(items, STICKERS_PER_PAGE);
   return (
     <Document title="Leihgeräte-Etiketten">
-      {pages.map((page, pi) => (
-        <Page key={pi} size="A4" style={s.page}>
-          <View style={s.grid}>
-            {page.map((it, i) => (
-              <View key={`${it.serialNumber}-${i}`} style={s.cell}>
-                <Text style={s.name}>{it.bezeichnung}</Text>
-                {it.barcode ? (
-                  <Image src={it.barcode} style={s.barcode} />
-                ) : (
-                  <Text style={s.serial}>—</Text>
-                )}
-                <View>
-                  <Text style={s.serial}>{it.serialNumber}</Text>
-                  {it.inventoryNo ? <Text style={s.inv}>#{it.inventoryNo}</Text> : null}
-                </View>
-              </View>
-            ))}
+      {items.map((it, i) => (
+        <Page key={`${it.serialNumber}-${i}`} size={LABEL_SIZE} style={s.page}>
+          <View style={s.frame}>
+            <Text style={s.name}>{it.bezeichnung}</Text>
+            {it.barcode ? (
+              <Svg viewBox={`0 0 ${it.barcode.width} ${it.barcode.height}`} preserveAspectRatio="none" style={s.barcode}>
+                {it.barcode.bars.map((b, bi) => (
+                  <Rect key={bi} x={b.x} y={0} width={b.width} height={it.barcode.height} fill="#000000" />
+                ))}
+              </Svg>
+            ) : null}
+            <Text style={s.serial}>{it.serialNumber}</Text>
+            {it.inventoryNo ? <Text style={s.inv}>#{it.inventoryNo}</Text> : null}
           </View>
         </Page>
       ))}
