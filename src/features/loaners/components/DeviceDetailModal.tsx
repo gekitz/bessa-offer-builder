@@ -193,6 +193,13 @@ export default function DeviceDetailModal({ deviceId, onClose, onEdit, onCheckOu
                 <Fact label="Anschaffung" value={`${formatEuro(device.acquisitionCost)} · ${formatDateDe(device.acquiredAt)}`} />
               </div>
 
+              {device.note && (
+                <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
+                  <div className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-0.5">Notiz</div>
+                  <div className="text-sm text-amber-900 whitespace-pre-wrap break-words">{device.note}</div>
+                </div>
+              )}
+
               {/* Deckungsbeitrag / Auslastung */}
               {metrics && (
                 <div>
