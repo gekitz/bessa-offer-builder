@@ -115,6 +115,15 @@ export interface RuleContext {
   // Himmelfahrt). Used by the fenstertage50pct rule to flag high-demand
   // dates. Empty/undefined disables the rule.
   fenstertage?: IsoDate[];
+  // Austrian public holidays. Used by the takeFridayToo rule so a
+  // stranded Friday that is itself a holiday is not forced into the
+  // request. Empty/undefined = no holidays known.
+  holidays?: IsoDate[];
+  // Urlaub days still available to the request's employee this
+  // Arbeitsjahr (entitled + carried − used − planned), excluding the
+  // request being validated. Used by takeFridayToo to check the Friday
+  // is affordable. Undefined when no requester context was loaded.
+  requesterRemaining?: number;
   // Per-employee leave balance rows (any year). Used by halfYearPlanning
   // to know each employee's entitlement. Optional — rule passes when
   // missing.

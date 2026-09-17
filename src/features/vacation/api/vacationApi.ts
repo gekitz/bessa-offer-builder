@@ -739,21 +739,44 @@ export async function loadRuleContext(opts: LoadRuleContextOpts = {}): Promise<R
   // year — the halfYearPlanning rule needs entitlement to compute
   // the 50%-by-mid-year threshold.
   let leaveBalances: RuleContext['leaveBalances'];
+  let requesterRemaining: number | undefined;
   if (opts.forEmployeeId) {
     // Arbeitsjahr model: fetch the employee's single urlaub balance row
     // directly (its `year` no longer tracks the calendar year, so the
     // old listLeaveBalances(id, startYear) lookup would miss it).
     const urlaub = await getUrlaubBalance(opts.forEmployeeId);
-    leaveBalances = urlaub
-      ? [{
-          employeeId: urlaub.employeeId,
-          year: urlaub.year,
-          leaveTypeCode: urlaub.leaveTypeCode,
-          entitled: urlaub.entitled,
-          carriedOver: urlaub.carriedOver,
-        }]
-      : [];
+    if (urlaub) {
+      leaveBalances = [{
+        employeeId: urlaub.employeeId,
+        year: urlaub.year,
+        leaveTypeCode: urlaub.leaveTypeCode,
+        entitled: urlaub.entitled,
+        carriedOver: urlaub.carriedOver,
+      }];
+      // Remaining Urlaub over the current Arbeitsjahr window — used by
+      // the takeFridayToo rule to check the Friday is affordable.
+      const winStart = urlaub.periodStart ?? `${startYear}-01-01`;
+      const winEnd = urlaub.periodEnd ?? `${startYear}-12-31`;
+      const empLeaves = await listLeaveRequests({
+        employeeId: opts.forEmployeeId,
+        rangeStart: winStart,
+        rangeEnd: winEnd,
+      });
+      const { summarizeBalance } = await import('../lib/balance');
+      requesterRemaining = summarizeBalance({
+        leaveTypeCode: 'urlaub',
+        entitled: urlaub.entitled,
+        carriedOver: urlaub.carriedOver,
+        leaves: empLeaves,
+        today,
+      }).remaining;
+    } else {
+      leaveBalances = [];
+    }
   }
+
+  const { getPublicHolidaysForRange } = await import('../lib/holidays');
+  const holidays = getPublicHolidaysForRange(startYear, startYear + 1);
 
   return {
     today,
@@ -763,6 +786,8 @@ export async function loadRuleContext(opts: LoadRuleContextOpts = {}): Promise<R
     coverageRules,
     blackouts,
     fenstertage,
+    holidays,
+    requesterRemaining,
     leaveBalances,
     substitutes: substitutes.map((s) => ({
       employeeId: s.employeeId,
