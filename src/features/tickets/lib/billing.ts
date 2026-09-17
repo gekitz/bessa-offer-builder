@@ -102,13 +102,18 @@ export function calcRepairOrderBilling(args: CalcRepairOrderArgs): RepairOrderBi
 
     // Labor / service-pauschale
     if (entry.workMinutes > 0) {
-      const hours = entry.workMinutes / 60;
+      // Round hours to the 2 decimals we display AND send to Mesonic, then
+      // derive the total from that rounded quantity. Otherwise the on-screen
+      // line (menge × preis) wouldn't reconcile with its own total, and the
+      // Mesonic Beleg — which recomputes menge × preis on the rounded menge —
+      // would drift from the preview. See offerLaborFloorPosition (same fix).
+      const hours = round2(entry.workMinutes / 60);
       if (rate.unit === 'hour') {
         const total = round2(hours * rate.rate);
         positions.push({
           kind: 'labor',
           label: `${rate.label}`,
-          quantity: round2(hours),
+          quantity: hours,
           unit: 'h',
           unitPrice: rate.rate,
           total,
@@ -179,12 +184,14 @@ export function calcRepairOrderBilling(args: CalcRepairOrderArgs): RepairOrderBi
       }
       // Wegzeit als Arbeitszeit zum Stundensatz der Arbeit
       if (entry.travelWegzeitMinutes > 0 && rate && rate.unit === 'hour') {
-        const hours = entry.travelWegzeitMinutes / 60;
+        // Round to the 2 decimals we show/export before pricing (see labor above),
+        // so preview line, PDF and Mesonic Beleg all reconcile on menge × preis.
+        const hours = round2(entry.travelWegzeitMinutes / 60);
         const total = round2(hours * rate.rate);
         positions.push({
           kind: 'travel_wegzeit',
           label: `Wegzeit (${rate.label})`,
-          quantity: round2(hours),
+          quantity: hours,
           unit: 'h',
           unitPrice: rate.rate,
           total,
