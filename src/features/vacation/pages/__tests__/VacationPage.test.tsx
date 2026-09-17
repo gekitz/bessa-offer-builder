@@ -12,10 +12,12 @@ const createLeaveRequestMock = vi.fn();
 const decideLeaveRequestMock = vi.fn();
 const cancelLeaveRequestMock = vi.fn();
 const getUrlaubBalanceMock = vi.fn();
+const listUrlaubRemainingMock = vi.fn();
 
 vi.mock('../../api/vacationApi', () => ({
   listEmployees: (opts?: unknown) => listEmployeesMock(opts),
   listStandorte: () => listStandorteMock(),
+  listUrlaubRemaining: () => listUrlaubRemainingMock(),
   listLeaveRequests: (filter?: unknown) => listLeaveRequestsMock(filter),
   listLeaveTypes: () => listLeaveTypesMock(),
   listSubstitutes: (id?: unknown) => listSubstitutesMock(id),
@@ -90,6 +92,7 @@ beforeEach(() => {
   decideLeaveRequestMock.mockReset().mockResolvedValue({ id: 'lr-1' });
   cancelLeaveRequestMock.mockReset();
   getUrlaubBalanceMock.mockReset().mockResolvedValue(null);
+  listUrlaubRemainingMock.mockReset().mockResolvedValue({});
   useAuthMock.mockReturnValue({ profile: null, user: null });
 });
 
@@ -113,6 +116,19 @@ describe('VacationPage', () => {
 
     // Apprentice badge for Marc
     expect(screen.getByText('apprentice')).toBeInTheDocument();
+  });
+
+  it('shows each employee\'s Resturlaub inline in the roster', async () => {
+    listUrlaubRemainingMock.mockResolvedValue({ [helmut.id]: 18.5, [stefan.id]: 22 });
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getByText('Helmut Bauer')).toBeInTheDocument());
+
+    // German decimal, no "Stand" click needed.
+    expect(await screen.findByText('18,5 Tage Resturlaub')).toBeInTheDocument();
+    expect(screen.getByText('22 Tage Resturlaub')).toBeInTheDocument();
+    // Employees without a balance (e.g. Georg) show no Resturlaub pill.
+    expect(screen.queryByText(/NaN|undefined Tage/)).not.toBeInTheDocument();
   });
 
   it('hides the team roster from non-approvers', async () => {

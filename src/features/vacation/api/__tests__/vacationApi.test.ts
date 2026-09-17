@@ -57,6 +57,7 @@ import {
   regenerateCalendarToken,
   listLeaveBalances,
   getUrlaubBalance,
+  listUrlaubRemaining,
   loadRuleContext,
   uploadLeaveAttachment,
   getLeaveAttachmentSignedUrl,
@@ -627,6 +628,27 @@ describe('leave balances', () => {
     const chain = makeChain({ data: null, error: null });
     fromMock.mockReturnValue(chain);
     expect(await getUrlaubBalance('e1')).toBeNull();
+  });
+
+  it('listUrlaubRemaining computes remaining per employee over each period window', async () => {
+    const balChain = makeChain({
+      data: [
+        { id: 'b1', employee_id: 'e1', year: 2025, leave_type_id: 1, entitled: '3.0', carried_over: '0.0', used: '0', planned: '0', period_start: '2025-10-02', period_end: '2026-10-01' },
+        { id: 'b2', employee_id: 'e2', year: 2026, leave_type_id: 1, entitled: '25.0', carried_over: '0.0', used: '0', planned: '0', period_start: '2026-01-01', period_end: '2026-12-31' },
+      ],
+      error: null,
+    });
+    const leaveChain = makeChain({
+      data: [
+        // e1: single approved day inside the window → 3 − 1 = 2 remaining.
+        { id: 'l1', employee_id: 'e1', leave_type_id: 1, start_date: '2026-08-10', end_date: '2026-08-10', half_day_start: false, half_day_end: false, status: 'approved' },
+      ],
+      error: null,
+    });
+    fromMock.mockImplementation((...args: unknown[]) => (args[0] === 'leave_balances' ? balChain : leaveChain));
+
+    const map = await listUrlaubRemaining('2026-09-17');
+    expect(map).toEqual({ e1: 2, e2: 25 });
   });
 });
 
