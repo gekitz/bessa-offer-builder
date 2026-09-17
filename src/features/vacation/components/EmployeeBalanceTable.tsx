@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import {
-  listLeaveBalances,
+  getUrlaubBalance,
   listLeaveRequests,
   listLeaveTypes,
   type LeaveBalance,
@@ -9,6 +9,13 @@ import {
 } from '../api/vacationApi';
 import { summarizeBalance } from '../lib/balance';
 import type { IsoDate, LeaveRequest, LeaveTypeCode } from '../types';
+
+// A leave belongs to a window when it starts inside it. Leaves are short
+// and sit within a single Arbeitsjahr, so keying on the start date is
+// enough to route each to its balance window.
+function startsInWindow(l: LeaveRequest, start: IsoDate, end: IsoDate): boolean {
+  return l.startDate >= start && l.startDate <= end;
+}
 
 interface EmployeeBalanceTableProps {
   employeeId: string;
@@ -49,37 +56,48 @@ export default function EmployeeBalanceTable({ employeeId, year, today }: Employ
   const resolvedYear = year ?? new Date().getFullYear();
   const resolvedToday = today ?? todayIso();
 
-  const [balances, setBalances] = useState<LeaveBalance[]>([]);
+  const [urlaubBal, setUrlaubBal] = useState<LeaveBalance | null>(null);
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const yearStart = `${resolvedYear}-01-01`;
+  const yearEnd = `${resolvedYear}-12-31`;
+  // Urlaub is measured over its Arbeitsjahr window; all other types keep
+  // the calendar year.
+  const urlaubStart = urlaubBal?.periodStart ?? yearStart;
+  const urlaubEnd = urlaubBal?.periodEnd ?? yearEnd;
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([
-      listLeaveBalances(employeeId, resolvedYear),
-      listLeaveRequests({
-        employeeId,
-        rangeStart: `${resolvedYear}-01-01`,
-        rangeEnd: `${resolvedYear}-12-31`,
-      }),
-      listLeaveTypes(),
-    ])
-      .then(([bals, leaveRows, types]) => {
+    (async () => {
+      try {
+        const [urlaub, types] = await Promise.all([
+          getUrlaubBalance(employeeId),
+          listLeaveTypes(),
+        ]);
+        const uStart = urlaub?.periodStart ?? yearStart;
+        const uEnd = urlaub?.periodEnd ?? yearEnd;
+        // One fetch spanning both the Arbeitsjahr and the calendar year;
+        // each type filters to its own window below.
+        const leaveRows = await listLeaveRequests({
+          employeeId,
+          rangeStart: uStart < yearStart ? uStart : yearStart,
+          rangeEnd: uEnd > yearEnd ? uEnd : yearEnd,
+        });
         if (cancelled) return;
-        setBalances(bals);
-        setLeaves(leaveRows);
+        setUrlaubBal(urlaub);
         setLeaveTypes(types);
-      })
-      .catch((e: unknown) => {
+        setLeaves(leaveRows);
+      } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
     return () => { cancelled = true; };
   }, [employeeId, resolvedYear]);
 
@@ -102,12 +120,14 @@ export default function EmployeeBalanceTable({ employeeId, year, today }: Employ
   }
 
   const summaries: TypeSummary[] = leaveTypes.map((type) => {
-    const bal = balances.find((b) => b.leaveTypeCode === type.code);
+    const isUrlaub = type.code === 'urlaub';
+    const winStart = isUrlaub ? urlaubStart : yearStart;
+    const winEnd = isUrlaub ? urlaubEnd : yearEnd;
     const s = summarizeBalance({
       leaveTypeCode: type.code,
-      entitled: bal?.entitled ?? 0,
-      carriedOver: bal?.carriedOver ?? 0,
-      leaves,
+      entitled: isUrlaub ? urlaubBal?.entitled ?? 0 : 0,
+      carriedOver: isUrlaub ? urlaubBal?.carriedOver ?? 0 : 0,
+      leaves: leaves.filter((l) => startsInWindow(l, winStart, winEnd)),
       today: resolvedToday,
     });
     return {

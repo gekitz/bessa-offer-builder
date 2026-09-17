@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Check, Loader2, Sun, User, X } from 'lucide-react';
-import { listLeaveBalances, listLeaveRequests } from '../api/vacationApi';
+import { getUrlaubBalance, listLeaveRequests } from '../api/vacationApi';
 import { summarizeBalance } from '../lib/balance';
 import type { LeaveTypeCode } from '../types';
 
@@ -80,21 +80,24 @@ export default function DecisionDialog({
     if (!showBalance) return;
     let cancelled = false;
     setBalanceLoading(true);
-    Promise.all([
-      listLeaveBalances(contextEmployeeId!, contextYear!),
-      listLeaveRequests({
-        employeeId: contextEmployeeId!,
-        rangeStart: `${contextYear}-01-01`,
-        rangeEnd: `${contextYear}-12-31`,
-      }),
-    ])
-      .then(([balances, leaves]) => {
-        if (cancelled) return;
-        const row = balances.find((b) => b.leaveTypeCode === 'urlaub');
+    (async () => {
+      try {
+        // Arbeitsjahr model: load the single urlaub balance and measure
+        // usage over its own period (falling back to the request's
+        // calendar year when no period is set).
+        const row = await getUrlaubBalance(contextEmployeeId!);
         if (!row) {
-          setBalance(null);
+          if (!cancelled) setBalance(null);
           return;
         }
+        const windowStart = row.periodStart ?? `${contextYear}-01-01`;
+        const windowEnd = row.periodEnd ?? `${contextYear}-12-31`;
+        const leaves = await listLeaveRequests({
+          employeeId: contextEmployeeId!,
+          rangeStart: windowStart,
+          rangeEnd: windowEnd,
+        });
+        if (cancelled) return;
         const today = new Date().toISOString().slice(0, 10);
         const summary = summarizeBalance({
           leaveTypeCode: 'urlaub',
@@ -110,13 +113,12 @@ export default function DecisionDialog({
           planned: summary.planned,
           remaining: summary.remaining,
         });
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setBalance(null);
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setBalanceLoading(false);
-      });
+      }
+    })();
     return () => { cancelled = true; };
   }, [showBalance, contextEmployeeId, contextYear]);
 
