@@ -22,6 +22,23 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// Invoiced time granularity: nearest quarter-hour (0.25 h = 15 min). Any
+// non-zero time bills at least one quarter — a real work stint or Wegzeit is
+// never €0. Applies to labor AND Wegzeit (fixed with Georg 2026-09-17).
+function roundQuarterHour(hours: number): number {
+  if (hours <= 0) return 0;
+  const q = Math.round(hours * 4) / 4;
+  return q < 0.25 ? 0.25 : q;
+}
+
+// Invoiced distance granularity: nearest whole kilometre, min 1 km for any
+// real trip.
+function roundKm(km: number): number {
+  if (km <= 0) return 0;
+  const r = Math.round(km);
+  return r < 1 ? 1 : r;
+}
+
 // Pick the appropriate Kassen-Gastro rate for a given total work-hours
 // across all entries on a repair order. The rate sheet defines a
 // staircase: <10h → KASSA_BASE (€118), 10–20h → KASSA_10_20 (€109),
@@ -102,12 +119,10 @@ export function calcRepairOrderBilling(args: CalcRepairOrderArgs): RepairOrderBi
 
     // Labor / service-pauschale
     if (entry.workMinutes > 0) {
-      // Round hours to the 2 decimals we display AND send to Mesonic, then
-      // derive the total from that rounded quantity. Otherwise the on-screen
-      // line (menge × preis) wouldn't reconcile with its own total, and the
-      // Mesonic Beleg — which recomputes menge × preis on the rounded menge —
-      // would drift from the preview. See offerLaborFloorPosition (same fix).
-      const hours = round2(entry.workMinutes / 60);
+      // Bill labor at quarter-hour granularity, then derive the total from that
+      // rounded quantity. The displayed menge, the total, and the Mesonic Beleg
+      // (which recomputes menge × preis) all reconcile on the same rounded value.
+      const hours = roundQuarterHour(entry.workMinutes / 60);
       if (rate.unit === 'hour') {
         const total = round2(hours * rate.rate);
         positions.push({
@@ -167,11 +182,12 @@ export function calcRepairOrderBilling(args: CalcRepairOrderArgs): RepairOrderBi
       // KM-Geld (rate aus service_rates, aktuell €0.75) + Wegzeit zum Stundensatz
       const kmRate = rateMap.get('KM_PLUS_WEGZEIT');
       if (kmRate) {
-        const total = round2(entry.travelKm * kmRate.rate);
+        const km = roundKm(entry.travelKm);
+        const total = round2(km * kmRate.rate);
         positions.push({
           kind: 'travel_km',
-          label: `Anfahrt ${entry.travelKm} km (Wegzeit separat)`,
-          quantity: entry.travelKm,
+          label: `Anfahrt ${km} km (Wegzeit separat)`,
+          quantity: km,
           unit: 'km',
           unitPrice: kmRate.rate,
           total,
@@ -184,9 +200,9 @@ export function calcRepairOrderBilling(args: CalcRepairOrderArgs): RepairOrderBi
       }
       // Wegzeit als Arbeitszeit zum Stundensatz der Arbeit
       if (entry.travelWegzeitMinutes > 0 && rate && rate.unit === 'hour') {
-        // Round to the 2 decimals we show/export before pricing (see labor above),
-        // so preview line, PDF and Mesonic Beleg all reconcile on menge × preis.
-        const hours = round2(entry.travelWegzeitMinutes / 60);
+        // Quarter-hour granularity before pricing (see labor above), so preview
+        // line, PDF and Mesonic Beleg all reconcile on menge × preis.
+        const hours = roundQuarterHour(entry.travelWegzeitMinutes / 60);
         const total = round2(hours * rate.rate);
         positions.push({
           kind: 'travel_wegzeit',
@@ -205,11 +221,12 @@ export function calcRepairOrderBilling(args: CalcRepairOrderArgs): RepairOrderBi
     } else if (entry.travelMode === 'km_inkl_wegzeit' && entry.travelKm != null) {
       const kmRate = rateMap.get('KM_INKL_WEGZEIT');
       if (kmRate) {
-        const total = round2(entry.travelKm * kmRate.rate);
+        const km = roundKm(entry.travelKm);
+        const total = round2(km * kmRate.rate);
         positions.push({
           kind: 'travel_km',
-          label: `Anfahrt ${entry.travelKm} km (inkl. Wegzeit)`,
-          quantity: entry.travelKm,
+          label: `Anfahrt ${km} km (inkl. Wegzeit)`,
+          quantity: km,
           unit: 'km',
           unitPrice: kmRate.rate,
           total,
