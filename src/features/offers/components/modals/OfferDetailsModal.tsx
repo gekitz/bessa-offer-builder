@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { AlarmClock, AlertCircle, Building2, FileText, Loader2, Mail, MailOpen, MapPin, Pencil, Phone, Send, User, X, XCircle } from 'lucide-react';
+import { AlarmClock, AlertCircle, Building2, FileText, Loader2, Mail, MailOpen, MapPin, Pencil, PenLine, Phone, Send, User, X, XCircle } from 'lucide-react';
 
 import { ALL } from '../../data/catalogs';
 import { TIER_SHORT } from '../../../../data/tiers';
@@ -59,6 +59,13 @@ export interface OfferDetailsOffer {
   lost_reason_note?: string | null;
   lost_at?: string | null;
   service_start_date?: string | null;
+  // Acceptance / signature. signature_data is either a plain data-URL
+  // string (customer accept via the public page) or an object with
+  // { offer, sepa } data-URLs (internal signing via SignModal).
+  signature_data?: string | { offer?: string | null; sepa?: string | null } | null;
+  signed_by_name?: string | null;
+  signed_at?: string | null;
+  accepted_at?: string | null;
   offer_data?: OfferDataShape | null;
 }
 
@@ -407,6 +414,17 @@ export default function OfferDetailsModal({
                 </section>
               )}
 
+              {/* Unterschrift — the captured signature(s) when the
+                  offer was accepted (customer via public page) or
+                  signed internally. Only rendered when we actually
+                  have signature image data. */}
+              <SignatureBlock
+                signatureData={offer.signature_data}
+                signedByName={offer.signed_by_name}
+                signedAt={offer.signed_at}
+                acceptedAt={offer.accepted_at}
+              />
+
               {/* Kontaktverlauf — every logged activity (call / email
                   / meeting / note) on this offer, newest first. */}
               {(activities !== undefined || activitiesLoading) && (
@@ -522,6 +540,74 @@ export default function OfferDetailsModal({
         </div>
       </div>
     </div>
+  );
+}
+
+// Normalises the two persisted signature shapes into a list of
+// labelled images. Returns [] when there's nothing renderable so the
+// block hides entirely.
+function collectSignatures(
+  data: OfferDetailsOffer['signature_data'],
+): { label: string; src: string }[] {
+  if (!data) return [];
+  const isImg = (s: unknown): s is string =>
+    typeof s === 'string' && s.startsWith('data:image');
+  if (isImg(data)) return [{ label: 'Unterschrift', src: data }];
+  if (typeof data === 'object') {
+    const out: { label: string; src: string }[] = [];
+    if (isImg(data.offer)) out.push({ label: 'Auftragsbestätigung', src: data.offer });
+    if (isImg(data.sepa)) out.push({ label: 'SEPA-Mandat', src: data.sepa });
+    return out;
+  }
+  return [];
+}
+
+function SignatureBlock({
+  signatureData,
+  signedByName,
+  signedAt,
+  acceptedAt,
+}: {
+  signatureData: OfferDetailsOffer['signature_data'];
+  signedByName?: string | null;
+  signedAt?: string | null;
+  acceptedAt?: string | null;
+}) {
+  const signatures = collectSignatures(signatureData);
+  if (signatures.length === 0) return null;
+
+  return (
+    <section>
+      <SectionTitle icon={<PenLine size={12} />} label="Unterschrift" />
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-3">
+        {(signedByName || signedAt || acceptedAt) && (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1" style={{ fontSize: 11 }}>
+            {signedByName && <MetaRow label="Unterzeichner" value={signedByName} />}
+            {signedAt && <MetaRow label="Unterschrieben" value={fmtDateTime(signedAt)} />}
+            {acceptedAt && <MetaRow label="Angenommen" value={fmtDateTime(acceptedAt)} />}
+          </div>
+        )}
+        <div className="space-y-3">
+          {signatures.map((s) => (
+            <div key={s.label}>
+              {signatures.length > 1 && (
+                <div className="text-emerald-800 font-semibold mb-1" style={{ fontSize: 10 }}>
+                  {s.label}
+                </div>
+              )}
+              <div className="rounded-lg border border-emerald-200 bg-white p-2 inline-block">
+                <img
+                  src={s.src}
+                  alt={s.label}
+                  className="block max-w-full h-auto"
+                  style={{ maxHeight: 120 }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
