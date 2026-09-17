@@ -7,6 +7,7 @@ import { downloadBlob } from '../lib/download';
 import { importWithReload } from '../../../lib/lazyWithReload';
 import { mesonicImport, TYPES, TEMPLATES } from '../../../lib/mesonicApi';
 import { STATUS_LABEL, STATUS_PILL, STANDORT_LABEL, formatEuro, formatDateDe, todayIso } from '../lib/loanerFormat';
+import { tagLabel } from '../lib/deviceTags';
 import type { Loan, LoanDevice, LoanerDevice } from '../types';
 
 // Device detail: facts, Deckungsbeitrag/utilization, loan history, and the
@@ -176,6 +177,16 @@ export default function DeviceDetailModal({ deviceId, onClose, onEdit, onCheckOu
                   <span className="text-xs text-slate-500">{STANDORT_LABEL[device.standort]}</span>
                 )}
               </div>
+
+              {device.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {device.tags.map((t) => (
+                    <span key={t} className="text-xs bg-slate-100 text-slate-600 rounded-full px-2.5 py-1">
+                      {tagLabel(t)}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <Fact label="Inventarnr." value={device.inventoryNo || '–'} />

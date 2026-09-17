@@ -9,10 +9,12 @@ import { listEmployees } from '../../vacation/api/vacationApi';
 import { listDevices, listOpenLoans } from '../api/loanerApi';
 import { listProductsAdmin, type Product } from '../../offers/api/productApi';
 import { STATUS_LABEL, STATUS_PILL, STANDORT_LABEL } from '../lib/loanerFormat';
+import { countByTag, deviceMatchesTags, tagLabel } from '../lib/deviceTags';
 import type { Loan, LoanerDevice, LoanerDeviceStatus } from '../types';
 import DeviceFormModal from '../components/DeviceFormModal';
 import DeviceDetailModal from '../components/DeviceDetailModal';
 import CheckOutModal from '../components/CheckOutModal';
+import TagFilterDropdown from '../components/TagFilterDropdown';
 
 // Leihgeräte (loaner inventory) — fleet list + add/edit + read-only detail.
 // Check-out/check-in + stickers + the Lieferschein scan hook come in later
@@ -32,6 +34,7 @@ export default function LeihgeraetePage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [standortFilter, setStandortFilter] = useState('');
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<LoanerDevice | null>(null);
@@ -100,7 +103,9 @@ export default function LeihgeraetePage() {
     return c;
   }, [devices]);
 
-  const filtered = useMemo(() => {
+  // Everything except the Typ filter — the set the Typ counts are computed over,
+  // so each tag's count reflects the other active filters but not itself.
+  const baseFiltered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return devices.filter((d) => {
       if (statusFilter !== 'all' && d.status !== statusFilter) return false;
@@ -112,6 +117,13 @@ export default function LeihgeraetePage() {
       return true;
     });
   }, [devices, search, statusFilter, standortFilter]);
+
+  const tagCounts = useMemo(() => countByTag(baseFiltered), [baseFiltered]);
+
+  const filtered = useMemo(
+    () => baseFiltered.filter((d) => deviceMatchesTags(d.tags, tagFilter)),
+    [baseFiltered, tagFilter],
+  );
 
   function openAdd() {
     setEditing(null);
@@ -199,6 +211,12 @@ export default function LeihgeraetePage() {
           })}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <TagFilterDropdown
+            value={tagFilter}
+            onChange={setTagFilter}
+            counts={tagCounts}
+            className="w-full sm:w-44"
+          />
           <Select
             value={standortFilter}
             onChange={setStandortFilter}
@@ -261,6 +279,15 @@ export default function LeihgeraetePage() {
                     <td className="px-4 py-2.5">
                       <div className="text-slate-800">{d.bezeichnung}</div>
                       {d.inventoryNo && <div className="text-xs text-slate-400">#{d.inventoryNo}</div>}
+                      {d.tags.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {d.tags.map((t) => (
+                            <span key={t} className="text-[10px] leading-none bg-slate-100 text-slate-500 rounded px-1.5 py-1">
+                              {tagLabel(t)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 font-mono text-slate-500 text-xs">{d.serialNumber}</td>
                     <td className="px-4 py-2.5">
