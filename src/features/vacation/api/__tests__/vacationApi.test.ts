@@ -7,7 +7,7 @@ type AnyFn = (...args: unknown[]) => unknown;
 // { data, error } response.
 function makeChain(response: { data: unknown; error: unknown }) {
   const builder: Record<string, unknown> = {};
-  const passthrough = ['select', 'insert', 'update', 'delete', 'eq', 'in', 'gte', 'lte', 'order'];
+  const passthrough = ['select', 'insert', 'update', 'delete', 'eq', 'in', 'gte', 'lte', 'order', 'limit'];
   for (const m of passthrough) builder[m] = vi.fn(() => builder);
   builder.single = vi.fn(() => Promise.resolve(response));
   builder.maybeSingle = vi.fn(() => Promise.resolve(response));
@@ -56,6 +56,7 @@ import {
   getCalendarToken,
   regenerateCalendarToken,
   listLeaveBalances,
+  getUrlaubBalance,
   loadRuleContext,
   uploadLeaveAttachment,
   getLeaveAttachmentSignedUrl,
@@ -596,7 +597,36 @@ describe('leave balances', () => {
       id: 'b1', employeeId: 'e1', year: 2026,
       leaveTypeCode: 'urlaub',
       entitled: 25, carriedOver: 0, used: 5, planned: 3,
+      periodStart: null, periodEnd: null,
     });
+  });
+
+  it('getUrlaubBalance looks up the single urlaub row by type and maps its period', async () => {
+    const chain = makeChain({
+      data: {
+        id: 'b1', employee_id: 'e1', year: 2025, leave_type_id: 1,
+        entitled: '3.0', carried_over: '0.0', used: '0.0', planned: '0.0',
+        period_start: '2025-10-02', period_end: '2026-10-01',
+      },
+      error: null,
+    });
+    fromMock.mockReturnValue(chain);
+    const result = await getUrlaubBalance('e1');
+    expect(chain.eq).toHaveBeenCalledWith('employee_id', 'e1');
+    expect(chain.eq).toHaveBeenCalledWith('leave_type_id', LEAVE_TYPE_ID_BY_CODE.urlaub);
+    expect(chain.maybeSingle).toHaveBeenCalled();
+    expect(result).toEqual({
+      id: 'b1', employeeId: 'e1', year: 2025,
+      leaveTypeCode: 'urlaub',
+      entitled: 3, carriedOver: 0, used: 0, planned: 0,
+      periodStart: '2025-10-02', periodEnd: '2026-10-01',
+    });
+  });
+
+  it('getUrlaubBalance returns null when the employee has no urlaub row', async () => {
+    const chain = makeChain({ data: null, error: null });
+    fromMock.mockReturnValue(chain);
+    expect(await getUrlaubBalance('e1')).toBeNull();
   });
 });
 

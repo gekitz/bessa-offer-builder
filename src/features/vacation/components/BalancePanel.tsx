@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, Loader2, Sun } from 'lucide-react';
-import { listLeaveBalances, listLeaveRequests, type LeaveBalance } from '../api/vacationApi';
+import { getUrlaubBalance, listLeaveRequests, type LeaveBalance } from '../api/vacationApi';
 import { summarizeBalance, type BalanceSummary } from '../lib/balance';
 import type { IsoDate, LeaveRequest } from '../types';
+
+function formatDe(iso: IsoDate): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}.${m}.${y}`;
+}
 
 interface BalancePanelProps {
   employeeId: string;
@@ -46,26 +51,28 @@ export default function BalancePanel({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([
-      listLeaveBalances(employeeId, resolvedYear),
-      listLeaveRequests({
-        employeeId,
-        rangeStart: `${resolvedYear}-01-01`,
-        rangeEnd: `${resolvedYear}-12-31`,
-      }),
-    ])
-      .then(([balances, leaveRows]) => {
+    (async () => {
+      try {
+        // Arbeitsjahr model: the urlaub balance carries its own period.
+        // Fall back to the calendar year when no period is set (legacy
+        // rows / no entitlement on file).
+        const urlaub = await getUrlaubBalance(employeeId);
+        const windowStart = urlaub?.periodStart ?? `${resolvedYear}-01-01`;
+        const windowEnd = urlaub?.periodEnd ?? `${resolvedYear}-12-31`;
+        const leaveRows = await listLeaveRequests({
+          employeeId,
+          rangeStart: windowStart,
+          rangeEnd: windowEnd,
+        });
         if (cancelled) return;
-        const urlaub = balances.find((b) => b.leaveTypeCode === 'urlaub') ?? null;
         setBalanceRow(urlaub);
         setLeaves(leaveRows);
-      })
-      .catch((e: unknown) => {
+      } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
     return () => { cancelled = true; };
   }, [employeeId, resolvedYear, reloadKey]);
 
@@ -84,7 +91,10 @@ export default function BalancePanel({
       <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center gap-2">
         <Sun size={14} className="text-amber-500" />
         <span className="font-bold text-slate-600" style={{ fontSize: 12 }}>
-          Urlaubsstand {resolvedYear}
+          Urlaubsstand{' '}
+          {balanceRow?.periodStart && balanceRow?.periodEnd
+            ? `${formatDe(balanceRow.periodStart)}–${formatDe(balanceRow.periodEnd)}`
+            : resolvedYear}
         </span>
       </div>
 

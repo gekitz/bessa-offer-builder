@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 
-const listLeaveBalancesMock = vi.fn();
+const getUrlaubBalanceMock = vi.fn();
 const listLeaveRequestsMock = vi.fn();
 
 vi.mock('../../api/vacationApi', () => ({
-  listLeaveBalances: (id: string, year: number) => listLeaveBalancesMock(id, year),
+  getUrlaubBalance: (id: string) => getUrlaubBalanceMock(id),
   listLeaveRequests: (filter?: unknown) => listLeaveRequestsMock(filter),
 }));
 
@@ -23,6 +23,8 @@ function balance(overrides: Partial<LeaveBalance> = {}): LeaveBalance {
     carriedOver: 0,
     used: 0,
     planned: 0,
+    periodStart: null,
+    periodEnd: null,
     ...overrides,
   };
 }
@@ -37,20 +39,20 @@ function leave(overrides: Partial<LeaveRequest> & Pick<LeaveRequest, 'startDate'
 }
 
 beforeEach(() => {
-  listLeaveBalancesMock.mockReset();
-  listLeaveRequestsMock.mockReset();
+  getUrlaubBalanceMock.mockReset();
+  listLeaveRequestsMock.mockReset().mockResolvedValue([]);
 });
 
 describe('BalancePanel', () => {
   it('shows the loading state initially', () => {
-    listLeaveBalancesMock.mockImplementation(() => new Promise(() => {}));
+    getUrlaubBalanceMock.mockImplementation(() => new Promise(() => {}));
     listLeaveRequestsMock.mockImplementation(() => new Promise(() => {}));
     render(<BalancePanel employeeId="emp-1" year={2026} today="2026-05-04" />);
     expect(screen.getByText(/Wird berechnet/)).toBeInTheDocument();
   });
 
   it('renders 25 days remaining for an employee with no leaves', async () => {
-    listLeaveBalancesMock.mockResolvedValue([balance()]);
+    getUrlaubBalanceMock.mockResolvedValue(balance());
     listLeaveRequestsMock.mockResolvedValue([]);
     render(<BalancePanel employeeId="emp-1" year={2026} today="2026-05-04" />);
 
@@ -60,7 +62,7 @@ describe('BalancePanel', () => {
   });
 
   it('subtracts approved past leaves from remaining', async () => {
-    listLeaveBalancesMock.mockResolvedValue([balance({ entitled: 25 })]);
+    getUrlaubBalanceMock.mockResolvedValue(balance({ entitled: 25 }));
     listLeaveRequestsMock.mockResolvedValue([
       leave({ startDate: '2026-04-13', endDate: '2026-04-17', status: 'approved' }),
     ]);
@@ -75,7 +77,7 @@ describe('BalancePanel', () => {
   });
 
   it('counts pending leaves as Geplant, not Genommen', async () => {
-    listLeaveBalancesMock.mockResolvedValue([balance()]);
+    getUrlaubBalanceMock.mockResolvedValue(balance());
     listLeaveRequestsMock.mockResolvedValue([
       leave({ startDate: '2026-08-10', endDate: '2026-08-14', status: 'pending' }),
     ]);
@@ -91,7 +93,7 @@ describe('BalancePanel', () => {
   });
 
   it('shows the empty-state message when no balance row exists', async () => {
-    listLeaveBalancesMock.mockResolvedValue([]);
+    getUrlaubBalanceMock.mockResolvedValue(null);
     listLeaveRequestsMock.mockResolvedValue([]);
     render(<BalancePanel employeeId="emp-1" year={2026} today="2026-05-04" />);
 
@@ -99,7 +101,7 @@ describe('BalancePanel', () => {
   });
 
   it('renders the API error inline when the balance fetch rejects', async () => {
-    listLeaveBalancesMock.mockRejectedValue(new Error('rls denied'));
+    getUrlaubBalanceMock.mockRejectedValue(new Error('rls denied'));
     listLeaveRequestsMock.mockResolvedValue([]);
     render(<BalancePanel employeeId="emp-1" year={2026} today="2026-05-04" />);
 
@@ -107,7 +109,7 @@ describe('BalancePanel', () => {
   });
 
   it('includes carried_over in the entitlement total shown next to remaining', async () => {
-    listLeaveBalancesMock.mockResolvedValue([balance({ entitled: 25, carriedOver: 3 })]);
+    getUrlaubBalanceMock.mockResolvedValue(balance({ entitled: 25, carriedOver: 3 }));
     listLeaveRequestsMock.mockResolvedValue([]);
     render(<BalancePanel employeeId="emp-1" year={2026} today="2026-05-04" />);
 
@@ -119,7 +121,7 @@ describe('BalancePanel', () => {
   });
 
   it('formats half-day balances with a German decimal separator', async () => {
-    listLeaveBalancesMock.mockResolvedValue([balance({ entitled: 25 })]);
+    getUrlaubBalanceMock.mockResolvedValue(balance({ entitled: 25 }));
     listLeaveRequestsMock.mockResolvedValue([
       leave({ startDate: '2026-08-10', endDate: '2026-08-14', halfDayStart: true, status: 'pending' }),
     ]);
@@ -129,13 +131,13 @@ describe('BalancePanel', () => {
     expect(await screen.findByText('20,5')).toBeInTheDocument();
   });
 
-  it('queries for the requested year', async () => {
-    listLeaveBalancesMock.mockResolvedValue([balance({ year: 2025 })]);
+  it('falls back to the calendar year window when the balance has no period', async () => {
+    getUrlaubBalanceMock.mockResolvedValue(balance({ year: 2025 }));
     listLeaveRequestsMock.mockResolvedValue([]);
     render(<BalancePanel employeeId="emp-1" year={2025} today="2025-12-31" />);
 
-    await waitFor(() => expect(listLeaveBalancesMock).toHaveBeenCalled());
-    expect(listLeaveBalancesMock).toHaveBeenCalledWith('emp-1', 2025);
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
+    expect(getUrlaubBalanceMock).toHaveBeenCalledWith('emp-1');
     expect(listLeaveRequestsMock).toHaveBeenCalledWith(expect.objectContaining({
       employeeId: 'emp-1',
       rangeStart: '2025-01-01',
@@ -144,17 +146,36 @@ describe('BalancePanel', () => {
     expect(screen.getByText(/Urlaubsstand 2025/)).toBeInTheDocument();
   });
 
+  it('measures usage over the Arbeitsjahr window when the balance has a period', async () => {
+    getUrlaubBalanceMock.mockResolvedValue(balance({
+      entitled: 3,
+      periodStart: '2025-10-02',
+      periodEnd: '2026-10-01',
+    }));
+    listLeaveRequestsMock.mockResolvedValue([]);
+    render(<BalancePanel employeeId="emp-1" year={2026} today="2026-09-17" />);
+
+    await waitFor(() => expect(listLeaveRequestsMock).toHaveBeenCalled());
+    // The leave window follows the period, not Jan 1–Dec 31.
+    expect(listLeaveRequestsMock).toHaveBeenCalledWith(expect.objectContaining({
+      rangeStart: '2025-10-02',
+      rangeEnd: '2026-10-01',
+    }));
+    // Header shows the Arbeitsjahr range.
+    expect(await screen.findByText(/02\.10\.2025–01\.10\.2026/)).toBeInTheDocument();
+  });
+
   it('refetches when reloadKey bumps', async () => {
-    listLeaveBalancesMock.mockResolvedValue([balance()]);
+    getUrlaubBalanceMock.mockResolvedValue(balance());
     listLeaveRequestsMock.mockResolvedValue([]);
     const { rerender } = render(
       <BalancePanel employeeId="emp-1" year={2026} today="2026-05-04" reloadKey={0} />,
     );
-    await waitFor(() => expect(listLeaveBalancesMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(getUrlaubBalanceMock).toHaveBeenCalledTimes(1));
 
     rerender(
       <BalancePanel employeeId="emp-1" year={2026} today="2026-05-04" reloadKey={1} />,
     );
-    await waitFor(() => expect(listLeaveBalancesMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(getUrlaubBalanceMock).toHaveBeenCalledTimes(2));
   });
 });
