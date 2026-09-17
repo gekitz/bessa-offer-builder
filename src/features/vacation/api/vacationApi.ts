@@ -687,6 +687,43 @@ export async function getUrlaubBalance(employeeId: string): Promise<LeaveBalance
   return data ? rowToBalance(data) : null;
 }
 
+// Remaining Urlaub (entitled + carried − used − planned over the current
+// Arbeitsjahr) for every employee that has an urlaub balance, keyed by
+// employee id. Two queries total — all balances + all leaves — so the
+// team roster can show each person's Resturlaub without a per-row fetch.
+export async function listUrlaubRemaining(
+  today: IsoDate = new Date().toISOString().slice(0, 10),
+): Promise<Record<string, number>> {
+  const sb = requireSupabase();
+  const [balRes, leaveRes] = await Promise.all([
+    sb.from('leave_balances').select(LEAVE_BALANCE_COLUMNS).eq('leave_type_id', LEAVE_TYPE_ID_BY_CODE.urlaub),
+    sb.from('leave_requests').select(LEAVE_REQUEST_COLUMNS).in('status', ['approved', 'pending']),
+  ]);
+  if (balRes.error) throw balRes.error;
+  if (leaveRes.error) throw leaveRes.error;
+
+  const balances = (balRes.data ?? []).map(rowToBalance);
+  const leaves = (leaveRes.data ?? []).map(rowToLeaveRequest);
+  const { summarizeBalance } = await import('../lib/balance');
+
+  const out: Record<string, number> = {};
+  for (const b of balances) {
+    const winStart = b.periodStart ?? `${today.slice(0, 4)}-01-01`;
+    const winEnd = b.periodEnd ?? `${today.slice(0, 4)}-12-31`;
+    const empLeaves = leaves.filter(
+      (l) => l.employeeId === b.employeeId && l.startDate >= winStart && l.startDate <= winEnd,
+    );
+    out[b.employeeId] = summarizeBalance({
+      leaveTypeCode: 'urlaub',
+      entitled: b.entitled,
+      carriedOver: b.carriedOver,
+      leaves: empLeaves,
+      today,
+    }).remaining;
+  }
+  return out;
+}
+
 // ---------------------------------------------------------
 // Rule context loader
 // ---------------------------------------------------------
