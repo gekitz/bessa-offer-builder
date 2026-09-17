@@ -22,6 +22,7 @@ function device(overrides: Partial<LoanerDevice> = {}): LoanerDevice {
     notionalDailyValue: null,
     status: 'available',
     standort: 'klagenfurt',
+    tags: [],
     note: null,
     active: true,
     createdAt: '2025-09-16T00:00:00Z',

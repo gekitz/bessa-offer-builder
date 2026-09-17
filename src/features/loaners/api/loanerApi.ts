@@ -43,6 +43,7 @@ function rowToDevice(r: any): LoanerDevice {
     notionalDailyValue: r.notional_daily_value != null ? Number(r.notional_daily_value) : null,
     status: r.status,
     standort: r.standort ?? null,
+    tags: Array.isArray(r.tags) ? r.tags : [],
     note: r.note ?? null,
     active: !!r.active,
     createdAt: r.created_at,
@@ -89,6 +90,7 @@ function deviceInputToRow(input: LoanerDeviceInput): Record<string, unknown> {
     acquired_at: input.acquiredAt ?? null,
     notional_daily_value: input.notionalDailyValue ?? null,
     standort: input.standort ?? null,
+    tags: input.tags ?? [],
     note: input.note ?? null,
   };
 }
@@ -98,7 +100,7 @@ function deviceInputToRow(input: LoanerDeviceInput): Record<string, unknown> {
 // ─────────────────────────────────────────────────────────────────────
 
 const DEVICE_COLS =
-  'id, product_id, bezeichnung, serial_number, inventory_no, acquisition_cost, acquired_at, notional_daily_value, status, standort, note, active, created_at, updated_at';
+  'id, product_id, bezeichnung, serial_number, inventory_no, acquisition_cost, acquired_at, notional_daily_value, status, standort, tags, note, active, created_at, updated_at';
 const LOAN_COLS =
   'id, customer_name, customer_kdnr, ticket_id, started_at, expected_return, note, mesonic_beleg_laufnummer, mesonic_beleg_key, mesonic_beleg_created_at, created_by, created_at, updated_at';
 const LOAN_DEVICE_COLS = 'id, loan_id, device_id, returned_at, note, created_at';
@@ -174,6 +176,7 @@ export async function updateDevice(
   if (patch.acquiredAt !== undefined) dbPatch.acquired_at = patch.acquiredAt;
   if (patch.notionalDailyValue !== undefined) dbPatch.notional_daily_value = patch.notionalDailyValue;
   if (patch.standort !== undefined) dbPatch.standort = patch.standort;
+  if (patch.tags !== undefined) dbPatch.tags = patch.tags;
   if (patch.note !== undefined) dbPatch.note = patch.note;
   if (patch.status !== undefined) dbPatch.status = patch.status;
   if (patch.active !== undefined) dbPatch.active = patch.active;

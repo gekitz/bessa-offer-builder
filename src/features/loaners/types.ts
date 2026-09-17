@@ -27,6 +27,9 @@ export interface LoanerDevice {
   notionalDailyValue: number | null;
   status: LoanerDeviceStatus;
   standort: MesonicStandort | null;
+  // Gerätetyp-Schlagworte (composable), z. B. ['mobil','kassa','drucker'].
+  // Vokabular: lib/deviceTags.ts.
+  tags: string[];
   note: string | null;
   active: boolean;
   createdAt: string;
@@ -44,6 +47,7 @@ export interface LoanerDeviceInput {
   acquiredAt?: IsoDate | null;
   notionalDailyValue?: number | null;
   standort?: MesonicStandort | null;
+  tags?: string[];
   note?: string | null;
 }
 

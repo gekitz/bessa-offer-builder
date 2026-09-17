@@ -4,6 +4,7 @@ import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
 import BarcodeScanButton from '../../tickets/components/BarcodeScanButton';
 import ProductPicker from './ProductPicker';
+import TagChips from './TagChips';
 import type { Product } from '../../offers/api/productApi';
 import { createDevice, updateDevice } from '../api/loanerApi';
 import type { LoanerDevice, LoanerDeviceStatus, MesonicStandort } from '../types';
@@ -46,6 +47,7 @@ export default function DeviceFormModal({ device, products, onClose, onSaved }: 
   const [notionalDailyValue, setNotionalDailyValue] = useState(
     device?.notionalDailyValue != null ? String(device.notionalDailyValue) : '',
   );
+  const [tags, setTags] = useState<string[]>(device?.tags ?? []);
   const [note, setNote] = useState(device?.note ?? '');
   const [status, setStatus] = useState<LoanerDeviceStatus>(device?.status ?? 'available');
   const [saving, setSaving] = useState(false);
@@ -77,6 +79,7 @@ export default function DeviceFormModal({ device, products, onClose, onSaved }: 
       acquiredAt: acquiredAt || null,
       standort: (standort || null) as MesonicStandort | null,
       notionalDailyValue: notional != null && !Number.isNaN(notional) ? notional : null,
+      tags,
       note: note.trim() || null,
     };
     try {
@@ -168,6 +171,10 @@ export default function DeviceFormModal({ device, products, onClose, onSaved }: 
               )}
             </div>
           )}
+          <div>
+            <label className={labelCls}>Gerätetyp</label>
+            <TagChips value={tags} onChange={setTags} />
+          </div>
           <div>
             <label className={labelCls}>Notiz</label>
             <textarea className={inputCls} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
