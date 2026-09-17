@@ -44,6 +44,10 @@ const EMP_NAMES = new Map([
   ['emp-b', 'Klaus Weber'],
 ]);
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 function rate(
   code: string,
   value: number,
@@ -414,6 +418,48 @@ describe('Travel modes', () => {
     const wegzeit = r.positions.find((p) => p.kind === 'travel_wegzeit');
     expect(km?.total).toBe(28.50);
     expect(wegzeit?.total).toBe(130);
+  });
+
+  it('Wegzeit line reconciles: rounded quantity × price === total (17 min @ €130)', () => {
+    // Regression: 17 min = 0.2833…h. The displayed/exported menge is round2(hours)
+    // = 0.28, so the total must be 0.28 × 130 = 36.40 — NOT round2(0.2833 × 130)
+    // = 36.83. Otherwise the preview line is self-inconsistent and drifts from the
+    // Mesonic Beleg (which recomputes menge × preis on the rounded menge).
+    const r = calcRepairOrderBilling({
+      repairOrder: repairOrder(),
+      entries: [
+        entry({
+          rate: 'PC_NB',
+          minutes: 45, // 0.75h × 130 = 97.50 (divides evenly)
+          travelMode: 'km_plus_wegzeit',
+          travelKm: 13.73,
+          travelWegzeitMin: 17,
+        }),
+      ],
+      materials: [],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+      customerHasWartungsvertrag: false,
+    });
+    const wegzeit = r.positions.find((p) => p.kind === 'travel_wegzeit')!;
+    expect(wegzeit.quantity).toBe(0.28);
+    expect(wegzeit.total).toBe(36.4);
+    expect(round2(wegzeit.quantity * wegzeit.unitPrice)).toBe(wegzeit.total);
+  });
+
+  it('labor line reconciles: rounded quantity × price === total (17 min @ €130)', () => {
+    const r = calcRepairOrderBilling({
+      repairOrder: repairOrder(),
+      entries: [entry({ rate: 'PC_NB', minutes: 17 })], // 0.2833…h
+      materials: [],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+      customerHasWartungsvertrag: false,
+    });
+    const labor = r.positions.find((p) => p.kind === 'labor')!;
+    expect(labor.quantity).toBe(0.28);
+    expect(labor.total).toBe(36.4);
+    expect(round2(labor.quantity * labor.unitPrice)).toBe(labor.total);
   });
 
   it('km_inkl_wegzeit: km × €1.10, no separate Wegzeit', () => {
