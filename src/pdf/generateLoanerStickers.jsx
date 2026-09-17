@@ -8,7 +8,7 @@ import { importWithReload } from '../lib/lazyWithReload';
 //
 // `devices`: [{ bezeichnung, serialNumber, inventoryNo? }]
 export async function generateLoanerStickersBlob(devices) {
-  const [{ pdf }, { default: LoanerStickerSheet }, { code128DataUrl }] = await importWithReload(() =>
+  const [{ pdf }, { default: LoanerStickerSheet }, { code128Bars }] = await importWithReload(() =>
     Promise.all([
       import('@react-pdf/renderer'),
       import('./LoanerStickerSheet'),
@@ -16,21 +16,14 @@ export async function generateLoanerStickersBlob(devices) {
     ]),
   );
 
-  const items = devices.map((d) => {
-    let barcode = null;
-    try {
-      barcode = d.serialNumber ? code128DataUrl(d.serialNumber) : null;
-    } catch {
-      // Ungültige Seriennummer → Etikett ohne Barcode (Seriennummer bleibt lesbar).
-      barcode = null;
-    }
-    return {
-      bezeichnung: d.bezeichnung,
-      serialNumber: d.serialNumber,
-      inventoryNo: d.inventoryNo ?? null,
-      barcode,
-    };
-  });
+  const items = devices.map((d) => ({
+    bezeichnung: d.bezeichnung,
+    serialNumber: d.serialNumber,
+    inventoryNo: d.inventoryNo ?? null,
+    // Vektor-Balken; null bei ungültiger/leerer Seriennummer (Etikett bleibt
+    // lesbar, nur ohne Barcode).
+    barcode: d.serialNumber ? code128Bars(d.serialNumber) : null,
+  }));
 
   return await pdf(<LoanerStickerSheet items={items} />).toBlob();
 }
