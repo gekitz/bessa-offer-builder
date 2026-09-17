@@ -222,12 +222,27 @@ export default function DeviceDetailModal({ deviceId, onClose, onEdit, onCheckOu
                 ) : (
                   <div className="border border-slate-100 rounded-lg divide-y divide-slate-100">
                     {history.map((h) => (
-                      <div key={h.id} className="px-3 py-2 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm text-slate-700 truncate">{h.loan.customerName}</div>
+                      <div key={h.id} className="px-3 py-2 flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="text-sm text-slate-700 truncate">
+                            {h.loan.customerName}
+                            {h.loan.customerKdnr && (
+                              <span className="text-xs text-slate-400 font-normal"> · #{h.loan.customerKdnr}</span>
+                            )}
+                          </div>
                           <div className="text-xs text-slate-400">
                             {formatDateDe(h.loan.startedAt)} – {h.returnedAt ? formatDateDe(h.returnedAt) : 'offen'}
                           </div>
+                          {!h.returnedAt && h.loan.expectedReturn && (
+                            <div className="text-xs text-slate-400">
+                              Rückgabe erwartet: {formatDateDe(h.loan.expectedReturn)}
+                            </div>
+                          )}
+                          {(h.note || h.loan.note) && (
+                            <div className="text-xs text-slate-500 whitespace-pre-wrap break-words">
+                              {h.note || h.loan.note}
+                            </div>
+                          )}
                         </div>
                         {!h.returnedAt && (
                           <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 flex-shrink-0">
@@ -257,7 +272,15 @@ export default function DeviceDetailModal({ deviceId, onClose, onEdit, onCheckOu
             {device.status === 'on_loan' && openRow && (
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0 text-sm text-slate-500">
-                  Verliehen an <span className="text-slate-700">{openRow.loan.customerName}</span> seit {formatDateDe(openRow.loan.startedAt)}
+                  <div>
+                    Verliehen an <span className="text-slate-700">{openRow.loan.customerName}</span> seit {formatDateDe(openRow.loan.startedAt)}
+                  </div>
+                  {openRow.loan.expectedReturn && (
+                    <div className="text-xs text-slate-400">Rückgabe erwartet: {formatDateDe(openRow.loan.expectedReturn)}</div>
+                  )}
+                  {(openRow.note || openRow.loan.note) && (
+                    <div className="text-xs text-slate-500 whitespace-pre-wrap break-words">{openRow.note || openRow.loan.note}</div>
+                  )}
                 </div>
                 <button
                   onClick={handleCheckIn}
