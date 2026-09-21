@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { X, Pencil, Loader2, ArrowRightLeft, Undo2, Tag } from 'lucide-react';
-import { getDevice, checkInDevice } from '../api/loanerApi';
+import { X, Pencil, Loader2, ArrowRightLeft, Undo2, Tag, FileText, Check } from 'lucide-react';
+import { getDevice, checkInDevice, getLoanWithDevices } from '../api/loanerApi';
 import { computeDeviceMetrics, type LoanSpan } from '../lib/loanMetrics';
+import { exportLoanBeleg } from '../lib/runLoanBelegExport';
 import { postLoanCheckInCrmNote } from '../lib/loanCrmNote';
 import { downloadBlob } from '../lib/download';
 import { importWithReload } from '../../../lib/lazyWithReload';
@@ -49,6 +50,7 @@ export default function DeviceDetailModal({ deviceId, onClose, onEdit, onCheckOu
   const [error, setError] = useState<string | null>(null);
   const [checkingIn, setCheckingIn] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [belegLoanId, setBelegLoanId] = useState<string | null>(null); // loan currently exporting
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,6 +100,36 @@ export default function DeviceDetailModal({ deviceId, onClose, onEdit, onCheckOu
       setError(e?.message ?? String(e));
     } finally {
       setPrinting(false);
+    }
+  }
+
+  // Retroactively push the Mesonic Leih-Lieferschein (Belegart 19) for a loan
+  // whose fire-and-forget export at check-out never landed (mesonicBelegKey null).
+  // Loan-level: we re-fetch the loan's full device set so the Beleg carries one
+  // TEXT line per device (not just this device). Idempotent — a loan that already
+  // has a key is skipped by exportLoanBeleg. Unlike the check-out path this is a
+  // deliberate user action, so we surface success/failure inline.
+  async function handleGenerateBeleg(loan: Loan) {
+    if (belegLoanId) return;
+    setBelegLoanId(loan.id);
+    setError(null);
+    try {
+      const full = await getLoanWithDevices(loan.id);
+      if (!full) {
+        setError('Leihstellung nicht gefunden.');
+        return;
+      }
+      const res = await exportLoanBeleg(full.loan, full.devices);
+      if (!res.ok && !res.skipped) {
+        setError(`Leih-Lieferschein fehlgeschlagen: ${res.error ?? 'unbekannt'}`);
+      } else {
+        onChanged();
+        await load();
+      }
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setBelegLoanId(null);
     }
   }
 
@@ -249,6 +281,24 @@ export default function DeviceDetailModal({ deviceId, onClose, onEdit, onCheckOu
                             <div className="text-xs text-slate-500 whitespace-pre-wrap break-words">
                               {h.note || h.loan.note}
                             </div>
+                          )}
+                          {h.loan.mesonicBelegKey ? (
+                            <div className="text-xs text-emerald-600 flex items-center gap-1">
+                              <Check size={12} /> Leih-Lieferschein #{h.loan.mesonicBelegKey}
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleGenerateBeleg(h.loan)}
+                              disabled={belegLoanId != null}
+                              className="text-xs text-red-600 hover:text-red-700 inline-flex items-center gap-1 disabled:opacity-50"
+                            >
+                              {belegLoanId === h.loan.id ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <FileText size={12} />
+                              )}
+                              {belegLoanId === h.loan.id ? 'Leih-Lieferschein…' : 'Leih-Lieferschein erzeugen'}
+                            </button>
                           )}
                         </div>
                         {!h.returnedAt && (
