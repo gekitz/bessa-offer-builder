@@ -44,19 +44,36 @@ function lineKey(r: OrderRequest): string {
  * Reihenfolge der Lieferanten ausgegeben; die "Ohne Lieferant"-Gruppe
  * steht immer am Ende. Innerhalb einer Gruppe sind Zeilen alphabetisch
  * nach Produktname sortiert, für stabile Anzeige/Tests.
+ *
+ * Der Lieferant einer Anfrage wird bei der Erstellung eingefroren
+ * (order_requests.supplier_id). Wird einem Produkt erst NACHTRÄGLICH ein
+ * Lieferant zugewiesen, bleiben bereits angelegte Anfragen ohne
+ * Lieferant. Damit sie trotzdem korrekt gruppieren, fällt die
+ * Gruppierung optional auf den AKTUELLEN Lieferanten des Produkts zurück
+ * (`productSupplierById`), solange die Anfrage selbst noch keinen hat.
  */
 export function aggregateOpenRequests(
   requests: OrderRequest[],
   suppliers: Supplier[],
+  productSupplierById?: Map<string, string | null>,
 ): SupplierGroup[] {
   const supplierById = new Map(suppliers.map((s) => [s.id, s]));
+
+  // Fallback-Lieferant aus dem Produkt, aber nur wenn er ein bekannter
+  // Lieferant ist — sonst würde die Zeile unter einer unbekannten Gruppe
+  // landen.
+  const productSupplier = (productId: string | null): string | null => {
+    if (!productId || !productSupplierById) return null;
+    const sid = productSupplierById.get(productId) ?? null;
+    return sid && supplierById.has(sid) ? sid : null;
+  };
 
   // supplierId (oder '' für null) → Zeilenschlüssel → AggregatedLine
   const groups = new Map<string, Map<string, AggregatedLine>>();
 
   for (const r of requests) {
     if (r.status !== 'open') continue;
-    const gKey = r.supplierId ?? '';
+    const gKey = (r.supplierId ?? productSupplier(r.productId)) ?? '';
     const lines = groups.get(gKey) ?? new Map<string, AggregatedLine>();
     groups.set(gKey, lines);
 

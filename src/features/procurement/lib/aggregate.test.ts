@@ -124,6 +124,39 @@ describe('aggregateOpenRequests', () => {
     const groups = aggregateOpenRequests(requests, SUPPLIERS);
     expect(groups[0].supplierName).toBe('Unbekannter Lieferant');
   });
+
+  it('falls back to the product current supplier when the request has none', () => {
+    // Anfrage ohne eingefrorenen Lieferanten; dem Produkt wurde erst
+    // nachträglich Pulsa zugewiesen.
+    const requests = [req({ productId: 'addimat', productName: 'Addimat', supplierId: null, qty: 10 })];
+    const productSupplier = new Map([['addimat', 's-pulsa']]);
+    const groups = aggregateOpenRequests(requests, SUPPLIERS, productSupplier);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].supplierId).toBe('s-pulsa');
+    expect(groups[0].supplierName).toBe('Pulsa');
+    expect(groups[0].lines[0].totalQty).toBe(10);
+  });
+
+  it('merges a request that has a frozen supplier with one that falls back to the same', () => {
+    const requests = [
+      req({ productId: 'addimat', productName: 'Addimat', supplierId: 's-pulsa', qty: 4 }),
+      req({ productId: 'addimat', productName: 'Addimat', supplierId: null, qty: 6 }),
+    ];
+    const productSupplier = new Map([['addimat', 's-pulsa']]);
+    const groups = aggregateOpenRequests(requests, SUPPLIERS, productSupplier);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].supplierId).toBe('s-pulsa');
+    expect(groups[0].lines).toHaveLength(1);
+    expect(groups[0].lines[0].totalQty).toBe(10);
+  });
+
+  it('keeps the fallback in "Ohne Lieferant" when the product supplier is unknown/inactive', () => {
+    const requests = [req({ productId: 'addimat', productName: 'Addimat', supplierId: null, qty: 1 })];
+    const productSupplier = new Map([['addimat', 's-ghost']]);
+    const groups = aggregateOpenRequests(requests, SUPPLIERS, productSupplier);
+    expect(groups[groups.length - 1].supplierId).toBeNull();
+    expect(groups[groups.length - 1].supplierName).toBe('Ohne Lieferant');
+  });
 });
 
 describe('cheaperSupplierId', () => {
