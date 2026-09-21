@@ -50,22 +50,33 @@ function lineKey(r: OrderRequest): string {
  * Lieferant zugewiesen, bleiben bereits angelegte Anfragen ohne
  * Lieferant. Damit sie trotzdem korrekt gruppieren, fällt die
  * Gruppierung optional auf den AKTUELLEN Lieferanten des Produkts zurück
- * (`productSupplierById`), solange die Anfrage selbst noch keinen hat.
+ * (`productSuppliersById`), solange die Anfrage selbst noch keinen hat:
+ * bevorzugter Lieferant, sonst — wenn eindeutig — der einzige alternative
+ * Lieferant. Mehrere Alternativen ohne bevorzugten sind mehrdeutig und
+ * bleiben unter "Ohne Lieferant" (der Einkäufer entscheidet).
  */
+export interface ProductSuppliers {
+  supplierId: string | null;
+  altSupplierIds: string[];
+}
+
 export function aggregateOpenRequests(
   requests: OrderRequest[],
   suppliers: Supplier[],
-  productSupplierById?: Map<string, string | null>,
+  productSuppliersById?: Map<string, ProductSuppliers>,
 ): SupplierGroup[] {
   const supplierById = new Map(suppliers.map((s) => [s.id, s]));
 
-  // Fallback-Lieferant aus dem Produkt, aber nur wenn er ein bekannter
-  // Lieferant ist — sonst würde die Zeile unter einer unbekannten Gruppe
-  // landen.
+  // Fallback-Lieferant aus dem Produkt, aber nur bekannte Lieferanten
+  // (sonst landete die Zeile unter einer unbekannten Gruppe): bevorzugter
+  // zuerst, sonst der einzige eindeutige alternative Lieferant.
   const productSupplier = (productId: string | null): string | null => {
-    if (!productId || !productSupplierById) return null;
-    const sid = productSupplierById.get(productId) ?? null;
-    return sid && supplierById.has(sid) ? sid : null;
+    if (!productId || !productSuppliersById) return null;
+    const entry = productSuppliersById.get(productId);
+    if (!entry) return null;
+    if (entry.supplierId && supplierById.has(entry.supplierId)) return entry.supplierId;
+    const alts = entry.altSupplierIds.filter((id) => supplierById.has(id));
+    return alts.length === 1 ? alts[0] : null;
   };
 
   // supplierId (oder '' für null) → Zeilenschlüssel → AggregatedLine
