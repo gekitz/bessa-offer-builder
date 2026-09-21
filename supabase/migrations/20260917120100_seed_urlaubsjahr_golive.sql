@@ -38,11 +38,11 @@ INSERT INTO _golive VALUES
   ('wkriegl',        6.5, 20.0, DATE '2027-01-21'),
   ('sriedl',        19.0, 20.0, DATE '2027-08-28'),
   ('gtriebelnig',   27.0, 24.0, DATE '2027-06-10'),
-  ('ahuber',        26.0, 25.0, DATE '2027-07-01'),
+  ('ahuber',        25.0, 25.0, DATE '2027-07-01'),  -- 26.0 corrected -1 (11.9.2026 day); see 20260921120000
   ('anowak',         3.5, 25.0, DATE '2027-02-01'),
   ('hrussnig',       3.0, 25.0, DATE '2026-10-02'),
   ('aflagl',        12.0, 25.0, DATE '2027-01-11'),
-  ('pfilipovic',    21.0, 25.0, DATE '2027-06-01');
+  ('pfilipovic',    20.0, 25.0, DATE '2027-06-01');  -- 21.0 corrected -1 (7.9.2026 day); see 20260921120000
 
 -- 1) annual grant + next reset on the employee row.
 UPDATE employees e
