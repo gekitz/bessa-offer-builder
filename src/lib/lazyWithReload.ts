@@ -1,5 +1,6 @@
 import { lazy } from 'react';
 import type { ComponentType } from 'react';
+import { notifyStaleChunk } from './reloadPrompt';
 
 // Recovering from stale chunks after a redeploy.
 //
@@ -12,13 +13,15 @@ import type { ComponentType } from 'react';
 // that now 404s and throws "Failed to fetch dynamically imported
 // module".
 //
-// The fix: when a dynamic import fails with that specific error,
-// force a one-time reload so the tab picks up the fresh index.html
-// and the current chunk names. A sessionStorage guard prevents a
-// reload loop if the chunk is genuinely broken on the server (not
-// just stale).
-
-const RELOAD_GUARD_KEY = 'kitz:chunk-reload';
+// The fix: when a dynamic import fails with that specific error, ask
+// the UI to show a "new version — please reload" banner (ReloadBanner)
+// and let the user reload when it suits them. We used to reload the
+// tab automatically, but doing so mid-action silently discarded
+// whatever the user was in the middle of (e.g. an offer got saved but
+// the send was dropped, and the view reset to the list). The chunk
+// can't load without a reload, so the import promise never resolves —
+// deliberately, so the caller hangs instead of flashing an error toast
+// while the banner is up.
 
 function isChunkLoadError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err ?? '');
@@ -27,47 +30,19 @@ function isChunkLoadError(err: unknown): boolean {
   );
 }
 
-// sessionStorage can throw in locked-down privacy modes — never let
-// the guard itself break the import path.
-function readGuard(): boolean {
-  try {
-    return sessionStorage.getItem(RELOAD_GUARD_KEY) !== null;
-  } catch {
-    return false;
-  }
-}
-function setGuard(): void {
-  try {
-    sessionStorage.setItem(RELOAD_GUARD_KEY, '1');
-  } catch {
-    /* ignore */
-  }
-}
-function clearGuard(): void {
-  try {
-    sessionStorage.removeItem(RELOAD_GUARD_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
 /**
- * Run a dynamic-import factory, reloading the page once if it fails
- * because a hashed chunk went missing after a redeploy. On success the
- * reload guard is reset so a *second* redeploy later in the same
- * long-lived session can still recover.
+ * Run a dynamic-import factory. If it fails because a hashed chunk went
+ * missing after a redeploy, surface the reload banner and hang; any other
+ * error propagates to the caller as usual.
  */
 export async function importWithReload<T>(factory: () => Promise<T>): Promise<T> {
   try {
-    const mod = await factory();
-    clearGuard();
-    return mod;
+    return await factory();
   } catch (err) {
-    if (isChunkLoadError(err) && typeof window !== 'undefined' && !readGuard()) {
-      setGuard();
-      window.location.reload();
-      // Never resolve: the reload is imminent and we don't want the
-      // caller to flash an error toast in the meantime.
+    if (isChunkLoadError(err) && typeof window !== 'undefined') {
+      notifyStaleChunk();
+      // Never resolve: the chunk can't load without a reload, and we don't
+      // want the caller to flash an error while the banner asks the user to.
       return new Promise<T>(() => {});
     }
     throw err;

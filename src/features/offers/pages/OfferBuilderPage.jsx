@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 // PDF generation is dynamically imported inside generateOfferPdfBlob
 // to keep @react-pdf/renderer (~600 KB) out of the main bundle.
-import { generateOfferPdfBlob } from '../../../pdf/generateOfferPdf';
+import { generateOfferPdfBlob, prefetchOfferPdf } from '../../../pdf/generateOfferPdf';
 import { lazyWithReload } from '../../../lib/lazyWithReload';
 import { getOfferFromURL } from '../../../lib/urlState';
 import { offerIdFromDeepLink } from '../../../lib/offerDeepLink';
@@ -426,6 +426,15 @@ function OfferBuilderPageInner() {
     });
     setCartOrder(prev => (prev.includes(RENTAL_LINE_ID) ? prev : [...prev, RENTAL_LINE_ID]));
   }, [rental, offerType]);
+
+  // Warm the lazily-loaded PDF chunk as soon as the offer tab is open, so
+  // any stale-chunk reload (see importWithReload) fires here — before the
+  // user commits to Send/Print/Sign — rather than mid-send, which would
+  // reload the page after the offer was saved but before it was e-mailed
+  // (offer saved, e-mail silently dropped, view reset to the list).
+  useEffect(() => {
+    if (offerView === 'builder' && builderTab === 'angebot') prefetchOfferPdf();
+  }, [offerView, builderTab]);
 
   useEffect(() => {
     const link = document.createElement('link');

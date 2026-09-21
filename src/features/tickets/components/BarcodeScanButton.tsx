@@ -93,6 +93,31 @@ async function enableAutofocus(stream: MediaStream): Promise<void> {
   }
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+// Acquire a camera stream, retrying transient "camera busy" failures. Android
+// (Samsung Galaxy A54 seen in the wild) releases the camera asynchronously, so a
+// getUserMedia issued right after stopping another stream can throw
+// NotReadableError ("Starting videoinput failed") even though nothing is really
+// wrong — a short backoff and retry recovers it.
+async function acquireStream(constraints: MediaTrackConstraints, retries = 2): Promise<MediaStream> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({ video: constraints, audio: false });
+    } catch (e) {
+      const name = (e as { name?: string })?.name;
+      const transient = name === 'NotReadableError' || name === 'AbortError' || name === 'TrackStartError';
+      if (attempt < retries && transient) {
+        await delay(300);
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 export default function BarcodeScanButton({
   onScan,
   disabled = false,
@@ -156,24 +181,31 @@ function ScannerModal({ onScan, onClose }: { onScan: (v: string) => void; onClos
         const Ctor = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
         if (Ctor) {
           // Native path: we own the stream and poll the detector on each frame.
-          stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(deviceId ?? undefined), audio: false });
+          stream = await acquireStream(videoConstraints(deviceId ?? undefined));
           if (stopped) return;
-          // Populate the camera list (labels are available now) and — only on the
-          // first open (deviceId still auto) — switch to the main rear lens,
-          // avoiding Android's fixed-focus ultra-wide.
-          try {
-            const cams = await listVideoInputs();
-            if (!stopped) setCameras(cams);
-            if (deviceId == null) {
-              const id = pickRearCamera(cams);
-              const currentId = stream.getVideoTracks()[0]?.getSettings().deviceId;
-              if (id && id !== currentId) {
-                stream.getTracks().forEach((t) => t.stop());
-                stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(id), audio: false });
+          // Populate the camera list (labels are available now).
+          const cams = await listVideoInputs();
+          if (stopped) return;
+          setCameras(cams);
+          // Only on the first open (deviceId still auto) switch to the main rear
+          // lens, avoiding Android's fixed-focus ultra-wide.
+          if (deviceId == null) {
+            const id = pickRearCamera(cams);
+            const currentId = stream.getVideoTracks()[0]?.getSettings().deviceId;
+            if (id && id !== currentId) {
+              // Stop the current stream and give Android a moment to release the
+              // camera before re-acquiring, else the switch races the release and
+              // fails with "Starting videoinput failed".
+              stream.getTracks().forEach((t) => t.stop());
+              await delay(250);
+              if (stopped) return;
+              try {
+                stream = await acquireStream(videoConstraints(id));
+              } catch {
+                // Chosen lens wouldn't open — reacquire the default camera.
+                stream = await acquireStream(videoConstraints());
               }
             }
-          } catch {
-            /* keep the first stream */
           }
           if (stopped) return;
           trackRef.current = stream.getVideoTracks()[0] ?? null;
@@ -218,8 +250,10 @@ function ScannerModal({ onScan, onClose }: { onScan: (v: string) => void; onClos
       } catch (e) {
         const name = (e as { name?: string })?.name;
         if (name === 'NotAllowedError') setError('Kamerazugriff wurde verweigert.');
-        else if (name === 'NotFoundError') setError('Keine Kamera gefunden.');
-        else setError(e instanceof Error ? e.message : String(e));
+        else if (name === 'NotFoundError' || name === 'OverconstrainedError') setError('Keine Kamera gefunden.');
+        else if (name === 'NotReadableError' || name === 'AbortError' || name === 'TrackStartError') {
+          setError('Kamera konnte nicht gestartet werden. Wird sie von einer anderen App verwendet?');
+        } else setError(e instanceof Error ? e.message : String(e));
         setStarting(false);
       }
     }

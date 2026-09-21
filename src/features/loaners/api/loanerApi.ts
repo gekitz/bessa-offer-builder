@@ -238,6 +238,27 @@ export async function listOpenLoans(): Promise<Loan[]> {
     .map((r: any) => ({ ...rowToLoan(r), devices: (r.loan_devices ?? []).map(rowToLoanDevice) }));
 }
 
+// A loan header plus the full device rows on it — the set the Leih-Lieferschein
+// export needs (bezeichnung + serial live on loaner_devices, not the line).
+// Used to (re-)generate the Mesonic Beleg for an existing loan, e.g. when the
+// fire-and-forget export at check-out never reached Mesonic.
+export async function getLoanWithDevices(
+  loanId: string,
+): Promise<{ loan: Loan; devices: LoanerDevice[] } | null> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('loans')
+    .select(`${LOAN_COLS}, loan_devices(${LOAN_DEVICE_COLS}, loaner_devices(${DEVICE_COLS}))`)
+    .eq('id', loanId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const devices = ((data as any).loan_devices ?? [])
+    .map((ld: any) => (ld.loaner_devices ? rowToDevice(ld.loaner_devices) : null))
+    .filter(Boolean) as LoanerDevice[];
+  return { loan: rowToLoan(data), devices };
+}
+
 // Hand one or more devices to a Bestandskunde: create the loan header, one
 // loan_devices line per device, and flip each device to 'on_loan'. The partial
 // unique index (device_id WHERE returned_at IS NULL) is the hard guard against
