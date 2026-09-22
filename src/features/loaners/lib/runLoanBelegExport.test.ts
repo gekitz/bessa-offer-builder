@@ -10,6 +10,7 @@ import type { Loan, LoanerDevice } from '../types';
 const readMaxLaufnummer = vi.fn();
 const importBeleg = vi.fn();
 const setLoanBelegExport = vi.fn();
+const getLoanWithDevices = vi.fn();
 
 vi.mock('../../tickets/lib/runTicketBelegExport', () => ({
   readMaxLaufnummer: (...a: unknown[]) => readMaxLaufnummer(...a),
@@ -17,9 +18,10 @@ vi.mock('../../tickets/lib/runTicketBelegExport', () => ({
 }));
 vi.mock('../api/loanerApi', () => ({
   setLoanBelegExport: (...a: unknown[]) => setLoanBelegExport(...a),
+  getLoanWithDevices: (...a: unknown[]) => getLoanWithDevices(...a),
 }));
 
-import { exportLoanBeleg } from './runLoanBelegExport';
+import { exportLoanBeleg, reexportLoanBeleg } from './runLoanBelegExport';
 
 function makeLoan(overrides: Partial<Loan> = {}): Loan {
   return {
@@ -66,6 +68,7 @@ describe('exportLoanBeleg', () => {
     readMaxLaufnummer.mockReset();
     importBeleg.mockReset();
     setLoanBelegExport.mockReset();
+    getLoanWithDevices.mockReset();
   });
 
   it('skips (idempotent) when the loan already has a Beleg key', async () => {
@@ -99,8 +102,9 @@ describe('exportLoanBeleg', () => {
     // laufnummer = max + 1
     const xml = importBeleg.mock.calls[0][0] as string;
     expect(typeof xml).toBe('string');
-    // one TEXT position per device
-    expect(xml.match(/Leihstellung:/g)?.length).toBe(2);
+    // 1 header "Leihstellung:" line + one bare TEXT line per device (2) = 3 positions.
+    expect(xml.match(/Leihstellung:/g)?.length).toBe(1);
+    expect(xml.match(/<Artikelnummer>TEXT<\/Artikelnummer>/g)?.length).toBe(3);
     expect(setLoanBelegExport).toHaveBeenCalledWith('loan-1', 26, '24998-26');
     expect(res).toEqual({ ok: true, belegKey: '24998-26', laufnummer: 26 });
   });
@@ -121,5 +125,75 @@ describe('exportLoanBeleg', () => {
     const res = await exportLoanBeleg(makeLoan(), [makeDevice()]);
     expect(res.ok).toBe(false);
     expect(res.error).toBe('Mesonic nicht erreichbar');
+  });
+});
+
+describe('reexportLoanBeleg (append path)', () => {
+  beforeEach(() => {
+    readMaxLaufnummer.mockReset();
+    importBeleg.mockReset();
+    setLoanBelegExport.mockReset();
+    getLoanWithDevices.mockReset();
+  });
+
+  it('EDITS the existing Beleg (option 3) under the same Laufnummer, resending all devices', async () => {
+    getLoanWithDevices.mockResolvedValue({
+      loan: makeLoan({ mesonicBelegKey: '24998-26', mesonicBelegLaufnummer: 26 }),
+      devices: [makeDevice(), makeDevice({ id: 'dev-2', serialNumber: 'SN-2' })],
+    });
+    importBeleg.mockResolvedValue({ ok: true });
+
+    const res = await reexportLoanBeleg('loan-1');
+
+    // No new Laufnummer read — reuses the loan's existing one.
+    expect(readMaxLaufnummer).not.toHaveBeenCalled();
+    const [xml, opts] = importBeleg.mock.calls[0];
+    expect(opts).toEqual({ option: 3 });
+    expect(xml).toContain('option="3"');
+    expect(xml).toContain('<Laufnummer>26</Laufnummer>');
+    // header + 2 device lines resent under the same Laufnummer
+    expect((xml as string).match(/Leihstellung:/g)?.length).toBe(1);
+    expect((xml as string).match(/<Artikelnummer>TEXT<\/Artikelnummer>/g)?.length).toBe(3);
+    // Key unchanged; no re-anchor needed.
+    expect(setLoanBelegExport).not.toHaveBeenCalled();
+    expect(res).toEqual({ ok: true, belegKey: '24998-26', laufnummer: 26 });
+  });
+
+  it('falls back to a CREATE when the loan has no Beleg yet (check-out export never landed)', async () => {
+    getLoanWithDevices.mockResolvedValue({
+      loan: makeLoan({ mesonicBelegKey: null, mesonicBelegLaufnummer: null }),
+      devices: [makeDevice()],
+    });
+    readMaxLaufnummer.mockResolvedValue(30);
+    importBeleg.mockResolvedValue({ ok: true });
+    setLoanBelegExport.mockResolvedValue(undefined);
+
+    const res = await reexportLoanBeleg('loan-1');
+
+    expect(readMaxLaufnummer).toHaveBeenCalledWith('24998');
+    const [xml, opts] = importBeleg.mock.calls[0];
+    expect(opts).toBeUndefined(); // create path calls importBeleg(xml) with no option
+    expect(xml).toContain('option="0"');
+    expect(setLoanBelegExport).toHaveBeenCalledWith('loan-1', 31, '24998-31');
+    expect(res).toEqual({ ok: true, belegKey: '24998-31', laufnummer: 31 });
+  });
+
+  it('returns an error when the loan is not found', async () => {
+    getLoanWithDevices.mockResolvedValue(null);
+    const res = await reexportLoanBeleg('loan-x');
+    expect(res.ok).toBe(false);
+    expect(importBeleg).not.toHaveBeenCalled();
+  });
+
+  it('does not swallow into a throw — a failed edit import returns an error result', async () => {
+    getLoanWithDevices.mockResolvedValue({
+      loan: makeLoan({ mesonicBelegKey: '24998-26', mesonicBelegLaufnummer: 26 }),
+      devices: [makeDevice()],
+    });
+    importBeleg.mockResolvedValue({ ok: false, error: 'Zeile nicht zuordenbar' });
+
+    const res = await reexportLoanBeleg('loan-1');
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('Zeile nicht zuordenbar');
   });
 });

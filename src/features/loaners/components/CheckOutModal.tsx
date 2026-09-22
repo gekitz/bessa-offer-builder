@@ -1,13 +1,18 @@
-import { useState } from 'react';
-import { X, Trash2, UserPlus, Building2, Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { X, Trash2, UserPlus, Building2, Plus, Package } from 'lucide-react';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
 import BarcodeScanButton from '../../tickets/components/BarcodeScanButton';
 import CustomerPicker from '../../../components/CustomerPicker';
-import { checkOut, findDeviceBySerial } from '../api/loanerApi';
+import { checkOut, findDeviceBySerial, listOpenLoansForCustomer, addDevicesToLoan } from '../api/loanerApi';
 import { canCheckOut } from '../lib/loanMetrics';
-import { exportLoanBeleg } from '../lib/runLoanBelegExport';
-import type { LoanerDevice } from '../types';
+import { exportLoanBeleg, reexportLoanBeleg } from '../lib/runLoanBelegExport';
+import type { Loan, LoanerDevice } from '../types';
+
+// Offene Geräte einer Leihstellung (Zeilen ohne returned_at) — für das Label.
+function openDeviceCount(loan: Loan): number {
+  return (loan.devices ?? []).filter((d) => d.returnedAt == null).length;
+}
 
 // Verleihen: build a loan from one or more available devices + a Bestandskunde,
 // then create it (DB). The Mesonic Leih-Lieferschein is fired in Phase 4.
@@ -46,6 +51,39 @@ export default function CheckOutModal({
   const [addId, setAddId] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Guardrail: offene Leihstellungen dieses Kunden. Existiert eine, bieten wir
+  // "zu bestehender hinzufügen" an, statt eine zweite Leihstellung (→ zweiter
+  // Mesonic-Beleg) anzulegen. targetLoanId gesetzt = Anhänge-Modus.
+  const [openLoans, setOpenLoans] = useState<Loan[]>([]);
+  const [targetLoanId, setTargetLoanId] = useState<string | null>(null);
+
+  // Offene Leihstellungen des gewählten Kunden laden (bei Kundenwechsel).
+  useEffect(() => {
+    const kdnr = customer?.kdnr?.trim();
+    if (!kdnr) {
+      setOpenLoans([]);
+      setTargetLoanId(null);
+      return;
+    }
+    let cancelled = false;
+    listOpenLoansForCustomer(kdnr)
+      .then((loans) => {
+        if (cancelled) return;
+        setOpenLoans(loans);
+        // Default in den Anhänge-Modus auf die jüngste offene Leihstellung —
+        // das ist der Fall, den wir verhindern wollen (mehrere Leihstellungen).
+        setTargetLoanId(loans.length > 0 ? loans[0].id : null);
+      })
+      .catch(() => {
+        if (!cancelled) setOpenLoans([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [customer?.kdnr]);
+
+  const appendMode = targetLoanId != null;
+  const targetLoan = openLoans.find((l) => l.id === targetLoanId) ?? null;
 
   const selectedIds = new Set(selected.map((d) => d.id));
   const availableOptions = devices
@@ -83,21 +121,31 @@ export default function CheckOutModal({
     setSaving(true);
     setError(null);
     try {
-      const { loan } = await checkOut({
-        customerName: customer.name,
-        customerKdnr: customer.kdnr,
-        ticketId: ticketId ?? null,
-        expectedReturn: expectedReturn || null,
-        note: note.trim() || null,
-        deviceIds: selected.map((d) => d.id),
-        createdBy: createdBy ?? null,
-      });
-      // Mesonic Leih-Lieferschein (Belegart 19) — fire-and-forget: die
-      // Leihstellung ist bereits sicher gespeichert, ein Mesonic-Hänger darf
-      // den Check-out nicht blockieren.
-      void exportLoanBeleg(loan, selected).then((res) => {
-        if (!res.ok && !res.skipped) console.warn('Leih-Lieferschein-Export fehlgeschlagen:', res.error);
-      });
+      if (appendMode && targetLoanId) {
+        // An bestehende Leihstellung anhängen: DB-Zeilen ergänzen, dann den
+        // vorhandenen Leih-Lieferschein editieren (option="3") statt einen
+        // zweiten Beleg anzulegen. Header (Rückgabe/Notiz) bleibt vom Original.
+        await addDevicesToLoan(targetLoanId, selected.map((d) => d.id));
+        void reexportLoanBeleg(targetLoanId).then((res) => {
+          if (!res.ok && !res.skipped) console.warn('Leih-Lieferschein-Edit fehlgeschlagen:', res.error);
+        });
+      } else {
+        const { loan } = await checkOut({
+          customerName: customer.name,
+          customerKdnr: customer.kdnr,
+          ticketId: ticketId ?? null,
+          expectedReturn: expectedReturn || null,
+          note: note.trim() || null,
+          deviceIds: selected.map((d) => d.id),
+          createdBy: createdBy ?? null,
+        });
+        // Mesonic Leih-Lieferschein (Belegart 19) — fire-and-forget: die
+        // Leihstellung ist bereits sicher gespeichert, ein Mesonic-Hänger darf
+        // den Check-out nicht blockieren.
+        void exportLoanBeleg(loan, selected).then((res) => {
+          if (!res.ok && !res.skipped) console.warn('Leih-Lieferschein-Export fehlgeschlagen:', res.error);
+        });
+      }
       onDone();
     } catch (e: any) {
       const msg = e?.message ?? String(e);
@@ -148,6 +196,60 @@ export default function CheckOutModal({
             )}
           </div>
 
+          {/* Guardrail: Kunde hat bereits offene Leihstellung(en) */}
+          {openLoans.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
+              <div className="flex items-start gap-2 text-sm text-amber-800">
+                <Package size={15} className="mt-0.5 flex-shrink-0" />
+                <span>
+                  Kunde hat bereits {openLoans.length} offene Leihstellung
+                  {openLoans.length === 1 ? '' : 'en'}. Geräte dort anhängen — nicht neu anlegen —
+                  hält alles auf <strong>einem</strong> Lieferschein.
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setTargetLoanId(openLoans[0].id)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                    appendMode
+                      ? 'bg-amber-600 text-white border-amber-600'
+                      : 'bg-white text-amber-700 border-amber-300 hover:border-amber-500'
+                  }`}
+                >
+                  Zu bestehender hinzufügen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetLoanId(null)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                    !appendMode
+                      ? 'bg-slate-700 text-white border-slate-700'
+                      : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'
+                  }`}
+                >
+                  Neue Leihstellung
+                </button>
+              </div>
+              {appendMode && openLoans.length > 1 && (
+                <Select
+                  value={targetLoanId ?? ''}
+                  onChange={setTargetLoanId}
+                  options={openLoans.map((l) => ({
+                    value: l.id,
+                    label: `seit ${l.startedAt} — ${openDeviceCount(l)} Gerät${openDeviceCount(l) === 1 ? '' : 'e'}`,
+                  }))}
+                />
+              )}
+              {appendMode && targetLoan && (
+                <p className="text-xs text-amber-700">
+                  Anhängen an Leihstellung seit {targetLoan.startedAt} ({openDeviceCount(targetLoan)} Gerät
+                  {openDeviceCount(targetLoan) === 1 ? '' : 'e'}). Rückgabe & Notiz bleiben vom Original.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Devices */}
           <div>
             <label className={labelCls}>Geräte *</label>
@@ -174,14 +276,20 @@ export default function CheckOutModal({
             </div>
           </div>
 
-          <div>
-            <label className={labelCls}>Rückgabe erwartet</label>
-            <DatePicker value={expectedReturn} onChange={setExpectedReturn} />
-          </div>
-          <div>
-            <label className={labelCls}>Notiz</label>
-            <textarea className={inputCls} rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="z. B. Grund, Zubehör" />
-          </div>
+          {/* Header-Felder nur beim Neuanlegen — im Anhänge-Modus gehören sie
+              zur bestehenden Leihstellung. */}
+          {!appendMode && (
+            <>
+              <div>
+                <label className={labelCls}>Rückgabe erwartet</label>
+                <DatePicker value={expectedReturn} onChange={setExpectedReturn} />
+              </div>
+              <div>
+                <label className={labelCls}>Notiz</label>
+                <textarea className={inputCls} rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="z. B. Grund, Zubehör" />
+              </div>
+            </>
+          )}
 
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
         </div>
@@ -195,7 +303,14 @@ export default function CheckOutModal({
             disabled={saving}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
           >
-            <Plus size={15} /> {saving ? 'Verleihen…' : 'Verleihen'}
+            <Plus size={15} />{' '}
+            {saving
+              ? appendMode
+                ? 'Hinzufügen…'
+                : 'Verleihen…'
+              : appendMode
+                ? 'Zu Leihstellung hinzufügen'
+                : 'Verleihen'}
           </button>
         </div>
       </div>
