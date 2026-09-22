@@ -280,11 +280,15 @@ function OnceTableRow({ item, index }) {
   );
 }
 
-// Totals box component
-function TotalsBox({ netto, isMonthly }) {
+// Totals box component. For the running-costs table `accumulated` carries the
+// sum of the "Jährlich" column (monthly × Laufzeit-Monate); when passed we print
+// a second Netto/USt/Brutto block so the footer sums both table columns, not
+// just the monthly one.
+function TotalsBox({ netto, isMonthly, accumulated = null }) {
   const ust = netto * 0.2;
   const brutto = netto * 1.2;
   const suffix = isMonthly ? '/Monat' : '';
+  const showAccumulated = accumulated != null && accumulated > 0;
 
   return (
     <View style={styles.totalsBox} wrap={false}>
@@ -300,6 +304,23 @@ function TotalsBox({ netto, isMonthly }) {
         <Text style={styles.totalsFinalLabel}>Brutto{suffix}</Text>
         <Text style={styles.totalsFinalValue}>{fmt(brutto)}</Text>
       </View>
+
+      {showAccumulated && (
+        <>
+          <View style={[styles.totalsRow, styles.totalsFinal]}>
+            <Text style={styles.totalsLabel}>Netto/Jahr</Text>
+            <Text style={styles.totalsValue}>{fmt(accumulated)}</Text>
+          </View>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>20% USt</Text>
+            <Text style={styles.totalsValue}>{fmt(accumulated * 0.2)}</Text>
+          </View>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsFinalLabel}>Brutto/Jahr</Text>
+            <Text style={styles.totalsFinalValue}>{fmt(accumulated * 1.2)}</Text>
+          </View>
+        </>
+      )}
     </View>
   );
 }
@@ -810,7 +831,7 @@ export default function OfferPdfDocument({
             {monthlyItems.map((item, idx) => (
               <MonthlyTableRow key={item.id} item={item} index={idx} showTier={mixedTiers} />
             ))}
-            <TotalsBox netto={totals.monthly} isMonthly={true} />
+            <TotalsBox netto={totals.monthly} isMonthly={true} accumulated={totals.periodMonthly} />
           </View>
         )}
 
