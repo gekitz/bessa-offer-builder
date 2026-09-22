@@ -30,17 +30,19 @@ describe('standortFromId', () => {
 });
 
 describe('repairOrderToBelegPositions', () => {
-  it('labor/Wegzeit/km → Mitarbeiter-Artikel nach HEIMAT-Standort (…09WO auf KL-Ticket)', () => {
+  it('labor/Wegzeit → Mitarbeiter-Artikel, km → KM-Geld-Artikel, beide nach HEIMAT-Standort (WO auf KL-Ticket)', () => {
     const b = billing([
       pos({ kind: 'labor', label: 'Kassensysteme', quantity: 2, unitPrice: 118, employeeId: 'e-heri' }),
       pos({ kind: 'travel_wegzeit', label: 'Wegzeit', quantity: 0.5, unitPrice: 118, employeeId: 'e-heri' }),
       pos({ kind: 'travel_km', label: 'Anfahrt 12 km', quantity: 12, unitPrice: 0.57, employeeId: 'e-heri' }),
     ]);
     const out = repairOrderToBelegPositions(b, { ticketStandort: 'klagenfurt', employeeMesonic });
-    expect(out.map((p) => p.artikelnummer)).toEqual(['30000009WO', '30000009WO', '30000009WO']);
+    // labor/Wegzeit über den Mitarbeiter-Artikel (STD), km über den eigenen
+    // KM-Geld-Artikel (Einheit km) — beide mit Heris Heimat-Suffix WO.
+    expect(out.map((p) => p.artikelnummer)).toEqual(['30000009WO', '30000009WO', '31100000WO']);
     // Menge/Preis unverändert durchgereicht
     expect(out[0]).toMatchObject({ datentyp: '1', menge: 2, einzelpreis: 118, bezeichnung: 'Kassensysteme' });
-    expect(out[2]).toMatchObject({ menge: 12, einzelpreis: 0.57 });
+    expect(out[2]).toMatchObject({ datentyp: '1', menge: 12, einzelpreis: 0.57, bezeichnung: 'Anfahrt 12 km' });
   });
 
   it('travel_flat → Zonen-Artikel (kein Suffix), material → echter Artikel inkl. TICKET-Standort-Ausprägung', () => {
@@ -94,8 +96,21 @@ describe('repairOrderToBelegPositions', () => {
     expect(wo[0].artikelnummer).toBe('99991234WO');
   });
 
+  it('km → KM-Geld-Artikel folgt dem Heimat-Standort des Technikers (KL-Mitarbeiter → 31100000KL auf WO-Ticket)', () => {
+    const employeeMesonicKl = new Map([['e-kl', { vertreternummer: '26', standort: 'klagenfurt' } as EmployeeMesonic]]);
+    const b = billing([pos({ kind: 'travel_km', label: 'Anfahrt 20 km', quantity: 20, unitPrice: 0.57, employeeId: 'e-kl' })]);
+    const out = repairOrderToBelegPositions(b, { ticketStandort: 'wolfsberg', employeeMesonic: employeeMesonicKl });
+    expect(out[0].artikelnummer).toBe('31100000KL');
+  });
+
   it('wirft, wenn ein Arbeits-Mitarbeiter keine Vertreternummer hat', () => {
     const b = billing([pos({ kind: 'labor', label: 'Arbeit', employeeId: 'e-unknown', employeeName: 'Neuer Lehrling' })]);
+    expect(() => repairOrderToBelegPositions(b, { ticketStandort: 'klagenfurt', employeeMesonic }))
+      .toThrow(/Neuer Lehrling/);
+  });
+
+  it('km wirft, wenn kein Mitarbeiter-Mapping für den Standort vorliegt', () => {
+    const b = billing([pos({ kind: 'travel_km', label: 'Anfahrt 10 km', quantity: 10, unitPrice: 0.57, employeeId: 'e-unknown', employeeName: 'Neuer Lehrling' })]);
     expect(() => repairOrderToBelegPositions(b, { ticketStandort: 'klagenfurt', employeeMesonic }))
       .toThrow(/Neuer Lehrling/);
   });
