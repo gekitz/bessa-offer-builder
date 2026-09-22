@@ -43,6 +43,55 @@ describe('OfferDetailsModal', () => {
     expect(screen.getByText('12345')).toBeInTheDocument();
   });
 
+  describe('Mesonic-Angebot section', () => {
+    it('is hidden for a not-yet-accepted offer with no export status', () => {
+      render(<OfferDetailsModal offer={makeOffer()} onClose={() => {}} />);
+      expect(screen.queryByText('Mesonic-Angebot')).not.toBeInTheDocument();
+    });
+
+    it('shows the WinLine Angebot-Nr. when exported', () => {
+      render(<OfferDetailsModal
+        offer={makeOffer({ status: 'accepted', accepted_at: '2026-06-01T09:00:00Z', mesonic_beleg_status: 'exported', mesonic_beleg_key: '12345-26', mesonic_beleg_number: '26' })}
+        onClose={() => {}}
+      />);
+      expect(screen.getByText('Mesonic-Angebot')).toBeInTheDocument();
+      expect(screen.getByText(/In Mesonic angelegt/)).toBeInTheDocument();
+      expect(screen.getByText('26')).toBeInTheDocument();
+    });
+
+    it('flags a skipped export (no linked Mesonic customer) and offers retry when a handler is given', () => {
+      render(<OfferDetailsModal
+        offer={makeOffer({ status: 'accepted', accepted_at: '2026-06-01T09:00:00Z', mesonic_customer_id: null, mesonic_beleg_status: 'skipped_no_customer' })}
+        onExportAngebot={vi.fn()}
+        onClose={() => {}}
+      />);
+      expect(screen.getByText(/Kein Mesonic-Kunde verknüpft/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Nach Mesonic exportieren/ })).toBeInTheDocument();
+    });
+
+    it('runs the export handler and reflects success optimistically', async () => {
+      const onExportAngebot = vi.fn().mockResolvedValue({ ok: true, voucherNumber: '27', belegKey: '12345-27' });
+      render(<OfferDetailsModal
+        offer={makeOffer({ status: 'accepted', accepted_at: '2026-06-01T09:00:00Z', mesonic_beleg_status: 'skipped_no_customer' })}
+        onExportAngebot={onExportAngebot}
+        onClose={() => {}}
+      />);
+      await userEvent.click(screen.getByRole('button', { name: /Nach Mesonic exportieren/ }));
+      expect(onExportAngebot).toHaveBeenCalledOnce();
+      expect(await screen.findByText(/In Mesonic angelegt/)).toBeInTheDocument();
+      expect(screen.getByText('27')).toBeInTheDocument();
+    });
+
+    it('does not render a retry button once exported', () => {
+      render(<OfferDetailsModal
+        offer={makeOffer({ status: 'accepted', accepted_at: '2026-06-01T09:00:00Z', mesonic_beleg_status: 'exported', mesonic_beleg_key: '12345-26', mesonic_beleg_number: '26' })}
+        onExportAngebot={vi.fn()}
+        onClose={() => {}}
+      />);
+      expect(screen.queryByRole('button', { name: /Nach Mesonic exportieren/ })).not.toBeInTheDocument();
+    });
+  });
+
   it('shows the briefing as a non-truncated block (the WHY of the offer)', () => {
     render(<OfferDetailsModal offer={makeOffer()} onClose={() => {}} />);
     expect(screen.getByText(/Eröffnung im Juli/)).toBeInTheDocument();
