@@ -11,11 +11,13 @@ const loadRuleContextMock = vi.fn();
 const createLeaveRequestMock = vi.fn();
 const decideLeaveRequestMock = vi.fn();
 const cancelLeaveRequestMock = vi.fn();
-const listLeaveBalancesMock = vi.fn();
+const getUrlaubBalanceMock = vi.fn();
+const listUrlaubRemainingMock = vi.fn();
 
 vi.mock('../../api/vacationApi', () => ({
   listEmployees: (opts?: unknown) => listEmployeesMock(opts),
   listStandorte: () => listStandorteMock(),
+  listUrlaubRemaining: () => listUrlaubRemainingMock(),
   listLeaveRequests: (filter?: unknown) => listLeaveRequestsMock(filter),
   listLeaveTypes: () => listLeaveTypesMock(),
   listSubstitutes: (id?: unknown) => listSubstitutesMock(id),
@@ -23,7 +25,7 @@ vi.mock('../../api/vacationApi', () => ({
   createLeaveRequest: (input: unknown) => createLeaveRequestMock(input),
   decideLeaveRequest: (...args: unknown[]) => decideLeaveRequestMock(...args),
   cancelLeaveRequest: (...args: unknown[]) => cancelLeaveRequestMock(...args),
-  listLeaveBalances: (id: string, year: number) => listLeaveBalancesMock(id, year),
+  getUrlaubBalance: (id: string) => getUrlaubBalanceMock(id),
 }));
 
 // Allow tests to set the SSO email returned from useAuth.
@@ -89,7 +91,8 @@ beforeEach(() => {
   createLeaveRequestMock.mockReset().mockResolvedValue({ id: 'lr-new' });
   decideLeaveRequestMock.mockReset().mockResolvedValue({ id: 'lr-1' });
   cancelLeaveRequestMock.mockReset();
-  listLeaveBalancesMock.mockReset().mockResolvedValue([]);
+  getUrlaubBalanceMock.mockReset().mockResolvedValue(null);
+  listUrlaubRemainingMock.mockReset().mockResolvedValue({});
   useAuthMock.mockReturnValue({ profile: null, user: null });
 });
 
@@ -113,6 +116,19 @@ describe('VacationPage', () => {
 
     // Apprentice badge for Marc
     expect(screen.getByText('apprentice')).toBeInTheDocument();
+  });
+
+  it('shows each employee\'s Resturlaub inline in the roster', async () => {
+    listUrlaubRemainingMock.mockResolvedValue({ [helmut.id]: 18.5, [stefan.id]: 22 });
+    useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
+    render(<VacationPage />);
+    await waitFor(() => expect(screen.getByText('Helmut Bauer')).toBeInTheDocument());
+
+    // German decimal, no "Stand" click needed.
+    expect(await screen.findByText('18,5 Tage Resturlaub')).toBeInTheDocument();
+    expect(screen.getByText('22 Tage Resturlaub')).toBeInTheDocument();
+    // Employees without a balance (e.g. Georg) show no Resturlaub pill.
+    expect(screen.queryByText(/NaN|undefined Tage/)).not.toBeInTheDocument();
   });
 
   it('hides the team roster from non-approvers', async () => {
@@ -210,22 +226,22 @@ describe('VacationPage', () => {
   });
 
   it('renders the BalancePanel only when the SSO user maps to an employee', async () => {
-    listLeaveBalancesMock.mockResolvedValue([
-      {
-        id: 'lb-1',
-        employeeId: helmut.id,
-        year: 2026,
-        leaveTypeCode: 'urlaub',
-        entitled: 25,
-        carriedOver: 0,
-        used: 0,
-        planned: 0,
-      },
-    ]);
+    getUrlaubBalanceMock.mockResolvedValue({
+      id: 'lb-1',
+      employeeId: helmut.id,
+      year: 2026,
+      leaveTypeCode: 'urlaub',
+      entitled: 25,
+      carriedOver: 0,
+      used: 0,
+      planned: 0,
+      periodStart: null,
+      periodEnd: null,
+    });
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bh@kitz.co.at' }, user: null });
     render(<VacationPage />);
     expect(await screen.findByText(/Urlaubsstand 2026/)).toBeInTheDocument();
-    expect(listLeaveBalancesMock).toHaveBeenCalledWith(helmut.id, expect.any(Number));
+    expect(getUrlaubBalanceMock).toHaveBeenCalledWith(helmut.id);
   });
 
   it('hides the BalancePanel when no SSO match', async () => {
@@ -233,11 +249,11 @@ describe('VacationPage', () => {
     render(<VacationPage />);
     await waitFor(() => expect(screen.getByRole('button', { name: /Neuer Antrag/ })).toBeInTheDocument());
     expect(screen.queryByText(/Urlaubsstand/)).not.toBeInTheDocument();
-    expect(listLeaveBalancesMock).not.toHaveBeenCalled();
+    expect(getUrlaubBalanceMock).not.toHaveBeenCalled();
   });
 
   it('clicking "Stand" on a roster row expands an inline per-type breakdown', async () => {
-    listLeaveBalancesMock.mockResolvedValue([]);
+    getUrlaubBalanceMock.mockResolvedValue(null);
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
     const u = userEvent.setup();
     render(<VacationPage />);
@@ -251,7 +267,7 @@ describe('VacationPage', () => {
   });
 
   it('expanding a different roster row collapses the previous one', async () => {
-    listLeaveBalancesMock.mockResolvedValue([]);
+    getUrlaubBalanceMock.mockResolvedValue(null);
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
     const u = userEvent.setup();
     render(<VacationPage />);
@@ -266,7 +282,7 @@ describe('VacationPage', () => {
   });
 
   it('does not show the Stand button for non-approvers (roster is hidden)', async () => {
-    listLeaveBalancesMock.mockResolvedValue([]);
+    getUrlaubBalanceMock.mockResolvedValue(null);
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'bh@kitz.co.at' }, user: null });
     render(<VacationPage />);
     await waitFor(() => expect(screen.getByText(/Urlaubsstand 2026/)).toBeInTheDocument());
@@ -338,8 +354,12 @@ describe('VacationPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Mitarbeiter filtern' })).toBeInTheDocument();
     });
-    const lastCall = listLeaveRequestsMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
-    expect(lastCall.employeeId).toBe(helmut.id);
+    // The list's own query carries a `status` filter (the BalancePanel /
+    // calendar queries don't) — pick it out rather than relying on order.
+    const listCall = listLeaveRequestsMock.mock.calls
+      .map((c) => c[0] as Record<string, unknown>)
+      .filter((a) => a && 'status' in a).at(-1)!;
+    expect(listCall.employeeId).toBe(helmut.id);
     expect(screen.getByRole('button', { name: 'Mitarbeiter filtern' }).textContent).toContain('Nur meine');
   });
 
@@ -348,8 +368,10 @@ describe('VacationPage', () => {
     useAuthMock.mockReturnValue({ profile: { microsoft_email: 'kg@kitz.co.at' }, user: null });
     render(<VacationPage />);
     await waitFor(() => expect(screen.getByText('Stefan Bauer')).toBeInTheDocument());
-    const lastCall = listLeaveRequestsMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
-    expect(lastCall.employeeId).toBeUndefined();
+    const listCall = listLeaveRequestsMock.mock.calls
+      .map((c) => c[0] as Record<string, unknown>)
+      .filter((a) => a && 'status' in a).at(-1)!;
+    expect(listCall.employeeId).toBeUndefined();
     expect(screen.getByRole('button', { name: 'Mitarbeiter filtern' }).textContent).toContain('Alle Mitarbeiter');
   });
 

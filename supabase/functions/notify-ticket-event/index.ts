@@ -8,9 +8,12 @@
 //   ticketId:    string                                 (required, all events)
 //   event:       'ticket_created' | 'status_changed' |
 //                'appointment_scheduled' | 'ticket_closed' |
-//                'customer_replied'                      (required)
+//                'customer_replied' | 'comment_added'    (required)
 //   previousStatus, newStatus: string                   (status_changed only)
 //   appointmentId: string                               (appointment_scheduled only)
+//   commentId:   string                                 (comment_added only — fans out
+//                                                        to assignee ∪ watchers ∪ mentions
+//                                                        minus the comment author)
 //   shareCode:   string                                 (customer_replied only —
 //                                                        validated against tickets.share_code
 //                                                        so anonymous callers can't spoof
@@ -40,7 +43,8 @@ type EventType =
   | 'status_changed'
   | 'appointment_scheduled'
   | 'ticket_closed'
-  | 'customer_replied';
+  | 'customer_replied'
+  | 'comment_added';
 
 const STATUS_LABEL_DE: Record<string, string> = {
   open: 'Eingelangt',
@@ -236,6 +240,111 @@ serve(async (req: Request) => {
     // portal's comment box posts as the customer (is_external=true), so a
     // staff member replying there would be misattributed.
     const internalUrl = `${publicBase}/#/tickets/${t.id}`;
+
+    // ── comment_added: fan out to the whole internal audience ──────────
+    // Unlike the other events (single assignee), a new comment notifies
+    // assignee ∪ watchers ∪ freshly-mentioned, minus the author. Handled
+    // here in its own branch so the single-recipient machinery below stays
+    // untouched.
+    if (event === 'comment_added') {
+      const commentId = body.commentId as string | undefined;
+      if (!commentId) {
+        return new Response(JSON.stringify({ error: 'commentId required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const { data: comment } = await supabase
+        .from('ticket_comments')
+        .select('body, created_by, metadata')
+        .eq('id', commentId)
+        .maybeSingle();
+      if (!comment) {
+        return new Response(JSON.stringify({ skipped: true, reason: 'comment not found' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const c = comment as { body: string | null; created_by: string | null; metadata: { mentions?: string[] } | null };
+      const author = c.created_by;
+      const mentions = new Set((c.metadata?.mentions ?? []).filter(Boolean));
+
+      const { data: watcherRows } = await supabase
+        .from('ticket_watchers')
+        .select('employee_id')
+        .eq('ticket_id', t.id);
+      const recipientIds = new Set<string>();
+      for (const w of (watcherRows ?? []) as { employee_id: string }[]) recipientIds.add(w.employee_id);
+      if (t.assigned_to) recipientIds.add(t.assigned_to);
+      for (const m of mentions) recipientIds.add(m);
+      if (author) recipientIds.delete(author); // never notify yourself of your own comment
+
+      if (recipientIds.size === 0) {
+        return new Response(JSON.stringify({ success: true, event, sent: { skipped: 'no recipients' } }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { data: recips } = await supabase
+        .from('employees')
+        .select('id, email, name')
+        .in('id', [...recipientIds]);
+      const authorName = author
+        ? ((await supabase.from('employees').select('name').eq('id', author).maybeSingle()).data as { name?: string } | null)?.name ?? null
+        : null;
+
+      const snippet = c.body
+        ? c.body.length > 280 ? c.body.slice(0, 277) + '…' : c.body
+        : '';
+      const accentC = '#dc2626';
+
+      // Emails — mentioned people get a "you were mentioned" framing.
+      const emailResults: Record<string, string> = {};
+      for (const r of (recips ?? []) as { id: string; email: string | null; name: string | null }[]) {
+        if (!r.email) continue;
+        const wasMentioned = mentions.has(r.id);
+        const subject = wasMentioned
+          ? `Du wurdest erwähnt: ${t.ticket_number} — ${t.title}`
+          : `Neuer Kommentar zu ${t.ticket_number} — ${t.title}`;
+        const html = htmlShell({
+          heading: subject,
+          accent: accentC,
+          bodyHtml: `
+            <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px;">
+              Hallo ${escapeHtml(r.name) || 'Kollege'},
+            </p>
+            <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 16px;">
+              ${escapeHtml(authorName) || 'Ein Kollege'} hat ${wasMentioned ? 'dich in einem Kommentar erwähnt' : 'einen Kommentar hinterlassen'} zu Auftrag <strong>${escapeHtml(t.ticket_number)}</strong>.
+            </p>
+            ${snippet ? `<div style="background:#f8fafc;border-left:3px solid ${accentC};padding:12px 16px;margin:0 0 18px;font-size:14px;color:#1e293b;white-space:pre-wrap;">${escapeHtml(snippet)}</div>` : ''}`,
+          footerLink: { href: internalUrl, label: 'Ticket öffnen' },
+        });
+        const sendRes = await sendResend({ apiKey: resendApiKey, to: r.email, subject, html });
+        emailResults[r.id] = sendRes.ok ? sendRes.id ?? 'ok' : 'resend failed';
+      }
+
+      // Push — split so mentioned people see they were tagged.
+      const mentionedIds = [...recipientIds].filter((id) => mentions.has(id));
+      const otherIds = [...recipientIds].filter((id) => !mentions.has(id));
+      const pushTitleBase = `${t.ticket_number} — ${t.title}`;
+      const pushBody = snippet ? (snippet.length > 140 ? snippet.slice(0, 137) + '…' : snippet) : (authorName ? `Kommentar von ${authorName}` : 'Neuer Kommentar');
+      const pushResults: unknown[] = [];
+      if (mentionedIds.length) {
+        pushResults.push((await sendPush({
+          supabaseUrl, serviceKey, employeeIds: mentionedIds,
+          title: `Erwähnt: ${pushTitleBase}`, body: pushBody, url: internalUrl, tag: `ticket-${t.id}`,
+        })).result);
+      }
+      if (otherIds.length) {
+        pushResults.push((await sendPush({
+          supabaseUrl, serviceKey, employeeIds: otherIds,
+          title: `Neuer Kommentar: ${pushTitleBase}`, body: pushBody, url: internalUrl, tag: `ticket-${t.id}`,
+        })).result);
+      }
+
+      return new Response(JSON.stringify({ success: true, event, recipients: [...recipientIds], sent: emailResults, push: pushResults }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Resolve event-specific data
     let appointment: AppointmentRow | null = null;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { HashRouter } from 'react-router-dom';
 import OfferBuilderPage from './features/offers/pages/OfferBuilderPage';
+import ReloadBanner from './components/ReloadBanner';
 import { lazyWithReload } from './lib/lazyWithReload';
 
 // Lazy-loaded: AcceptPage is only used on the customer-facing
@@ -12,7 +13,7 @@ const CustomerTicketPage = lazyWithReload(() => import('./features/tickets/pages
 const CampaignLandingPage = lazyWithReload(() => import('./features/campaigns/pages/CampaignLandingPage'));
 const MesonicTest = lazyWithReload(() => import('./components/MesonicTest.jsx'));
 
-export default function App() {
+function AppContent() {
   // Quick access: add #test to URL to show Mesonic API test page.
   // Checked before HashRouter consumes the hash so #test still works
   // alongside the router (which expects #/<path>).
@@ -60,5 +61,16 @@ export default function App() {
     <HashRouter>
       <OfferBuilderPage />
     </HashRouter>
+  );
+}
+
+export default function App() {
+  // ReloadBanner sits above every flow so the stale-chunk prompt reaches
+  // the customer-facing pages and the #test page too, not just the app shell.
+  return (
+    <>
+      <AppContent />
+      <ReloadBanner />
+    </>
   );
 }

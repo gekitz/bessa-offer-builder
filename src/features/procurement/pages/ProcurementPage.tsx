@@ -195,9 +195,17 @@ export default function ProcurementPage() {
     return () => { cancelled = true; };
   }, [email]);
 
+  // Fallback-Map productId → aktueller Lieferant (bevorzugt + Alternativen),
+  // damit Anfragen ohne eingefrorenen Lieferanten unter dem inzwischen
+  // zugewiesenen Produkt-Lieferanten gruppieren (statt unter "Ohne
+  // Lieferant" zu hängen).
+  const productSuppliersById = useMemo(
+    () => new Map(products.map((p) => [p.id, { supplierId: p.supplierId, altSupplierIds: p.altSupplierIds }])),
+    [products],
+  );
   const openGroups = useMemo(
-    () => aggregateOpenRequests(requests, suppliers),
-    [requests, suppliers],
+    () => aggregateOpenRequests(requests, suppliers, productSuppliersById),
+    [requests, suppliers, productSuppliersById],
   );
   const openCount = useMemo(() => requests.filter((r) => r.status === 'open').length, [requests]);
 

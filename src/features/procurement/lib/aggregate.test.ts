@@ -124,6 +124,65 @@ describe('aggregateOpenRequests', () => {
     const groups = aggregateOpenRequests(requests, SUPPLIERS);
     expect(groups[0].supplierName).toBe('Unbekannter Lieferant');
   });
+
+  it('falls back to the product preferred supplier when the request has none', () => {
+    // Anfrage ohne eingefrorenen Lieferanten; dem Produkt wurde erst
+    // nachträglich Pulsa als bevorzugter Lieferant zugewiesen.
+    const requests = [req({ productId: 'addimat', productName: 'Addimat', supplierId: null, qty: 10 })];
+    const productSuppliers = new Map([['addimat', { supplierId: 's-pulsa', altSupplierIds: [] }]]);
+    const groups = aggregateOpenRequests(requests, SUPPLIERS, productSuppliers);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].supplierId).toBe('s-pulsa');
+    expect(groups[0].supplierName).toBe('Pulsa');
+    expect(groups[0].lines[0].totalQty).toBe(10);
+  });
+
+  it('falls back to a lone alternative supplier when there is no preferred one', () => {
+    // Realfall: Pulsa steht nur in alt_supplier_ids, kein bevorzugter.
+    const requests = [req({ productId: 'addimat', productName: 'Addimat', supplierId: null, qty: 10 })];
+    const productSuppliers = new Map([['addimat', { supplierId: null, altSupplierIds: ['s-pulsa'] }]]);
+    const groups = aggregateOpenRequests(requests, SUPPLIERS, productSuppliers);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].supplierId).toBe('s-pulsa');
+    expect(groups[0].supplierName).toBe('Pulsa');
+  });
+
+  it('leaves a request in "Ohne Lieferant" when alternatives are ambiguous (>1, no preferred)', () => {
+    const requests = [req({ productId: 'sunmi', productName: 'Sunmi', supplierId: null, qty: 1 })];
+    const productSuppliers = new Map([['sunmi', { supplierId: null, altSupplierIds: ['s-jarl', 's-pulsa'] }]]);
+    const groups = aggregateOpenRequests(requests, SUPPLIERS, productSuppliers);
+    expect(groups[groups.length - 1].supplierId).toBeNull();
+    expect(groups[groups.length - 1].supplierName).toBe('Ohne Lieferant');
+  });
+
+  it('keeps a request without any linked supplier in "Ohne Lieferant"', () => {
+    const requests = [req({ productId: 'kassenlade', productName: 'Kassenlade', supplierId: null, qty: 4 })];
+    const productSuppliers = new Map([['kassenlade', { supplierId: null, altSupplierIds: [] }]]);
+    const groups = aggregateOpenRequests(requests, SUPPLIERS, productSuppliers);
+    expect(groups[groups.length - 1].supplierId).toBeNull();
+    expect(groups[groups.length - 1].supplierName).toBe('Ohne Lieferant');
+  });
+
+  it('merges a request that has a frozen supplier with one that falls back to the same', () => {
+    const requests = [
+      req({ productId: 'addimat', productName: 'Addimat', supplierId: 's-pulsa', qty: 4 }),
+      req({ productId: 'addimat', productName: 'Addimat', supplierId: null, qty: 6 }),
+    ];
+    const productSuppliers = new Map([['addimat', { supplierId: null, altSupplierIds: ['s-pulsa'] }]]);
+    const groups = aggregateOpenRequests(requests, SUPPLIERS, productSuppliers);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].supplierId).toBe('s-pulsa');
+    expect(groups[0].lines).toHaveLength(1);
+    expect(groups[0].lines[0].totalQty).toBe(10);
+  });
+
+  it('keeps the fallback in "Ohne Lieferant" when the product supplier is unknown/inactive', () => {
+    const requests = [req({ productId: 'addimat', productName: 'Addimat', supplierId: null, qty: 1 })];
+    const productSuppliers = new Map([['addimat', { supplierId: 's-ghost', altSupplierIds: ['s-ghost'] }]]);
+    const groups = aggregateOpenRequests(requests, SUPPLIERS, productSuppliers);
+    expect(groups[groups.length - 1].supplierId).toBeNull();
+    expect(groups[groups.length - 1].supplierName).toBe('Ohne Lieferant');
+  });
 });
 
 describe('cheaperSupplierId', () => {

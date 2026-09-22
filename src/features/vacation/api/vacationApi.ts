@@ -632,6 +632,11 @@ export interface LeaveBalance {
   carriedOver: number;
   used: number;
   planned: number;
+  // Arbeitsjahr window this row covers (urlaub rows since the accrual
+  // feature). Null on legacy calendar-year rows / non-urlaub types — the
+  // caller then falls back to the calendar year.
+  periodStart?: IsoDate | null;
+  periodEnd?: IsoDate | null;
 }
 
 function rowToBalance(row: any): LeaveBalance {
@@ -644,18 +649,79 @@ function rowToBalance(row: any): LeaveBalance {
     carriedOver: Number(row.carried_over),
     used: Number(row.used),
     planned: Number(row.planned),
+    periodStart: row.period_start ?? null,
+    periodEnd: row.period_end ?? null,
   };
 }
+
+const LEAVE_BALANCE_COLUMNS =
+  'id, employee_id, year, leave_type_id, entitled, carried_over, used, planned, period_start, period_end';
 
 export async function listLeaveBalances(employeeId: string, year: number): Promise<LeaveBalance[]> {
   const sb = requireSupabase();
   const { data, error } = await sb
     .from('leave_balances')
-    .select('id, employee_id, year, leave_type_id, entitled, carried_over, used, planned')
+    .select(LEAVE_BALANCE_COLUMNS)
     .eq('employee_id', employeeId)
     .eq('year', year);
   if (error) throw error;
   return (data ?? []).map(rowToBalance);
+}
+
+// The single urlaub balance row for an employee, regardless of calendar
+// year. Under the Arbeitsjahr model each employee has exactly one urlaub
+// row, keyed to its own period — so we look it up by leave_type, not by
+// year (the year-based lookup breaks the moment the reset date is not a
+// 1-January). Returns null when no urlaub entitlement is on file.
+export async function getUrlaubBalance(employeeId: string): Promise<LeaveBalance | null> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('leave_balances')
+    .select(LEAVE_BALANCE_COLUMNS)
+    .eq('employee_id', employeeId)
+    .eq('leave_type_id', LEAVE_TYPE_ID_BY_CODE.urlaub)
+    .order('period_start', { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToBalance(data) : null;
+}
+
+// Remaining Urlaub (entitled + carried − used − planned over the current
+// Arbeitsjahr) for every employee that has an urlaub balance, keyed by
+// employee id. Two queries total — all balances + all leaves — so the
+// team roster can show each person's Resturlaub without a per-row fetch.
+export async function listUrlaubRemaining(
+  today: IsoDate = new Date().toISOString().slice(0, 10),
+): Promise<Record<string, number>> {
+  const sb = requireSupabase();
+  const [balRes, leaveRes] = await Promise.all([
+    sb.from('leave_balances').select(LEAVE_BALANCE_COLUMNS).eq('leave_type_id', LEAVE_TYPE_ID_BY_CODE.urlaub),
+    sb.from('leave_requests').select(LEAVE_REQUEST_COLUMNS).in('status', ['approved', 'pending']),
+  ]);
+  if (balRes.error) throw balRes.error;
+  if (leaveRes.error) throw leaveRes.error;
+
+  const balances = (balRes.data ?? []).map(rowToBalance);
+  const leaves = (leaveRes.data ?? []).map(rowToLeaveRequest);
+  const { summarizeBalance } = await import('../lib/balance');
+
+  const out: Record<string, number> = {};
+  for (const b of balances) {
+    const winStart = b.periodStart ?? `${today.slice(0, 4)}-01-01`;
+    const winEnd = b.periodEnd ?? `${today.slice(0, 4)}-12-31`;
+    const empLeaves = leaves.filter(
+      (l) => l.employeeId === b.employeeId && l.startDate >= winStart && l.startDate <= winEnd,
+    );
+    out[b.employeeId] = summarizeBalance({
+      leaveTypeCode: 'urlaub',
+      entitled: b.entitled,
+      carriedOver: b.carriedOver,
+      leaves: empLeaves,
+      today,
+    }).remaining;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------
@@ -710,16 +776,44 @@ export async function loadRuleContext(opts: LoadRuleContextOpts = {}): Promise<R
   // year — the halfYearPlanning rule needs entitlement to compute
   // the 50%-by-mid-year threshold.
   let leaveBalances: RuleContext['leaveBalances'];
+  let requesterRemaining: number | undefined;
   if (opts.forEmployeeId) {
-    const rows = await listLeaveBalances(opts.forEmployeeId, startYear);
-    leaveBalances = rows.map((r) => ({
-      employeeId: r.employeeId,
-      year: r.year,
-      leaveTypeCode: r.leaveTypeCode,
-      entitled: r.entitled,
-      carriedOver: r.carriedOver,
-    }));
+    // Arbeitsjahr model: fetch the employee's single urlaub balance row
+    // directly (its `year` no longer tracks the calendar year, so the
+    // old listLeaveBalances(id, startYear) lookup would miss it).
+    const urlaub = await getUrlaubBalance(opts.forEmployeeId);
+    if (urlaub) {
+      leaveBalances = [{
+        employeeId: urlaub.employeeId,
+        year: urlaub.year,
+        leaveTypeCode: urlaub.leaveTypeCode,
+        entitled: urlaub.entitled,
+        carriedOver: urlaub.carriedOver,
+      }];
+      // Remaining Urlaub over the current Arbeitsjahr window — used by
+      // the takeFridayToo rule to check the Friday is affordable.
+      const winStart = urlaub.periodStart ?? `${startYear}-01-01`;
+      const winEnd = urlaub.periodEnd ?? `${startYear}-12-31`;
+      const empLeaves = await listLeaveRequests({
+        employeeId: opts.forEmployeeId,
+        rangeStart: winStart,
+        rangeEnd: winEnd,
+      });
+      const { summarizeBalance } = await import('../lib/balance');
+      requesterRemaining = summarizeBalance({
+        leaveTypeCode: 'urlaub',
+        entitled: urlaub.entitled,
+        carriedOver: urlaub.carriedOver,
+        leaves: empLeaves,
+        today,
+      }).remaining;
+    } else {
+      leaveBalances = [];
+    }
   }
+
+  const { getPublicHolidaysForRange } = await import('../lib/holidays');
+  const holidays = getPublicHolidaysForRange(startYear, startYear + 1);
 
   return {
     today,
@@ -729,6 +823,8 @@ export async function loadRuleContext(opts: LoadRuleContextOpts = {}): Promise<R
     coverageRules,
     blackouts,
     fenstertage,
+    holidays,
+    requesterRemaining,
     leaveBalances,
     substitutes: substitutes.map((s) => ({
       employeeId: s.employeeId,

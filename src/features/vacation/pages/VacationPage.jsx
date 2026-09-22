@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Calendar, CalendarPlus, ChevronDown, Info, Loader2, MapPin, Plus, Users } from 'lucide-react';
-import { listEmployees, listStandorte } from '../api/vacationApi';
+import { listEmployees, listStandorte, listUrlaubRemaining } from '../api/vacationApi';
 import LeaveRequestForm from '../components/LeaveRequestForm';
 import LeaveRequestsList from '../components/LeaveRequestsList';
 import UnifiedCalendar from '../../calendar/components/UnifiedCalendar';
@@ -14,6 +14,12 @@ import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { isApprover } from '../lib/permissions';
 import BackToDashboardLink, { useDashboardParam } from '../../../components/BackToDashboardLink';
 
+// German day formatting: one decimal only when it matters (18,5 / 20).
+function formatDays(n) {
+  const rounded = Math.round(n * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace('.', ',');
+}
+
 // Urlaubsplaner landing page. Shows the team grouped by Standort and
 // gives every row a "Antrag stellen" button that opens the request
 // form pre-filled with that employee. Future iterations add: my
@@ -23,6 +29,9 @@ export default function VacationPage() {
   const freigabeId = useDashboardParam('freigabe'); // Deep-link aus dem Dashboard
   const [employees, setEmployees] = useState([]);
   const [standorte, setStandorte] = useState([]);
+  // employeeId → remaining Urlaub days, shown inline in the roster so
+  // approvers see each Resturlaub without expanding "Stand".
+  const [remainingByEmp, setRemainingByEmp] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -61,6 +70,10 @@ export default function VacationPage() {
         if (cancelled) return;
         setEmployees(es);
         setStandorte(ss);
+        // Supplementary — a balance hiccup must not break the roster.
+        listUrlaubRemaining()
+          .then((map) => { if (!cancelled) setRemainingByEmp(map); })
+          .catch(() => {});
       } catch (e) {
         if (!cancelled) setError(e.message ?? String(e));
       } finally {
@@ -227,9 +240,14 @@ export default function VacationPage() {
                           <div className="px-4 py-2.5 flex items-center justify-between gap-3">
                             <div className="min-w-0">
                               <div className="font-medium text-slate-700 truncate" style={{ fontSize: 13 }}>{e.name}</div>
-                              <div className="text-slate-400" style={{ fontSize: 11 }}>
-                                {e.code} · {e.weeklyHours}h/Woche
-                                {e.employmentType !== 'fulltime' && <span className="ml-1.5 bg-slate-100 text-slate-500 rounded-full px-2 py-0.5">{e.employmentType}</span>}
+                              <div className="text-slate-400 flex items-center flex-wrap gap-x-1.5 gap-y-1" style={{ fontSize: 11 }}>
+                                <span>{e.code} · {e.weeklyHours}h/Woche</span>
+                                {e.employmentType !== 'fulltime' && <span className="bg-slate-100 text-slate-500 rounded-full px-2 py-0.5">{e.employmentType}</span>}
+                                {remainingByEmp[e.id] != null && (
+                                  <span className="bg-amber-50 text-amber-700 rounded-full px-2 py-0.5 font-medium">
+                                    {formatDays(remainingByEmp[e.id])} Tage Resturlaub
+                                  </span>
+                                )}
                               </div>
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">

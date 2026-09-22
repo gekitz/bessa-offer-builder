@@ -1,13 +1,16 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', lieferung = undefined, zahlungsziel = undefined, rental = null, paymentEnabled = false, acceptSnapshot = undefined }) {
+export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, takeBack = null, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', lieferung = undefined, zahlungsziel = undefined, rental = null, paymentEnabled = false, acceptSnapshot = undefined, lineSnapshot = undefined }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   // offer_type lives in a top-level column (source of truth for the
   // list filter) but is also mirrored into offer_data so the share /
   // URL load path — which only reads offer_data — restores it too.
   const offerData = { cart, globalTier, notes, raten, finanzOpen, rabattActive: !!rabattActive, skontoActive: !!skontoActive, address: customer.address || '', mandatsRef: mandatsRef || '', offerType };
+  // Hardware take-back (Hardware-Rücknahme) — a net credit for used hardware
+  // handed back. Persisted only when set so untouched offers stay unchanged.
+  if (takeBack && Number(takeBack.value) > 0) offerData.takeBack = { name: takeBack.name || '', value: Number(takeBack.value) };
   // Brother-only delivery/payment picks — persisted so the auto-terms restore
   // on reload. Omitted for other offer types (they use the fixed defaults).
   if (lieferung) offerData.lieferung = lieferung;
@@ -20,6 +23,9 @@ export async function saveOffer({ id, customer, creator, creatorName, creatorEma
   // Frozen accept-page totals, snapshotted at send so the customer's page
   // shows the quoted numbers even if catalog prices later change.
   if (acceptSnapshot) offerData.acceptSnapshot = acceptSnapshot;
+  // Frozen priced line items for the Mesonic-Angebot export (Belegart 17) —
+  // read server-side on acceptance where the product catalog is out of reach.
+  if (lineSnapshot && lineSnapshot.length > 0) offerData.lineSnapshot = lineSnapshot;
   const row = {
     offer_type: offerType,
     customer_name: customer.name || null,
@@ -83,6 +89,33 @@ export async function updateOfferMesonic(id, { mesonicCustomerId, mesonicCrmKey 
     .select()
     .single();
   if (error) throw error;
+  return data;
+}
+
+// Persist the Mesonic-Angebot (Belegart 17) export result on an offer.
+// Written by the client-side retry runner (runOfferAngebotExport) — the
+// automatic acceptance path writes the same columns server-side in the
+// export-offer-angebot edge function. Only the provided fields are patched.
+// status: 'exported' | 'skipped_no_customer' | 'failed'
+export async function updateOfferBeleg(id, { laufnummer, key, number, status, error } = {}) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+
+  const patch = {};
+  if (laufnummer !== undefined) patch.mesonic_beleg_laufnummer = laufnummer;
+  if (key !== undefined) patch.mesonic_beleg_key = key;
+  if (number !== undefined) patch.mesonic_beleg_number = number;
+  if (status !== undefined) patch.mesonic_beleg_status = status;
+  if (error !== undefined) patch.mesonic_beleg_error = error;
+  if (status === 'exported') patch.mesonic_beleg_created_at = new Date().toISOString();
+  if (Object.keys(patch).length === 0) return null;
+
+  const { data, error: dbErr } = await supabase
+    .from('offers')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+  if (dbErr) throw dbErr;
   return data;
 }
 

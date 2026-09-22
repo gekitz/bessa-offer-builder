@@ -280,11 +280,15 @@ function OnceTableRow({ item, index }) {
   );
 }
 
-// Totals box component
-function TotalsBox({ netto, isMonthly }) {
+// Totals box component. For the running-costs table `accumulated` carries the
+// sum of the "Jährlich" column (monthly × Laufzeit-Monate); when passed we print
+// a second Netto/USt/Brutto block so the footer sums both table columns, not
+// just the monthly one.
+function TotalsBox({ netto, isMonthly, accumulated = null }) {
   const ust = netto * 0.2;
   const brutto = netto * 1.2;
   const suffix = isMonthly ? '/Monat' : '';
+  const showAccumulated = accumulated != null && accumulated > 0;
 
   return (
     <View style={styles.totalsBox} wrap={false}>
@@ -300,16 +304,35 @@ function TotalsBox({ netto, isMonthly }) {
         <Text style={styles.totalsFinalLabel}>Brutto{suffix}</Text>
         <Text style={styles.totalsFinalValue}>{fmt(brutto)}</Text>
       </View>
+
+      {showAccumulated && (
+        <>
+          <View style={[styles.totalsRow, styles.totalsFinal]}>
+            <Text style={styles.totalsLabel}>Netto/Jahr</Text>
+            <Text style={styles.totalsValue}>{fmt(accumulated)}</Text>
+          </View>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>20% USt</Text>
+            <Text style={styles.totalsValue}>{fmt(accumulated * 0.2)}</Text>
+          </View>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsFinalLabel}>Brutto/Jahr</Text>
+            <Text style={styles.totalsFinalValue}>{fmt(accumulated * 1.2)}</Text>
+          </View>
+        </>
+      )}
     </View>
   );
 }
 
 // Period total summary component
-function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce, hasYearly, discount, isBrother = false }) {
+function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce, hasYearly, discount, takeBackName, isBrother = false }) {
   const recurring = periodMonthly + yearly;
   const showRecurringRow = (hasMonthly && hasOnce) || hasYearly;
   const rabattActive = discount?.rabattActive;
   const skontoActive = discount?.skontoActive;
+  const takeBackAmount = discount?.takeBack > 0 ? discount.takeBack : 0;
+  const hasDeduction = rabattActive || takeBackAmount > 0;
   // Brother is a pure one-off sale — no monthly/Wartung — so the "im ersten
   // Jahr (monatlich × Laufzeit …)" framing is meaningless; just "Kosten".
   const firstYearLabel = isBrother
@@ -326,7 +349,7 @@ function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce
       <View style={styles.periodSummaryContent}>
         <Text style={styles.periodSummaryLabel}>{firstYearLabel}</Text>
         <View style={styles.periodSummaryValues}>
-          {rabattActive && (
+          {hasDeduction && (
             <Text style={styles.periodSummaryStrike}>{fmt(discount.baseNetto * 1.2)} brutto</Text>
           )}
           <Text style={styles.periodSummaryNetto}>{fmt(discount.netto)} netto</Text>
@@ -337,6 +360,12 @@ function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce
         <View style={styles.periodSummaryRabatt}>
           <Text style={styles.periodSummaryRabattText}>inkl. 2% Rabatt</Text>
           <Text style={styles.periodSummaryRabattText}>- {fmt(discount.rabattAmount)} netto</Text>
+        </View>
+      )}
+      {takeBackAmount > 0 && (
+        <View style={styles.periodSummaryRabatt}>
+          <Text style={styles.periodSummaryRabattText}>abzgl. {takeBackName || 'Hardware-Rücknahme'}</Text>
+          <Text style={styles.periodSummaryRabattText}>- {fmt(takeBackAmount)} netto</Text>
         </View>
       )}
 
@@ -702,6 +731,7 @@ export default function OfferPdfDocument({
   raten,
   rabattActive = false,
   skontoActive = false,
+  takeBack = null,
   showFinancing = false,
   creator = null,
   mandatsRef = '',
@@ -714,8 +744,10 @@ export default function OfferPdfDocument({
 }) {
   const date = new Date().toLocaleDateString('de-AT');
   const signedAt = signatures ? new Date().toLocaleDateString('de-AT') : null;
+  // Hardware take-back (Hardware-Rücknahme): net credit deducted after Rabatt.
+  const takeBackNet = Number(takeBack?.value) > 0 ? Number(takeBack.value) : 0;
   // Rabatt reduces the financing base; Skonto is a pay-in-full note only.
-  const discount = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive });
+  const discount = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive, takeBack: takeBackNet });
   // Financing figures via the shared module the Stripe charge also uses.
   const planPricing = computePlanPricing({
     monthlyNet: totals.monthly,
@@ -723,6 +755,7 @@ export default function OfferPdfDocument({
     yearlyNet: totals.yearly,
     periodNet: totals.periodTotal,
     rabattActive,
+    takeBack: takeBackNet,
     months: totals.maxMonths,
     raten,
   });
@@ -798,7 +831,7 @@ export default function OfferPdfDocument({
             {monthlyItems.map((item, idx) => (
               <MonthlyTableRow key={item.id} item={item} index={idx} showTier={mixedTiers} />
             ))}
-            <TotalsBox netto={totals.monthly} isMonthly={true} />
+            <TotalsBox netto={totals.monthly} isMonthly={true} accumulated={totals.periodMonthly} />
           </View>
         )}
 
@@ -843,6 +876,7 @@ export default function OfferPdfDocument({
             hasOnce={totals.once > 0}
             hasYearly={(totals.yearly || 0) > 0}
             discount={discount}
+            takeBackName={takeBack?.name}
             isBrother={isBrother}
           />
         )}

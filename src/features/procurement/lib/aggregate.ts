@@ -44,19 +44,47 @@ function lineKey(r: OrderRequest): string {
  * Reihenfolge der Lieferanten ausgegeben; die "Ohne Lieferant"-Gruppe
  * steht immer am Ende. Innerhalb einer Gruppe sind Zeilen alphabetisch
  * nach Produktname sortiert, für stabile Anzeige/Tests.
+ *
+ * Der Lieferant einer Anfrage wird bei der Erstellung eingefroren
+ * (order_requests.supplier_id). Wird einem Produkt erst NACHTRÄGLICH ein
+ * Lieferant zugewiesen, bleiben bereits angelegte Anfragen ohne
+ * Lieferant. Damit sie trotzdem korrekt gruppieren, fällt die
+ * Gruppierung optional auf den AKTUELLEN Lieferanten des Produkts zurück
+ * (`productSuppliersById`), solange die Anfrage selbst noch keinen hat:
+ * bevorzugter Lieferant, sonst — wenn eindeutig — der einzige alternative
+ * Lieferant. Mehrere Alternativen ohne bevorzugten sind mehrdeutig und
+ * bleiben unter "Ohne Lieferant" (der Einkäufer entscheidet).
  */
+export interface ProductSuppliers {
+  supplierId: string | null;
+  altSupplierIds: string[];
+}
+
 export function aggregateOpenRequests(
   requests: OrderRequest[],
   suppliers: Supplier[],
+  productSuppliersById?: Map<string, ProductSuppliers>,
 ): SupplierGroup[] {
   const supplierById = new Map(suppliers.map((s) => [s.id, s]));
+
+  // Fallback-Lieferant aus dem Produkt, aber nur bekannte Lieferanten
+  // (sonst landete die Zeile unter einer unbekannten Gruppe): bevorzugter
+  // zuerst, sonst der einzige eindeutige alternative Lieferant.
+  const productSupplier = (productId: string | null): string | null => {
+    if (!productId || !productSuppliersById) return null;
+    const entry = productSuppliersById.get(productId);
+    if (!entry) return null;
+    if (entry.supplierId && supplierById.has(entry.supplierId)) return entry.supplierId;
+    const alts = entry.altSupplierIds.filter((id) => supplierById.has(id));
+    return alts.length === 1 ? alts[0] : null;
+  };
 
   // supplierId (oder '' für null) → Zeilenschlüssel → AggregatedLine
   const groups = new Map<string, Map<string, AggregatedLine>>();
 
   for (const r of requests) {
     if (r.status !== 'open') continue;
-    const gKey = r.supplierId ?? '';
+    const gKey = (r.supplierId ?? productSupplier(r.productId)) ?? '';
     const lines = groups.get(gKey) ?? new Map<string, AggregatedLine>();
     groups.set(gKey, lines);
 

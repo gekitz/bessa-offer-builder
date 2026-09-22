@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Minus, Plus } from 'lucide-react';
 import { fmt } from '../../../lib/format';
 import { ALL } from '../data/catalogs';
@@ -5,6 +6,8 @@ import {
   buildRentalOffer,
   softwareUnitPrice,
   rentalLineName,
+  rentalNetto,
+  hasNettoOverride,
   RENTAL_TERMS,
   RENTAL_HARDWARE,
   RENTAL_SERVICES,
@@ -12,6 +15,15 @@ import {
   type RentalState,
   type RentalLine,
 } from '../../../lib/rentalOffer';
+
+// Parse a typed net override into a number. Tolerates "€", thousands dots and a
+// German decimal comma; blank/invalid/negative → undefined (= no override).
+function parseNettoOverride(raw: string): number | undefined {
+  const cleaned = raw.replace(/[€\s]/g, '').replace(/\./g, '').replace(',', '.');
+  if (cleaned === '') return undefined;
+  const n = Number(cleaned);
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
 
 // Input UI for a POS Leihstellung (rental). One timespan pill drives all the
 // pricing; each line is a quantity stepper. Mirrors the source spreadsheet:
@@ -115,6 +127,27 @@ export default function LeihstellungCalculator({ rental, onChange }: Props) {
   const term = result.term;
   const hasLines = result.hardwareLines.length + result.serviceLines.length + result.softwareLines.length > 0;
 
+  const overridden = hasNettoOverride(rental);
+  const effectiveNetto = rentalNetto(rental);
+
+  // The override input keeps its own raw text so a German decimal comma can be
+  // typed without the parsed number reformatting mid-entry. Re-seed only when
+  // the persisted value changes from the outside (e.g. loading another offer).
+  const [overrideText, setOverrideText] = useState(
+    rental.nettoOverride != null ? String(rental.nettoOverride) : '',
+  );
+  useEffect(() => {
+    if (parseNettoOverride(overrideText) !== rental.nettoOverride) {
+      setOverrideText(rental.nettoOverride != null ? String(rental.nettoOverride) : '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rental.nettoOverride]);
+
+  const onOverrideChange = (raw: string) => {
+    setOverrideText(raw);
+    onChange({ ...rental, nettoOverride: parseNettoOverride(raw) });
+  };
+
   const setTerm = (key: RentalState['term']) => onChange({ ...rental, term: key });
 
   const step = (bucket: 'hardware' | 'services' | 'software', id: string, delta: number) => {
@@ -189,7 +222,7 @@ export default function LeihstellungCalculator({ rental, onChange }: Props) {
                 <Row
                   key={sv.id}
                   name={sv.name}
-                  hint={`€ ${fmt(sv.price)} / Stk`}
+                  hint={sv.hint ?? `€ ${fmt(sv.price)} / Stk`}
                   qty={qty}
                   onStep={(d) => step('services', sv.id, d)}
                   lineTotal={qty * sv.price}
@@ -238,6 +271,44 @@ export default function LeihstellungCalculator({ rental, onChange }: Props) {
             </div>
           </div>
 
+          {/* Manual net override — replaces the calculated netto as the offer
+              line price. The calculated value above stays the reference; blank
+              falls back to it (shown as placeholder). Customer only ever sees
+              the final number. */}
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <div className="flex items-baseline justify-between mb-2">
+              <span className="text-slate-500" style={{ fontSize: 12 }}>Netto überschreiben</span>
+              {overridden && (
+                <button
+                  onClick={() => onOverrideChange('')}
+                  className="text-red-500 hover:text-red-600 font-medium"
+                  style={{ fontSize: 11 }}
+                >
+                  Zurücksetzen
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" style={{ fontSize: 13 }}>€</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={overrideText}
+                onChange={(e) => onOverrideChange(e.target.value)}
+                placeholder={fmt(result.netto)}
+                className={`w-full rounded-lg border pl-7 pr-3 py-2 text-slate-800 tabular-nums placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-200 ${
+                  overridden ? 'border-red-300 bg-red-50' : 'border-slate-200 focus:border-red-300'
+                }`}
+                style={{ fontSize: 13 }}
+              />
+            </div>
+            <div className="text-slate-400 mt-1.5" style={{ fontSize: 11 }}>
+              {overridden
+                ? `Kalkuliert € ${fmt(result.netto)} wird durch den manuellen Wert ersetzt.`
+                : 'Leer lassen für den kalkulierten Wert.'}
+            </div>
+          </div>
+
           <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
             <div className="flex items-center justify-between px-3.5 py-2 bg-slate-800 text-white uppercase tracking-wider" style={{ fontSize: 11 }}>
               <span>Position im Angebot</span>
@@ -246,8 +317,13 @@ export default function LeihstellungCalculator({ rental, onChange }: Props) {
             <div className="px-3.5 py-3">
               <div className="flex items-baseline justify-between gap-2.5">
                 <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>{rentalLineName(rental)}</span>
-                <span className="font-bold text-slate-800 whitespace-nowrap tabular-nums" style={{ fontSize: 14 }}>€ {fmt(result.netto)}</span>
+                <span className="font-bold text-slate-800 whitespace-nowrap tabular-nums" style={{ fontSize: 14 }}>€ {fmt(effectiveNetto)}</span>
               </div>
+              {overridden && (
+                <div className="text-red-500 mt-0.5" style={{ fontSize: 11 }}>
+                  überschrieben · kalkuliert € {fmt(result.netto)}
+                </div>
+              )}
               {hasLines ? (
                 <div className="mt-2 space-y-2" style={{ fontSize: 12 }}>
                   <DescGroup title="Hardware" lines={result.hardwareLines} />

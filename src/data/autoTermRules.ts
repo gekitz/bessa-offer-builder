@@ -1,3 +1,6 @@
+import { formatKmRate } from '../lib/rates';
+import { RENTAL_LINE_ID } from '../lib/rentalOffer';
+
 export type CartLike = Record<string, unknown>;
 
 export interface AutoTermRule {
@@ -20,12 +23,19 @@ export const AUTO_TERM_RULES: readonly AutoTermRule[] = [
   {
     id: 'travel-billing',
     condition: () => true,
-    text: 'Arbeitszeit, Wegzeit und KM-Geld (à 0,79 €/km) werden nach tatsächlichem Aufwand verrechnet.',
+    text: `Arbeitszeit, Wegzeit und KM-Geld (à ${formatKmRate()}) werden nach tatsächlichem Aufwand verrechnet.`,
   },
   {
     id: 'network-cabling',
     condition: (cart) => Object.keys(cart).some((id) => id.startsWith('unify-')),
     text: 'Kabel müssen vom Kunden eigenständig verlegt werden',
+  },
+  {
+    id: 'rental-cleaning',
+    condition: (cart) => RENTAL_LINE_ID in cart,
+    text:
+      'Die Geräte sind vollständig inkl Netzteilen gesäubert zu retounieren. ' +
+      'Sollten wir nachträglich eine Reinigung durchführen müssen wird die Reinigungspauschale verrechnet.',
   },
 ];
 

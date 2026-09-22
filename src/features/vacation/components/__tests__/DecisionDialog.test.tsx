@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-const listLeaveBalancesMock = vi.fn();
+const getUrlaubBalanceMock = vi.fn();
 const listLeaveRequestsMock = vi.fn();
 
 vi.mock('../../api/vacationApi', () => ({
-  listLeaveBalances: (id: string, year: number) => listLeaveBalancesMock(id, year),
+  getUrlaubBalance: (id: string) => getUrlaubBalanceMock(id),
   listLeaveRequests: (filter?: unknown) => listLeaveRequestsMock(filter),
 }));
 
@@ -15,7 +15,7 @@ import DecisionDialog from '../DecisionDialog';
 const baseSummary = 'Stefan Bauer · Urlaub · 10.08.2026 – 15.08.2026';
 
 beforeEach(() => {
-  listLeaveBalancesMock.mockReset().mockResolvedValue([]);
+  getUrlaubBalanceMock.mockReset().mockResolvedValue(null);
   listLeaveRequestsMock.mockReset().mockResolvedValue([]);
 });
 
@@ -107,22 +107,20 @@ describe('DecisionDialog — approver context', () => {
       <DecisionDialog decision="approved" summary={baseSummary} onConfirm={vi.fn()} onClose={vi.fn()} />,
     );
     expect(screen.queryByTestId('approver-context')).not.toBeInTheDocument();
-    expect(listLeaveBalancesMock).not.toHaveBeenCalled();
+    expect(getUrlaubBalanceMock).not.toHaveBeenCalled();
   });
 
   it('renders the requester balance summary when Urlaub context is provided', async () => {
-    listLeaveBalancesMock.mockResolvedValue([
-      {
-        id: 'lb-1',
-        employeeId: 'sbauer-id',
-        year: 2026,
-        leaveTypeCode: 'urlaub',
-        entitled: 25,
-        carriedOver: 0,
-        used: 0,
-        planned: 0,
-      },
-    ]);
+    getUrlaubBalanceMock.mockResolvedValue({
+      id: 'lb-1',
+      employeeId: 'sbauer-id',
+      year: 2026,
+      leaveTypeCode: 'urlaub',
+      entitled: 25,
+      carriedOver: 0,
+      used: 0,
+      planned: 0,
+    });
     listLeaveRequestsMock.mockResolvedValue([
       // 5 working days, pending — counted as planned.
       {
@@ -150,7 +148,7 @@ describe('DecisionDialog — approver context', () => {
     expect(await screen.findByText(/von 25 Tagen verbleibend/)).toBeInTheDocument();
     // 25 - 5 planned = 20 remaining.
     expect(screen.getByText('20')).toBeInTheDocument();
-    expect(listLeaveBalancesMock).toHaveBeenCalledWith('sbauer-id', 2026);
+    expect(getUrlaubBalanceMock).toHaveBeenCalledWith('sbauer-id');
     expect(listLeaveRequestsMock).toHaveBeenCalledWith(expect.objectContaining({
       employeeId: 'sbauer-id',
       rangeStart: '2026-01-01',
@@ -159,7 +157,7 @@ describe('DecisionDialog — approver context', () => {
   });
 
   it('shows the empty-state when the employee has no balance row', async () => {
-    listLeaveBalancesMock.mockResolvedValue([]);
+    getUrlaubBalanceMock.mockResolvedValue(null);
     render(
       <DecisionDialog
         decision="approved"
@@ -186,7 +184,7 @@ describe('DecisionDialog — approver context', () => {
         onClose={vi.fn()}
       />,
     );
-    expect(listLeaveBalancesMock).not.toHaveBeenCalled();
+    expect(getUrlaubBalanceMock).not.toHaveBeenCalled();
     expect(listLeaveRequestsMock).not.toHaveBeenCalled();
   });
 
@@ -206,18 +204,16 @@ describe('DecisionDialog — approver context', () => {
   });
 
   it('omits the substitute row when no substitute is supplied', async () => {
-    listLeaveBalancesMock.mockResolvedValue([
-      {
-        id: 'lb-1',
-        employeeId: 'sbauer-id',
-        year: 2026,
-        leaveTypeCode: 'urlaub',
-        entitled: 25,
-        carriedOver: 0,
-        used: 0,
-        planned: 0,
-      },
-    ]);
+    getUrlaubBalanceMock.mockResolvedValue({
+      id: 'lb-1',
+      employeeId: 'sbauer-id',
+      year: 2026,
+      leaveTypeCode: 'urlaub',
+      entitled: 25,
+      carriedOver: 0,
+      used: 0,
+      planned: 0,
+    });
     render(
       <DecisionDialog
         decision="approved"
@@ -234,7 +230,7 @@ describe('DecisionDialog — approver context', () => {
   });
 
   it('falls back to the empty-state when the API call rejects', async () => {
-    listLeaveBalancesMock.mockRejectedValue(new Error('rls denied'));
+    getUrlaubBalanceMock.mockRejectedValue(new Error('rls denied'));
     render(
       <DecisionDialog
         decision="approved"

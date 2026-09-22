@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { AlarmClock, AlertCircle, Building2, FileText, Loader2, Mail, MailOpen, MapPin, Pencil, Phone, Send, User, X, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlarmClock, AlertCircle, Building2, CheckCircle2, FileText, Loader2, Mail, MailOpen, MapPin, Pencil, PenLine, Phone, Send, Upload, User, X, XCircle } from 'lucide-react';
 
 import { ALL } from '../../data/catalogs';
 import { TIER_SHORT } from '../../../../data/tiers';
@@ -59,7 +59,21 @@ export interface OfferDetailsOffer {
   lost_reason_note?: string | null;
   lost_at?: string | null;
   service_start_date?: string | null;
+  // Acceptance / signature. signature_data is either a plain data-URL
+  // string (customer accept via the public page) or an object with
+  // { offer, sepa } data-URLs (internal signing via SignModal).
+  signature_data?: string | { offer?: string | null; sepa?: string | null } | null;
+  signed_by_name?: string | null;
+  signed_at?: string | null;
+  accepted_at?: string | null;
   offer_data?: OfferDataShape | null;
+  // Mesonic-Angebot export (Belegart 17) tracking — written automatically on
+  // acceptance (export-offer-angebot) or by the manual retry runner.
+  mesonic_beleg_number?: string | null;
+  mesonic_beleg_key?: string | null;
+  mesonic_beleg_status?: string | null; // 'exported' | 'skipped_no_customer' | 'failed'
+  mesonic_beleg_error?: string | null;
+  mesonic_beleg_created_at?: string | null;
 }
 
 export interface OfferActivity {
@@ -99,6 +113,11 @@ export interface OfferDetailsModalProps {
   // opened from inside the builder for the same offer) and the
   // button hides — no action needed.
   onEdit?: () => void;
+  // Optional manual Mesonic-Angebot export (Belegart 17). When provided, the
+  // Mesonic status section shows a retry button — chiefly for offers that
+  // had no linked WinLine customer at acceptance and got one later. Resolves
+  // to the fresh status the parent should reflect (or throws on failure).
+  onExportAngebot?: () => Promise<{ ok: boolean; skipped?: boolean; reason?: string; belegKey?: string; voucherNumber?: string; error?: string }>;
   onClose: () => void;
 }
 
@@ -200,6 +219,7 @@ export default function OfferDetailsModal({
   eventsLoading = false,
   loading = false,
   onEdit,
+  onExportAngebot,
   onClose,
 }: OfferDetailsModalProps) {
   // Esc closes — parent can call this freely; no in-flight save state to guard.
@@ -407,6 +427,22 @@ export default function OfferDetailsModal({
                 </section>
               )}
 
+              {/* Unterschrift — the captured signature(s) when the
+                  offer was accepted (customer via public page) or
+                  signed internally. Only rendered when we actually
+                  have signature image data. */}
+              <SignatureBlock
+                signatureData={offer.signature_data}
+                signedByName={offer.signed_by_name}
+                signedAt={offer.signed_at}
+                acceptedAt={offer.accepted_at}
+              />
+
+              {/* Mesonic-Angebot (Belegart 17) — export status for accepted
+                  offers, plus a manual retry (chiefly for offers that got a
+                  WinLine customer linked only after acceptance). */}
+              <MesonicAngebotBlock offer={offer} onExportAngebot={onExportAngebot} />
+
               {/* Kontaktverlauf — every logged activity (call / email
                   / meeting / note) on this offer, newest first. */}
               {(activities !== undefined || activitiesLoading) && (
@@ -522,6 +558,162 @@ export default function OfferDetailsModal({
         </div>
       </div>
     </div>
+  );
+}
+
+// Normalises the two persisted signature shapes into a list of
+// labelled images. Returns [] when there's nothing renderable so the
+// block hides entirely.
+function collectSignatures(
+  data: OfferDetailsOffer['signature_data'],
+): { label: string; src: string }[] {
+  if (!data) return [];
+  const isImg = (s: unknown): s is string =>
+    typeof s === 'string' && s.startsWith('data:image');
+  if (isImg(data)) return [{ label: 'Unterschrift', src: data }];
+  if (typeof data === 'object') {
+    const out: { label: string; src: string }[] = [];
+    if (isImg(data.offer)) out.push({ label: 'Auftragsbestätigung', src: data.offer });
+    if (isImg(data.sepa)) out.push({ label: 'SEPA-Mandat', src: data.sepa });
+    return out;
+  }
+  return [];
+}
+
+function SignatureBlock({
+  signatureData,
+  signedByName,
+  signedAt,
+  acceptedAt,
+}: {
+  signatureData: OfferDetailsOffer['signature_data'];
+  signedByName?: string | null;
+  signedAt?: string | null;
+  acceptedAt?: string | null;
+}) {
+  const signatures = collectSignatures(signatureData);
+  if (signatures.length === 0) return null;
+
+  return (
+    <section>
+      <SectionTitle icon={<PenLine size={12} />} label="Unterschrift" />
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-3">
+        {(signedByName || signedAt || acceptedAt) && (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1" style={{ fontSize: 11 }}>
+            {signedByName && <MetaRow label="Unterzeichner" value={signedByName} />}
+            {signedAt && <MetaRow label="Unterschrieben" value={fmtDateTime(signedAt)} />}
+            {acceptedAt && <MetaRow label="Angenommen" value={fmtDateTime(acceptedAt)} />}
+          </div>
+        )}
+        <div className="space-y-3">
+          {signatures.map((s) => (
+            <div key={s.label}>
+              {signatures.length > 1 && (
+                <div className="text-emerald-800 font-semibold mb-1" style={{ fontSize: 10 }}>
+                  {s.label}
+                </div>
+              )}
+              <div className="rounded-lg border border-emerald-200 bg-white p-2 inline-block">
+                <img
+                  src={s.src}
+                  alt={s.label}
+                  className="block max-w-full h-auto"
+                  style={{ maxHeight: 120 }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MesonicAngebotBlock({
+  offer,
+  onExportAngebot,
+}: {
+  offer: OfferDetailsOffer;
+  onExportAngebot?: OfferDetailsModalProps['onExportAngebot'];
+}) {
+  const [busy, setBusy] = useState(false);
+  // Optimistic override so the section reflects a just-run export without a
+  // full parent refetch.
+  const [local, setLocal] = useState<{ status?: string; number?: string | null; error?: string | null } | null>(null);
+
+  const accepted = !!(offer.signed_at || offer.accepted_at || offer.status === 'accepted');
+  const status = local?.status ?? offer.mesonic_beleg_status ?? null;
+  const number = local?.number ?? offer.mesonic_beleg_number ?? null;
+  const error = local?.error ?? offer.mesonic_beleg_error ?? null;
+  const exported = status === 'exported' || (!local && !!offer.mesonic_beleg_key);
+
+  // Nothing to show for a not-yet-accepted offer with no recorded status.
+  if (!accepted && !status) return null;
+
+  const canRetry = !!onExportAngebot && !exported && !busy;
+
+  async function handleExport() {
+    if (!onExportAngebot) return;
+    setBusy(true);
+    try {
+      const r = await onExportAngebot();
+      if (r.ok && !r.skipped) setLocal({ status: 'exported', number: r.voucherNumber ?? null });
+      else if (r.skipped && r.reason === 'no_mesonic_customer') setLocal({ status: 'skipped_no_customer' });
+      else if (!r.ok) setLocal({ status: 'failed', error: r.error ?? 'Export fehlgeschlagen' });
+    } catch (e) {
+      setLocal({ status: 'failed', error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const tone = exported
+    ? 'border-emerald-200 bg-emerald-50/60'
+    : status === 'failed'
+      ? 'border-red-200 bg-red-50'
+      : 'border-amber-200 bg-amber-50';
+
+  return (
+    <section>
+      <SectionTitle icon={<FileText size={12} />} label="Mesonic-Angebot" />
+      <div className={`rounded-xl border ${tone} p-3 space-y-2`} style={{ fontSize: 12 }}>
+        {exported ? (
+          <div className="flex items-center gap-2 text-emerald-800">
+            <CheckCircle2 size={14} className="flex-shrink-0" />
+            <span>
+              In Mesonic angelegt{number ? <> · Angebot-Nr. <span className="font-semibold">{number}</span></> : null}
+            </span>
+          </div>
+        ) : status === 'skipped_no_customer' ? (
+          <div className="flex items-start gap-2 text-amber-900">
+            <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+            <span>Kein Mesonic-Kunde verknüpft — Angebot wurde nicht exportiert. Kunde im Builder verknüpfen ("Editieren"), dann hier erneut exportieren.</span>
+          </div>
+        ) : status === 'failed' ? (
+          <div className="flex items-start gap-2 text-red-800">
+            <XCircle size={14} className="flex-shrink-0 mt-0.5" />
+            <span>Export fehlgeschlagen{error ? <>: {error}</> : null}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-amber-900">
+            <AlarmClock size={14} className="flex-shrink-0" />
+            <span>Noch nicht nach Mesonic exportiert.</span>
+          </div>
+        )}
+
+        {canRetry && (
+          <button
+            onClick={handleExport}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 text-white px-3 py-1.5 font-medium hover:bg-slate-900 transition-colors disabled:opacity-60"
+            style={{ fontSize: 12 }}
+          >
+            {busy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+            {busy ? 'Exportiere…' : 'Nach Mesonic exportieren'}
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 

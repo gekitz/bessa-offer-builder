@@ -5,11 +5,17 @@
 // die live verifiziert ist. Siehe docs/ticket-mesonic-verrechnung.md.
 //
 // Mapping (fixiert mit Georg/Heri):
-//   labor / travel_wegzeit / travel_km → Mitarbeiter-Artikel 30000XX{WO/KL}
+//   labor / travel_wegzeit             → Mitarbeiter-Artikel 30000XX{WO/KL}
 //       (XX = Vertreternummer des Entry-Mitarbeiters, Suffix = dessen
 //        HEIMAT-Standort — der Artikel ist eine feste Eigenschaft des Technikers)
-//   travel_flat                        → Zonen-Artikel (31000xxx, echte Nr.)
-//   material                           → echte Artikelnummer
+//   travel_km                          → KM-Geld-Artikel 31100000{WO/KL}
+//       (eigener Artikel mit Einheit "km"; der Mitarbeiter-Artikel trägt STD und
+//        würde die km-Menge als Stunden ausweisen. Suffix folgt dem HEIMAT-
+//        Standort des Technikers, damit km und Wegzeit derselben Fahrt auf
+//        denselben Standort buchen.)
+//   travel_flat                        → Zonen-Artikel (31000xxx, echte Nr., OHNE Suffix)
+//   material                           → echte Artikelnummer inkl. KL/WO-Ausprägung
+//       nach TICKET-Standort (Lagerbuchung; mesonicArtikelForStandort)
 //   service_flat / adjustment /        → Pseudoartikel 99991234{KL/WO}
 //   labor_floor                          (Suffix = TICKET-Standort)
 //       labor_floor = synthetische Mindest-Arbeitszeit laut Angebot; hat keinen
@@ -18,7 +24,7 @@
 // (buildAngebotImportXml), nicht hier. Nur der Pseudoartikel-Suffix folgt dem
 // Standort.
 
-import { PSEUDO_ARTIKEL, laborArtikelnummer, type AngebotPosition } from '../../offers/lib/angebotImport';
+import { PSEUDO_ARTIKEL, KM_GELD_ARTIKEL, laborArtikelnummer, mesonicArtikelForStandort, type AngebotPosition } from '../../offers/lib/angebotImport';
 import type { RepairOrderBilling } from '../types';
 
 export type MesonicStandort = 'klagenfurt' | 'wolfsberg';
@@ -59,8 +65,7 @@ export function repairOrderToBelegPositions(
     let artikelnummer: string;
     switch (p.kind) {
       case 'labor':
-      case 'travel_wegzeit':
-      case 'travel_km': {
+      case 'travel_wegzeit': {
         const emp = p.employeeId ? opts.employeeMesonic.get(p.employeeId) : undefined;
         if (!emp?.vertreternummer) {
           throw new Error(
@@ -71,10 +76,31 @@ export function repairOrderToBelegPositions(
         artikelnummer = laborArtikelnummer(emp.vertreternummer, emp.standort);
         break;
       }
+      case 'travel_km': {
+        // Eigener KM-Geld-Artikel (Einheit km), Suffix folgt dem Heimat-Standort
+        // des Technikers wie bei Wegzeit — daher brauchen wir das Mitarbeiter-
+        // Mapping nur für den Standort, nicht für die Vertreternummer.
+        const emp = p.employeeId ? opts.employeeMesonic.get(p.employeeId) : undefined;
+        if (!emp) {
+          throw new Error(
+            `Kein Mitarbeiter-Mapping für ${p.employeeName ?? p.employeeId ?? 'unbekannt'} `
+            + `(Reparaturschein #${billing.seqNumber}: ${p.label})`,
+          );
+        }
+        artikelnummer = KM_GELD_ARTIKEL[emp.standort];
+        break;
+      }
       case 'travel_flat':
-      case 'material':
-        // Zonen-/echter Artikel; Pseudo nur als Sicherheitsnetz, wenn keine Nr.
+        // Zonen-Artikel (31000xxx) — echte Nr. OHNE Standort-Suffix. Pseudo nur
+        // als Sicherheitsnetz, wenn keine Nr.
         artikelnummer = p.mesonicArtikelNr || pseudo;
+        break;
+      case 'material':
+        // Echter Lagerartikel → KL/WO-Ausprägung nach Ticket-Standort, damit
+        // vom richtigen Lager abgebucht wird. Pseudo nur als Sicherheitsnetz.
+        artikelnummer = p.mesonicArtikelNr
+          ? mesonicArtikelForStandort(p.mesonicArtikelNr, opts.ticketStandort)
+          : pseudo;
         break;
       case 'service_flat':
       case 'adjustment':

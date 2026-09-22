@@ -43,6 +43,55 @@ describe('OfferDetailsModal', () => {
     expect(screen.getByText('12345')).toBeInTheDocument();
   });
 
+  describe('Mesonic-Angebot section', () => {
+    it('is hidden for a not-yet-accepted offer with no export status', () => {
+      render(<OfferDetailsModal offer={makeOffer()} onClose={() => {}} />);
+      expect(screen.queryByText('Mesonic-Angebot')).not.toBeInTheDocument();
+    });
+
+    it('shows the WinLine Angebot-Nr. when exported', () => {
+      render(<OfferDetailsModal
+        offer={makeOffer({ status: 'accepted', accepted_at: '2026-06-01T09:00:00Z', mesonic_beleg_status: 'exported', mesonic_beleg_key: '12345-26', mesonic_beleg_number: '26' })}
+        onClose={() => {}}
+      />);
+      expect(screen.getByText('Mesonic-Angebot')).toBeInTheDocument();
+      expect(screen.getByText(/In Mesonic angelegt/)).toBeInTheDocument();
+      expect(screen.getByText('26')).toBeInTheDocument();
+    });
+
+    it('flags a skipped export (no linked Mesonic customer) and offers retry when a handler is given', () => {
+      render(<OfferDetailsModal
+        offer={makeOffer({ status: 'accepted', accepted_at: '2026-06-01T09:00:00Z', mesonic_customer_id: null, mesonic_beleg_status: 'skipped_no_customer' })}
+        onExportAngebot={vi.fn()}
+        onClose={() => {}}
+      />);
+      expect(screen.getByText(/Kein Mesonic-Kunde verknüpft/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Nach Mesonic exportieren/ })).toBeInTheDocument();
+    });
+
+    it('runs the export handler and reflects success optimistically', async () => {
+      const onExportAngebot = vi.fn().mockResolvedValue({ ok: true, voucherNumber: '27', belegKey: '12345-27' });
+      render(<OfferDetailsModal
+        offer={makeOffer({ status: 'accepted', accepted_at: '2026-06-01T09:00:00Z', mesonic_beleg_status: 'skipped_no_customer' })}
+        onExportAngebot={onExportAngebot}
+        onClose={() => {}}
+      />);
+      await userEvent.click(screen.getByRole('button', { name: /Nach Mesonic exportieren/ }));
+      expect(onExportAngebot).toHaveBeenCalledOnce();
+      expect(await screen.findByText(/In Mesonic angelegt/)).toBeInTheDocument();
+      expect(screen.getByText('27')).toBeInTheDocument();
+    });
+
+    it('does not render a retry button once exported', () => {
+      render(<OfferDetailsModal
+        offer={makeOffer({ status: 'accepted', accepted_at: '2026-06-01T09:00:00Z', mesonic_beleg_status: 'exported', mesonic_beleg_key: '12345-26', mesonic_beleg_number: '26' })}
+        onExportAngebot={vi.fn()}
+        onClose={() => {}}
+      />);
+      expect(screen.queryByRole('button', { name: /Nach Mesonic exportieren/ })).not.toBeInTheDocument();
+    });
+  });
+
   it('shows the briefing as a non-truncated block (the WHY of the offer)', () => {
     render(<OfferDetailsModal offer={makeOffer()} onClose={() => {}} />);
     expect(screen.getByText(/Eröffnung im Juli/)).toBeInTheDocument();
@@ -240,5 +289,58 @@ describe('OfferDetailsModal', () => {
     render(<OfferDetailsModal offer={makeOffer()} onEdit={onEdit} onClose={() => {}} />);
     await user.click(screen.getByRole('button', { name: /Editieren/ }));
     expect(onEdit).toHaveBeenCalledTimes(1);
+  });
+
+  // A 1x1 transparent PNG data-URL — enough for collectSignatures to
+  // treat it as a renderable signature image.
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGNgAAAAAgAB4iG8MwAAAABJRU5ErkJggg==';
+
+  it('surfaces the customer signature (string data-URL) with name + timestamps', () => {
+    render(
+      <OfferDetailsModal
+        offer={makeOffer({
+          status: 'accepted',
+          signature_data: PNG,
+          signed_by_name: 'Max Mustermann',
+          signed_at: '2026-05-02T09:15:00Z',
+          accepted_at: '2026-05-02T09:15:00Z',
+        })}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByText('Unterschrift')).toBeInTheDocument();
+    expect(screen.getByText('Unterzeichner')).toBeInTheDocument();
+    // Name appears in the customer card AND the signature block.
+    expect(screen.getAllByText('Max Mustermann').length).toBeGreaterThan(0);
+    const img = screen.getByAltText('Unterschrift') as HTMLImageElement;
+    expect(img.src).toBe(PNG);
+  });
+
+  it('surfaces both internal signatures (offer + sepa) with labels', () => {
+    render(
+      <OfferDetailsModal
+        offer={makeOffer({ signature_data: { offer: PNG, sepa: PNG } })}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByText('Auftragsbestätigung')).toBeInTheDocument();
+    expect(screen.getByText('SEPA-Mandat')).toBeInTheDocument();
+    expect(screen.getByAltText('Auftragsbestätigung')).toBeInTheDocument();
+    expect(screen.getByAltText('SEPA-Mandat')).toBeInTheDocument();
+  });
+
+  it('hides the signature block when there is no signature data', () => {
+    render(<OfferDetailsModal offer={makeOffer({ signature_data: null })} onClose={() => {}} />);
+    expect(screen.queryByText('Unterschrift')).not.toBeInTheDocument();
+  });
+
+  it('hides the signature block when signature_data holds no image (e.g. legacy/empty)', () => {
+    render(
+      <OfferDetailsModal
+        offer={makeOffer({ signature_data: { offer: null, sepa: undefined } as never })}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.queryByText('Unterschrift')).not.toBeInTheDocument();
   });
 });

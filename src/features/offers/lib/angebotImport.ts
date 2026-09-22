@@ -19,6 +19,13 @@
 
 export const PSEUDO_ARTIKEL = { klagenfurt: '99991234KL', wolfsberg: '99991234WO' } as const;
 
+// KM-Geld hat eine EIGENE Artikelnummer (31100000{KL/WO}), bei der in Mesonic
+// die Einheit "km" hinterlegt ist. Der Mitarbeiter-Artikel (30000XX) trägt die
+// Einheit STD und würde die km-Menge fälschlich als Stunden ausweisen — daher
+// bekommen travel_km-Positionen diesen Artikel statt des Arbeitszeit-Artikels
+// (fixiert mit Heri 2026-09).
+export const KM_GELD_ARTIKEL = { klagenfurt: '31100000KL', wolfsberg: '31100000WO' } as const;
+
 // Angebot-Import → Belegart 17 (beide Standorte). Map-Form beibehalten, falls
 // Mesonic künftig wieder pro Standort splittet.
 export const BELEGART = { klagenfurt: '17', wolfsberg: '17' } as const;
@@ -40,6 +47,17 @@ export function laborArtikelnummer(vertreternummer: string | number, standort: '
   return `300000${num}${standort === 'wolfsberg' ? 'WO' : 'KL'}`;
 }
 
+// Stocked articles exist per Standort as KL/WO variants of one base number
+// (16030051KL / 16030051WO). Products store the BASE (see products
+// .mesonic_artikel_nr); the delivered/repaired line resolves the concrete
+// variant from the ticket/delivery Standort so Mesonic decrements the right
+// Lager. Strip-then-append is idempotent — a base or an already-suffixed number
+// both map to the correct variant. Mirrors baseArticleNumber() in mesonicApi.
+export function mesonicArtikelForStandort(artikelNr: string, standort: 'klagenfurt' | 'wolfsberg'): string {
+  const base = String(artikelNr).trim().replace(/(KL|WO)$/i, '');
+  return `${base}${standort === 'wolfsberg' ? 'WO' : 'KL'}`;
+}
+
 export interface AngebotKopf {
   kontonummer: string;
   laufnummer: string | number;    // eindeutig pro Konto (wir vergeben max+1)
@@ -56,6 +74,12 @@ export interface AngebotPosition {
   einzelpreis?: number;           // netto
   bezeichnung?: string;
   zeilenrabatt1?: number;         // Prozent, negativ (z. B. -10)
+  // Interne Zeilennummer (WEBAngebotT026.Zeilennummerintern, XSD seit Heri
+  // 2026-09). NUR fürs Beleg-Editieren (option="3") nötig: sie identifiziert
+  // eine bestehende Zeile eindeutig, damit ein Re-Import Zeilen ergänzt statt
+  // dupliziert. Beim Neuanlegen (option="0") vergeben wir sie trotzdem (1..N in
+  // stabiler Reihenfolge), damit ein späteres Edit dieselben Nummern trifft.
+  zeilennummerintern?: number;
 }
 
 function esc(s: string): string {
@@ -104,6 +128,7 @@ export function buildAngebotImportXml(
         el('Einzelpreis', p.einzelpreis) +
         el('Bezeichnung', p.bezeichnung) +
         el('Zeilenrabatt1', p.zeilenrabatt1) +
+        el('Zeilennummerintern', p.zeilennummerintern) +
         `</WEBAngebotT026>`,
     )
     .join('\n');

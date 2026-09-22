@@ -68,16 +68,29 @@ export const RENTAL_HARDWARE: readonly RentalHardware[] = [
   { id: 'kuechenmonitor', name: 'Küchenmonitor', einstand: 1190 },
 ] as const;
 
+// The cleaning service is "2h Arbeitszeit" (2 × the Arbeitszeit unit price).
+const ARBEITSZEIT_PRICE = 120;
+
 export interface RentalService {
   id: string;
   name: string;
   /** Fixed net price per unit, independent of the timespan. */
   price: number;
+  /** Optional override for the calculator hint (defaults to "€ price / Stk"). */
+  hint?: string;
 }
 
 export const RENTAL_SERVICES: readonly RentalService[] = [
   { id: 'fiskalisierung', name: 'Fiskalisierung pro Hauptkasse', price: 190 },
-  { id: 'arbeitszeit', name: 'Arbeitszeit', price: 120 },
+  { id: 'arbeitszeit', name: 'Arbeitszeit', price: ARBEITSZEIT_PRICE },
+  {
+    id: 'reinigung',
+    name: 'Reinigung Leihstellung',
+    price: 2 * ARBEITSZEIT_PRICE,
+    hint:
+      'Die Geräte sind vollständig inkl Netzteilen gesäubert zu retounieren. ' +
+      'Sollten wir nachträglich eine Reinigung durchführen müssen wird die Reinigungspauschale verrechnet',
+  },
 ] as const;
 
 // The rental software list is the bessa Kassa catalog, referenced by id so the
@@ -107,10 +120,19 @@ export interface RentalState {
    * (e.g. "1 Woche") even when the pricing uses the shortest available package.
    */
   labelOverride?: string;
+  /**
+   * Optional manual override for the net total (the once-off charge). When set
+   * to a finite value ≥ 0 it REPLACES the calculated netto as the offer line
+   * price — the calculator's breakdown stays visible as the reference figure.
+   * Leave undefined to use the calculated value. Lets a rep quote a negotiated
+   * flat price without hand-tweaking every line.
+   */
+  nettoOverride?: number;
 }
 
 export function emptyRentalState(): RentalState {
-  return { term: '6mo', hardware: {}, services: {}, software: {} };
+  // Every rental gets the cleaning service pre-added (rep can remove it).
+  return { term: '6mo', hardware: {}, services: { reinigung: 1 }, software: {} };
 }
 
 export interface RentalLine {
@@ -237,6 +259,22 @@ export function rentalLineName(state: RentalState): string {
   return `Leihstellung POS, Laufzeit ${rentalTerm(state.term).label}`;
 }
 
+/** True when the rep has entered a usable manual net override. */
+export function hasNettoOverride(state: RentalState): boolean {
+  const o = state.nettoOverride;
+  return typeof o === 'number' && Number.isFinite(o) && o >= 0;
+}
+
+/**
+ * The effective net total for a rental: the rep's manual override when set to a
+ * finite value ≥ 0, otherwise the calculated netto. This is the single number
+ * the offer line is priced at, so overriding it flows through totals/PDF/accept
+ * and the Stripe charge unchanged.
+ */
+export function rentalNetto(state: RentalState): number {
+  return hasNettoOverride(state) ? round2(state.nettoOverride!) : buildRentalOffer(state).netto;
+}
+
 /**
  * Collapse a rental into the single custom cart line shown on the offer/PDF:
  * "Leihstellung POS, Laufzeit X" priced at the net total, with the description
@@ -260,7 +298,7 @@ export function rentalLineFields(state: RentalState): RentalLineFields | null {
   return {
     id: RENTAL_LINE_ID,
     name: rentalLineName(state),
-    price: r.netto,
+    price: rentalNetto(state),
     description,
   };
 }

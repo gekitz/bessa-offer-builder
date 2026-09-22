@@ -26,6 +26,7 @@ import { ALL } from '../../offers/data/catalogs';
 import type { DeliveryNote, DeliveryNoteItem, Ticket } from '../types';
 import SignatureCapture from './SignatureCapture';
 import BarcodeScanButton from './BarcodeScanButton';
+import LoanerScanBanner from '../../loaners/components/LoanerScanBanner';
 
 interface DeliveryNoteDetailProps {
   ticket: Ticket;
@@ -76,6 +77,10 @@ export default function DeliveryNoteDetail({
   const [draftPerformedAt, setDraftPerformedAt] = useState('');
   const [draftNote, setDraftNote] = useState('');
   const [savingMeta, setSavingMeta] = useState(false);
+
+  // Loaner recognition: last scanned serial, checked against the loaner
+  // inventory so a scanned Leihgerät surfaces its status + check-out/in inline.
+  const [scannedSerial, setScannedSerial] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -354,6 +359,18 @@ export default function DeliveryNoteDetail({
         </div>
       )}
 
+      {/* Loaner recognition banner (a scanned serial that belongs to the loaner pool) */}
+      {scannedSerial && (
+        <LoanerScanBanner
+          serial={scannedSerial}
+          customerName={ticket.customerName}
+          customerKdnr={ticket.mesonicCustomerId ? String(ticket.mesonicCustomerId) : null}
+          ticketId={ticket.id}
+          createdBy={currentEmployeeId}
+          onDismiss={() => setScannedSerial(null)}
+        />
+      )}
+
       {/* Positions */}
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between mb-2">
@@ -386,6 +403,7 @@ export default function DeliveryNoteDetail({
                 serialized={isSerialized(item)}
                 onPatch={(patch) => patchItem(item.id, patch)}
                 onRemove={() => handleRemoveItem(item.id)}
+                onSerialScanned={setScannedSerial}
               />
             ))}
           </ul>
@@ -458,19 +476,32 @@ interface ItemRowProps {
   serialized: boolean;
   onPatch: (patch: { bezeichnung?: string; quantity?: number; unitPrice?: number; serialNumbers?: string[] }) => void;
   onRemove: () => void;
+  // Fired with the raw value each time a serial is entered — scanned or typed —
+  // so loaner recognition behaves the same either way.
+  onSerialScanned?: (serial: string) => void;
 }
 
-function ItemRow({ item, locked, serialized, onPatch, onRemove }: ItemRowProps) {
+function ItemRow({ item, locked, serialized, onPatch, onRemove, onSerialScanned }: ItemRowProps) {
   const [bezeichnung, setBezeichnung] = useState(item.bezeichnung);
   const [qty, setQty] = useState(String(item.quantity));
   const [unitPrice, setUnitPrice] = useState(String(item.unitPrice));
 
+  // Serial capture is shown automatically for serialised products (or lines
+  // that already carry serials), and can be revealed on demand for any other
+  // line — the technician can always capture a serial the device happens to have.
+  const [showSerials, setShowSerials] = useState(serialized || item.serialNumbers.length > 0);
+
   useEffect(() => setBezeichnung(item.bezeichnung), [item.bezeichnung]);
   useEffect(() => setQty(String(item.quantity)), [item.quantity]);
   useEffect(() => setUnitPrice(String(item.unitPrice)), [item.unitPrice]);
+  // The catalog hydrates async — open the serial section once the flag resolves.
+  useEffect(() => {
+    if (serialized) setShowSerials(true);
+  }, [serialized]);
 
-  // One serial slot per delivered unit (at least what's already captured).
-  const slotCount = serialized ? Math.max(Math.round(item.quantity) || 0, item.serialNumbers.length) : 0;
+  // One serial slot per delivered unit (at least one when revealed, and never
+  // fewer than what's already captured).
+  const slotCount = showSerials ? Math.max(Math.round(item.quantity) || 0, item.serialNumbers.length, 1) : 0;
 
   function setSerialAt(idx: number, value: string) {
     const next = [...item.serialNumbers];
@@ -539,7 +570,19 @@ function ItemRow({ item, locked, serialized, onPatch, onRemove }: ItemRowProps) 
         )}
       </div>
 
-      {/* Per-unit serial numbers (serialised products). */}
+      {/* Reveal serial capture on demand for lines that aren't auto-serialised. */}
+      {!locked && slotCount === 0 && (
+        <button
+          type="button"
+          onClick={() => setShowSerials(true)}
+          className="mt-1.5 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+        >
+          <Hash size={11} />
+          Seriennummer erfassen
+        </button>
+      )}
+
+      {/* Per-unit serial numbers (auto for serialised products, or revealed). */}
       {slotCount > 0 && (
         <div className="mt-2 pl-1 space-y-1.5">
           <div className="flex items-center gap-1 text-xs text-slate-500">
@@ -558,13 +601,24 @@ function ItemRow({ item, locked, serialized, onPatch, onRemove }: ItemRowProps) 
                   disabled={locked}
                   placeholder="Seriennummer"
                   onBlur={(e) => {
-                    if ((e.target.value ?? '') !== (item.serialNumbers[idx] ?? '')) {
-                      setSerialAt(idx, e.target.value);
+                    const v = e.target.value;
+                    if ((v ?? '') !== (item.serialNumbers[idx] ?? '')) {
+                      setSerialAt(idx, v);
                     }
+                    // Same loaner recognition as scanning — a typed serial that
+                    // belongs to the loaner pool surfaces the banner too.
+                    if (v.trim()) onSerialScanned?.(v);
                   }}
                   className="flex-1 min-w-0 px-2 py-1.5 rounded border border-slate-200 text-sm font-mono disabled:bg-slate-50 disabled:text-slate-500"
                 />
-                {!locked && <BarcodeScanButton onScan={(v) => setSerialAt(idx, v)} />}
+                {!locked && (
+                  <BarcodeScanButton
+                    onScan={(v) => {
+                      setSerialAt(idx, v);
+                      onSerialScanned?.(v);
+                    }}
+                  />
+                )}
               </div>
             ))}
           </div>

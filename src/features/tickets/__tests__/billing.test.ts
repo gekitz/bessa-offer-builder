@@ -44,6 +44,10 @@ const EMP_NAMES = new Map([
   ['emp-b', 'Klaus Weber'],
 ]);
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 function rate(
   code: string,
   value: number,
@@ -414,6 +418,91 @@ describe('Travel modes', () => {
     const wegzeit = r.positions.find((p) => p.kind === 'travel_wegzeit');
     expect(km?.total).toBe(28.50);
     expect(wegzeit?.total).toBe(130);
+  });
+
+  it('rounds km to whole + Wegzeit to quarter-hour, and lines reconcile', () => {
+    // The real-world case from the screenshots: 13.73 km / 17 min Wegzeit.
+    // km → 14 (nearest whole), Wegzeit → 0.25h (nearest quarter). Both lines
+    // must reconcile (menge × preis === total) so preview == PDF == Mesonic.
+    const r = calcRepairOrderBilling({
+      repairOrder: repairOrder(),
+      entries: [
+        entry({
+          rate: 'PC_NB',
+          minutes: 45, // 0.75h × 130 = 97.50
+          travelMode: 'km_plus_wegzeit',
+          travelKm: 13.73,
+          travelWegzeitMin: 17, // 0.2833…h → 0.25h
+        }),
+      ],
+      materials: [],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+      customerHasWartungsvertrag: false,
+    });
+    const km = r.positions.find((p) => p.kind === 'travel_km')!;
+    expect(km.quantity).toBe(14);
+    expect(km.label).toBe('Anfahrt 14 km (Wegzeit separat)');
+    expect(km.total).toBe(7.98); // 14 × 0.57 (fixture km rate)
+    expect(round2(km.quantity * km.unitPrice)).toBe(km.total);
+
+    const wegzeit = r.positions.find((p) => p.kind === 'travel_wegzeit')!;
+    expect(wegzeit.quantity).toBe(0.25);
+    expect(wegzeit.total).toBe(32.5); // 0.25 × 130
+    expect(round2(wegzeit.quantity * wegzeit.unitPrice)).toBe(wegzeit.total);
+  });
+
+  it('rounds labor to the nearest quarter-hour (17 min → 0.25h @ €130)', () => {
+    const r = calcRepairOrderBilling({
+      repairOrder: repairOrder(),
+      entries: [entry({ rate: 'PC_NB', minutes: 17 })], // 0.2833…h → 0.25h
+      materials: [],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+      customerHasWartungsvertrag: false,
+    });
+    const labor = r.positions.find((p) => p.kind === 'labor')!;
+    expect(labor.quantity).toBe(0.25);
+    expect(labor.total).toBe(32.5);
+    expect(round2(labor.quantity * labor.unitPrice)).toBe(labor.total);
+  });
+
+  it('floors any non-zero time to a quarter-hour (5 min → 0.25h, never €0)', () => {
+    const r = calcRepairOrderBilling({
+      repairOrder: repairOrder(),
+      entries: [
+        entry({
+          rate: 'PC_NB',
+          minutes: 5, // 0.083h → floored to 0.25h
+          travelMode: 'km_plus_wegzeit',
+          travelKm: 0.4, // → floored to 1 km
+          travelWegzeitMin: 4, // 0.066h → floored to 0.25h
+        }),
+      ],
+      materials: [],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+      customerHasWartungsvertrag: false,
+    });
+    expect(r.positions.find((p) => p.kind === 'labor')!.quantity).toBe(0.25);
+    expect(r.positions.find((p) => p.kind === 'travel_wegzeit')!.quantity).toBe(0.25);
+    const km = r.positions.find((p) => p.kind === 'travel_km')!;
+    expect(km.quantity).toBe(1);
+    expect(km.total).toBe(0.57); // 1 × 0.57 (fixture km rate)
+  });
+
+  it('rounds 14.03 km down to 14 (nearest whole km)', () => {
+    const r = calcRepairOrderBilling({
+      repairOrder: repairOrder(),
+      entries: [
+        entry({ rate: 'PC_NB', minutes: 60, travelMode: 'km_plus_wegzeit', travelKm: 14.03 }),
+      ],
+      materials: [],
+      rateByCode: RATE_BY_CODE,
+      zoneByCode: ZONE_BY_CODE,
+      customerHasWartungsvertrag: false,
+    });
+    expect(r.positions.find((p) => p.kind === 'travel_km')!.quantity).toBe(14);
   });
 
   it('km_inkl_wegzeit: km × €1.10, no separate Wegzeit', () => {

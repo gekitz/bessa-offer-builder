@@ -16,7 +16,7 @@ export interface DeliveryNoteForExport {
 
 export interface DeliveryPlanOpts {
   konto: string;
-  ticketStandort: MesonicStandort;   // Belegart 19 ist standortübergreifend; Feld für Symmetrie
+  ticketStandort: MesonicStandort;   // Belegart 19 standortübergreifend, ABER treibt die KL/WO-Ausprägung der Artikelnummern (Lagerbuchung)
   startLaufnummer: number;           // teilt sich die Sequenz mit den Reparaturschein-Belegen
   kopfVertreternummer?: string | number;
 }
@@ -59,7 +59,7 @@ export function planDeliveryNoteBelege(
       skipped.push({ deliveryNoteId: n.deliveryNote.id, reason: 'already_exported', belegKey: n.alreadyExportedKey });
       continue;
     }
-    const positions = deliveryNoteToBelegPositions(n.items);
+    const positions = deliveryNoteToBelegPositions(n.items, opts.ticketStandort);
     if (positions.length === 0) {
       skipped.push({ deliveryNoteId: n.deliveryNote.id, reason: 'empty' });
       continue;

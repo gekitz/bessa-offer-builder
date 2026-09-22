@@ -40,6 +40,9 @@ export interface PlanBasis {
   periodNet: number;
   /** 2% Rabatt granted on this offer — reduces the financing base. */
   rabattActive: boolean;
+  /** Net credit for hardware taken back from the customer (Hardware-Rücknahme).
+   *  Reduces the financing base after the Rabatt. Optional (legacy = 0). */
+  takeBack?: number;
   /** Contract length in months (Miete divisor, fixed-term cancel horizon). */
   months: number;
   /** Number of Ratenzahlung installments. */
@@ -67,10 +70,13 @@ export interface PlanPricing {
 /**
  * All gross amounts for the three payment plans. The Rabatt only reduces the
  * financing base (Ratenzahlung/Miete) — the Standard plan bills the plain
- * monthly/once/yearly amounts, exactly as the offer lists them.
+ * monthly/once/yearly amounts. A Hardware-Rücknahme, however, is a real credit
+ * for goods handed back and applies on every plan: it reduces the financing
+ * base AND the Standard plan's one-time (once) amount.
  */
 export function computePlanPricing(basis: PlanBasis): PlanPricing {
-  const financedNet = basis.periodNet * (basis.rabattActive ? 1 - RABATT_PCT : 1);
+  const takeBack = Number.isFinite(basis.takeBack) && (basis.takeBack as number) > 0 ? (basis.takeBack as number) : 0;
+  const financedNet = basis.periodNet * (basis.rabattActive ? 1 - RABATT_PCT : 1) - takeBack;
   const financedBrutto = financedNet * VAT;
   const ratenTotal = financedBrutto * FIN_SURCHARGE;
   const months = basis.months > 0 ? basis.months : 12;
@@ -78,7 +84,8 @@ export function computePlanPricing(basis: PlanBasis): PlanPricing {
 
   return {
     standard: {
-      onceBrutto: basis.onceNet * VAT,
+      // The one-time take-back credit lands on the one-time bucket.
+      onceBrutto: (basis.onceNet - takeBack) * VAT,
       monthlyBrutto: basis.monthlyNet * VAT,
       yearlyBrutto: basis.yearlyNet * VAT,
     },
@@ -109,6 +116,7 @@ export interface OfferRowLike {
       yearly?: number;
       periodTotal?: number;
       maxMonths?: number;
+      takeBack?: number;
     };
   } | null;
 }
@@ -131,6 +139,7 @@ export function planBasisFromOffer(offer: OfferRowLike): PlanBasis {
       onceNet: num(snap.once),
       yearlyNet: num(snap.yearly),
       periodNet: num(snap.periodTotal),
+      takeBack: num(snap.takeBack),
       months: num(snap.maxMonths) || 12,
       raten,
       rabattActive,
@@ -142,7 +151,7 @@ export function planBasisFromOffer(offer: OfferRowLike): PlanBasis {
   const onceNet = num(offer.total_once);
   const periodNet = num(offer.total_period);
   const yearlyNet = Math.max(0, periodNet - monthlyNet * months - onceNet);
-  return { monthlyNet, onceNet, yearlyNet, periodNet, months, raten, rabattActive };
+  return { monthlyNet, onceNet, yearlyNet, periodNet, takeBack: 0, months, raten, rabattActive };
 }
 
 /** Euro → integer cents, the amount Stripe is given. */

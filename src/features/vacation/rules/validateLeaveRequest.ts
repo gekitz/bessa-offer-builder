@@ -8,6 +8,7 @@ import { fenstertage50pct } from './fenstertage50pct';
 import { halfYearPlanning } from './halfYearPlanning';
 import { substituteRequired } from './substituteRequired';
 import { shiftOverlap } from './shiftOverlap';
+import { takeFridayToo } from './takeFriday';
 
 type Rule = (req: LeaveRequest, ctx: RuleContext) => RuleResult;
 
@@ -23,6 +24,7 @@ const ALL_RULES: Rule[] = [
   halfYearPlanning,
   substituteRequired,
   shiftOverlap,
+  takeFridayToo,
 ];
 
 export function validateLeaveRequest(request: LeaveRequest, ctx: RuleContext): RuleResult {
