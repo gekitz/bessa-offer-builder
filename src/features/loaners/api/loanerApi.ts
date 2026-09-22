@@ -238,6 +238,24 @@ export async function listOpenLoans(): Promise<Loan[]> {
     .map((r: any) => ({ ...rowToLoan(r), devices: (r.loan_devices ?? []).map(rowToLoanDevice) }));
 }
 
+// Open loans of ONE Bestandskunde (by Kd.-Nr.) — the check-out guardrail queries
+// this when a customer is picked, to offer "add to existing loan" instead of
+// opening a second Leihstellung (which would spawn a second Mesonic-Beleg).
+export async function listOpenLoansForCustomer(customerKdnr: string): Promise<Loan[]> {
+  const kdnr = customerKdnr.trim();
+  if (!kdnr) return [];
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('loans')
+    .select(`${LOAN_COLS}, loan_devices(${LOAN_DEVICE_COLS})`)
+    .eq('customer_kdnr', kdnr)
+    .order('started_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? [])
+    .filter((r: any) => (r.loan_devices ?? []).some((ld: any) => ld.returned_at == null))
+    .map((r: any) => ({ ...rowToLoan(r), devices: (r.loan_devices ?? []).map(rowToLoanDevice) }));
+}
+
 // A loan header plus the full device rows on it — the set the Leih-Lieferschein
 // export needs (bezeichnung + serial live on loaner_devices, not the line).
 // Used to (re-)generate the Mesonic Beleg for an existing loan, e.g. when the
@@ -253,7 +271,15 @@ export async function getLoanWithDevices(
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
+  // Stabile Leihzeilen-Reihenfolge (created_at, id) — die interne Zeilennummer
+  // im Beleg (loanToBelegPositions) leitet sich daraus ab, damit ein Edit
+  // (option="3") bestehende Zeilen an derselben Nummer trifft und angehängte
+  // Geräte nur ergänzt.
   const devices = ((data as any).loan_devices ?? [])
+    .slice()
+    .sort((a: any, b: any) =>
+      a.created_at === b.created_at ? (a.id < b.id ? -1 : 1) : a.created_at < b.created_at ? -1 : 1,
+    )
     .map((ld: any) => (ld.loaner_devices ? rowToDevice(ld.loaner_devices) : null))
     .filter(Boolean) as LoanerDevice[];
   return { loan: rowToLoan(data), devices };
@@ -301,6 +327,31 @@ export async function checkOut(input: CheckOutInput): Promise<{ loan: Loan; devi
   if (statusErr) throw statusErr;
 
   return { loan: rowToLoan(loanRow), devices: (lineRows ?? []).map(rowToLoanDevice) };
+}
+
+// Add one or more devices to an EXISTING open loan: one loan_devices line per
+// device + flip each device to 'on_loan'. Same partial-unique-index guard as
+// checkOut (a device already out cannot be added again). Used by the check-out
+// guardrail so a customer's extra devices land on their existing Leihstellung
+// (→ one amended Mesonic-Beleg) instead of a fresh loan (→ a second Beleg).
+// The Beleg re-export (option="3" edit) is fired separately by the caller.
+export async function addDevicesToLoan(loanId: string, deviceIds: string[]): Promise<LoanDevice[]> {
+  if (deviceIds.length === 0) throw new Error('Keine Geräte zum Hinzufügen ausgewählt');
+  const sb = requireSupabase();
+
+  const { data: lineRows, error: lineErr } = await sb
+    .from('loan_devices')
+    .insert(deviceIds.map((deviceId) => ({ loan_id: loanId, device_id: deviceId })))
+    .select(LOAN_DEVICE_COLS);
+  if (lineErr) throw lineErr; // unique-index violation = device already out
+
+  const { error: statusErr } = await sb
+    .from('loaner_devices')
+    .update({ status: 'on_loan' })
+    .in('id', deviceIds);
+  if (statusErr) throw statusErr;
+
+  return (lineRows ?? []).map(rowToLoanDevice);
 }
 
 // Return a single device on a loan: set the line's returned_at and flip the

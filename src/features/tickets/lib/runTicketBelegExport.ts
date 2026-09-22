@@ -20,8 +20,15 @@ export async function readMaxLaufnummer(konto: string): Promise<number> {
 
 // Legt EINEN WEBAngebot-Beleg an (ActionCode 1). mesonicImport parst bereits
 // OverallSuccess/ErrorText; hier zusätzlich die VoucherNumber (= Laufnummer).
-export async function importBeleg(xml: string): Promise<{ ok: boolean; voucherNumber?: number; error?: string }> {
-  const res = await mesonicImport(TYPES.BELEG, 'WEBAngebot', xml, { actionCode: 1 });
+// opts.option steuert die Belegbehandlung (White Paper: 0 = neu anlegen [Default
+// via Envelope-Attribut], 3 = editieren, 4 = stornieren). Das Envelope trägt die
+// option ohnehin; der Query-Param wird zusätzlich gesetzt, damit beide Wege
+// übereinstimmen.
+export async function importBeleg(
+  xml: string,
+  opts: { option?: number } = {},
+): Promise<{ ok: boolean; voucherNumber?: number; error?: string }> {
+  const res = await mesonicImport(TYPES.BELEG, 'WEBAngebot', xml, { actionCode: 1, option: opts.option });
   if (!res.success) return { ok: false, error: res.error };
   const vn = (res.raw || '').match(/<VoucherNumber>(\d+)<\/VoucherNumber>/);
   return { ok: true, voucherNumber: vn ? Number(vn[1]) : undefined };

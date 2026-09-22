@@ -78,4 +78,24 @@ describe('buildAngebotImportXml', () => {
     ]);
     expect(x).toContain('A &amp; B &lt; C');
   });
+
+  it('omits Zeilennummerintern when unset, emits it (after Zeilenrabatt1) when set', () => {
+    // Unset → field absent (keeps create payloads unchanged for offers/tickets).
+    expect(xml).not.toContain('<Zeilennummerintern>');
+    const x = buildAngebotImportXml({ kontonummer: '1', laufnummer: 1 }, [
+      { artikelnummer: 'TEXT', datentyp: '3', menge: 1, bezeichnung: 'Gerät', zeilenrabatt1: -5, zeilennummerintern: 3 },
+    ]);
+    expect(x).toContain('<Zeilennummerintern>3</Zeilennummerintern>');
+    // XSD order: Zeilennummerintern is the last element of the position, after Zeilenrabatt1.
+    expect(x.indexOf('<Zeilenrabatt1>')).toBeLessThan(x.indexOf('<Zeilennummerintern>'));
+  });
+
+  it('supports an edit envelope via option override (option="3")', () => {
+    const x = buildAngebotImportXml(
+      { kontonummer: '1', laufnummer: 1 },
+      [{ artikelnummer: 'TEXT', datentyp: '3', menge: 1 }],
+      { option: '3' },
+    );
+    expect(x).toContain('option="3"');
+  });
 });

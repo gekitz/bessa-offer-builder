@@ -67,6 +67,12 @@ export interface AngebotPosition {
   einzelpreis?: number;           // netto
   bezeichnung?: string;
   zeilenrabatt1?: number;         // Prozent, negativ (z. B. -10)
+  // Interne Zeilennummer (WEBAngebotT026.Zeilennummerintern, XSD seit Heri
+  // 2026-09). NUR fürs Beleg-Editieren (option="3") nötig: sie identifiziert
+  // eine bestehende Zeile eindeutig, damit ein Re-Import Zeilen ergänzt statt
+  // dupliziert. Beim Neuanlegen (option="0") vergeben wir sie trotzdem (1..N in
+  // stabiler Reihenfolge), damit ein späteres Edit dieselben Nummern trifft.
+  zeilennummerintern?: number;
 }
 
 function esc(s: string): string {
@@ -115,6 +121,7 @@ export function buildAngebotImportXml(
         el('Einzelpreis', p.einzelpreis) +
         el('Bezeichnung', p.bezeichnung) +
         el('Zeilenrabatt1', p.zeilenrabatt1) +
+        el('Zeilennummerintern', p.zeilennummerintern) +
         `</WEBAngebotT026>`,
     )
     .join('\n');
