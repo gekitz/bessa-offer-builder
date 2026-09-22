@@ -10,6 +10,7 @@ import { lazyWithReload } from './lib/lazyWithReload';
 // who's just opening the app to build / send offers.
 const AcceptPage = lazyWithReload(() => import('./features/offers/pages/AcceptPage'));
 const CustomerTicketPage = lazyWithReload(() => import('./features/tickets/pages/CustomerTicketPage'));
+const CampaignLandingPage = lazyWithReload(() => import('./features/campaigns/pages/CampaignLandingPage'));
 const MesonicTest = lazyWithReload(() => import('./components/MesonicTest.jsx'));
 
 function AppContent() {
@@ -41,6 +42,17 @@ function AppContent() {
     return (
       <React.Suspense fallback={<div className="p-8 text-center">Wird geladen...</div>}>
         <CustomerTicketPage shareCode={ticketShareCode} />
+      </React.Suspense>
+    );
+  }
+  // ?c=<token> → öffentliche Kampagnen-Landing (kein App-Shell, keine Auth),
+  // identisch in Form zum Accept-Branch. Der Token identifiziert den
+  // Empfänger; die Seite lädt Empfänger + Kampagne und dispatcht nach Typ.
+  const campaignToken = search.get('c');
+  if (campaignToken) {
+    return (
+      <React.Suspense fallback={<div className="p-8 text-center">Wird geladen...</div>}>
+        <CampaignLandingPage token={campaignToken} />
       </React.Suspense>
     );
   }

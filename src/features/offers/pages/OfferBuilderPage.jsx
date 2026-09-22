@@ -96,6 +96,7 @@ const DashboardPage = lazyWithReload(() => import('../../dashboard/pages/Dashboa
 const ProductsAdminPage = lazyWithReload(() => import('./ProductsAdminPage'));
 const ProcurementPage = lazyWithReload(() => import('../../procurement/pages/ProcurementPage'));
 const ViertlPage = lazyWithReload(() => import('../../viertl/pages/ViertlPage'));
+const CampaignsPage = lazyWithReload(() => import('../../campaigns/pages/CampaignsPage'));
 const LeihgeraetePage = lazyWithReload(() => import('../../loaners/pages/LeihgeraetePage'));
 const MesonicTestPage = lazyWithReload(() => import('../../../components/MesonicTest.jsx'));
 import { useApproverPendingCount } from '../../vacation/hooks/useApproverPendingCount';
@@ -1772,6 +1773,15 @@ function OfferBuilderPageInner() {
                 address: [license.street, [license.plz, license.ort].filter(Boolean).join(' ')].filter(Boolean).join(', '),
               });
             }}
+          />
+        </React.Suspense>
+      )}
+
+      {/* ═══ KAMPAGNEN SECTION ═══ */}
+      {section === 'kampagnen' && (
+        <React.Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="animate-spin text-red-400" size={24} /></div>}>
+          <CampaignsPage
+            onOpenOffer={(offerId) => { setOfferOrigin({ label: 'zu Kampagnen', path: pathForSection('kampagnen') }); navigate(pathForSection('angebote')); handleLoadOffer(offerId); }}
           />
         </React.Suspense>
       )}
