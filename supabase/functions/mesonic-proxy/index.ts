@@ -462,12 +462,31 @@ function parseEximXml(xml: string): { error?: string; errorCode?: string; record
   return { records };
 }
 
-// ─── JWT verification ───
+// Constant-time string compare for the internal shared-secret path.
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+// ─── Auth: staff JWT OR internal service-role key ───
+// Interactive callers (the logged-in SPA) present a Supabase user JWT.
+// Server-to-server callers that have no user session — currently
+// export-offer-angebot, fired by the offer-acceptance DB trigger — present
+// the project SERVICE_ROLE key instead. That key is itself a validly-signed
+// project JWT, so it clears the gateway's verify_jwt check (unlike a plain
+// shared secret); we accept it here for internal calls and leave the proxy's
+// gateway enforcement ON. Everything else is rejected.
 async function verifyAuth(req: Request): Promise<boolean> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) return false;
 
   const token = authHeader.replace("Bearer ", "");
+
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (serviceKey && timingSafeEqual(token, serviceKey)) return true;
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 

@@ -48,6 +48,7 @@ import {
 import LogActivityModal from '../components/modals/LogActivityModal';
 import LostReasonModal from '../components/modals/LostReasonModal';
 import OfferDetailsModal from '../components/modals/OfferDetailsModal';
+import { runOfferAngebotExport } from '../lib/runOfferAngebotExport';
 import { lostReasonLabel } from '../data/lostReasons';
 import { filterOffersBySearch } from '../lib/offerSearch';
 import { isActionableBounce } from '../lib/bounce';
@@ -868,6 +869,17 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
           setDetailsOffer(null);
           setDetailsLoading(false);
           onLoad(id);
+        }}
+        onExportAngebot={async () => {
+          // Manual Mesonic-Angebot export (Belegart 17) — the automatic path
+          // runs on acceptance; this covers offers that got a WinLine customer
+          // linked only afterwards. Reflect the fresh row in the open modal.
+          const result = await runOfferAngebotExport(detailsOffer);
+          try {
+            const fresh = await getOffer(detailsOffer.id);
+            setDetailsOffer(fresh);
+          } catch { /* keep the optimistic in-modal status on refetch failure */ }
+          return result;
         }}
         onClose={() => { setDetailsOffer(null); setDetailsLoading(false); }}
       />

@@ -692,6 +692,30 @@ function OfferBuilderPageInner() {
     return computeAcceptTotals({ cart, customItems: getCustomItemsFromCart(), takeBack }, ALL);
   }
 
+  // Frozen per-line snapshot for the Mesonic-Angebot export (Belegart 17).
+  // Like acceptSnapshot freezes the TOTALS, this freezes the priced NAMED
+  // lines so the export-offer-angebot edge function — which runs server-side
+  // on acceptance, where the (RLS-gated) product catalog is out of reach —
+  // can build the freetext Beleg positions without re-pricing anything.
+  // Only counted lines: drop optional add-ons and non-selected option-group
+  // alternatives so the Beleg sum matches the offer. See src/lib/offerAngebot.
+  function buildLineSnapshot() {
+    const entries = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
+    const { monthlyItems, onceItems } = buildLineItems(entries, ALL);
+    return [...monthlyItems, ...onceItems]
+      .filter((r) => !r.optional && r.optionSelected !== false)
+      .map((r) => ({
+        name: r.name,
+        code: r.code || '',
+        qty: r.qty,
+        discountQty: r.discountQty,
+        unitPrice: r.unitPrice ?? 0,
+        discountPrice: r.discountPrice ?? 0,
+        monthly: r.monthly,
+        tier: r.tier,
+      }));
+  }
+
   const builderTabs = builderTabsFor(offerType, offerLocked);
 
   const cartCount = Object.keys(cart).length;
@@ -869,6 +893,8 @@ function OfferBuilderPageInner() {
             paymentEnabled,
             rental,
             acceptSnapshot: buildAcceptSnapshot(),
+        lineSnapshot: buildLineSnapshot(),
+            lineSnapshot: buildLineSnapshot(),
           });
           effectiveOfferId = saved.id;
           setCurrentOfferId(effectiveOfferId);
@@ -977,6 +1003,7 @@ function OfferBuilderPageInner() {
         paymentEnabled,
         rental,
         acceptSnapshot: buildAcceptSnapshot(),
+        lineSnapshot: buildLineSnapshot(),
       });
       setCurrentOfferId(result.id);
 
@@ -1092,6 +1119,7 @@ function OfferBuilderPageInner() {
         paymentEnabled,
         rental,
         acceptSnapshot: buildAcceptSnapshot(),
+        lineSnapshot: buildLineSnapshot(),
       });
       setCurrentOfferId(result.id);
       setSaveSuccess(true);
@@ -1144,6 +1172,7 @@ function OfferBuilderPageInner() {
         // Freeze the accept-page totals as quoted (decouples the customer
         // page from later catalog price changes).
         acceptSnapshot: buildAcceptSnapshot(),
+        lineSnapshot: buildLineSnapshot(),
       });
       offerId = result.id;
       savedOffer = result;
