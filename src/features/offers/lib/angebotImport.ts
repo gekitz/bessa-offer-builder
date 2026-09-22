@@ -19,6 +19,13 @@
 
 export const PSEUDO_ARTIKEL = { klagenfurt: '99991234KL', wolfsberg: '99991234WO' } as const;
 
+// KM-Geld hat eine EIGENE Artikelnummer (31100000{KL/WO}), bei der in Mesonic
+// die Einheit "km" hinterlegt ist. Der Mitarbeiter-Artikel (30000XX) trägt die
+// Einheit STD und würde die km-Menge fälschlich als Stunden ausweisen — daher
+// bekommen travel_km-Positionen diesen Artikel statt des Arbeitszeit-Artikels
+// (fixiert mit Heri 2026-09).
+export const KM_GELD_ARTIKEL = { klagenfurt: '31100000KL', wolfsberg: '31100000WO' } as const;
+
 // Angebot-Import → Belegart 17 (beide Standorte). Map-Form beibehalten, falls
 // Mesonic künftig wieder pro Standort splittet.
 export const BELEGART = { klagenfurt: '17', wolfsberg: '17' } as const;
