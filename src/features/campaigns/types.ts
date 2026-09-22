@@ -1,6 +1,6 @@
 // Outreach-/Replacement-Kampagnen — Domänentypen (generische Engine).
 //
-// Spiegelt supabase/migrations/20260915120000_create_campaigns.sql in der
+// Spiegelt supabase/migrations/20260922130000_create_campaigns.sql in der
 // camelCase + ISO-String-Konvention der App. snake_case ↔ camelCase
 // Mapping passiert ausschließlich in api/campaignApi.ts.
 //

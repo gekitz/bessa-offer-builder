@@ -1,5 +1,5 @@
 // Kampagnen-API — generisches (typ-agnostisches) CRUD + Funnel/Outcome-
-// Seiteneffekte. Spiegelt supabase/migrations/20260915120000_create_campaigns.sql.
+// Seiteneffekte. Spiegelt supabase/migrations/20260922130000_create_campaigns.sql.
 //
 // Konvention wie viertlApi.ts / procurementApi.ts: requireSupabase(),
 // rowTo* Mapper, *ToRow für Updates, ISO-Strings für Zeitstempel. KEINE
