@@ -31,6 +31,8 @@ import type {
 } from '../types';
 import { calcRepairOrderBilling, calcTicketBilling, offerLaborFloorPosition } from '../lib/billing';
 import { standortFromId, type EmployeeMesonic } from '../lib/repairOrderBeleg';
+import { invoiceRecipientKonto } from '../../offers/lib/angebotImport';
+import { getCustomer } from '../../../lib/mesonicApi';
 import type { OrderForExport } from '../lib/ticketBelegPlan';
 import type { DeliveryNoteForExport } from '../lib/deliveryNoteBelegPlan';
 import type { ExportInput } from '../lib/ticketBelegExport';
@@ -1521,12 +1523,32 @@ export async function loadTicketBelegExport(ticketId: string): Promise<ExportInp
       }),
   );
 
+  // Abweichender Rechnungsempfänger des Kontos (WinLine „Konto Rechnungsadresse“)
+  // → landet auf jedem Beleg-Kopf, damit Faktura + OP auf das richtige Konto
+  // laufen. Best-effort: ein Kunden-Export-Fehler darf den Beleg-Export NICHT
+  // blockieren (dann trägt der Beleg keine abweichende Adresse).
+  const konto = ticket.mesonicCustomerId ?? '';
+  let kontoRechnungsadresse: string | undefined;
+  if (konto) {
+    try {
+      const { records } = await getCustomer(konto);
+      const rec = (records?.[0] ?? {}) as Record<string, string>;
+      kontoRechnungsadresse = invoiceRecipientKonto(
+        rec.Rechnungsempfaenger ?? rec['Rechnungsempfänger'],
+        konto,
+      );
+    } catch {
+      // ignoriert — kein abweichender Rechnungsempfänger am Beleg
+    }
+  }
+
   return {
-    konto: ticket.mesonicCustomerId ?? '',
+    konto,
     ticketStandort: standortFromId(ticket.standortId),
     orders,
     employeeMesonic,
     kopfVertreternummer,
+    kontoRechnungsadresse,
     floorCommit,
     deliveryNotes,
     ticketNumber: ticket.ticketNumber,

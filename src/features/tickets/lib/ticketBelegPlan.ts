@@ -19,6 +19,7 @@ export interface PlanOpts {
   startLaufnummer: number;                // höchste bestehende Laufnummer des Kontos + 1
   employeeMesonic: Map<string, EmployeeMesonic>;
   kopfVertreternummer?: string | number;  // verantwortlicher Rep am Beleg-Kopf (Ticket-Assignee)
+  kontoRechnungsadresse?: string;         // abweichender Rechnungsempfänger (WinLine Konto Rechnungsadresse)
 }
 
 export interface PlannedBeleg {
@@ -68,6 +69,7 @@ export function planTicketBelege(orders: OrderForExport[], opts: PlanOpts): Tick
         datumAngebot: o.billing.performedAt,
         belegart,
         vertreternummer: opts.kopfVertreternummer,
+        kontoRechnungsadresse: opts.kontoRechnungsadresse,
       },
       positions,
     );

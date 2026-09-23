@@ -19,6 +19,7 @@ export interface DeliveryPlanOpts {
   ticketStandort: MesonicStandort;   // Belegart 19 standortübergreifend, ABER treibt die KL/WO-Ausprägung der Artikelnummern (Lagerbuchung)
   startLaufnummer: number;           // teilt sich die Sequenz mit den Reparaturschein-Belegen
   kopfVertreternummer?: string | number;
+  kontoRechnungsadresse?: string;    // abweichender Rechnungsempfänger (WinLine Konto Rechnungsadresse)
 }
 
 export interface PlannedDeliveryBeleg {
@@ -73,6 +74,7 @@ export function planDeliveryNoteBelege(
         datumAngebot: n.deliveryNote.performedAt,
         belegart,
         vertreternummer: opts.kopfVertreternummer,
+        kontoRechnungsadresse: opts.kontoRechnungsadresse,
       },
       positions,
     );

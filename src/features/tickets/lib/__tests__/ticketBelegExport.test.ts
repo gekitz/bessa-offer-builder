@@ -55,6 +55,30 @@ describe('exportTicketBelege', () => {
     expect(persistKey).toHaveBeenCalledWith('ro-1', 101, '272765-101');
   });
 
+  it('schreibt den abweichenden Rechnungsempfänger auf Rep-Schein UND Lieferschein', async () => {
+    const importBeleg = vi.fn().mockResolvedValue({ ok: true });
+    await exportTicketBelege(
+      {
+        ...input([order(1)]),
+        kontoRechnungsadresse: '230A001',
+        deliveryNotes: [deliveryNote('dn-1', 1)],
+      },
+      { readMaxLaufnummer: async () => 0, importBeleg, persistKey: vi.fn(), persistDeliveryKey: vi.fn() },
+    );
+    expect(importBeleg).toHaveBeenCalledTimes(2);
+    for (const call of importBeleg.mock.calls) {
+      expect(call[0]).toContain('<KontoRechnungsadresse>230A001</KontoRechnungsadresse>');
+    }
+  });
+
+  it('lässt KontoRechnungsadresse weg, wenn kein abweichender Empfänger gesetzt ist', async () => {
+    const importBeleg = vi.fn().mockResolvedValue({ ok: true });
+    await exportTicketBelege(input([order(1)]), {
+      readMaxLaufnummer: async () => 0, importBeleg, persistKey: vi.fn(),
+    });
+    expect(importBeleg.mock.calls[0][0]).not.toContain('<KontoRechnungsadresse>');
+  });
+
   it('wirft ohne Konto (Kunde nicht verknüpft)', async () => {
     await expect(
       exportTicketBelege({ ...input([order(1)]), konto: '' }, {

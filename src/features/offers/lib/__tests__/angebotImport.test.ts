@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAngebotImportXml, laborArtikelnummer, mesonicArtikelForStandort, REPARATUR_BELEGART } from '../angebotImport';
+import { buildAngebotImportXml, invoiceRecipientKonto, laborArtikelnummer, mesonicArtikelForStandort, REPARATUR_BELEGART } from '../angebotImport';
 
 describe('mesonicArtikelForStandort (KL/WO-Ausprägung für Lagerartikel)', () => {
   it('appends KL / WO from the Standort', () => {
@@ -51,6 +51,19 @@ describe('buildAngebotImportXml', () => {
     expect(kopf).toContain('<Kontonummer>272765</Kontonummer>');
     expect(kopf).toContain('<Laufnummer>7</Laufnummer>');
     expect(kopf).toContain('<Belegart>17</Belegart>');
+    // Kein abweichender Rechnungsempfänger gesetzt → Feld fehlt.
+    expect(kopf).not.toContain('<KontoRechnungsadresse>');
+  });
+
+  it('emits KontoRechnungsadresse (after Vertreternummer) when set, omits it otherwise', () => {
+    const withRecipient = buildAngebotImportXml(
+      { kontonummer: '272765', laufnummer: 7, belegart: '17', vertreternummer: 42, kontoRechnungsadresse: '230A001' },
+      [{ artikelnummer: 'TEXT', datentyp: '3', menge: 1, bezeichnung: 'x' }],
+    );
+    expect(withRecipient).toContain('<KontoRechnungsadresse>230A001</KontoRechnungsadresse>');
+    // XSD-Sequenz: KontoRechnungsadresse ist das letzte Kopf-Element, nach Vertreternummer.
+    expect(withRecipient.indexOf('<Vertreternummer>')).toBeLessThan(withRecipient.indexOf('<KontoRechnungsadresse>'));
+    expect(withRecipient.indexOf('<KontoRechnungsadresse>')).toBeLessThan(withRecipient.indexOf('</WEBAngebotT025>'));
   });
 
   it('emits a priced article position (Datentyp 1) with net price + percent discount', () => {
@@ -97,5 +110,25 @@ describe('buildAngebotImportXml', () => {
       { option: '3' },
     );
     expect(x).toContain('option="3"');
+  });
+});
+
+describe('invoiceRecipientKonto (abweichender Rechnungsempfänger fürs Beleg-Feld)', () => {
+  it('returns a differing recipient account', () => {
+    expect(invoiceRecipientKonto('230A001', '500B002')).toBe('230A001');
+  });
+  it('trims surrounding whitespace', () => {
+    expect(invoiceRecipientKonto('  230A001 ', '500B002')).toBe('230A001');
+  });
+  it('returns undefined when empty / nullish', () => {
+    expect(invoiceRecipientKonto('', '500B002')).toBeUndefined();
+    expect(invoiceRecipientKonto(null, '500B002')).toBeUndefined();
+    expect(invoiceRecipientKonto(undefined, '500B002')).toBeUndefined();
+  });
+  it("returns undefined for the sentinel '0'", () => {
+    expect(invoiceRecipientKonto('0', '500B002')).toBeUndefined();
+  });
+  it('returns undefined when the recipient equals the own account (self-billing)', () => {
+    expect(invoiceRecipientKonto('500B002', '500B002')).toBeUndefined();
   });
 });

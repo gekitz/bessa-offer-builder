@@ -40,6 +40,15 @@ Both acceptance paths converge on the one trigger, exactly like
   (`offers.creator_id` → `employees.standort_id`); defaults to Klagenfurt if it
   can't be resolved. The creator's `mesonic_rep_id` is also written as the Kopf
   `Vertreternummer`.
+- **Abweichender Rechnungsempfänger** (WinLine *Konto Rechnungsadresse*): if the
+  customer account carries a `Rechnungsempfaenger` (a *different* Konto that the
+  invoice/OP should land on), it's written to the Kopf field
+  `KontoRechnungsadresse` (WEBAngebotT025, last element of the sequence, after
+  `Vertreternummer`). Sourced live at export time from the customer's
+  `WebKontenExport`; omitted when empty or equal to the account itself (WinLine
+  then uses the master-data address). Same field flows onto the ticket
+  Reparaturschein (18) / Lieferschein (19) Belege. Requires Heri's WEBAngebot
+  template to declare `KontoRechnungsadresse` (XSD 2026-09).
 - Monthly lines carry the term in the Bezeichnung: `… (12 Monate, monatlich)`.
 - The global **Rabatt** (`rabattActive`, 2 % of the Laufzeitsumme) and a
   **Hardware-Rücknahme** (`takeBack`) are **separate negative** positions,

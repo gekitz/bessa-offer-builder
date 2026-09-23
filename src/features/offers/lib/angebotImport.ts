@@ -3,7 +3,7 @@
 // (MESOBelegeWEBAngebot.xsd, xs:sequence) — Reihenfolge ist Pflicht.
 //
 // Kopf  WEBAngebotT025: BELEGKEY, Kontonummer, Laufnummer, DatumAngebot,
-//                       Belegart, Vertreternummer
+//                       Belegart, Vertreternummer, KontoRechnungsadresse
 // Mitte WEBAngebotT026: BELEGKEY, Artikelnummer, Datentyp, Mengegeliefert,
 //                       Einzelpreis, Bezeichnung, Zeilenrabatt1
 //
@@ -64,7 +64,27 @@ export interface AngebotKopf {
   datumAngebot?: string;          // YYYY-MM-DD
   belegart?: string;              // '17' Angebot / '18' Reparaturauftrag
   vertreternummer?: string | number;
+  // Abweichender Rechnungsempfänger — ein ANDERES Konto, an das Faktura + OP
+  // gehen (WinLine „Konto Rechnungsadresse“, WEBAngebotT025.KontoRechnungsadresse,
+  // XSD seit Heri 2026-09). Nur setzen, wenn abweichend vom Konto; leer → WinLine
+  // nimmt die Stammdaten-Rechnungsadresse des Kontos. Wert = Kundennummer des
+  // Rechnungs-Kontos (aus dem WebKontenExport-Feld Rechnungsempfaenger).
+  kontoRechnungsadresse?: string;
   belegkey?: number;              // default 1 (verbindet Kopf ↔ Mitte)
+}
+
+// Normalisiert den Rechnungsempfänger fürs Beleg-Feld KontoRechnungsadresse:
+// liefert das abweichende Rechnungs-Konto oder undefined, wenn keins gesetzt ist,
+// es '0' ist oder dem eigenen Konto entspricht (dann nimmt WinLine ohnehin die
+// Stammdaten-Adresse). Spiegelt invoiceRecipientAccount in CrmPage. Pure.
+export function invoiceRecipientKonto(
+  recipient: string | null | undefined,
+  ownKonto: string | null | undefined,
+): string | undefined {
+  const r = String(recipient ?? '').trim();
+  const own = String(ownKonto ?? '').trim();
+  if (!r || r === '0' || r === own) return undefined;
+  return r;
 }
 
 export interface AngebotPosition {
@@ -115,6 +135,7 @@ export function buildAngebotImportXml(
     el('DatumAngebot', kopf.datumAngebot) +
     el('Belegart', kopf.belegart) +
     el('Vertreternummer', kopf.vertreternummer) +
+    el('KontoRechnungsadresse', kopf.kontoRechnungsadresse) +
     `</WEBAngebotT025>`;
 
   const posXml = positions

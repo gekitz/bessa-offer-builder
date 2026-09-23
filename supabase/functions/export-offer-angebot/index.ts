@@ -35,6 +35,7 @@ import {
   buildOfferAngebotImport,
   offerBelegKey,
   standortFromId,
+  invoiceRecipientKonto,
   type MesonicStandort,
   type OfferLineSnapshot,
   type OfferBelegSummary,
@@ -47,6 +48,8 @@ const corsHeaders = {
 
 const BELEGE_TYPE = 30;
 const BELEGE_TEMPLATE = 'WEBBelege';
+const KONTEN_TYPE = 1;
+const KONTEN_TEMPLATE = 'WebKontenExport';
 const BELEGE_BATCH_SIZE = 25;
 const MAX_LAUFNUMMER_SCAN = 400; // safety cap for the max-laufnummer scan
 
@@ -106,6 +109,28 @@ async function proxyImport(base: string, secret: string, xmlData: string): Promi
   const vn = xml.match(/<VoucherNumber>(\d+)<\/VoucherNumber>/)?.[1]
     ?? xml.match(/<KeyValue>(.*?)<\/KeyValue>/)?.[1]?.trim();
   return { ok: true, voucherNumber: vn && vn !== '+' ? vn : undefined };
+}
+
+// Abweichender Rechnungsempfänger des Kontos (WinLine „Konto Rechnungsadresse“).
+// Liest das Feld Rechnungsempfaenger aus dem WebKontenExport des Kontos; leer /
+// Fehler → undefined (der Beleg trägt dann keine abweichende Rechnungsadresse und
+// WinLine nimmt die Stammdaten-Adresse). Best-effort: ein Export-Fehler darf den
+// Beleg-Export NICHT blockieren.
+async function readKontoRechnungsadresse(base: string, secret: string, konto: string): Promise<string | undefined> {
+  let xml = '';
+  try {
+    const res = await fetch(`${base}/functions/v1/mesonic-proxy`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'export_raw', type: KONTEN_TYPE, template: KONTEN_TEMPLATE, key: konto }),
+    });
+    if (!res.ok) return undefined;
+    xml = await res.text();
+  } catch {
+    return undefined;
+  }
+  const m = xml.match(/<Rechnungsempfaenger>([\s\S]*?)<\/Rechnungsempfaenger>/i);
+  return invoiceRecipientKonto(m?.[1]?.trim(), konto);
 }
 
 // Höchste bereits vergebene Laufnummer eines Kontos — server-seitiges
@@ -243,8 +268,11 @@ serve(async (req: Request) => {
     const belegKey = offerBelegKey(konto, laufnummer);
     const datumAngebot = isoDate(offer.accepted_at) ?? isoDate(offer.signed_at);
 
+    // Abweichender Rechnungsempfänger (falls am Konto hinterlegt) → Beleg-Kopf.
+    const kontoRechnungsadresse = await readKontoRechnungsadresse(supabaseUrl, serviceKey, konto);
+
     const xml = buildOfferAngebotImport(
-      { kontonummer: konto, laufnummer, datumAngebot, vertreternummer },
+      { kontonummer: konto, laufnummer, datumAngebot, vertreternummer, kontoRechnungsadresse },
       lines,
       summary,
       standort,
