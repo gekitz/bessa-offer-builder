@@ -110,6 +110,24 @@ export interface AngebotKopf {
   laufnummer: string | number;
   datumAngebot?: string;      // YYYY-MM-DD — Annahmedatum
   vertreternummer?: string | number;
+  // Abweichender Rechnungsempfänger (WEBAngebotT025.KontoRechnungsadresse) — ein
+  // anderes Konto, an das Faktura + OP gehen. Nur setzen, wenn abweichend vom
+  // Konto; leer → WinLine nimmt die Stammdaten-Rechnungsadresse. Spiegelt
+  // angebotImport.ts.
+  kontoRechnungsadresse?: string;
+}
+
+// Spiegelt invoiceRecipientKonto in angebotImport.ts (dependency-frei kopiert, da
+// diese Datei von einer Deno-Edge-Funktion gebündelt wird). Liefert das abweichende
+// Rechnungs-Konto oder undefined (leer / '0' / gleich dem eigenen Konto).
+export function invoiceRecipientKonto(
+  recipient: string | null | undefined,
+  ownKonto: string | null | undefined,
+): string | undefined {
+  const r = String(recipient ?? '').trim();
+  const own = String(ownKonto ?? '').trim();
+  if (!r || r === '0' || r === own) return undefined;
+  return r;
 }
 
 // Bezeichnung einer Positionszeile: optionaler Code-Präfix + Name. Stückzahl >1
@@ -260,6 +278,7 @@ export function buildOfferAngebotXml(
     el('DatumAngebot', kopf.datumAngebot) +
     el('Belegart', OFFER_BELEGART) +
     el('Vertreternummer', kopf.vertreternummer) +
+    el('KontoRechnungsadresse', kopf.kontoRechnungsadresse) +
     `</WEBAngebotT025>`;
 
   const posXml = positions

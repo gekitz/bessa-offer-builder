@@ -18,6 +18,10 @@ export interface ExportInput {
   orders: OrderForExport[];
   employeeMesonic: Map<string, EmployeeMesonic>;
   kopfVertreternummer?: string | number;
+  // Abweichender Rechnungsempfänger des Kontos (WinLine „Konto Rechnungsadresse“).
+  // Landet auf jedem Beleg-Kopf (Rep-Schein + Lieferschein), damit Faktura + OP
+  // auf das richtige Konto laufen. Leer, wenn das Konto selbst verrechnet wird.
+  kontoRechnungsadresse?: string;
   // Angebot-Arbeitszeit-Untergrenze: die synthetische labor_floor-Position ist
   // bereits in die billing.positions des letzten NEUEN Scheins gemischt
   // (loadTicketBelegExport). Nach erfolgreichem Anlegen genau dieses Scheins
@@ -71,6 +75,7 @@ export async function exportTicketBelege(input: ExportInput, deps: ExportDeps): 
     startLaufnummer: max + 1,
     employeeMesonic: input.employeeMesonic,
     kopfVertreternummer: input.kopfVertreternummer,
+    kontoRechnungsadresse: input.kontoRechnungsadresse,
   });
 
   const created: ExportResult['created'] = [];
@@ -118,6 +123,7 @@ export async function exportTicketBelege(input: ExportInput, deps: ExportDeps): 
       ticketStandort: input.ticketStandort,
       startLaufnummer: max + 1 + plan.toCreate.length,
       kopfVertreternummer: input.kopfVertreternummer,
+      kontoRechnungsadresse: input.kontoRechnungsadresse,
     });
     deliverySkipped = dplan.skipped;
 

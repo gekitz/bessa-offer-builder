@@ -197,6 +197,17 @@ describe('buildOfferAngebotXml', () => {
     const xml = buildOfferAngebotXml({ kontonummer: '1', laufnummer: 1 }, []);
     expect(xml).not.toContain('<DatumAngebot>');
     expect(xml).not.toContain('<Vertreternummer>');
+    expect(xml).not.toContain('<KontoRechnungsadresse>');
+  });
+
+  it('emits KontoRechnungsadresse (after Vertreternummer) when a differing recipient is set', () => {
+    const xml = buildOfferAngebotXml(
+      { kontonummer: '272765', laufnummer: 26, vertreternummer: 9, kontoRechnungsadresse: '230A001' },
+      [],
+    );
+    expect(xml).toContain('<KontoRechnungsadresse>230A001</KontoRechnungsadresse>');
+    expect(xml.indexOf('<Vertreternummer>')).toBeLessThan(xml.indexOf('<KontoRechnungsadresse>'));
+    expect(xml.indexOf('<KontoRechnungsadresse>')).toBeLessThan(xml.indexOf('</WEBAngebotT025>'));
   });
 
   it('OFFER_BELEGART is 17', () => {
