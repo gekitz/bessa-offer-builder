@@ -27,7 +27,10 @@
 //   supabase functions deploy export-offer-angebot
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// Pinned (not @2): esm.sh's floating latest transiently ships a broken build
+// (e.g. 2.117.1's functions-js sub-module 404s on the CDN and fails bundling).
+// Pin to the app's baseline for reproducible deploys.
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.98.0';
 import {
   buildOfferAngebotImport,
   offerBelegKey,
