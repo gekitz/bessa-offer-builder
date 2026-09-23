@@ -11,22 +11,27 @@
 // pinnt beide gegeneinander, falls sich das Schema ändert.
 //
 // Geldmodell (fixiert; von Tests gepinnt):
-//   • JEDE gezählte Angebotszeile → eine Freitext-Position auf dem
-//     Pseudoartikel 99991234{KL/WO} (Datentyp 1 = "Artikel folgt") zum
-//     Netto-Zeilenpreis. Datentyp 3 ("Text") wäre eine reine Kommentarzeile:
-//     WinLine druckt darauf WEDER Menge NOCH Preis (live gesehen — der Beleg
-//     zeigte nur die Bezeichnung). Der Pseudoartikel trägt Freitext-Bezeichnung
-//     UND Preis, exakt wie der live-verifizierte Reparaturschein
-//     (repairOrderBeleg.ts). Aktions-Splits (voller Preis + Aktionspreis)
-//     werden als zwei Positionen abgebildet, exakt wie im Angebot gerechnet.
-//   • Monatliche Zeilen tragen den Laufzeit-Hinweis in der Bezeichnung
-//     ("… (12 Monate, monatlich)").
+//   • Der Beleg ist in zwei Abschnitte gegliedert, gespiegelt vom Angebots-PDF:
+//     „Laufende Kosten“ (Überschrift) → laufende Zeilen, dann eine Leerzeile,
+//     „Einmalige Kosten“ (Überschrift) → einmalige Zeilen. Überschriften und
+//     Leerzeile sind Datentyp-3-Textzeilen (ohne Preis).
+//   • Laufende Zeilen: Menge = Laufzeit in Monaten (aus dem Tier), Einzelpreis =
+//     Zeilen-Monatspreis (Stück × Einzel). Gesamt = Monate × Monatspreis, d. h.
+//     die Software über die ganze Laufzeit (Software × Laufzeit). Stückzahl > 1
+//     steht als „(N×)“ im Text, weil die Menge-Spalte die Monate zeigt.
+//   • Einmalige Zeilen: Menge = Stück, Einzelpreis = Einzelpreis.
+//   • Preis-tragende Zeilen laufen über den Pseudoartikel 99991234{KL/WO}
+//     (Datentyp 1 = "Artikel folgt"). Datentyp 3 ("Text") wäre eine reine
+//     Kommentarzeile: WinLine druckt darauf WEDER Menge NOCH Preis (live
+//     gesehen). Der Pseudoartikel trägt Freitext-Bezeichnung UND Preis, exakt
+//     wie der live-verifizierte Reparaturschein (repairOrderBeleg.ts). Aktions-
+//     Splits (voller Preis + Aktionspreis) werden als zwei Positionen abgebildet.
 //   • Ein globaler Rabatt (rabattActive) und eine Hardware-Rücknahme
 //     (takeBack) werden als EIGENE negative Positionen ausgewiesen —
 //     nicht in die Zeilenpreise eingerechnet (so wollte es Georg).
 //   • Alt-Angebote ohne eingefrorenen lineSnapshot fallen auf Summen-Zeilen
-//     aus dem acceptSnapshot zurück (Monatlich / Einmalig / Laufzeitsumme),
-//     damit sie trotzdem auffindbar in Mesonic landen.
+//     aus dem acceptSnapshot zurück (Laufende: Laufzeit × Monatssumme /
+//     Einmalige: Summe), damit sie trotzdem auffindbar in Mesonic landen.
 //   • Der KL/WO-Suffix des Pseudoartikels folgt dem Standort des Angebots-
 //     Erstellers (offers.creator_id → employees.standort_id); Default
 //     Klagenfurt, falls nicht auflösbar.
@@ -50,12 +55,13 @@ export type MesonicStandort = 'klagenfurt' | 'wolfsberg';
 export function standortFromId(id: number | null | undefined): MesonicStandort {
   return id === 2 ? 'wolfsberg' : 'klagenfurt';
 }
-// Mirrors src/data/tiers.ts TIER_LABEL (dependency-frei gehalten).
-const TIER_LABEL: Record<string, string> = {
-  '12mo': '12 Monate',
-  '6mo': '6 Monate',
-  '2mo': '2 Monate',
-  event: '1-3 Tage',
+// Mirrors src/data/tiers.ts TIER_MONTHS (dependency-frei gehalten). Treibt die
+// Menge (= Laufzeit in Monaten) der laufenden Positionen im Beleg.
+const TIER_MONTHS: Record<string, number> = {
+  '12mo': 12,
+  '6mo': 6,
+  '2mo': 2,
+  event: 1,
 };
 
 function round2(n: number): number {
@@ -89,10 +95,13 @@ export interface OfferBelegSummary {
 }
 
 export interface AngebotPosition {
-  artikelnummer: string;  // Pseudoartikel 99991234{KL/WO} (Freitext MIT Preis)
-  datentyp: '1';          // "Artikel folgt" — trägt Menge + Einzelpreis im Druck
-  menge: number;
-  einzelpreis: number;    // netto (negativ bei Gutschrift/Rabatt)
+  // Datentyp 1 → Pseudoartikel 99991234{KL/WO}, trägt Menge + Einzelpreis im
+  // Druck. Datentyp 3 → 'TEXT', reine Textzeile (Abschnitts-Überschrift /
+  // Leerzeile) OHNE Menge/Preis.
+  artikelnummer: string;
+  datentyp: '1' | '3';
+  menge?: number;
+  einzelpreis?: number;    // netto (negativ bei Gutschrift/Rabatt)
   bezeichnung: string;
 }
 
@@ -103,75 +112,120 @@ export interface AngebotKopf {
   vertreternummer?: string | number;
 }
 
-// Bezeichnung einer Angebotszeile: optionaler Code-Präfix + Name, monatliche
-// Zeilen mit Laufzeit-Hinweis.
-function lineBezeichnung(l: OfferLineSnapshot): string {
-  const base = l.code ? `${l.code} ${l.name}` : l.name;
-  if (l.monthly) {
-    const tl = l.tier ? TIER_LABEL[l.tier] : undefined;
-    return tl ? `${base} (${tl}, monatlich)` : `${base} (monatlich)`;
-  }
-  return base;
+// Bezeichnung einer Positionszeile: optionaler Code-Präfix + Name. Stückzahl >1
+// wird als "(N×)" ergänzt — bei laufenden Zeilen zeigt die Menge die Laufzeit
+// (Monate), nicht die Stück, deshalb wandert die Stückzahl in den Text.
+function baseName(l: OfferLineSnapshot): string {
+  return l.code ? `${l.code} ${l.name}` : l.name;
+}
+function withCount(name: string, count: number): string {
+  return count > 1 ? `${name} (${count}×)` : name;
 }
 
-// Freitext-Position auf dem Pseudoartikel (Datentyp 1 → Menge + Preis werden
-// gedruckt). Zentral, damit Zeilen, Fallback, Rabatt und Rücknahme denselben
-// Artikel + Datentyp teilen.
-function pos(artikel: string, menge: number, einzelpreis: number, bezeichnung: string): AngebotPosition {
+// Priced line on the pseudo-article (Datentyp 1 → Menge + Preis are printed).
+function priced(artikel: string, menge: number, einzelpreis: number, bezeichnung: string): AngebotPosition {
   return { artikelnummer: artikel, datentyp: '1', menge, einzelpreis, bezeichnung };
 }
+// Pure text line (Datentyp 3 → 'TEXT', no Menge/Preis): section header or spacer.
+function text(bezeichnung: string): AngebotPosition {
+  return { artikelnummer: 'TEXT', datentyp: '3', bezeichnung };
+}
 
-// Eine Angebotszeile → 1–2 Positionen (voller Preis + ggf. Aktionspreis).
-// Menge 0 / Preis 0 werden übersprungen, damit keine Leerzeilen entstehen.
-export function lineToBelegPositions(
-  l: OfferLineSnapshot,
-  standort: MesonicStandort = 'klagenfurt',
-): AngebotPosition[] {
+// Eine laufende Zeile → Menge = Laufzeit (Monate aus dem Tier), Einzelpreis =
+// Zeilen-Monatspreis (Stück × Einzel). So ergibt Gesamt = Monate × Monatspreis,
+// d. h. die Software-Kosten über die ganze Laufzeit. Aktions-Split → 2 Zeilen.
+function monthlyPositions(l: OfferLineSnapshot, artikel: string): AngebotPosition[] {
   const out: AngebotPosition[] = [];
-  const artikel = PSEUDO_ARTIKEL[standort];
-  const bez = lineBezeichnung(l);
+  const months = (l.tier && TIER_MONTHS[l.tier]) || 12;
+  const name = baseName(l);
   if (l.qty > 0 && l.unitPrice !== 0) {
-    out.push(pos(artikel, l.qty, round2(l.unitPrice), bez));
+    out.push(priced(artikel, months, round2(l.unitPrice * l.qty), withCount(name, l.qty)));
   }
   if (l.discountQty > 0 && l.discountPrice !== 0) {
-    out.push(pos(artikel, l.discountQty, round2(l.discountPrice), `${bez} (Aktionspreis)`));
+    out.push(priced(artikel, months, round2(l.discountPrice * l.discountQty), `${withCount(name, l.discountQty)} (Aktionspreis)`));
   }
   return out;
 }
 
-// Alle Positionen eines Angebots: Zeilen → Rabatt → Rücknahme.
+// Eine einmalige Zeile → Menge = Stück, Einzelpreis = Einzelpreis. Split → 2.
+function oncePositions(l: OfferLineSnapshot, artikel: string): AngebotPosition[] {
+  const out: AngebotPosition[] = [];
+  const name = baseName(l);
+  if (l.qty > 0 && l.unitPrice !== 0) {
+    out.push(priced(artikel, l.qty, round2(l.unitPrice), name));
+  }
+  if (l.discountQty > 0 && l.discountPrice !== 0) {
+    out.push(priced(artikel, l.discountQty, round2(l.discountPrice), `${name} (Aktionspreis)`));
+  }
+  return out;
+}
+
+// Eine Angebotszeile → 1–2 Positionen. Laufend (monatlich) vs. einmalig teilen
+// sich Menge/Preis-Logik. Menge 0 / Preis 0 werden übersprungen.
+export function lineToBelegPositions(
+  l: OfferLineSnapshot,
+  standort: MesonicStandort = 'klagenfurt',
+): AngebotPosition[] {
+  const artikel = PSEUDO_ARTIKEL[standort];
+  return l.monthly ? monthlyPositions(l, artikel) : oncePositions(l, artikel);
+}
+
+// Alle Positionen eines Angebots, in Abschnitte gegliedert:
+//   „Laufende Kosten“ (Überschrift) → laufende Zeilen
+//   (Leerzeile)
+//   „Einmalige Kosten“ (Überschrift) → einmalige Zeilen
+//   → Rabatt → Rücknahme
+// Überschriften/Leerzeile sind Datentyp-3-Textzeilen (ohne Preis). Ein Abschnitt
+// erscheint nur, wenn er Zeilen hat.
 export function offerToBelegPositions(
   lines: OfferLineSnapshot[],
   summary: OfferBelegSummary,
   standort: MesonicStandort = 'klagenfurt',
 ): AngebotPosition[] {
-  const positions: AngebotPosition[] = [];
   const artikel = PSEUDO_ARTIKEL[standort];
 
+  let monthly: AngebotPosition[] = [];
+  let once: AngebotPosition[] = [];
+
   if (lines.length > 0) {
-    for (const l of lines) positions.push(...lineToBelegPositions(l, standort));
+    for (const l of lines) {
+      const target = l.monthly ? monthly : once;
+      target.push(...lineToBelegPositions(l, standort));
+    }
   } else {
-    // Fallback für Alt-Angebote ohne lineSnapshot: Summen aus dem
-    // acceptSnapshot als lesbare Zeilen, damit der Beleg auffindbar ist.
+    // Fallback für Alt-Angebote ohne lineSnapshot: Summen aus dem acceptSnapshot
+    // als lesbare Zeilen — laufend als Laufzeit × Monatssumme, damit die
+    // Gliederung identisch ist.
     if (summary.monthly > 0) {
-      positions.push(pos(artikel, 1, round2(summary.monthly), `Monatliche Positionen (${summary.maxMonths} Monate)`));
+      monthly.push(priced(artikel, summary.maxMonths || 12, round2(summary.monthly), 'Monatliche Positionen'));
     }
     if (summary.once > 0) {
-      positions.push(pos(artikel, 1, round2(summary.once), 'Einmalige Positionen'));
+      once.push(priced(artikel, 1, round2(summary.once), 'Einmalige Positionen'));
     }
+  }
+
+  const positions: AngebotPosition[] = [];
+  if (monthly.length > 0) {
+    positions.push(text('Laufende Kosten'));
+    positions.push(...monthly);
+  }
+  if (once.length > 0) {
+    if (monthly.length > 0) positions.push(text(' ')); // Leerzeile zwischen den Blöcken
+    positions.push(text('Einmalige Kosten'));
+    positions.push(...once);
   }
 
   // Globaler Rabatt als eigene negative Zeile (2 % auf die Laufzeitsumme).
   if (summary.rabattActive && summary.periodTotal > 0) {
     const rabatt = round2(summary.periodTotal * RABATT_PCT);
     if (rabatt > 0) {
-      positions.push(pos(artikel, 1, -rabatt, 'Rabatt 2 % auf Laufzeitsumme'));
+      positions.push(priced(artikel, 1, -rabatt, 'Rabatt 2 % auf Laufzeitsumme'));
     }
   }
 
   // Hardware-Rücknahme als eigene Gutschrift-Zeile.
   if (summary.takeBack > 0) {
-    positions.push(pos(artikel, 1, -round2(summary.takeBack), 'Hardware-Rücknahme (Gutschrift)'));
+    positions.push(priced(artikel, 1, -round2(summary.takeBack), 'Hardware-Rücknahme (Gutschrift)'));
   }
 
   return positions;

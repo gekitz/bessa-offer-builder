@@ -32,15 +32,29 @@ describe('lineToBelegPositions', () => {
     expect(pos[0].datentyp).toBe('1');
   });
 
-  it('monthly line carries the tier + monthly hint in the Bezeichnung', () => {
+  it('monthly line → Menge = Laufzeit (months), Preis = monthly line price', () => {
     const pos = lineToBelegPositions(line({ name: 'Kassa-Abo', qty: 1, unitPrice: 39, monthly: true, tier: '12mo' }));
-    expect(pos[0].bezeichnung).toBe('Kassa-Abo (12 Monate, monatlich)');
-    expect(pos[0].einzelpreis).toBe(39);
+    expect(pos).toEqual([
+      { artikelnummer: '99991234KL', datentyp: '1', menge: 12, einzelpreis: 39, bezeichnung: 'Kassa-Abo' },
+    ]);
   });
 
-  it('monthly line without a tier still marks (monatlich)', () => {
+  it('monthly line honours the tier for the month count', () => {
+    const pos = lineToBelegPositions(line({ name: 'Saison', qty: 1, unitPrice: 20, monthly: true, tier: '6mo' }));
+    expect(pos[0].menge).toBe(6);
+    expect(pos[0].einzelpreis).toBe(20);
+  });
+
+  it('monthly line without a tier defaults to 12 months', () => {
     const pos = lineToBelegPositions(line({ name: 'Modul', qty: 1, unitPrice: 10, monthly: true }));
-    expect(pos[0].bezeichnung).toBe('Modul (monatlich)');
+    expect(pos[0]).toMatchObject({ menge: 12, einzelpreis: 10, bezeichnung: 'Modul' });
+  });
+
+  it('monthly line with qty > 1 folds the count into the name + monthly price', () => {
+    const pos = lineToBelegPositions(line({ name: 'Lizenz', qty: 2, unitPrice: 45, monthly: true, tier: '12mo' }));
+    expect(pos).toEqual([
+      { artikelnummer: '99991234KL', datentyp: '1', menge: 12, einzelpreis: 90, bezeichnung: 'Lizenz (2×)' },
+    ]);
   });
 
   it('discount split → two positions (full price + Aktionspreis)', () => {
@@ -67,21 +81,35 @@ describe('lineToBelegPositions', () => {
 });
 
 describe('offerToBelegPositions', () => {
-  it('emits line positions then a Rabatt line then a takeBack line', () => {
+  it('groups into Laufende / Einmalige Kosten sections with a spacer, then Rabatt + takeBack', () => {
     const lines = [
       line({ name: 'Kassa', qty: 1, unitPrice: 39, monthly: true, tier: '12mo' }),
       line({ name: 'Drucker', qty: 1, unitPrice: 300 }),
     ];
     const pos = offerToBelegPositions(lines, summary({ periodTotal: 768, takeBack: 100, rabattActive: true }));
     expect(pos.map((p) => p.bezeichnung)).toEqual([
-      'Kassa (12 Monate, monatlich)',
+      'Laufende Kosten',
+      'Kassa',
+      ' ',
+      'Einmalige Kosten',
       'Drucker',
       'Rabatt 2 % auf Laufzeitsumme',
       'Hardware-Rücknahme (Gutschrift)',
     ]);
+    // The monthly line: Menge = 12 months, priced Datentyp 1.
+    expect(pos[1]).toMatchObject({ datentyp: '1', menge: 12, einzelpreis: 39, bezeichnung: 'Kassa' });
+    // Section headers + spacer are pure text lines (no price).
+    expect(pos[0]).toMatchObject({ datentyp: '3', artikelnummer: 'TEXT' });
+    expect(pos[0].einzelpreis).toBeUndefined();
+    expect(pos[2]).toMatchObject({ datentyp: '3', bezeichnung: ' ' });
     // Rabatt = 2% of 768 = 15.36, negative
-    expect(pos[2].einzelpreis).toBe(-15.36);
-    expect(pos[3].einzelpreis).toBe(-100);
+    expect(pos[5].einzelpreis).toBe(-15.36);
+    expect(pos[6].einzelpreis).toBe(-100);
+  });
+
+  it('shows only the Einmalige section (no spacer/header) when there are no monthly lines', () => {
+    const pos = offerToBelegPositions([line({ name: 'Drucker', qty: 1, unitPrice: 300 })], summary());
+    expect(pos.map((p) => p.bezeichnung)).toEqual(['Einmalige Kosten', 'Drucker']);
   });
 
   it('omits the Rabatt line when rabattActive is false', () => {
@@ -97,28 +125,36 @@ describe('offerToBelegPositions', () => {
   it('falls back to summary lines when there is no lineSnapshot (old offers)', () => {
     const pos = offerToBelegPositions([], summary({ monthly: 39, once: 300, maxMonths: 6, periodTotal: 534 }));
     expect(pos.map((p) => p.bezeichnung)).toEqual([
-      'Monatliche Positionen (6 Monate)',
+      'Laufende Kosten',
+      'Monatliche Positionen',
+      ' ',
+      'Einmalige Kosten',
       'Einmalige Positionen',
     ]);
-    expect(pos[0].einzelpreis).toBe(39);
-    expect(pos[1].einzelpreis).toBe(300);
-    // Fallback lines must also ride the priced Pseudoartikel (Datentyp 1) so
-    // WinLine actually prints their amounts — this was the ZUM DRAGO bug.
-    expect(pos.every((p) => p.datentyp === '1' && p.artikelnummer === '99991234KL')).toBe(true);
+    // Monthly summary: Menge = maxMonths (6) × einzelpreis 39; once: 1 × 300.
+    expect(pos[1]).toMatchObject({ datentyp: '1', menge: 6, einzelpreis: 39, artikelnummer: '99991234KL' });
+    expect(pos[4]).toMatchObject({ datentyp: '1', menge: 1, einzelpreis: 300, artikelnummer: '99991234KL' });
   });
 
-  it('honours the standort for every position (lines + Rabatt + takeBack)', () => {
+  it('routes priced positions to the standort pseudo-article, headers stay TEXT', () => {
     const pos = offerToBelegPositions(
-      [line({ name: 'A', qty: 1, unitPrice: 10 })],
+      [
+        line({ name: 'Abo', qty: 1, unitPrice: 20, monthly: true, tier: '12mo' }),
+        line({ name: 'A', qty: 1, unitPrice: 10 }),
+      ],
       summary({ periodTotal: 500, rabattActive: true, takeBack: 50 }),
       'wolfsberg',
     );
-    expect(pos.every((p) => p.artikelnummer === '99991234WO' && p.datentyp === '1')).toBe(true);
+    for (const p of pos) {
+      if (p.datentyp === '1') expect(p.artikelnummer).toBe('99991234WO');
+      else expect(p.artikelnummer).toBe('TEXT');
+    }
   });
 
   it('fallback still appends Rabatt + takeBack lines', () => {
     const pos = offerToBelegPositions([], summary({ once: 1000, periodTotal: 1000, rabattActive: true, takeBack: 50 }));
     expect(pos.map((p) => p.bezeichnung)).toEqual([
+      'Einmalige Kosten',
       'Einmalige Positionen',
       'Rabatt 2 % auf Laufzeitsumme',
       'Hardware-Rücknahme (Gutschrift)',
@@ -174,12 +210,15 @@ describe('buildOfferAngebotImport (end-to-end) + offerBelegKey', () => {
       [line({ name: 'Kassa', qty: 1, unitPrice: 39, monthly: true, tier: '12mo' })],
       summary({ periodTotal: 468, rabattActive: true }),
     );
-    expect(xml).toContain('<Bezeichnung>Kassa (12 Monate, monatlich)</Bezeichnung>');
+    expect(xml).toContain('<Bezeichnung>Laufende Kosten</Bezeichnung>');
+    expect(xml).toContain('<Bezeichnung>Kassa</Bezeichnung>');
     expect(xml).toContain('<Bezeichnung>Rabatt 2 % auf Laufzeitsumme</Bezeichnung>');
     expect(xml).toContain('<Einzelpreis>-9.36</Einzelpreis>'); // 468 * 0.02
     // Default standort → Klagenfurt pseudo-article, priced Datentyp 1.
     expect(xml).toContain('<Artikelnummer>99991234KL</Artikelnummer>');
     expect(xml).toContain('<Datentyp>1</Datentyp>');
+    // Section header is a Datentyp-3 text line.
+    expect(xml).toContain('<Datentyp>3</Datentyp>');
   });
 
   it('threads the standort into the built positions', () => {
