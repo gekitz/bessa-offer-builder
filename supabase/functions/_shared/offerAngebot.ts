@@ -126,9 +126,13 @@ function withCount(name: string, count: number): string {
 function priced(artikel: string, menge: number, einzelpreis: number, bezeichnung: string): AngebotPosition {
   return { artikelnummer: artikel, datentyp: '1', menge, einzelpreis, bezeichnung };
 }
-// Pure text line (Datentyp 3 → 'TEXT', no Menge/Preis): section header or spacer.
+// Pure text line (Datentyp 3 → 'TEXT'): section header or spacer. Menge 1 /
+// Preis 0 werden MITGEGEBEN (nicht weggelassen) — exakt wie der live-
+// verifizierte Leih-Lieferschein (loanBeleg.ts). Eine Belegzeile OHNE
+// Mengegeliefert lässt den Import generisch scheitern (Fehler 300008).
+// Datentyp 3 druckt Menge/Preis ohnehin nicht.
 function text(bezeichnung: string): AngebotPosition {
-  return { artikelnummer: 'TEXT', datentyp: '3', bezeichnung };
+  return { artikelnummer: 'TEXT', datentyp: '3', menge: 1, einzelpreis: 0, bezeichnung };
 }
 
 // Eine laufende Zeile → Menge = Laufzeit (Monate aus dem Tier), Einzelpreis =
