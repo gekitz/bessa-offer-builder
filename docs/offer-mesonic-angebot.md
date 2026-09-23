@@ -27,15 +27,28 @@ Both acceptance paths converge on the one trigger, exactly like
 
 ## Money model (pinned by tests in `src/lib/__tests__/offerAngebot.test.ts`)
 
-- Each counted offer line → one **TEXT** position (Datentyp 3) at its net line
-  price. A discount split (full-price qty + Aktionspreis qty) becomes two
-  positions, exactly as the offer prices it.
+- Each counted offer line → one freetext position on the **pseudo-article
+  `99991234{KL/WO}`** (Datentyp **1** = "Artikel folgt") at its net line price.
+  A discount split (full-price qty + Aktionspreis qty) becomes two positions,
+  exactly as the offer prices it.
+- **Why the pseudo-article and not Datentyp 3 `TEXT`?** A Datentyp-3 line is a
+  pure comment line — WinLine prints **neither Menge nor Preis** on it (seen
+  live: the ZUM DRAGO Angebot showed only the Bezeichnungen, no amounts). The
+  pseudo-article carries a freetext Bezeichnung **and** a price, exactly like
+  the live-verified Reparaturschein (`repairOrderBeleg.ts`).
+- The `KL`/`WO` suffix follows the **offer creator's standort**
+  (`offers.creator_id` → `employees.standort_id`); defaults to Klagenfurt if it
+  can't be resolved. The creator's `mesonic_rep_id` is also written as the Kopf
+  `Vertreternummer`.
 - Monthly lines carry the term in the Bezeichnung: `… (12 Monate, monatlich)`.
 - The global **Rabatt** (`rabattActive`, 2 % of the Laufzeitsumme) and a
-  **Hardware-Rücknahme** (`takeBack`) are **separate negative** TEXT positions,
+  **Hardware-Rücknahme** (`takeBack`) are **separate negative** positions,
   not folded into line prices.
 - Old offers without a frozen `lineSnapshot` fall back to summary lines from
-  the `acceptSnapshot` totals (Monatlich / Einmalig), so they still export.
+  the `acceptSnapshot` totals (Monatlich / Einmalig) — now also on the priced
+  pseudo-article, so they show amounts — but with no per-product breakdown.
+  Re-save such an offer in the builder to capture a `lineSnapshot`, then use the
+  **"Nach Mesonic exportieren"** retry.
 
 ## The frozen `lineSnapshot`
 

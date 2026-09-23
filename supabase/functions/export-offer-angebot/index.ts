@@ -31,6 +31,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   buildOfferAngebotImport,
   offerBelegKey,
+  standortFromId,
+  type MesonicStandort,
   type OfferLineSnapshot,
   type OfferBelegSummary,
 } from '../_shared/offerAngebot.ts';
@@ -144,9 +146,30 @@ interface OfferRow {
   status: string | null;
   signed_at: string | null;
   accepted_at: string | null;
+  creator_id: string | null;
   mesonic_customer_id: string | null;
   mesonic_beleg_key: string | null;
   offer_data: Record<string, unknown> | null;
+}
+
+// Angebots-Ersteller → Standort (KL/WO-Suffix des Pseudoartikels) +
+// Vertreternummer. Join offers.creator_id → employees.code, wie ticketApi es
+// über employees.id macht. Fällt auf Klagenfurt zurück, wenn nicht auflösbar
+// (Pseudoartikel muss existieren; KL ist der sichere Default).
+async function resolveCreatorMesonic(
+  supabase: ReturnType<typeof createClient>,
+  creatorId: string | null | undefined,
+): Promise<{ standort: MesonicStandort; vertreternummer?: string }> {
+  if (!creatorId) return { standort: 'klagenfurt' };
+  const { data } = await supabase
+    .from('employees')
+    .select('standort_id, mesonic_rep_id')
+    .eq('code', creatorId)
+    .maybeSingle<{ standort_id: number | null; mesonic_rep_id: string | null }>();
+  return {
+    standort: standortFromId(data?.standort_id),
+    vertreternummer: data?.mesonic_rep_id ?? undefined,
+  };
 }
 
 serve(async (req: Request) => {
@@ -174,7 +197,7 @@ serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, serviceKey);
     const { data: offer, error: offerErr } = await supabase
       .from('offers')
-      .select('id, status, signed_at, accepted_at, mesonic_customer_id, mesonic_beleg_key, offer_data')
+      .select('id, status, signed_at, accepted_at, creator_id, mesonic_customer_id, mesonic_beleg_key, offer_data')
       .eq('id', offerId)
       .single<OfferRow>();
     if (offerErr || !offer) return jsonResponse({ error: 'Offer not found', details: offerErr?.message }, 404);
@@ -210,11 +233,19 @@ serve(async (req: Request) => {
       rabattActive: !!od.rabattActive,
     };
 
+    // Standort (KL/WO-Pseudoartikel) + Vertreternummer aus dem Ersteller.
+    const { standort, vertreternummer } = await resolveCreatorMesonic(supabase, offer.creator_id);
+
     const laufnummer = (await readMaxLaufnummer(supabaseUrl, serviceKey, konto)) + 1;
     const belegKey = offerBelegKey(konto, laufnummer);
     const datumAngebot = isoDate(offer.accepted_at) ?? isoDate(offer.signed_at);
 
-    const xml = buildOfferAngebotImport({ kontonummer: konto, laufnummer, datumAngebot }, lines, summary);
+    const xml = buildOfferAngebotImport(
+      { kontonummer: konto, laufnummer, datumAngebot, vertreternummer },
+      lines,
+      summary,
+      standort,
+    );
     const res = await proxyImport(supabaseUrl, serviceKey, xml);
 
     if (!res.ok) {
