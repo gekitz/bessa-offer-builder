@@ -84,6 +84,7 @@ import OfferDetailsModal from '../components/modals/OfferDetailsModal';
 import OfferListPage from './OfferListPage';
 import FollowUpsPage from './FollowUpsPage';
 import { orderedCartEntries } from '../../../lib/cartOrder';
+import { buildLineSnapshotFrom } from '../../../lib/offerLineSnapshot';
 import { fmt } from '../../../lib/format';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import AppShell from '../../../components/AppShell';
@@ -697,24 +698,11 @@ function OfferBuilderPageInner() {
   // Like acceptSnapshot freezes the TOTALS, this freezes the priced NAMED
   // lines so the export-offer-angebot edge function — which runs server-side
   // on acceptance, where the (RLS-gated) product catalog is out of reach —
-  // can build the freetext Beleg positions without re-pricing anything.
-  // Only counted lines: drop optional add-ons and non-selected option-group
-  // alternatives so the Beleg sum matches the offer. See src/lib/offerAngebot.
+  // can build the freetext Beleg positions without re-pricing anything. ALL
+  // holds the hydrated catalog + this offer's custom items (restoreCustomItems).
+  // Shared with runOfferAngebotExport's on-the-fly rebuild for old offers.
   function buildLineSnapshot() {
-    const entries = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
-    const { monthlyItems, onceItems } = buildLineItems(entries, ALL);
-    return [...monthlyItems, ...onceItems]
-      .filter((r) => !r.optional && r.optionSelected !== false)
-      .map((r) => ({
-        name: r.name,
-        code: r.code || '',
-        qty: r.qty,
-        discountQty: r.discountQty,
-        unitPrice: r.unitPrice ?? 0,
-        discountPrice: r.discountPrice ?? 0,
-        monthly: r.monthly,
-        tier: r.tier,
-      }));
+    return buildLineSnapshotFrom(cart, cartOrder, ALL);
   }
 
   const builderTabs = builderTabsFor(offerType, offerLocked);

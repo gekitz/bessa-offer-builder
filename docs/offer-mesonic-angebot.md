@@ -44,11 +44,17 @@ Both acceptance paths converge on the one trigger, exactly like
 - The global **Rabatt** (`rabattActive`, 2 % of the Laufzeitsumme) and a
   **Hardware-Rücknahme** (`takeBack`) are **separate negative** positions,
   not folded into line prices.
-- Old offers without a frozen `lineSnapshot` fall back to summary lines from
-  the `acceptSnapshot` totals (Monatlich / Einmalig) — now also on the priced
-  pseudo-article, so they show amounts — but with no per-product breakdown.
-  Re-save such an offer in the builder to capture a `lineSnapshot`, then use the
-  **"Nach Mesonic exportieren"** retry.
+- Old offers without a frozen `lineSnapshot`: the **manual retry**
+  (`runOfferAngebotExport`) runs client-side with the staff session, so it
+  **rebuilds the snapshot on the fly** — reprices the saved `cart` against the
+  live catalog (+ the offer's `customItems`) via `buildLineSnapshotFrom`, sends
+  the real per-product lines, and writes the rebuilt snapshot back onto the
+  offer. Accepted offers can't be re-saved in the builder, so this is the path
+  that itemizes them. Only if the cart itself is gone does it fall back to the
+  `acceptSnapshot` summary lines (Monatlich / Einmalig) — now also on the priced
+  pseudo-article, so even the fallback shows amounts. The **server-side**
+  automatic path still can't rebuild (RLS-gated catalog), so a pre-feature offer
+  needs one click of **"Nach Mesonic exportieren"** to itemize.
 
 ## The frozen `lineSnapshot`
 
