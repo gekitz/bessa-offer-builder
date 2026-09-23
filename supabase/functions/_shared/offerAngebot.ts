@@ -11,17 +11,25 @@
 // pinnt beide gegeneinander, falls sich das Schema ändert.
 //
 // Geldmodell (fixiert; von Tests gepinnt):
-//   • JEDE gezählte Angebotszeile → eine TEXT-Position (Datentyp 3) zum
-//     Netto-Zeilenpreis. Aktions-Splits (voller Preis + Aktionspreis) werden
-//     als zwei Positionen abgebildet, exakt wie im Angebot gerechnet.
+//   • JEDE gezählte Angebotszeile → eine Freitext-Position auf dem
+//     Pseudoartikel 99991234{KL/WO} (Datentyp 1 = "Artikel folgt") zum
+//     Netto-Zeilenpreis. Datentyp 3 ("Text") wäre eine reine Kommentarzeile:
+//     WinLine druckt darauf WEDER Menge NOCH Preis (live gesehen — der Beleg
+//     zeigte nur die Bezeichnung). Der Pseudoartikel trägt Freitext-Bezeichnung
+//     UND Preis, exakt wie der live-verifizierte Reparaturschein
+//     (repairOrderBeleg.ts). Aktions-Splits (voller Preis + Aktionspreis)
+//     werden als zwei Positionen abgebildet, exakt wie im Angebot gerechnet.
 //   • Monatliche Zeilen tragen den Laufzeit-Hinweis in der Bezeichnung
 //     ("… (12 Monate, monatlich)").
 //   • Ein globaler Rabatt (rabattActive) und eine Hardware-Rücknahme
-//     (takeBack) werden als EIGENE negative TEXT-Positionen ausgewiesen —
+//     (takeBack) werden als EIGENE negative Positionen ausgewiesen —
 //     nicht in die Zeilenpreise eingerechnet (so wollte es Georg).
 //   • Alt-Angebote ohne eingefrorenen lineSnapshot fallen auf Summen-Zeilen
 //     aus dem acceptSnapshot zurück (Monatlich / Einmalig / Laufzeitsumme),
 //     damit sie trotzdem auffindbar in Mesonic landen.
+//   • Der KL/WO-Suffix des Pseudoartikels folgt dem Standort des Angebots-
+//     Erstellers (offers.creator_id → employees.standort_id); Default
+//     Klagenfurt, falls nicht auflösbar.
 
 // ── Belegart & Konstanten (gespiegelt, dependency-frei) ──────────────────
 // Angebot-Import → Belegart 17 (beide Standorte). Siehe angebotImport.ts.
@@ -29,6 +37,19 @@ export const OFFER_BELEGART = '17';
 // Globaler Rabatt = 2 % auf die Laufzeitsumme. Spiegelt RABATT_PCT in
 // _shared/planPricing.ts (dort die Single Source of Truth fürs Charging).
 export const RABATT_PCT = 0.02;
+
+// Pseudoartikel für Freitext-Positionen MIT Preis — je Standort eine
+// KL/WO-Ausprägung. Gespiegelt aus offers/lib/angebotImport.ts (dort die
+// Single Source of Truth); hier dependency-frei kopiert, da diese Datei von
+// einer Deno-Edge-Funktion gebündelt wird und nicht nach ../../src importiert.
+export const PSEUDO_ARTIKEL = { klagenfurt: '99991234KL', wolfsberg: '99991234WO' } as const;
+export type MesonicStandort = 'klagenfurt' | 'wolfsberg';
+
+// standorte-Seed (create_workforce.sql): 1 = Klagenfurt, 2 = Wolfsberg.
+// Spiegelt standortFromId in tickets/lib/repairOrderBeleg.ts.
+export function standortFromId(id: number | null | undefined): MesonicStandort {
+  return id === 2 ? 'wolfsberg' : 'klagenfurt';
+}
 // Mirrors src/data/tiers.ts TIER_LABEL (dependency-frei gehalten).
 const TIER_LABEL: Record<string, string> = {
   '12mo': '12 Monate',
@@ -68,8 +89,8 @@ export interface OfferBelegSummary {
 }
 
 export interface AngebotPosition {
-  artikelnummer: string;  // hier immer 'TEXT'
-  datentyp: '3';
+  artikelnummer: string;  // Pseudoartikel 99991234{KL/WO} (Freitext MIT Preis)
+  datentyp: '1';          // "Artikel folgt" — trägt Menge + Einzelpreis im Druck
   menge: number;
   einzelpreis: number;    // netto (negativ bei Gutschrift/Rabatt)
   bezeichnung: string;
@@ -93,16 +114,27 @@ function lineBezeichnung(l: OfferLineSnapshot): string {
   return base;
 }
 
-// Eine Angebotszeile → 1–2 TEXT-Positionen (voller Preis + ggf. Aktionspreis).
+// Freitext-Position auf dem Pseudoartikel (Datentyp 1 → Menge + Preis werden
+// gedruckt). Zentral, damit Zeilen, Fallback, Rabatt und Rücknahme denselben
+// Artikel + Datentyp teilen.
+function pos(artikel: string, menge: number, einzelpreis: number, bezeichnung: string): AngebotPosition {
+  return { artikelnummer: artikel, datentyp: '1', menge, einzelpreis, bezeichnung };
+}
+
+// Eine Angebotszeile → 1–2 Positionen (voller Preis + ggf. Aktionspreis).
 // Menge 0 / Preis 0 werden übersprungen, damit keine Leerzeilen entstehen.
-export function lineToBelegPositions(l: OfferLineSnapshot): AngebotPosition[] {
+export function lineToBelegPositions(
+  l: OfferLineSnapshot,
+  standort: MesonicStandort = 'klagenfurt',
+): AngebotPosition[] {
   const out: AngebotPosition[] = [];
+  const artikel = PSEUDO_ARTIKEL[standort];
   const bez = lineBezeichnung(l);
   if (l.qty > 0 && l.unitPrice !== 0) {
-    out.push({ artikelnummer: 'TEXT', datentyp: '3', menge: l.qty, einzelpreis: round2(l.unitPrice), bezeichnung: bez });
+    out.push(pos(artikel, l.qty, round2(l.unitPrice), bez));
   }
   if (l.discountQty > 0 && l.discountPrice !== 0) {
-    out.push({ artikelnummer: 'TEXT', datentyp: '3', menge: l.discountQty, einzelpreis: round2(l.discountPrice), bezeichnung: `${bez} (Aktionspreis)` });
+    out.push(pos(artikel, l.discountQty, round2(l.discountPrice), `${bez} (Aktionspreis)`));
   }
   return out;
 }
@@ -111,19 +143,21 @@ export function lineToBelegPositions(l: OfferLineSnapshot): AngebotPosition[] {
 export function offerToBelegPositions(
   lines: OfferLineSnapshot[],
   summary: OfferBelegSummary,
+  standort: MesonicStandort = 'klagenfurt',
 ): AngebotPosition[] {
   const positions: AngebotPosition[] = [];
+  const artikel = PSEUDO_ARTIKEL[standort];
 
   if (lines.length > 0) {
-    for (const l of lines) positions.push(...lineToBelegPositions(l));
+    for (const l of lines) positions.push(...lineToBelegPositions(l, standort));
   } else {
     // Fallback für Alt-Angebote ohne lineSnapshot: Summen aus dem
-    // acceptSnapshot als lesbare TEXT-Zeilen, damit der Beleg auffindbar ist.
+    // acceptSnapshot als lesbare Zeilen, damit der Beleg auffindbar ist.
     if (summary.monthly > 0) {
-      positions.push({ artikelnummer: 'TEXT', datentyp: '3', menge: 1, einzelpreis: round2(summary.monthly), bezeichnung: `Monatliche Positionen (${summary.maxMonths} Monate)` });
+      positions.push(pos(artikel, 1, round2(summary.monthly), `Monatliche Positionen (${summary.maxMonths} Monate)`));
     }
     if (summary.once > 0) {
-      positions.push({ artikelnummer: 'TEXT', datentyp: '3', menge: 1, einzelpreis: round2(summary.once), bezeichnung: 'Einmalige Positionen' });
+      positions.push(pos(artikel, 1, round2(summary.once), 'Einmalige Positionen'));
     }
   }
 
@@ -131,13 +165,13 @@ export function offerToBelegPositions(
   if (summary.rabattActive && summary.periodTotal > 0) {
     const rabatt = round2(summary.periodTotal * RABATT_PCT);
     if (rabatt > 0) {
-      positions.push({ artikelnummer: 'TEXT', datentyp: '3', menge: 1, einzelpreis: -rabatt, bezeichnung: 'Rabatt 2 % auf Laufzeitsumme' });
+      positions.push(pos(artikel, 1, -rabatt, 'Rabatt 2 % auf Laufzeitsumme'));
     }
   }
 
   // Hardware-Rücknahme als eigene Gutschrift-Zeile.
   if (summary.takeBack > 0) {
-    positions.push({ artikelnummer: 'TEXT', datentyp: '3', menge: 1, einzelpreis: -round2(summary.takeBack), bezeichnung: 'Hardware-Rücknahme (Gutschrift)' });
+    positions.push(pos(artikel, 1, -round2(summary.takeBack), 'Hardware-Rücknahme (Gutschrift)'));
   }
 
   return positions;
@@ -201,6 +235,7 @@ export function buildOfferAngebotImport(
   kopf: AngebotKopf,
   lines: OfferLineSnapshot[],
   summary: OfferBelegSummary,
+  standort: MesonicStandort = 'klagenfurt',
 ): string {
-  return buildOfferAngebotXml(kopf, offerToBelegPositions(lines, summary));
+  return buildOfferAngebotXml(kopf, offerToBelegPositions(lines, summary, standort));
 }

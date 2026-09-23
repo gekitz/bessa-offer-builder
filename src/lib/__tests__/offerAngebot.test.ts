@@ -19,11 +19,17 @@ const summary = (o: Partial<OfferBelegSummary> = {}): OfferBelegSummary => ({
 });
 
 describe('lineToBelegPositions', () => {
-  it('one-time line → single TEXT position at unit price', () => {
+  it('one-time line → single Pseudoartikel position (Datentyp 1) at unit price', () => {
     const pos = lineToBelegPositions(line({ name: 'Kassenlade', code: 'HW1', qty: 2, unitPrice: 150 }));
     expect(pos).toEqual([
-      { artikelnummer: 'TEXT', datentyp: '3', menge: 2, einzelpreis: 150, bezeichnung: 'HW1 Kassenlade' },
+      { artikelnummer: '99991234KL', datentyp: '1', menge: 2, einzelpreis: 150, bezeichnung: 'HW1 Kassenlade' },
     ]);
+  });
+
+  it('uses the Wolfsberg pseudo-article when the standort is wolfsberg', () => {
+    const pos = lineToBelegPositions(line({ name: 'Kassenlade', qty: 1, unitPrice: 150 }), 'wolfsberg');
+    expect(pos[0].artikelnummer).toBe('99991234WO');
+    expect(pos[0].datentyp).toBe('1');
   });
 
   it('monthly line carries the tier + monthly hint in the Bezeichnung', () => {
@@ -50,7 +56,7 @@ describe('lineToBelegPositions', () => {
     // full-price part free, discount part priced → only the discount position
     const pos = lineToBelegPositions(line({ name: 'X', qty: 1, unitPrice: 0, discountQty: 1, discountPrice: 20 }));
     expect(pos).toEqual([
-      { artikelnummer: 'TEXT', datentyp: '3', menge: 1, einzelpreis: 20, bezeichnung: 'X (Aktionspreis)' },
+      { artikelnummer: '99991234KL', datentyp: '1', menge: 1, einzelpreis: 20, bezeichnung: 'X (Aktionspreis)' },
     ]);
   });
 
@@ -96,6 +102,18 @@ describe('offerToBelegPositions', () => {
     ]);
     expect(pos[0].einzelpreis).toBe(39);
     expect(pos[1].einzelpreis).toBe(300);
+    // Fallback lines must also ride the priced Pseudoartikel (Datentyp 1) so
+    // WinLine actually prints their amounts — this was the ZUM DRAGO bug.
+    expect(pos.every((p) => p.datentyp === '1' && p.artikelnummer === '99991234KL')).toBe(true);
+  });
+
+  it('honours the standort for every position (lines + Rabatt + takeBack)', () => {
+    const pos = offerToBelegPositions(
+      [line({ name: 'A', qty: 1, unitPrice: 10 })],
+      summary({ periodTotal: 500, rabattActive: true, takeBack: 50 }),
+      'wolfsberg',
+    );
+    expect(pos.every((p) => p.artikelnummer === '99991234WO' && p.datentyp === '1')).toBe(true);
   });
 
   it('fallback still appends Rabatt + takeBack lines', () => {
@@ -112,7 +130,7 @@ describe('buildOfferAngebotXml', () => {
   it('wraps the MESOWebService envelope with Belegart 17 and no xml prolog', () => {
     const xml = buildOfferAngebotXml(
       { kontonummer: '272765', laufnummer: 26, datumAngebot: '2026-09-21', vertreternummer: 9 },
-      [{ artikelnummer: 'TEXT', datentyp: '3', menge: 1, einzelpreis: 39, bezeichnung: 'Kassa' }],
+      [{ artikelnummer: '99991234KL', datentyp: '1', menge: 1, einzelpreis: 39, bezeichnung: 'Kassa' }],
     );
     expect(xml.startsWith('<MESOWebService TemplateType="30" Template="WEBAngebot"')).toBe(true);
     expect(xml).not.toMatch(/<\?xml/);
@@ -121,7 +139,8 @@ describe('buildOfferAngebotXml', () => {
     expect(xml).toContain('<Laufnummer>26</Laufnummer>');
     expect(xml).toContain('<DatumAngebot>2026-09-21</DatumAngebot>');
     expect(xml).toContain('<Vertreternummer>9</Vertreternummer>');
-    expect(xml).toContain('<Datentyp>3</Datentyp>');
+    expect(xml).toContain('<Artikelnummer>99991234KL</Artikelnummer>');
+    expect(xml).toContain('<Datentyp>1</Datentyp>');
     expect(xml).toContain('<Mengegeliefert>1</Mengegeliefert>');
     expect(xml).toContain('<Einzelpreis>39</Einzelpreis>');
     expect(xml).toContain('<Bezeichnung>Kassa</Bezeichnung>');
@@ -132,7 +151,7 @@ describe('buildOfferAngebotXml', () => {
   it('escapes XML metacharacters in the Bezeichnung', () => {
     const xml = buildOfferAngebotXml(
       { kontonummer: '1', laufnummer: 1 },
-      [{ artikelnummer: 'TEXT', datentyp: '3', menge: 1, einzelpreis: 1, bezeichnung: 'A & B <GmbH>' }],
+      [{ artikelnummer: '99991234KL', datentyp: '1', menge: 1, einzelpreis: 1, bezeichnung: 'A & B <GmbH>' }],
     );
     expect(xml).toContain('<Bezeichnung>A &amp; B &lt;GmbH&gt;</Bezeichnung>');
   });
@@ -158,6 +177,20 @@ describe('buildOfferAngebotImport (end-to-end) + offerBelegKey', () => {
     expect(xml).toContain('<Bezeichnung>Kassa (12 Monate, monatlich)</Bezeichnung>');
     expect(xml).toContain('<Bezeichnung>Rabatt 2 % auf Laufzeitsumme</Bezeichnung>');
     expect(xml).toContain('<Einzelpreis>-9.36</Einzelpreis>'); // 468 * 0.02
+    // Default standort → Klagenfurt pseudo-article, priced Datentyp 1.
+    expect(xml).toContain('<Artikelnummer>99991234KL</Artikelnummer>');
+    expect(xml).toContain('<Datentyp>1</Datentyp>');
+  });
+
+  it('threads the standort into the built positions', () => {
+    const xml = buildOfferAngebotImport(
+      { kontonummer: '272765', laufnummer: 26 },
+      [line({ name: 'Kassa', qty: 1, unitPrice: 39 })],
+      summary(),
+      'wolfsberg',
+    );
+    expect(xml).toContain('<Artikelnummer>99991234WO</Artikelnummer>');
+    expect(xml).not.toContain('99991234KL');
   });
 
   it('offerBelegKey formats <konto>-<laufnummer>', () => {

@@ -894,7 +894,6 @@ function OfferBuilderPageInner() {
             paymentEnabled,
             rental,
             acceptSnapshot: buildAcceptSnapshot(),
-        lineSnapshot: buildLineSnapshot(),
             lineSnapshot: buildLineSnapshot(),
           });
           effectiveOfferId = saved.id;
