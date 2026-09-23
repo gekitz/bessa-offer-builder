@@ -323,15 +323,26 @@ export async function getRecipientByToken(token: string): Promise<CampaignRecipi
   return data ? rowToRecipient(data) : null;
 }
 
-// Stempelt landed_at einmalig (nur wenn null). Gibt die Zeile zurück.
+// Stempelt beim Aufruf der tokenisierten Landing-Page die Funnel-Zeitstempel.
+// Auf dieser Seite zu sein ist Erstpartei-Beweis, dass der Empfänger den
+// E-Mail-CTA GEKLICKT (→ und damit die Mail GEÖFFNET) hat — verlässlicher als
+// Resends Pixel-Opens (Gmail-Proxy, Event-Lag, resend_id-Überschreibung bei
+// „Erneut senden"). Deshalb ziehen wir opened_at/clicked_at hier nach, falls
+// sie noch leer sind. Alle Stempel sind vorwärts-only (nur wenn null) und
+// damit idempotent + selbstheilend für Alt-Zeilen bei erneutem Aufruf.
 export async function markLanded(token: string): Promise<CampaignRecipient> {
   const sb = requireSupabase();
   const current = await getRecipientByToken(token);
   if (!current) throw new Error('Empfänger nicht gefunden');
-  if (current.landedAt) return current; // schon gestempelt → vorwärts-only
+  const nowIso = new Date().toISOString();
+  const patch: Record<string, string> = {};
+  if (!current.landedAt) patch.landed_at = nowIso;
+  if (!current.openedAt) patch.opened_at = nowIso;   // Landing ⇒ Klick ⇒ Öffnung
+  if (!current.clickedAt) patch.clicked_at = nowIso;
+  if (Object.keys(patch).length === 0) return current; // alles gesetzt → nichts tun
   const { data, error } = await sb
     .from('campaign_recipients')
-    .update({ landed_at: new Date().toISOString() })
+    .update(patch)
     .eq('token', token)
     .select('*')
     .single();

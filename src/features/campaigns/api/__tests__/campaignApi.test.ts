@@ -55,6 +55,7 @@ import {
   getFunnelCounts,
   getRecipientByToken,
   listRecipients,
+  markLanded,
   recordOutcome,
   saveRecipientPayload,
   sendCampaign,
@@ -242,6 +243,32 @@ describe('recordOutcome', () => {
 
   it('rejects an outcome outside the known set', async () => {
     await expect(recordOutcome('tok', 'nonsense' as never)).rejects.toThrow(/Ungültiges Outcome/);
+  });
+});
+
+describe('markLanded backfills opened/clicked (first-party engagement)', () => {
+  it('first land stamps landed_at + opened_at + clicked_at together', async () => {
+    chains.campaign_recipients = makeChain({ data: recipientRow(), error: null });
+    await markLanded('tok');
+    const update = chains.campaign_recipients._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(typeof update.landed_at).toBe('string');
+    expect(typeof update.opened_at).toBe('string');
+    expect(typeof update.clicked_at).toBe('string');
+  });
+
+  it('self-heals an already-landed row whose opened_at is still null', async () => {
+    chains.campaign_recipients = makeChain({ data: recipientRow({ landed_at: 'L', clicked_at: 'C', opened_at: null }), error: null });
+    await markLanded('tok');
+    const update = chains.campaign_recipients._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(update).toHaveProperty('opened_at');
+    expect(update).not.toHaveProperty('landed_at');   // schon gesetzt → nicht überschreiben
+    expect(update).not.toHaveProperty('clicked_at');  // schon gesetzt
+  });
+
+  it('does not write when landed/opened/clicked are all already stamped', async () => {
+    chains.campaign_recipients = makeChain({ data: recipientRow({ landed_at: 'L', opened_at: 'O', clicked_at: 'C' }), error: null });
+    await markLanded('tok');
+    expect(chains.campaign_recipients._calls.some((c) => c.method === 'update')).toBe(false);
   });
 });
 
