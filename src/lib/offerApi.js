@@ -119,6 +119,47 @@ export async function updateOfferBeleg(id, { laufnummer, key, number, status, er
   return data;
 }
 
+// Merge a partial patch into an offer's offer_data JSONB (read-modify-write).
+// Used by runOfferAngebotExport to persist a rebuilt lineSnapshot back onto an
+// old accepted offer that never had one — Postgres can't shallow-merge JSONB
+// without an RPC, so we fetch the current offer_data and write the merge.
+export async function updateOfferData(id, patch) {
+  if (!supabase) throw new Error('Supabase nicht konfiguriert');
+  if (!patch || Object.keys(patch).length === 0) return null;
+
+  const { data: cur, error: getErr } = await supabase
+    .from('offers')
+    .select('offer_data')
+    .eq('id', id)
+    .single();
+  if (getErr) throw getErr;
+
+  const merged = { ...(cur?.offer_data ?? {}), ...patch };
+  const { data, error: dbErr } = await supabase
+    .from('offers')
+    .update({ offer_data: merged, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (dbErr) throw dbErr;
+  return data;
+}
+
+// Look up an offer creator's Mesonic mapping (standort + Vertreternummer) by
+// employee code (offers.creator_id → employees.code). Mirrors the server-side
+// resolveCreatorMesonic in the export-offer-angebot edge function so the manual
+// retry picks the same KL/WO pseudo-article. Non-fatal: returns null on error.
+export async function getCreatorMesonic(creatorId) {
+  if (!supabase || !creatorId) return null;
+  const { data, error } = await supabase
+    .from('employees')
+    .select('standort_id, mesonic_rep_id')
+    .eq('code', creatorId)
+    .maybeSingle();
+  if (error) return null;
+  return data;
+}
+
 // List offer creators from the employees table — the single source of
 // truth for rep name/email/phone/role. Every active employee is eligible
 // to create (and therefore be filtered for) an offer.

@@ -873,8 +873,11 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
         onExportAngebot={async () => {
           // Manual Mesonic-Angebot export (Belegart 17) — the automatic path
           // runs on acceptance; this covers offers that got a WinLine customer
-          // linked only afterwards. Reflect the fresh row in the open modal.
-          const result = await runOfferAngebotExport(detailsOffer);
+          // linked only afterwards. Fetch the FULL offer first so the runner has
+          // offer_data.cart to rebuild a missing lineSnapshot (old offers can't
+          // be re-saved in the builder). Reflect the fresh row afterwards.
+          const full = await getOffer(detailsOffer.id);
+          const result = await runOfferAngebotExport(full);
           try {
             const fresh = await getOffer(detailsOffer.id);
             setDetailsOffer(fresh);
