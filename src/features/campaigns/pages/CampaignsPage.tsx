@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Cpu, Download, Loader2, Mail, Megaphone, Phone, Plus, RefreshCw, Search, Send, UserPlus } from 'lucide-react';
+import { Cpu, Download, Loader2, Mail, Megaphone, Pencil, Phone, Plus, RefreshCw, Search, Send, Trash2, UserPlus } from 'lucide-react';
 
 import { useAuth } from '../../../lib/auth';
 import Select from '../../../components/Select';
 import {
   createCampaign,
+  deleteCampaign,
   dryRunSend,
   enrollRecipients,
   getFunnelCounts,
   listCampaigns,
   listRecipients,
   sendCampaign,
+  updateCampaign,
 } from '../api/campaignApi';
 import { filterLicensesForSegment, licenseToEnrollSubject, type ViertlSegmentFilter } from '../lib/rksvEnroll';
 import { listLicenses } from '../../viertl/api/viertlApi';
@@ -71,8 +73,9 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
-  // ── Neue Kampagne (M1) ──
+  // ── Neue/Bearbeiten Kampagne (M1) ──
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null); // null = anlegen, sonst bearbeiten
   const [newKey, setNewKey] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [newSubject, setNewSubject] = useState('');
@@ -212,9 +215,39 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
     URL.revokeObjectURL(url);
   }
 
-  // ── Neue Kampagne anlegen (Type A) ──
-  async function handleCreateCampaign() {
-    if (!newKey.trim() || !newTitle.trim()) {
+  function resetCampaignForm() {
+    setNewKey(''); setNewTitle(''); setNewSubject(''); setNewTemplate('');
+  }
+
+  // Panel im Anlegen-Modus öffnen (leeres Formular). Ist es gerade im
+  // Bearbeiten-Modus offen, auf Anlegen umschalten statt zuzuklappen.
+  function openCreate() {
+    if (createOpen && editingId !== null) {
+      setEditingId(null);
+      resetCampaignForm();
+      return;
+    }
+    setEditingId(null);
+    resetCampaignForm();
+    setEnrollOpen(false);
+    setCreateOpen((v) => !v);
+  }
+
+  // Panel im Bearbeiten-Modus öffnen (Formular aus der gewählten Kampagne).
+  function openEdit() {
+    if (!campaign) return;
+    setEditingId(campaign.id);
+    setNewKey(campaign.key);
+    setNewTitle(campaign.title);
+    setNewSubject(campaign.emailSubject ?? '');
+    setNewTemplate(campaign.emailTemplate ?? '');
+    setEnrollOpen(false);
+    setCreateOpen(true);
+  }
+
+  // ── Kampagne anlegen (Type A) oder bearbeiten ──
+  async function handleSubmitCampaign() {
+    if (!newTitle.trim() || (!editingId && !newKey.trim())) {
       setError('Key und Titel sind erforderlich.');
       return;
     }
@@ -222,24 +255,63 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
     setError(null);
     setFlash(null);
     try {
-      // Type ist in diesem Scope fix rksv_signature (Type B out of scope).
-      const created = await createCampaign(
-        {
-          type: 'rksv_signature',
-          key: newKey.trim(),
+      if (editingId) {
+        const updated = await updateCampaign(editingId, {
           title: newTitle.trim(),
           emailSubject: newSubject.trim() || null,
           emailTemplate: newTemplate.trim() || null,
-        },
-        actor,
-      );
-      setCreateOpen(false);
-      setNewKey(''); setNewTitle(''); setNewSubject(''); setNewTemplate('');
-      await loadCampaigns();
-      setCampaignId(created.id);
-      setFlash(`Kampagne „${created.title}" angelegt.`);
+        });
+        setCreateOpen(false);
+        setEditingId(null);
+        resetCampaignForm();
+        await loadCampaigns();
+        setCampaignId(updated.id);
+        setFlash(`Kampagne „${updated.title}" gespeichert.`);
+      } else {
+        // Type ist in diesem Scope fix rksv_signature (Type B out of scope).
+        const created = await createCampaign(
+          {
+            type: 'rksv_signature',
+            key: newKey.trim(),
+            title: newTitle.trim(),
+            emailSubject: newSubject.trim() || null,
+            emailTemplate: newTemplate.trim() || null,
+          },
+          actor,
+        );
+        setCreateOpen(false);
+        resetCampaignForm();
+        await loadCampaigns();
+        setCampaignId(created.id);
+        setFlash(`Kampagne „${created.title}" angelegt.`);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Anlegen fehlgeschlagen');
+      setError(err instanceof Error ? err.message : 'Speichern fehlgeschlagen');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ── Kampagne löschen (inkl. Empfänger via ON DELETE CASCADE) ──
+  async function handleDeleteCampaign() {
+    if (!campaign) return;
+    const ok = window.confirm(
+      `Kampagne „${campaign.title}" und ALLE zugehörigen Empfänger + Funnel-Daten löschen?\n\nDas kann nicht rückgängig gemacht werden.`,
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      await deleteCampaign(campaign.id);
+      setCreateOpen(false);
+      setEditingId(null);
+      const remaining = campaigns.filter((c) => c.id !== campaign.id);
+      setCampaigns(remaining);
+      setCampaignId(remaining[0]?.id ?? '');
+      setFlash('Kampagne gelöscht.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Löschen fehlgeschlagen');
     } finally {
       setBusy(false);
     }
@@ -300,7 +372,7 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
           <Megaphone className="text-red-500" size={22} />
           <h1 className="text-xl font-bold text-slate-800">Kampagnen</h1>
           <button
-            onClick={() => { setCreateOpen((v) => !v); setEnrollOpen(false); }}
+            onClick={openCreate}
             className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-50"
           >
             <Plus size={14} /> Neue Kampagne
@@ -309,13 +381,14 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
 
         {createOpen && (
           <CreateCampaignPanel
+            isEdit={editingId !== null}
             newKey={newKey} setNewKey={setNewKey}
             newTitle={newTitle} setNewTitle={setNewTitle}
             newSubject={newSubject} setNewSubject={setNewSubject}
             newTemplate={newTemplate} setNewTemplate={setNewTemplate}
             busy={busy}
-            onSubmit={() => void handleCreateCampaign()}
-            onCancel={() => setCreateOpen(false)}
+            onSubmit={() => void handleSubmitCampaign()}
+            onCancel={() => { setCreateOpen(false); setEditingId(null); }}
           />
         )}
 
@@ -352,6 +425,26 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
               >
                 <RefreshCw size={14} className={busy ? 'animate-spin' : ''} /> Aktualisieren
               </button>
+              {campaign && (
+                <>
+                  <button
+                    onClick={openEdit}
+                    disabled={busy}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 disabled:opacity-50"
+                    title="Kampagne bearbeiten (Titel, Betreff, E-Mail-Text)"
+                  >
+                    <Pencil size={14} /> Bearbeiten
+                  </button>
+                  <button
+                    onClick={() => void handleDeleteCampaign()}
+                    disabled={busy}
+                    className="flex items-center px-2 py-2 rounded-lg border border-slate-200 text-slate-400 text-sm hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 disabled:opacity-50"
+                    title="Kampagne löschen"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </>
+              )}
               <div className="ml-auto flex items-center gap-2">
                 {campaign?.type === 'rksv_signature' && (
                   <button
@@ -494,6 +587,7 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
 const CAMPAIGN_TYPE_OPTIONS = [{ value: 'rksv_signature', label: 'RKSV-Signaturkarte (Type A)' }];
 
 function CreateCampaignPanel({
+  isEdit,
   newKey, setNewKey,
   newTitle, setNewTitle,
   newSubject, setNewSubject,
@@ -502,6 +596,7 @@ function CreateCampaignPanel({
   onSubmit,
   onCancel,
 }: {
+  isEdit: boolean;
   newKey: string; setNewKey: (v: string) => void;
   newTitle: string; setNewTitle: (v: string) => void;
   newSubject: string; setNewSubject: (v: string) => void;
@@ -513,7 +608,7 @@ function CreateCampaignPanel({
   const inputCls = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none';
   return (
     <div className="mb-4 bg-white rounded-xl border border-slate-200 p-4">
-      <h2 className="font-semibold text-slate-800 mb-3">Neue Kampagne</h2>
+      <h2 className="font-semibold text-slate-800 mb-3">{isEdit ? 'Kampagne bearbeiten' : 'Neue Kampagne'}</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
           <span className="block text-xs font-medium text-slate-500 mb-1">Typ</span>
@@ -521,8 +616,9 @@ function CreateCampaignPanel({
           <Select value="rksv_signature" onChange={() => {}} options={CAMPAIGN_TYPE_OPTIONS} ariaLabel="Kampagnentyp" />
         </label>
         <label className="block">
-          <span className="block text-xs font-medium text-slate-500 mb-1">Key (eindeutig)</span>
-          <input value={newKey} onChange={(e) => setNewKey(e.target.value)} placeholder="z. B. 2026-acos" className={inputCls} />
+          <span className="block text-xs font-medium text-slate-500 mb-1">Key (eindeutig){isEdit && ' — nicht änderbar'}</span>
+          {/* Key/Typ sind die Identität → im Bearbeiten-Modus gesperrt. */}
+          <input value={newKey} onChange={(e) => setNewKey(e.target.value)} readOnly={isEdit} placeholder="z. B. 2026-acos" className={`${inputCls}${isEdit ? ' bg-slate-50 text-slate-400 cursor-not-allowed' : ''}`} />
         </label>
         <label className="block sm:col-span-2">
           <span className="block text-xs font-medium text-slate-500 mb-1">Titel</span>
@@ -540,7 +636,7 @@ function CreateCampaignPanel({
       <div className="mt-3 flex justify-end gap-2">
         <button onClick={onCancel} disabled={busy} className="px-3 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm disabled:opacity-40">Abbrechen</button>
         <button onClick={onSubmit} disabled={busy} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
-          {busy && <Loader2 className="animate-spin" size={14} />} Anlegen
+          {busy && <Loader2 className="animate-spin" size={14} />} {isEdit ? 'Speichern' : 'Anlegen'}
         </button>
       </div>
     </div>
