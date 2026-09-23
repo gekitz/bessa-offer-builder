@@ -133,6 +133,40 @@ export async function createCampaign(
   return rowToCampaign(data);
 }
 
+// Content-Felder einer bestehenden Kampagne editieren (Titel, Betreff,
+// HTML-Body). Key/Typ bleiben unveränderlich — sie sind die Identität.
+// updated_at pflegt der set_updated_at-Trigger.
+export async function updateCampaign(
+  id: string,
+  patch: {
+    title?: string;
+    emailSubject?: string | null;
+    emailTemplate?: string | null;
+  },
+): Promise<Campaign> {
+  const sb = requireSupabase();
+  const fields: Record<string, unknown> = {};
+  if (patch.title !== undefined) fields.title = patch.title;
+  if (patch.emailSubject !== undefined) fields.email_subject = patch.emailSubject;
+  if (patch.emailTemplate !== undefined) fields.email_template = patch.emailTemplate;
+  const { data, error } = await sb
+    .from('campaigns')
+    .update(fields)
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return rowToCampaign(data);
+}
+
+// Kampagne löschen. campaign_recipients hängt per ON DELETE CASCADE dran,
+// d. h. alle Empfänger + Funnel-Daten werden mitgelöscht.
+export async function deleteCampaign(id: string): Promise<void> {
+  const sb = requireSupabase();
+  const { error } = await sb.from('campaigns').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Enrolment (idempotent) — upsert auf (campaign_id, subject_type, subject_id).
 // ignoreDuplicates:true → ON CONFLICT DO NOTHING; .select() liefert NUR die

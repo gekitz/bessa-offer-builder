@@ -49,6 +49,7 @@ vi.mock('../../../../lib/supabase', () => ({
 
 import {
   createCampaign,
+  deleteCampaign,
   dryRunSend,
   enrollRecipients,
   getFunnelCounts,
@@ -58,6 +59,7 @@ import {
   saveRecipientPayload,
   sendCampaign,
   submitOutcome,
+  updateCampaign,
 } from '../campaignApi';
 import type { CampaignRecipient } from '../../types';
 
@@ -116,6 +118,58 @@ describe('createCampaign', () => {
     expect(insert.key).toBe('2026-acos');
     expect(insert.created_by_id).toBe('u1');
     expect(insert.created_by_name).toBe('Georg');
+  });
+});
+
+describe('updateCampaign', () => {
+  function campaignRow(over: Record<string, unknown> = {}) {
+    return {
+      id: 'c1', type: 'rksv_signature', key: '2026-acos', title: 'RKSV',
+      email_subject: null, email_template: null, status: 'draft',
+      created_by_id: 'u1', created_by_name: 'Georg', created_at: '', updated_at: '', ...over,
+    };
+  }
+
+  it('maps the provided content fields to snake_case and filters by id', async () => {
+    chains.campaigns = makeChain({ data: campaignRow({ title: 'Neu', email_subject: 'S', email_template: '<p>H</p>' }), error: null });
+    const res = await updateCampaign('c1', { title: 'Neu', emailSubject: 'S', emailTemplate: '<p>H</p>' });
+    const update = chains.campaigns._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(update).toEqual({ title: 'Neu', email_subject: 'S', email_template: '<p>H</p>' });
+    const eq = chains.campaigns._calls.find((c) => c.method === 'eq')!;
+    expect(eq.args).toEqual(['id', 'c1']);
+    expect(res.emailTemplate).toBe('<p>H</p>');
+  });
+
+  it('omits fields that were not passed (partial patch) and never touches key/type', async () => {
+    chains.campaigns = makeChain({ data: campaignRow({ email_template: '<p>only</p>' }), error: null });
+    await updateCampaign('c1', { emailTemplate: '<p>only</p>' });
+    const update = chains.campaigns._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(update).toEqual({ email_template: '<p>only</p>' });
+    expect(update).not.toHaveProperty('title');
+    expect(update).not.toHaveProperty('key');
+    expect(update).not.toHaveProperty('type');
+  });
+
+  it('sends explicit null to clear the body (distinct from omitting it)', async () => {
+    chains.campaigns = makeChain({ data: campaignRow(), error: null });
+    await updateCampaign('c1', { emailTemplate: null });
+    const update = chains.campaigns._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(update).toHaveProperty('email_template', null);
+  });
+});
+
+describe('deleteCampaign', () => {
+  it('deletes filtered by id', async () => {
+    chains.campaigns = makeChain({ data: null, error: null });
+    await deleteCampaign('c1');
+    expect(chains.campaigns._calls.some((c) => c.method === 'delete')).toBe(true);
+    const eq = chains.campaigns._calls.find((c) => c.method === 'eq')!;
+    expect(eq.args).toEqual(['id', 'c1']);
+  });
+
+  it('throws when the client returns an error', async () => {
+    chains.campaigns = makeChain({ data: null, error: { message: 'boom' } });
+    await expect(deleteCampaign('c1')).rejects.toBeTruthy();
   });
 });
 
