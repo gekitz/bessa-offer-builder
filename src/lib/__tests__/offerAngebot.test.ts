@@ -98,10 +98,11 @@ describe('offerToBelegPositions', () => {
     ]);
     // The monthly line: Menge = 12 months, priced Datentyp 1.
     expect(pos[1]).toMatchObject({ datentyp: '1', menge: 12, einzelpreis: 39, bezeichnung: 'Kassa' });
-    // Section headers + spacer are pure text lines (no price).
-    expect(pos[0]).toMatchObject({ datentyp: '3', artikelnummer: 'TEXT' });
-    expect(pos[0].einzelpreis).toBeUndefined();
-    expect(pos[2]).toMatchObject({ datentyp: '3', bezeichnung: ' ' });
+    // Section headers + spacer are pure text lines (Datentyp 3). They carry
+    // Menge 1 / Preis 0 (not omitted) like the live loanBeleg — a line without
+    // Mengegeliefert fails the import with 300008. Datentyp 3 hides both anyway.
+    expect(pos[0]).toMatchObject({ datentyp: '3', artikelnummer: 'TEXT', menge: 1, einzelpreis: 0 });
+    expect(pos[2]).toMatchObject({ datentyp: '3', bezeichnung: ' ', menge: 1, einzelpreis: 0 });
     // Rabatt = 2% of 768 = 15.36, negative
     expect(pos[5].einzelpreis).toBe(-15.36);
     expect(pos[6].einzelpreis).toBe(-100);
