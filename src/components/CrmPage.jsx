@@ -51,7 +51,23 @@ const F = {
   salut:   (r) => f(r, 'Anrede', 'T055_C039', 'T055.C039'),
   contact: (r) => f(r, 'Ansprechpartner', 'Kontakt', 'T055_C061', 'T055.C061'),
   mobile:  (r) => f(r, 'Mobiltelefon', 'Mobil', 'Handy', 'T055_C082', 'T055.C082'),
+  // Rechnungsempfänger — a DIFFERENT Konto that invoices are billed to (export-only field).
+  invoiceTo: (r) => f(r, 'Rechnungsempfaenger', 'Rechnungsempfänger'),
 };
+
+// Keys that carry the Rechnungsempfänger account number — rendered as a dedicated
+// banner, so they're kept out of the generic Stammdaten / other-fields lists.
+const INVOICE_RECIPIENT_KEYS = new Set(['Rechnungsempfaenger', 'Rechnungsempfänger']);
+
+// The Konto that this account's invoices are billed to, or null when invoices go
+// to the account itself. Null when the field is empty, '0', or equals the own
+// account number (Mesonic's "same as account" value). Pure → testable.
+export function invoiceRecipientAccount(record) {
+  const invoiceTo = F.invoiceTo(record);
+  const own = F.number(record);
+  if (!invoiceTo || invoiceTo === own || invoiceTo === '0') return null;
+  return invoiceTo;
+}
 
 // ─── Field display helpers ───
 const IMPORTANT_KEYS = new Set([
@@ -129,13 +145,95 @@ function CustomerCard({ record, onClick }) {
   );
 }
 
+// ─── Invoice recipient banner ───
+// Highlights that this account's invoices are billed to a DIFFERENT Konto
+// (Mesonic "Rechnungsempfänger"). Loads that account so the user sees WHO gets
+// billed (name + address), and can jump straight to it.
+export function InvoiceRecipientBanner({ recipientNumber, onOpen }) {
+  const [record, setRecord] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setFailed(false);
+    setRecord(null);
+    getCustomer(recipientNumber)
+      .then((data) => {
+        if (cancelled) return;
+        const rec = data?.records?.[0] || null;
+        setRecord(rec);
+        if (!rec) setFailed(true);
+      })
+      .catch(() => { if (!cancelled) setFailed(true); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [recipientNumber]);
+
+  const name = record ? F.name(record) : '';
+  const address = record
+    ? [F.street(record), [F.zip(record), F.city(record)].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+    : '';
+
+  const clickable = !!(record && onOpen);
+  const Wrapper = clickable ? 'button' : 'div';
+
+  return (
+    <div className="px-5 pt-4">
+      <Wrapper
+        {...(clickable ? { onClick: () => onOpen(record), type: 'button' } : {})}
+        className={`w-full text-left flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3.5 ${clickable ? 'hover:bg-amber-100 hover:border-amber-300 transition-colors cursor-pointer' : ''}`}
+        data-testid="invoice-recipient-banner"
+      >
+        <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+        <div className="min-w-0">
+          <div className="font-semibold text-amber-900" style={{ fontSize: 13 }}>
+            Rechnung geht an ein anderes Konto
+          </div>
+          <div className="text-amber-800 mt-0.5" style={{ fontSize: 12.5 }}>
+            {loading && (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 size={12} className="animate-spin" />
+                Konto <span className="font-mono font-semibold">{recipientNumber}</span> wird geladen…
+              </span>
+            )}
+            {!loading && name && (
+              <span>
+                <span className="font-semibold">{name}</span>
+                {' '}(Nr. <span className="font-mono font-semibold">{recipientNumber}</span>)
+                {address && <span className="text-amber-700">{' — '}{address}</span>}
+              </span>
+            )}
+            {!loading && !name && (
+              <span>
+                Konto <span className="font-mono font-semibold">{recipientNumber}</span>
+                {failed && <span className="text-amber-700"> (Details nicht ladbar)</span>}
+              </span>
+            )}
+          </div>
+          {clickable && (
+            <div className="text-amber-600 mt-1 flex items-center gap-1" style={{ fontSize: 11 }}>
+              Konto öffnen <ChevronRight size={11} />
+            </div>
+          )}
+        </div>
+      </Wrapper>
+    </div>
+  );
+}
+
 // ─── Customer Detail View ───
-function CustomerDetail({ record, onBack, onEdit, onCreateTicket }) {
+function CustomerDetail({ record, onBack, onEdit, onCreateTicket, onOpenCustomer }) {
   const name = F.name(record) || 'Unbekannt';
   const number = F.number(record);
   const phone = F.phone(record);
   const email = F.email(record);
   const web = F.web(record);
+
+  // Rechnungsempfänger — a different Konto that invoices are billed to (null when
+  // invoices go to the account itself).
+  const invoiceTo = invoiceRecipientAccount(record);
 
   // Split fields into important (top) and other (expandable)
   const importantFields = [];
@@ -143,6 +241,7 @@ function CustomerDetail({ record, onBack, onEdit, onCreateTicket }) {
 
   Object.entries(record).forEach(([key, value]) => {
     if (!value || value.trim() === '') return;
+    if (INVOICE_RECIPIENT_KEYS.has(key)) return; // shown as its own banner
     if (isImportantField(key)) {
       importantFields.push({ key, label: key, value });
     } else {
@@ -198,6 +297,11 @@ function CustomerDetail({ record, onBack, onEdit, onCreateTicket }) {
             </div>
           </div>
         </div>
+
+        {/* Rechnungsempfänger — invoices billed to a different Konto */}
+        {invoiceTo && (
+          <InvoiceRecipientBanner recipientNumber={invoiceTo} onOpen={onOpenCustomer} />
+        )}
 
         {/* Quick contact actions */}
         <div className="flex border-b border-slate-100">
@@ -472,6 +576,7 @@ export default function CrmPage() {
           onBack={handleBackToSearch}
           onEdit={handleEditCustomer}
           onCreateTicket={() => handleCreateTicketFromCustomer(selectedCustomer)}
+          onOpenCustomer={handleSelectCustomer}
         />
       </div>
     );
