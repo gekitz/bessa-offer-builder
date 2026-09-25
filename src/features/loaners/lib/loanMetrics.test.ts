@@ -4,9 +4,11 @@ import {
   computeDeviceMetrics,
   isLoanFullyReturned,
   canCheckOut,
+  loanHolderByDevice,
+  customerLoanCounts,
   type LoanSpan,
 } from './loanMetrics';
-import type { LoanerDevice } from '../types';
+import type { Loan, LoanerDevice } from '../types';
 
 const TODAY = '2026-09-16';
 
@@ -112,5 +114,77 @@ describe('canCheckOut', () => {
     expect(canCheckOut({ status: 'defective', active: true })).toBe(false);
     expect(canCheckOut({ status: 'retired', active: true })).toBe(false);
     expect(canCheckOut({ status: 'available', active: false })).toBe(false);
+  });
+});
+
+function loan(overrides: Partial<Loan> = {}): Loan {
+  return {
+    id: 'loan-1',
+    customerName: 'Gasthaus Müller',
+    customerKdnr: '10001',
+    ticketId: null,
+    startedAt: '2026-09-01',
+    expectedReturn: null,
+    note: null,
+    mesonicBelegLaufnummer: null,
+    mesonicBelegKey: null,
+    mesonicBelegCreatedAt: null,
+    createdBy: null,
+    createdAt: '2026-09-01T00:00:00Z',
+    updatedAt: '2026-09-01T00:00:00Z',
+    devices: [],
+    ...overrides,
+  };
+}
+
+// A loan_devices line — only deviceId/returnedAt matter to these helpers.
+function line(deviceId: string, returnedAt: string | null = null) {
+  return { id: `ld-${deviceId}`, loanId: 'loan-1', deviceId, returnedAt, note: null, createdAt: '2026-09-01T00:00:00Z' };
+}
+
+describe('loanHolderByDevice', () => {
+  it('maps each still-out device to its loan customer', () => {
+    const map = loanHolderByDevice([
+      loan({ customerName: 'A', customerKdnr: '1', devices: [line('d1'), line('d2')] }),
+    ]);
+    expect(map.get('d1')).toEqual({ name: 'A', kdnr: '1' });
+    expect(map.get('d2')).toEqual({ name: 'A', kdnr: '1' });
+  });
+
+  it('skips already-returned lines', () => {
+    const map = loanHolderByDevice([
+      loan({ devices: [line('d1'), line('d2', '2026-09-10')] }),
+    ]);
+    expect(map.has('d1')).toBe(true);
+    expect(map.has('d2')).toBe(false);
+  });
+
+  it('tolerates a loan without a devices join', () => {
+    expect(loanHolderByDevice([loan({ devices: undefined })]).size).toBe(0);
+  });
+});
+
+describe('customerLoanCounts', () => {
+  it('counts devices per customer and sorts by name (de)', () => {
+    const map = loanHolderByDevice([
+      loan({ customerName: 'Zeta', customerKdnr: '9', devices: [line('d1')] }),
+      loan({ id: 'loan-2', customerName: 'Ärzte', customerKdnr: '2', devices: [line('d2'), line('d3')] }),
+    ]);
+    expect(customerLoanCounts(map)).toEqual([
+      { kdnr: '2', name: 'Ärzte', count: 2 }, // 'Ä' sorts before 'Z' in de
+      { kdnr: '9', name: 'Zeta', count: 1 },
+    ]);
+  });
+
+  it('aggregates a customer that holds devices across two loans by kdnr', () => {
+    const map = loanHolderByDevice([
+      loan({ customerName: 'Müller', customerKdnr: '5', devices: [line('d1')] }),
+      loan({ id: 'loan-2', customerName: 'Müller', customerKdnr: '5', devices: [line('d2')] }),
+    ]);
+    expect(customerLoanCounts(map)).toEqual([{ kdnr: '5', name: 'Müller', count: 2 }]);
+  });
+
+  it('is empty when nothing is out', () => {
+    expect(customerLoanCounts(new Map())).toEqual([]);
   });
 });
