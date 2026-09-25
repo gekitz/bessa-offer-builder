@@ -10,6 +10,7 @@ import { listDevices, listOpenLoans } from '../api/loanerApi';
 import { listProductsAdmin, type Product } from '../../offers/api/productApi';
 import { STATUS_LABEL, STATUS_PILL, STANDORT_LABEL } from '../lib/loanerFormat';
 import { countByTag, deviceMatchesTags, tagLabel } from '../lib/deviceTags';
+import { loanHolderByDevice, customerLoanCounts } from '../lib/loanMetrics';
 import type { Loan, LoanerDevice, LoanerDeviceStatus } from '../types';
 import DeviceFormModal from '../components/DeviceFormModal';
 import DeviceDetailModal from '../components/DeviceDetailModal';
@@ -34,6 +35,7 @@ export default function LeihgeraetePage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [standortFilter, setStandortFilter] = useState('');
+  const [customerFilter, setCustomerFilter] = useState(''); // customerKdnr of an open loan
   const [tagFilter, setTagFilter] = useState<string[]>([]);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -85,16 +87,17 @@ export default function LeihgeraetePage() {
     load();
   }, []);
 
-  // deviceId → customer name of the open loan holding it.
-  const loanByDevice = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const loan of openLoans) {
-      for (const ld of loan.devices ?? []) {
-        if (ld.returnedAt == null) map.set(ld.deviceId, loan.customerName);
-      }
-    }
-    return map;
-  }, [openLoans]);
+  // deviceId → the open loan's customer (name for display, kdnr for filtering).
+  const loanByDevice = useMemo(() => loanHolderByDevice(openLoans), [openLoans]);
+
+  // Customers with currently-out devices → filter options (with device count).
+  const customerOptions = useMemo(
+    () => [
+      { value: '', label: 'Alle Kunden' },
+      ...customerLoanCounts(loanByDevice).map((c) => ({ value: c.kdnr, label: `${c.name} (${c.count})` })),
+    ],
+    [loanByDevice],
+  );
 
   const statusCounts = useMemo(() => {
     const c: Record<string, number> = { all: devices.length };
@@ -110,13 +113,21 @@ export default function LeihgeraetePage() {
     return devices.filter((d) => {
       if (statusFilter !== 'all' && d.status !== statusFilter) return false;
       if (standortFilter && d.standort !== standortFilter) return false;
+      if (customerFilter && loanByDevice.get(d.id)?.kdnr !== customerFilter) return false;
       if (q) {
         const hay = `${d.bezeichnung} ${d.serialNumber} ${d.inventoryNo ?? ''}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [devices, search, statusFilter, standortFilter]);
+  }, [devices, search, statusFilter, standortFilter, customerFilter, loanByDevice]);
+
+  // Drop a stale customer selection once that customer has no open loans left.
+  useEffect(() => {
+    if (customerFilter && !customerOptions.some((o) => o.value === customerFilter)) {
+      setCustomerFilter('');
+    }
+  }, [customerFilter, customerOptions]);
 
   const tagCounts = useMemo(() => countByTag(baseFiltered), [baseFiltered]);
 
@@ -211,6 +222,14 @@ export default function LeihgeraetePage() {
           })}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          {customerOptions.length > 1 && (
+            <Select
+              value={customerFilter}
+              onChange={setCustomerFilter}
+              className="w-full sm:w-52"
+              options={customerOptions}
+            />
+          )}
           <TagFilterDropdown
             value={tagFilter}
             onChange={setTagFilter}
@@ -295,7 +314,7 @@ export default function LeihgeraetePage() {
                         {STATUS_LABEL[d.status]}
                       </span>
                       {d.status === 'on_loan' && loanByDevice.get(d.id) && (
-                        <span className="text-xs text-slate-400 ml-2">{loanByDevice.get(d.id)}</span>
+                        <span className="text-xs text-slate-400 ml-2">{loanByDevice.get(d.id)!.name}</span>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-slate-500">{d.standort ? STANDORT_LABEL[d.standort] : '–'}</td>
