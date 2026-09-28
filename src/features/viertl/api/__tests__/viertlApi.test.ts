@@ -33,7 +33,7 @@ vi.mock('../../../../lib/supabase', () => ({
   },
 }));
 
-import { addNote, linkOffer, listEvents, listLicenses, notifyViertlClosure, recordMesonicLookup, unlinkOffer, updateLicense } from '../viertlApi';
+import { addNote, linkOffer, linkTicket, listEvents, listLicenses, notifyViertlClosure, recordMesonicLookup, unlinkOffer, unlinkTicket, updateLicense } from '../viertlApi';
 
 const ACTOR = { id: 'u1', name: 'Georg' };
 
@@ -174,6 +174,34 @@ describe('unlinkOffer', () => {
     await unlinkOffer('l1', ACTOR);
     const upd = chains.viertl_licenses._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
     expect(upd.linked_offer_id).toBeNull();
+    const evt = chains.viertl_events._calls.find((c) => c.method === 'insert')!.args[0] as Record<string, unknown>;
+    expect(evt).toMatchObject({ type: 'note' });
+  });
+});
+
+describe('linkTicket', () => {
+  it('sets linked_ticket_id and logs a ticket_attached event', async () => {
+    chains.viertl_licenses = makeChain({ data: { id: 'l1', mesonic_kdnr: '1', name: 'X', wartung: 'none', status: 'new', customer_status: 'active', hardware_needed: false, linked_ticket_id: 't1', created_at: '', updated_at: '' }, error: null });
+    chains.viertl_events = makeChain({ data: null, error: null });
+
+    const res = await linkTicket('l1', 't1', ACTOR);
+
+    const upd = chains.viertl_licenses._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(upd.linked_ticket_id).toBe('t1');
+    expect(upd.updated_by_id).toBe('u1');
+    const evt = chains.viertl_events._calls.find((c) => c.method === 'insert')!.args[0] as Record<string, unknown>;
+    expect(evt).toMatchObject({ license_id: 'l1', type: 'ticket_attached', message: 't1', actor_id: 'u1' });
+    expect(res.linkedTicketId).toBe('t1');
+  });
+});
+
+describe('unlinkTicket', () => {
+  it('clears linked_ticket_id and records a note', async () => {
+    chains.viertl_licenses = makeChain({ data: { id: 'l1', mesonic_kdnr: '1', name: 'X', wartung: 'none', status: 'new', customer_status: 'active', hardware_needed: false, linked_ticket_id: null, created_at: '', updated_at: '' }, error: null });
+    chains.viertl_events = makeChain({ data: null, error: null });
+    await unlinkTicket('l1', ACTOR);
+    const upd = chains.viertl_licenses._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(upd.linked_ticket_id).toBeNull();
     const evt = chains.viertl_events._calls.find((c) => c.method === 'insert')!.args[0] as Record<string, unknown>;
     expect(evt).toMatchObject({ type: 'note' });
   });

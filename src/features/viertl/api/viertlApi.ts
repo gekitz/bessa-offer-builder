@@ -45,6 +45,7 @@ function rowToLicense(r: any): ViertlLicense {
     closedAt: r.closed_at ?? null,
     notes: r.notes ?? null,
     linkedOfferId: r.linked_offer_id ?? null,
+    linkedTicketId: r.linked_ticket_id ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -182,6 +183,52 @@ export async function unlinkOffer(licenseId: string, actor: ViertlActor): Promis
     license_id: licenseId,
     type: 'note',
     message: 'Angebotsverknüpfung entfernt',
+    actor_id: actor.id,
+    actor_name: actor.name,
+  });
+  return rowToLicense(data);
+}
+
+// Ein Ticket mit einer Installation verknüpfen. Setzt linked_ticket_id +
+// protokolliert ein ticket_attached-Event (linked_ticket_id ist nicht
+// getrackt → explizite Historienzeile, analog zu linkOffer).
+export async function linkTicket(
+  licenseId: string,
+  ticketId: string,
+  actor: ViertlActor,
+): Promise<ViertlLicense> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('viertl_licenses')
+    .update({ linked_ticket_id: ticketId, updated_by_id: actor.id, updated_by_name: actor.name })
+    .eq('id', licenseId)
+    .select('*')
+    .single();
+  if (error) throw error;
+  await sb.from('viertl_events').insert({
+    license_id: licenseId,
+    type: 'ticket_attached',
+    message: ticketId,
+    actor_id: actor.id,
+    actor_name: actor.name,
+  });
+  return rowToLicense(data);
+}
+
+// Ticket-Verknüpfung wieder lösen (Feld-Diff nicht getrackt → Notiz).
+export async function unlinkTicket(licenseId: string, actor: ViertlActor): Promise<ViertlLicense> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('viertl_licenses')
+    .update({ linked_ticket_id: null, updated_by_id: actor.id, updated_by_name: actor.name })
+    .eq('id', licenseId)
+    .select('*')
+    .single();
+  if (error) throw error;
+  await sb.from('viertl_events').insert({
+    license_id: licenseId,
+    type: 'note',
+    message: 'Ticketverknüpfung entfernt',
     actor_id: actor.id,
     actor_name: actor.name,
   });

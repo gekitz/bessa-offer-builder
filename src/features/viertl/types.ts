@@ -26,6 +26,7 @@ export type ViertlEventType =
   | 'email_sent'
   | 'email_opened'
   | 'offer_attached'
+  | 'ticket_attached'
   | 'viertl_notified';
 
 export interface ViertlLicense {
@@ -49,6 +50,7 @@ export interface ViertlLicense {
   closedAt: string | null;
   notes: string | null;
   linkedOfferId: string | null;
+  linkedTicketId: string | null;
   createdAt: string;
   updatedAt: string;
 }

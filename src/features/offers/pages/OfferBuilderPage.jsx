@@ -1760,6 +1760,27 @@ function OfferBuilderPageInner() {
                 address: [license.street, [license.plz, license.ort].filter(Boolean).join(' ')].filter(Boolean).join(', '),
               });
             }}
+            onCreateTicket={(license) => {
+              // Neues Ticket mit vorbefülltem Kunden; der Ticket-Builder
+              // (Tickets-Tab) liest initialCustomer aus dem Router-State und
+              // öffnet die Anlage-Maske direkt. linkViertlLicenseId weist ihn
+              // an, das neue Ticket nach dem Speichern auf die Lizenz zu
+              // verknüpfen (linked_ticket_id).
+              navigate(pathForSection('tickets'), {
+                state: {
+                  initialCustomer: {
+                    company: license.name || '',
+                    name: license.contact || '',
+                    email: license.email || '',
+                    phone: '',
+                    address: [license.street, [license.plz, license.ort].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+                    mesonicId: license.mesonicKdnr || '',
+                  },
+                  linkViertlLicenseId: license.id,
+                },
+              });
+            }}
+            onOpenTicket={(ticketId) => { navigate(`/tickets/${ticketId}`); }}
           />
         </React.Suspense>
       )}

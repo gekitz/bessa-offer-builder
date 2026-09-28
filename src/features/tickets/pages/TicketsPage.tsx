@@ -5,6 +5,9 @@ import { useAuth } from '../../../lib/auth';
 import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import { listAbteilungen, listEmployees, type Abteilung } from '../../vacation/api/vacationApi';
 import { listTickets, listTicketCounts, setTicketStatus, updateTicket } from '../api/ticketApi';
+// Cross-Feature: ein aus der Viertl-Liste angelegtes Ticket wird nach dem
+// Speichern auf die Installation zurückverknüpft (linked_ticket_id).
+import { linkTicket } from '../../viertl/api/viertlApi';
 import TicketBoard from '../components/TicketBoard';
 import TicketDetail from '../components/TicketDetail';
 import TicketForm from '../components/TicketForm';
@@ -73,7 +76,7 @@ export default function TicketsPage({
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth() as {
-    profile: { microsoft_email?: string } | null;
+    profile: { id?: string; display_name?: string; microsoft_email?: string } | null;
     user: { email?: string } | null;
   };
 
@@ -129,6 +132,9 @@ export default function TicketsPage({
   const [createInitialCustomer, setCreateInitialCustomer] = useState<
     React.ComponentProps<typeof TicketForm>['initialCustomer']
   >(undefined);
+  // Wenn wir aus der Viertl-Liste hierher kamen: die Lizenz-ID, auf die das
+  // neu angelegte Ticket nach dem Speichern verknüpft werden soll.
+  const [linkViertlLicenseId, setLinkViertlLicenseId] = useState<string | null>(null);
 
   useEffect(() => saveView(view), [view]);
 
@@ -157,9 +163,12 @@ export default function TicketsPage({
   // immediately open the create modal. Clear the state so a refresh
   // doesn't re-fire it.
   useEffect(() => {
-    const state = location.state as { initialCustomer?: unknown } | null;
+    const state = location.state as
+      | { initialCustomer?: unknown; linkViertlLicenseId?: string }
+      | null;
     if (state?.initialCustomer) {
       setCreateInitialCustomer(state.initialCustomer as typeof createInitialCustomer);
+      setLinkViertlLicenseId(state.linkViertlLicenseId ?? null);
       setShowCreate(true);
       navigate('/tickets', { replace: true, state: null });
     }
@@ -626,10 +635,21 @@ export default function TicketsPage({
           onClose={() => {
             setShowCreate(false);
             setCreateInitialCustomer(undefined);
+            setLinkViertlLicenseId(null);
           }}
           onSaved={(t) => {
             setShowCreate(false);
             setCreateInitialCustomer(undefined);
+            // Kam das Ticket aus der Viertl-Liste? Dann auf die Installation
+            // zurückverknüpfen. Fire-and-forget — ein Fehler hier darf das
+            // gerade gespeicherte Ticket nicht blockieren.
+            if (linkViertlLicenseId) {
+              void linkTicket(linkViertlLicenseId, t.id, {
+                id: auth.profile?.id ?? null,
+                name: auth.profile?.display_name ?? null,
+              }).catch(() => { /* Verknüpfung ist best-effort */ });
+              setLinkViertlLicenseId(null);
+            }
             navigate(`/tickets/${t.id}`);
           }}
         />
