@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Cpu, Download, ExternalLink, FileText, Loader2, Mail, Phone, Plus, RefreshCw, Search, Send, X } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Cpu, Download, ExternalLink, FileText, Loader2, Mail, Phone, Plus, RefreshCw, Search, Send, Wrench, X } from 'lucide-react';
 import { useAuth } from '../../../lib/auth';
 import Select from '../../../components/Select';
-import { addNote, linkOffer, listEvents, listLicenses, notifyViertlClosure, recordMesonicLookup, unlinkOffer, updateLicense } from '../api/viertlApi';
+import { addNote, linkOffer, listEvents, listLicenses, notifyViertlClosure, recordMesonicLookup, unlinkOffer, unlinkTicket, updateLicense } from '../api/viertlApi';
 import { fetchMesonicContact } from '../lib/mesonicContact';
 import { getOfferSummary, offerImpliesStatus, suggestOffersForLicense, type OfferSummary } from '../lib/offerLink';
+import { getTicketSummary, type TicketSummary } from '../lib/ticketLink';
 import BelegePanel from '../components/BelegePanel';
 import type {
   ViertlActor,
@@ -62,6 +63,18 @@ function offerBadge(status: string): { label: string; cls: string } {
   }
 }
 
+function ticketBadge(status: string): { label: string; cls: string } {
+  switch (status) {
+    case 'open':        return { label: 'Offen',       cls: 'bg-blue-100 text-blue-700' };
+    case 'in_progress': return { label: 'In Arbeit',   cls: 'bg-amber-100 text-amber-700' };
+    case 'waiting':     return { label: 'Wartend',     cls: 'bg-slate-100 text-slate-600' };
+    case 'review':      return { label: 'In Prüfung',  cls: 'bg-violet-100 text-violet-700' };
+    case 'closed':      return { label: 'Geschlossen', cls: 'bg-emerald-100 text-emerald-700' };
+    case 'cancelled':   return { label: 'Abgesagt',    cls: 'bg-rose-100 text-rose-700' };
+    default:            return { label: status,        cls: 'bg-slate-100 text-slate-600' };
+  }
+}
+
 // Schonender Mesonic-Backfill. Der Proxy loggt sich pro Isolate neu ein
 // und die MDP-WebService-API hat KEINEN Logout (nur ~4–5 min Session-TTL,
 // laut docs/Mesonic_API_Abfrage.md). Zu viele Aufrufe in kurzer Zeit
@@ -115,9 +128,13 @@ function fmtDate(iso: string | null): string {
 export default function ViertlPage({
   onOpenOffer,
   onCreateOffer,
+  onCreateTicket,
+  onOpenTicket,
 }: {
   onOpenOffer?: (offerId: string) => void;
   onCreateOffer?: (license: ViertlLicense) => void;
+  onCreateTicket?: (license: ViertlLicense) => void;
+  onOpenTicket?: (ticketId: string) => void;
 } = {}) {
   const { profile, isAdmin } = useAuth() as {
     profile: { id?: string; display_name?: string } | null;
@@ -229,6 +246,13 @@ export default function ViertlPage({
   const unlinkOfferFromLicense = useCallback(
     async (licenseId: string) => {
       const updated = await unlinkOffer(licenseId, actor);
+      setLicenses((prev) => prev.map((l) => (l.id === licenseId ? updated : l)));
+    },
+    [actor],
+  );
+  const unlinkTicketFromLicense = useCallback(
+    async (licenseId: string) => {
+      const updated = await unlinkTicket(licenseId, actor);
       setLicenses((prev) => prev.map((l) => (l.id === licenseId ? updated : l)));
     },
     [actor],
@@ -414,6 +438,11 @@ export default function ViertlPage({
                           {CUSTOMER_META[l.customerStatus].label}
                         </span>
                       )}
+                      {l.linkedTicketId && (
+                        <span className="inline-flex items-center text-indigo-500" title="Verknüpftes Ticket">
+                          <Wrench className="w-3.5 h-3.5" />
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-slate-400">
                       {l.contact ? `${l.contact} · ` : ''}Kd. {l.mesonicKdnr}
@@ -465,8 +494,11 @@ export default function ViertlPage({
           onFetchEmail={fetchEmail}
           onLinkOffer={linkOfferToLicense}
           onUnlinkOffer={unlinkOfferFromLicense}
+          onUnlinkTicket={unlinkTicketFromLicense}
           onOpenOffer={onOpenOffer}
           onCreateOffer={onCreateOffer}
+          onCreateTicket={onCreateTicket}
+          onOpenTicket={onOpenTicket}
         />
       )}
     </div>
@@ -484,8 +516,11 @@ function LicenseDetail({
   onFetchEmail,
   onLinkOffer,
   onUnlinkOffer,
+  onUnlinkTicket,
   onOpenOffer,
   onCreateOffer,
+  onCreateTicket,
+  onOpenTicket,
 }: {
   license: ViertlLicense;
   actor: ViertlActor;
@@ -494,8 +529,11 @@ function LicenseDetail({
   onFetchEmail: (license: ViertlLicense) => Promise<string | null>;
   onLinkOffer: (licenseId: string, offer: OfferSummary) => Promise<void>;
   onUnlinkOffer: (licenseId: string) => Promise<void>;
+  onUnlinkTicket: (licenseId: string) => Promise<void>;
   onOpenOffer?: (offerId: string) => void;
   onCreateOffer?: (license: ViertlLicense) => void;
+  onCreateTicket?: (license: ViertlLicense) => void;
+  onOpenTicket?: (ticketId: string) => void;
 }) {
   const [events, setEvents] = useState<ViertlEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
@@ -505,6 +543,7 @@ function LicenseDetail({
   const [emailMsg, setEmailMsg] = useState<string | null>(null);
   const [linkedOffer, setLinkedOffer] = useState<OfferSummary | null>(null);
   const [suggestions, setSuggestions] = useState<OfferSummary[] | null>(null);
+  const [linkedTicket, setLinkedTicket] = useState<TicketSummary | null>(null);
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [notifyReason, setNotifyReason] = useState('');
   const [notifyBusy, setNotifyBusy] = useState(false);
@@ -529,6 +568,14 @@ function LicenseDetail({
     void getOfferSummary(license.linkedOfferId).then((o) => { if (!cancelled) setLinkedOffer(o); });
     return () => { cancelled = true; };
   }, [license.linkedOfferId]);
+
+  // Verknüpftes Ticket laden (Status live aus tickets).
+  useEffect(() => {
+    let cancelled = false;
+    if (!license.linkedTicketId) { setLinkedTicket(null); return; }
+    void getTicketSummary(license.linkedTicketId).then((t) => { if (!cancelled) setLinkedTicket(t); });
+    return () => { cancelled = true; };
+  }, [license.linkedTicketId]);
 
   const patch = async (p: Parameters<typeof updateLicense>[1]) => {
     setBusy(true);
@@ -587,6 +634,16 @@ function LicenseDetail({
     try {
       await onUnlinkOffer(license.id);
       setLinkedOffer(null);
+      await reloadEvents();
+    } finally {
+      setBusy(false);
+    }
+  };
+  const doUnlinkTicket = async () => {
+    setBusy(true);
+    try {
+      await onUnlinkTicket(license.id);
+      setLinkedTicket(null);
       await reloadEvents();
     } finally {
       setBusy(false);
@@ -791,6 +848,49 @@ function LicenseDetail({
               </div>
             )}
           </div>
+
+          {/* Ticket: Support-/Reparaturauftrag zu diesem Kunden. Wird im
+              normalen Ticket-Builder erstellt (mit vorbefülltem Kunden) und
+              danach automatisch hier verknüpft. */}
+          {(onCreateTicket || license.linkedTicketId) && (
+            <div className="pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Ticket</span>
+              </div>
+
+              {license.linkedTicketId && linkedTicket ? (
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${ticketBadge(linkedTicket.status).cls}`}>
+                      {ticketBadge(linkedTicket.status).label}
+                    </span>
+                    <span className="text-xs text-slate-500">#{linkedTicket.ticketNumber}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-slate-600">{linkedTicket.title}</div>
+                  <div className="mt-0.5 text-xs text-slate-400">
+                    Angelegt {new Date(linkedTicket.createdAt).toLocaleDateString('de-AT')}
+                    {linkedTicket.closedAt ? ` · Geschlossen ${new Date(linkedTicket.closedAt).toLocaleDateString('de-AT')}` : ''}
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    {onOpenTicket && (
+                      <button onClick={() => onOpenTicket(linkedTicket.id)} className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+                        <ExternalLink className="w-3.5 h-3.5" /> Öffnen
+                      </button>
+                    )}
+                    <button onClick={() => void doUnlinkTicket()} disabled={busy} className="px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40">
+                      Entfernen
+                    </button>
+                  </div>
+                </div>
+              ) : license.linkedTicketId ? (
+                <p className="text-xs text-slate-400"><Loader2 className="w-3.5 h-3.5 animate-spin inline" /> Ticket lädt …</p>
+              ) : onCreateTicket ? (
+                <button onClick={() => onCreateTicket(license)} className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">
+                  <Wrench className="w-3.5 h-3.5" /> Neues Ticket
+                </button>
+              ) : null}
+            </div>
+          )}
 
           {/* Belege / Hardware (Mesonic-Cache). Klick auf eine grüne Hardware-
               Zeile übernimmt deren Bezeichnung ins Hardware-Modell-Feld oben. */}
