@@ -1018,6 +1018,21 @@ export async function signRepairOrder(
   return rowToRepairOrder(data);
 }
 
+// Delete a repair order. Guarded to drafts — once a schein is completed,
+// signed or cancelled it belongs to the billing record and must never be
+// removed. The status filter enforces this server-side even if the caller
+// slips through with a stale status. Children (entries, materials,
+// adjustments, attachments) cascade via ON DELETE CASCADE.
+export async function deleteRepairOrder(id: string): Promise<void> {
+  const sb = requireSupabase();
+  const { error } = await sb
+    .from('repair_orders')
+    .delete()
+    .eq('id', id)
+    .eq('status', 'draft');
+  if (error) throw error;
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Repair order entries (time per technician)
 // ─────────────────────────────────────────────────────────────────────

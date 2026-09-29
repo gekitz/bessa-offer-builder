@@ -8,11 +8,13 @@ import {
   Loader2,
   Plus,
   Receipt,
+  Trash2,
   Wrench,
 } from 'lucide-react';
 import {
   addEntry,
   createRepairOrder,
+  deleteRepairOrder,
   listAppointmentsForTicket,
   listRepairOrders,
   updateRepairOrderMesonicCrmKey,
@@ -56,6 +58,7 @@ export default function RepairOrdersTab({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [creatingFromAppointmentId, setCreatingFromAppointmentId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -167,6 +170,24 @@ export default function RepairOrdersTab({
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setCreatingFromAppointmentId(null);
+    }
+  }
+
+  // Delete a draft Reparaturschein (row-level, without opening it). Only
+  // drafts expose the button; the API re-checks the status server-side.
+  async function handleDelete(order: RepairOrder, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!window.confirm(`Reparaturschein #${order.seqNumber} wirklich löschen?`)) return;
+    setDeletingId(order.id);
+    setError(null);
+    try {
+      await deleteRepairOrder(order.id);
+      setOrders((prev) => prev.filter((x) => x.id !== order.id));
+      onChange?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -305,6 +326,22 @@ export default function RepairOrdersTab({
                     )}
                   </div>
                 </div>
+                {o.status === 'draft' && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleDelete(o, e)}
+                    disabled={deletingId === o.id}
+                    className="rounded p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 flex-shrink-0 disabled:opacity-50"
+                    aria-label="Reparaturschein löschen"
+                    data-testid="delete-repair-order"
+                  >
+                    {deletingId === o.id ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={14} />
+                    )}
+                  </button>
+                )}
                 <ChevronRight size={14} className="text-slate-300" />
               </li>
             );

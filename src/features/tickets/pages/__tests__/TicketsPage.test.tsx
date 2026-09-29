@@ -20,8 +20,12 @@ vi.mock('../../../vacation/api/vacationApi', () => ({
   listAbteilungen: () => listAbteilungenMock(),
   listStandorte: () => listStandorteMock(),
 }));
+// Mutable auth so individual tests can simulate a signed-in employee.
+const authState = vi.hoisted(() => ({
+  current: { profile: null as unknown, user: null as unknown },
+}));
 vi.mock('../../../../lib/auth', () => ({
-  useAuth: () => ({ profile: null, user: null }),
+  useAuth: () => authState.current,
 }));
 vi.mock('../../../../components/CustomerPicker', () => ({ default: () => null }));
 
@@ -74,6 +78,7 @@ function makeTicket(over: Partial<Ticket> = {}): Ticket {
 
 beforeEach(() => {
   window.localStorage.clear();
+  authState.current = { profile: null, user: null };
   navigateMock.mockReset();
   listTicketsMock.mockReset().mockResolvedValue([
     makeTicket({ id: 't-1', ticketNumber: '26-0000001', shareCode: 'sc-test-0000001', title: 'Drucker' }),
@@ -230,6 +235,34 @@ describe('TicketsPage', () => {
     await waitFor(() => expect(screen.queryAllByTestId('ticket-row')).toHaveLength(1));
     expect(screen.getByText('Drucker')).toBeInTheDocument();
     expect(screen.queryByText('Kassa-Ticket')).not.toBeInTheDocument();
+  });
+
+  it('defaults the assignee filter to the logged-in employee (Meine Tickets)', async () => {
+    authState.current = { profile: null, user: { email: 'anna.tech@bessa.app' } };
+    listEmployeesMock.mockResolvedValue([
+      { id: 'emp-a', code: 'a', name: 'Anna Tech', email: 'anna.tech@bessa.app', standortId: 1, weeklyHours: 38.5, employmentType: 'fulltime', active: true },
+    ]);
+    listTicketsMock.mockResolvedValue([
+      makeTicket({ id: 't-1', ticketNumber: '26-0000001', shareCode: 's1', title: 'Meins', assignedTo: 'emp-a' }),
+      makeTicket({ id: 't-2', ticketNumber: '26-0000002', shareCode: 's2', title: 'Fremd', assignedTo: 'emp-b' }),
+    ]);
+    renderAt();
+    // Once the SSO→employee lookup resolves, the list narrows to the
+    // signed-in tech's own tickets without any interaction.
+    await waitFor(() => expect(screen.queryAllByTestId('ticket-row')).toHaveLength(1));
+    expect(screen.getByText('Meins')).toBeInTheDocument();
+    expect(screen.queryByText('Fremd')).not.toBeInTheDocument();
+  });
+
+  it('leaves the filter on Alle when the logged-in user has no employee record', async () => {
+    authState.current = { profile: null, user: { email: 'external@bessa.app' } };
+    listEmployeesMock.mockResolvedValue([
+      { id: 'emp-a', code: 'a', name: 'Anna Tech', email: 'anna.tech@bessa.app', standortId: 1, weeklyHours: 38.5, employmentType: 'fulltime', active: true },
+    ]);
+    // Default listTicketsMock returns two unassigned tickets.
+    renderAt();
+    await screen.findByText('Drucker');
+    expect(screen.queryAllByTestId('ticket-row')).toHaveLength(2);
   });
 
   it('filters tickets by assignee (Nicht zugewiesen)', async () => {
