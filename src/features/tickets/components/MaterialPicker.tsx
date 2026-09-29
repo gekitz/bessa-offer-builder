@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, Loader2, Package, Search, X } from 'lucide-react';
-import { baseArticleNumber, searchArticles } from '../../../lib/mesonicApi';
+import { baseArticleNumber, getArticlePrice, searchArticles } from '../../../lib/mesonicApi';
 import { normaliseArticle, type MesonicArticle } from '../../../lib/mesonicArticles';
 import type { RepairOrderMaterialInput } from '../types';
 
 interface MaterialPickerProps {
   onSelect: (input: RepairOrderMaterialInput) => Promise<void> | void;
   onClose: () => void;
+}
+
+// Net price → German decimal string (comma, 2 places) for the input field.
+function formatPrice(n: number): string {
+  return n.toFixed(2).replace('.', ',');
 }
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -31,6 +36,12 @@ export default function MaterialPicker({ onSelect, onClose }: MaterialPickerProp
   const [quantity, setQuantity] = useState<string>('1');
   const [unitPrice, setUnitPrice] = useState<string>('');
   const [adding, setAdding] = useState(false);
+  // Price prefill status for the picked article: 'loading' while we fetch the
+  // Mesonic VK, 'found'/'missing' once resolved, 'idle' before a pick.
+  const [priceStatus, setPriceStatus] = useState<'idle' | 'loading' | 'found' | 'missing'>('idle');
+  // Increments on every pick / back so a slow price fetch can't apply to a
+  // different (or no) selection after the user has moved on.
+  const pickTokenRef = useRef(0);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -76,9 +87,41 @@ export default function MaterialPicker({ onSelect, onClose }: MaterialPickerProp
     };
   }, [debouncedQuery]);
 
-  function handlePick(a: MesonicArticle) {
+  async function handlePick(a: MesonicArticle) {
     setPicked(a);
-    if (a.hintedPrice != null) setUnitPrice(String(a.hintedPrice));
+    setError(null);
+    const token = ++pickTokenRef.current;
+    // The search template (T024) carries no price. If a result already hinted
+    // one use it; otherwise fetch the standard VK (Preisliste 13) so the tech
+    // gets a prefilled price to accept or override instead of a blank field.
+    if (a.hintedPrice != null) {
+      setUnitPrice(formatPrice(a.hintedPrice));
+      setPriceStatus('found');
+      return;
+    }
+    setUnitPrice('');
+    setPriceStatus('loading');
+    try {
+      const price = await getArticlePrice(a.number);
+      if (pickTokenRef.current !== token) return; // superseded by another pick / back
+      if (price != null) {
+        setUnitPrice(formatPrice(price));
+        setPriceStatus('found');
+      } else {
+        setPriceStatus('missing');
+      }
+    } catch {
+      // Best-effort — a price lookup failure must not block manual entry.
+      if (pickTokenRef.current === token) setPriceStatus('missing');
+    }
+  }
+
+  function backToSearch() {
+    pickTokenRef.current++; // discard any in-flight price fetch
+    setPicked(null);
+    setUnitPrice('');
+    setPriceStatus('idle');
+    setError(null);
   }
 
   async function handleAdd(e: React.FormEvent) {
@@ -175,20 +218,37 @@ export default function MaterialPicker({ onSelect, onClose }: MaterialPickerProp
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   Einzelpreis (netto, €)
                 </label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={unitPrice}
-                  onChange={(e) => setUnitPrice(e.target.value)}
-                  placeholder="0,00"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30"
-                  required
-                  autoFocus
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={unitPrice}
+                    onChange={(e) => {
+                      setUnitPrice(e.target.value);
+                      setPriceStatus('idle'); // user is overriding the prefill
+                    }}
+                    placeholder="0,00"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                    required
+                    autoFocus
+                  />
+                  {priceStatus === 'loading' && (
+                    <Loader2
+                      size={14}
+                      className="animate-spin text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2"
+                    />
+                  )}
+                </div>
               </div>
             </div>
             <div className="text-xs text-slate-400">
-              WebPreisExport ist noch nicht verfügbar — Preis manuell eingeben.
+              {priceStatus === 'loading'
+                ? 'Preis wird aus Mesonic geladen…'
+                : priceStatus === 'found'
+                ? 'Preis aus Mesonic vorausgefüllt (Preisliste 13) — bei Bedarf anpassen.'
+                : priceStatus === 'missing'
+                ? 'Kein Mesonic-Preis gefunden — bitte manuell eingeben.'
+                : 'Preis netto eingeben.'}
             </div>
             {error && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 flex items-center gap-2 text-sm text-red-700">
@@ -199,7 +259,7 @@ export default function MaterialPicker({ onSelect, onClose }: MaterialPickerProp
             <div className="flex items-center justify-between gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => setPicked(null)}
+                onClick={backToSearch}
                 className="text-sm text-slate-500 hover:text-slate-700"
                 disabled={adding}
               >
