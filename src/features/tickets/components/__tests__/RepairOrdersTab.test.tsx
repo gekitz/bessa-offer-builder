@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 const listRepairOrdersMock = vi.fn();
 const listAppointmentsForTicketMock = vi.fn();
 const createRepairOrderMock = vi.fn();
+const deleteRepairOrderMock = vi.fn();
 const getRepairOrderMock = vi.fn();
 const listServiceRatesMock = vi.fn();
 const listTravelZonesMock = vi.fn();
@@ -15,6 +16,7 @@ vi.mock('../../api/ticketApi', () => ({
   listRepairOrders: (ticketId: string) => listRepairOrdersMock(ticketId),
   listAppointmentsForTicket: (ticketId: string) => listAppointmentsForTicketMock(ticketId),
   createRepairOrder: (input: unknown) => createRepairOrderMock(input),
+  deleteRepairOrder: (id: string) => deleteRepairOrderMock(id),
   getRepairOrder: (id: string) => getRepairOrderMock(id),
   listServiceRates: () => listServiceRatesMock(),
   listTravelZones: () => listTravelZonesMock(),
@@ -67,6 +69,7 @@ beforeEach(() => {
   listRepairOrdersMock.mockReset().mockResolvedValue([]);
   listAppointmentsForTicketMock.mockReset().mockResolvedValue([]);
   createRepairOrderMock.mockReset().mockResolvedValue({ ...ro1, id: 'ro-new', seqNumber: 2 });
+  deleteRepairOrderMock.mockReset().mockResolvedValue(undefined);
   getRepairOrderMock.mockReset().mockResolvedValue({ repairOrder: { ...ro1, id: 'ro-new', seqNumber: 2 }, entries: [], materials: [], adjustments: [] });
   listServiceRatesMock.mockReset().mockResolvedValue([]);
   listTravelZonesMock.mockReset().mockResolvedValue([]);
@@ -86,6 +89,46 @@ describe('RepairOrdersTab', () => {
     render(<RepairOrdersTab ticket={ticket} />);
     await screen.findByText(/Rep.schein #1/);
     expect(screen.getAllByTestId('repair-order-card')).toHaveLength(1);
+  });
+
+  it('only offers a delete button for draft repair orders', async () => {
+    // ro1 is 'completed' → not deletable.
+    listRepairOrdersMock.mockResolvedValueOnce([ro1]);
+    render(<RepairOrdersTab ticket={ticket} />);
+    await screen.findByText(/Rep.schein #1/);
+    expect(screen.queryByTestId('delete-repair-order')).not.toBeInTheDocument();
+  });
+
+  it('deletes a draft repair order after confirmation without opening it', async () => {
+    const roDraft: RepairOrder = { ...ro1, id: 'ro-draft', seqNumber: 3, status: 'draft' };
+    listRepairOrdersMock.mockResolvedValueOnce([roDraft]);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const u = userEvent.setup();
+    render(<RepairOrdersTab ticket={ticket} />);
+    await screen.findByText(/Rep.schein #3/);
+
+    await u.click(screen.getByTestId('delete-repair-order'));
+
+    await waitFor(() => expect(deleteRepairOrderMock).toHaveBeenCalledWith('ro-draft'));
+    await waitFor(() => expect(screen.queryByText(/Rep.schein #3/)).not.toBeInTheDocument());
+    // Row-level delete must not navigate into the detail view.
+    expect(getRepairOrderMock).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('does not delete when the confirmation is dismissed', async () => {
+    const roDraft: RepairOrder = { ...ro1, id: 'ro-draft', seqNumber: 3, status: 'draft' };
+    listRepairOrdersMock.mockResolvedValueOnce([roDraft]);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const u = userEvent.setup();
+    render(<RepairOrdersTab ticket={ticket} />);
+    await screen.findByText(/Rep.schein #3/);
+
+    await u.click(screen.getByTestId('delete-repair-order'));
+
+    expect(deleteRepairOrderMock).not.toHaveBeenCalled();
+    expect(screen.getByText(/Rep.schein #3/)).toBeInTheDocument();
+    confirmSpy.mockRestore();
   });
 
   it('creates a new repair order and opens its detail view', async () => {

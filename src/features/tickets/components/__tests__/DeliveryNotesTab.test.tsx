@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 
 const listDeliveryNotesMock = vi.fn();
 const createDeliveryNoteMock = vi.fn();
+const deleteDeliveryNoteMock = vi.fn();
 const addDeliveryItemsMock = vi.fn();
 const getDeliveryNoteMock = vi.fn();
 const getOfferMock = vi.fn();
@@ -13,6 +14,7 @@ const buildItemsMock = vi.fn();
 vi.mock('../../api/deliveryNoteApi', () => ({
   listDeliveryNotes: (ticketId: string) => listDeliveryNotesMock(ticketId),
   createDeliveryNote: (input: unknown) => createDeliveryNoteMock(input),
+  deleteDeliveryNote: (id: string) => deleteDeliveryNoteMock(id),
   addDeliveryItems: (id: string, items: unknown) => addDeliveryItemsMock(id, items),
   getDeliveryNote: (id: string) => getDeliveryNoteMock(id),
   // Used by the detail view once opened.
@@ -57,6 +59,7 @@ const dn1: DeliveryNote = {
 beforeEach(() => {
   listDeliveryNotesMock.mockReset().mockResolvedValue([]);
   createDeliveryNoteMock.mockReset().mockResolvedValue({ ...dn1, id: 'dn-new', seqNumber: 2 });
+  deleteDeliveryNoteMock.mockReset().mockResolvedValue(undefined);
   addDeliveryItemsMock.mockReset().mockResolvedValue([]);
   getDeliveryNoteMock.mockReset().mockResolvedValue({
     deliveryNote: { ...dn1, id: 'dn-new', seqNumber: 2 },
@@ -87,6 +90,42 @@ describe('DeliveryNotesTab', () => {
     render(<DeliveryNotesTab ticket={baseTicket} />);
     await screen.findByText(/Lieferschein #1/);
     expect(screen.getAllByTestId('delivery-note-card')).toHaveLength(1);
+  });
+
+  it('only offers a delete button for draft delivery notes', async () => {
+    listDeliveryNotesMock.mockResolvedValueOnce([{ ...dn1, status: 'signed' as const }]);
+    render(<DeliveryNotesTab ticket={baseTicket} />);
+    await screen.findByText(/Lieferschein #1/);
+    expect(screen.queryByTestId('delete-delivery-note')).not.toBeInTheDocument();
+  });
+
+  it('deletes a draft delivery note after confirmation without opening it', async () => {
+    listDeliveryNotesMock.mockResolvedValueOnce([dn1]); // status 'draft'
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const u = userEvent.setup();
+    render(<DeliveryNotesTab ticket={baseTicket} />);
+    await screen.findByText(/Lieferschein #1/);
+
+    await u.click(screen.getByTestId('delete-delivery-note'));
+
+    await waitFor(() => expect(deleteDeliveryNoteMock).toHaveBeenCalledWith('dn-1'));
+    await waitFor(() => expect(screen.queryByText(/Lieferschein #1/)).not.toBeInTheDocument());
+    expect(getDeliveryNoteMock).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('does not delete when the confirmation is dismissed', async () => {
+    listDeliveryNotesMock.mockResolvedValueOnce([dn1]);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const u = userEvent.setup();
+    render(<DeliveryNotesTab ticket={baseTicket} />);
+    await screen.findByText(/Lieferschein #1/);
+
+    await u.click(screen.getByTestId('delete-delivery-note'));
+
+    expect(deleteDeliveryNoteMock).not.toHaveBeenCalled();
+    expect(screen.getByText(/Lieferschein #1/)).toBeInTheDocument();
+    confirmSpy.mockRestore();
   });
 
   it('creates a blank delivery note and opens its detail', async () => {

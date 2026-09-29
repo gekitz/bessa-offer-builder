@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronRight, LayoutGrid, List, Loader2, Plus, Search, User, Wrench } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../lib/auth';
@@ -116,6 +116,18 @@ export default function TicketsPage({
   // Assignee filter. 'all' | 'mine' | 'unassigned' | <employeeId>.
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
+  // The list/board defaults to the logged-in user's own tickets ("Meine
+  // Tickets"). We can't seed useState with it because currentEmployeeId is
+  // resolved asynchronously — apply it once, as soon as it lands, and only
+  // if the filter is still on its initial value (so a manual change during
+  // the resolve window isn't clobbered). Users with no matching employee
+  // record stay on "Alle".
+  const assigneeDefaultApplied = useRef(false);
+  useEffect(() => {
+    if (assigneeDefaultApplied.current || !currentEmployeeId) return;
+    assigneeDefaultApplied.current = true;
+    setAssigneeFilter((prev) => (prev === 'all' ? 'mine' : prev));
+  }, [currentEmployeeId]);
   // Pool × status overview matrix.
   const [counts, setCounts] = useState<CountRow[]>([]);
   // Hidden by default; only shown if the user explicitly opened it before.

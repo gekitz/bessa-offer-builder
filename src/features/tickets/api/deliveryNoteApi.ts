@@ -209,6 +209,20 @@ export async function signDeliveryNote(
   return rowToDeliveryNote(data);
 }
 
+// Delete a delivery note. Guarded to drafts — a signed or cancelled note is
+// part of the record and must never be removed. The status filter enforces
+// this even against a stale caller. delivery_note_items cascade via
+// ON DELETE CASCADE.
+export async function deleteDeliveryNote(id: string): Promise<void> {
+  const sb = requireSupabase();
+  const { error } = await sb
+    .from('delivery_notes')
+    .delete()
+    .eq('id', id)
+    .eq('status', 'draft');
+  if (error) throw error;
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Delivery note items
 // ─────────────────────────────────────────────────────────────────────

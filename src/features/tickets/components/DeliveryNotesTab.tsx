@@ -6,9 +6,15 @@ import {
   Loader2,
   Plus,
   Sparkles,
+  Trash2,
   Truck,
 } from 'lucide-react';
-import { addDeliveryItems, createDeliveryNote, listDeliveryNotes } from '../api/deliveryNoteApi';
+import {
+  addDeliveryItems,
+  createDeliveryNote,
+  deleteDeliveryNote,
+  listDeliveryNotes,
+} from '../api/deliveryNoteApi';
 import { buildDeliveryItemsFromOffer } from '../lib/deliveryNoteSeed';
 import { getOffer } from '../../../lib/offerApi';
 import { hydrateCatalog } from '../../offers/data/catalogLoader';
@@ -45,6 +51,7 @@ export default function DeliveryNotesTab({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -96,6 +103,24 @@ export default function DeliveryNotesTab({
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSeeding(false);
+    }
+  }
+
+  // Delete a draft Lieferschein (row-level, without opening it). Only drafts
+  // expose the button; the API re-checks the status server-side.
+  async function handleDelete(note: DeliveryNote, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!window.confirm(`Lieferschein #${note.seqNumber} wirklich löschen?`)) return;
+    setDeletingId(note.id);
+    setError(null);
+    try {
+      await deleteDeliveryNote(note.id);
+      setNotes((prev) => prev.filter((x) => x.id !== note.id));
+      onChange?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -197,6 +222,22 @@ export default function DeliveryNotesTab({
                   )}
                 </div>
               </div>
+              {n.status === 'draft' && (
+                <button
+                  type="button"
+                  onClick={(e) => handleDelete(n, e)}
+                  disabled={deletingId === n.id}
+                  className="rounded p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 flex-shrink-0 disabled:opacity-50"
+                  aria-label="Lieferschein löschen"
+                  data-testid="delete-delivery-note"
+                >
+                  {deletingId === n.id ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={14} />
+                  )}
+                </button>
+              )}
               <ChevronRight size={14} className="text-slate-300" />
             </li>
           ))}
