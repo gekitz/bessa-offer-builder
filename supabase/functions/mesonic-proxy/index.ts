@@ -1,5 +1,12 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  DEFAULT_PROBE_KONTO,
+  isSessionError,
+  needsLivenessProbe,
+  parseEximXml,
+  PROBE_VERIFY_TTL_MS,
+} from "./session.ts";
 
 // ═══════════════════════════════════════════════════════
 // Mesonic WinLine MDP WebServices Proxy
@@ -40,6 +47,13 @@ const corsHeaders = {
 let mesonicSession: string | null = null;
 let sessionTimestamp = 0;
 const SESSION_MAX_AGE_MS = 50 * 60 * 1000; // re-login after 50 min (TTL is 1 h, sliding)
+
+// Last time we PROVED the current session is alive against WinLine (real data
+// came back, or a sentinel probe succeeded). A session can die silently well
+// before the 50-min TTL — its worker crashes but the session envelope lingers,
+// so exports return empty instead of 001001/001002. We use this to rate-limit
+// the liveness probe (see verifySessionAlive / needsLivenessProbe).
+let lastVerifiedAt = 0;
 
 // fetch mit Timeout — verhindert, dass ein hängender WinLine-Call den
 // Edge-Isolate blockiert und dadurch Sessions "in Verwendung" hält
@@ -176,11 +190,30 @@ async function getSession(): Promise<string> {
   return await mesonicLogin();
 }
 
-// ─── Check if response indicates a session error ───
-function isSessionError(text: string): boolean {
-  return text.includes("001001") || text.includes("001002") ||
-    text.toLowerCase().includes("session was not found") ||
-    text.toLowerCase().includes("no webservice session");
+// ─── Liveness probe (dead-but-silent session detection) ───
+// Exports the sentinel Konto (24998 HAUSINTERN by default), which MUST always
+// return exactly one record. If the given session can't fetch it, the session
+// is dead even though it may not have returned an explicit 001001/001002.
+// Returns true = session is alive; false = dead / unreachable.
+async function verifySessionAlive(session: string): Promise<boolean> {
+  const konto = Deno.env.get("MESONIC_PROBE_KONTO") || DEFAULT_PROBE_KONTO;
+  const cfg = getMesonicConfig();
+  const qp = new URLSearchParams({
+    Session: session,
+    Type: "1",
+    Vorlage: "WebKontenExport",
+    Format: "1",
+    byref: "1",
+  });
+  const url = `${cfg.url}/ewlservice/export?${qp.toString()}&Key=${encodeURIComponent(konto)}`;
+  try {
+    const res = await fetchTimeout(url, 10000);
+    const text = await res.text();
+    if (isSessionError(text)) return false;
+    return parseEximXml(text).records.length > 0;
+  } catch (_e) {
+    return false; // timeout / network → treat as not-alive so we re-login
+  }
 }
 
 // ─── Mesonic export (read data) ───
@@ -223,6 +256,27 @@ async function mesonicExport(params: {
     mesonicSession = null;
     session = await mesonicLogin();
     text = await doExport(session);
+  }
+
+  // Dead-but-silent session guard: a crashed WinLine session often returns an
+  // EMPTY result set (or 000161 "Kein Datensatz") instead of 001001/001002.
+  // That's indistinguishable from a genuine no-match, so on an empty result we
+  // probe the sentinel Konto (rate-limited via lastVerifiedAt). If the probe is
+  // also empty the session is dead → re-login and retry the original query.
+  const count = parseEximXml(text).records.length;
+  if (count > 0) {
+    lastVerifiedAt = Date.now(); // real data proves the session is alive
+  } else if (needsLivenessProbe(count, lastVerifiedAt, Date.now(), PROBE_VERIFY_TTL_MS)) {
+    const alive = await verifySessionAlive(session);
+    if (alive) {
+      lastVerifiedAt = Date.now(); // session fine → the empty result is genuine
+    } else {
+      console.log("[mesonic] empty result + probe failed → stale session, re-login + retry");
+      mesonicSession = null;
+      session = await mesonicLogin();
+      text = await doExport(session);
+      lastVerifiedAt = Date.now();
+    }
   }
 
   return text;
@@ -374,94 +428,6 @@ async function mesonicImport(params: {
   return text;
 }
 
-// ─── Parse Mesonic XML response to JSON ───
-// Mesonic XML formats:
-//   Success: <MESOWebService TemplateType="1" Template="X"><X><Field>val</Field>...</X><X>...</X></MESOWebService>
-//   Error:   <MESOWebServiceResult><OverallSuccess>false</OverallSuccess><ResultDetails><ErrorCode>000161</ErrorCode><ErrorText>...</ErrorText></ResultDetails></MESOWebServiceResult>
-function parseEximXml(xml: string): { error?: string; errorCode?: string; records: Record<string, string>[] } {
-  // Check for error responses
-  const successMatch = xml.match(/<OverallSuccess>(\w+)<\/OverallSuccess>/i);
-  if (successMatch && successMatch[1].toLowerCase() === "false") {
-    const codeMatch = xml.match(/<ErrorCode>(\d+)<\/ErrorCode>/i);
-    const textMatch = xml.match(/<ErrorText>([^<]*)<\/ErrorText>/i);
-    return {
-      error: textMatch ? textMatch[1] : "Unknown Mesonic error",
-      errorCode: codeMatch ? codeMatch[1] : undefined,
-      records: [],
-    };
-  }
-
-  // Also check if the entire response is just an error code
-  const trimmed = xml.trim();
-  if (/^\d{6}$/.test(trimmed)) {
-    return { error: `Mesonic error code: ${trimmed}`, errorCode: trimmed, records: [] };
-  }
-
-  const records: Record<string, string>[] = [];
-
-  // Extract template name from wrapper: <MESOWebService Template="WebKontenExport">
-  // Records are direct children of MESOWebService, tagged with the template name
-  const templateMatch = xml.match(/<MESOWebService[^>]*Template="([^"]+)"[^>]*>/i);
-  const templateTag = templateMatch ? templateMatch[1] : null;
-
-  if (templateTag) {
-    // Match all <TemplateName>...</TemplateName> record blocks
-    const recordRegex = new RegExp(
-      `<${templateTag}>([\\s\\S]*?)<\\/${templateTag}>`,
-      "gi"
-    );
-    let recordMatch;
-    while ((recordMatch = recordRegex.exec(xml)) !== null) {
-      const recordXml = recordMatch[1];
-      const fields: Record<string, string> = {};
-      const fieldRegex = /<([A-Za-z0-9_.\-]+)>([\s\S]*?)<\/\1>/g;
-      let fieldMatch;
-      while ((fieldMatch = fieldRegex.exec(recordXml)) !== null) {
-        fields[fieldMatch[1]] = fieldMatch[2].trim();
-      }
-      if (Object.keys(fields).length > 0) {
-        records.push(fields);
-      }
-    }
-  }
-
-  // Fallback: try generic Record/Datensatz tags
-  if (records.length === 0) {
-    const recordRegex = /<(?:Record|Datensatz)\b[^>]*>([\s\S]*?)<\/(?:Record|Datensatz)>/gi;
-    let recordMatch;
-    while ((recordMatch = recordRegex.exec(xml)) !== null) {
-      const recordXml = recordMatch[1];
-      const fields: Record<string, string> = {};
-      const fieldRegex = /<([A-Za-z0-9_.\-]+)>([\s\S]*?)<\/\1>/g;
-      let fieldMatch;
-      while ((fieldMatch = fieldRegex.exec(recordXml)) !== null) {
-        fields[fieldMatch[1]] = fieldMatch[2].trim();
-      }
-      if (Object.keys(fields).length > 0) {
-        records.push(fields);
-      }
-    }
-  }
-
-  // Fallback: parse as flat fields (skip known wrappers)
-  if (records.length === 0 && xml.includes("<")) {
-    const fields: Record<string, string> = {};
-    const fieldRegex = /<([A-Za-z0-9_.\-]+)>([^<]*)<\/\1>/g;
-    let fieldMatch;
-    while ((fieldMatch = fieldRegex.exec(xml)) !== null) {
-      const tag = fieldMatch[1];
-      if (!["MESOWebService", "MESOWebServiceResult", "OverallSuccess", "ResultDetails", "string", "xml"].includes(tag)) {
-        fields[tag] = fieldMatch[2].trim();
-      }
-    }
-    if (Object.keys(fields).length > 0) {
-      records.push(fields);
-    }
-  }
-
-  return { records };
-}
-
 // Constant-time string compare for the internal shared-secret path.
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -520,10 +486,21 @@ serve(async (req: Request) => {
     // ── Ping / health check ──
     if (action === "ping") {
       try {
-        await getSession();
+        // A cached session ID is NOT proof of liveness — the WinLine worker can
+        // crash while the session envelope lingers. Actually probe the sentinel
+        // Konto so ping reflects reality, and self-heal if it's dead.
+        let session = await getSession();
+        let alive = await verifySessionAlive(session);
+        if (!alive) {
+          console.log("[mesonic] ping: cached session is stale, re-login...");
+          mesonicSession = null;
+          session = await mesonicLogin();
+          alive = await verifySessionAlive(session);
+        }
+        if (alive) lastVerifiedAt = Date.now();
         return new Response(
-          JSON.stringify({ ok: true, session: "active" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ ok: alive, session: alive ? "active" : "stale" }),
+          { status: alive ? 200 : 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       } catch (err) {
         return new Response(
