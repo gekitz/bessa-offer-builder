@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import { AuthProvider } from './lib/auth.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
+import { isPublicFlow } from './lib/publicFlow.ts'
 import './index.css'
 
 // Register the service worker once per page load. It owns push
@@ -31,16 +32,15 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Public customer-facing flows live outside the auth wall — the offer
-// accept link (?a=) and the ticket-tracking portal (?t=). Both authenticate
-// via their share_code, not via Microsoft SSO.
-const search = new URLSearchParams(window.location.search);
-const isPublicFlow = search.has('a') || search.has('t');
+// Public customer-facing flows live outside the auth wall — offer accept (?a=),
+// ticket-tracking portal (?t=), campaign landing (?c=). Each authenticates via
+// its own share token, not via Microsoft SSO. See lib/publicFlow for the list.
+const publicFlow = isPublicFlow(new URLSearchParams(window.location.search));
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <AuthProvider>
-      {isPublicFlow ? (
+      {publicFlow ? (
         <App />
       ) : (
         <ProtectedRoute>
