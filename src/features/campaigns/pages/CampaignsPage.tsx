@@ -78,6 +78,7 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
   const [editingId, setEditingId] = useState<string | null>(null); // null = anlegen, sonst bearbeiten
   const [newKey, setNewKey] = useState('');
   const [newTitle, setNewTitle] = useState('');
+  const [newPublicTitle, setNewPublicTitle] = useState('');
   const [newSubject, setNewSubject] = useState('');
   const [newTemplate, setNewTemplate] = useState('');
 
@@ -216,7 +217,7 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
   }
 
   function resetCampaignForm() {
-    setNewKey(''); setNewTitle(''); setNewSubject(''); setNewTemplate('');
+    setNewKey(''); setNewTitle(''); setNewPublicTitle(''); setNewSubject(''); setNewTemplate('');
   }
 
   // Panel im Anlegen-Modus öffnen (leeres Formular). Ist es gerade im
@@ -239,6 +240,7 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
     setEditingId(campaign.id);
     setNewKey(campaign.key);
     setNewTitle(campaign.title);
+    setNewPublicTitle(campaign.publicTitle ?? '');
     setNewSubject(campaign.emailSubject ?? '');
     setNewTemplate(campaign.emailTemplate ?? '');
     setEnrollOpen(false);
@@ -258,6 +260,7 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
       if (editingId) {
         const updated = await updateCampaign(editingId, {
           title: newTitle.trim(),
+          publicTitle: newPublicTitle.trim() || null,
           emailSubject: newSubject.trim() || null,
           emailTemplate: newTemplate.trim() || null,
         });
@@ -274,6 +277,7 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
             type: 'rksv_signature',
             key: newKey.trim(),
             title: newTitle.trim(),
+            publicTitle: newPublicTitle.trim() || null,
             emailSubject: newSubject.trim() || null,
             emailTemplate: newTemplate.trim() || null,
           },
@@ -384,6 +388,7 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
             isEdit={editingId !== null}
             newKey={newKey} setNewKey={setNewKey}
             newTitle={newTitle} setNewTitle={setNewTitle}
+            newPublicTitle={newPublicTitle} setNewPublicTitle={setNewPublicTitle}
             newSubject={newSubject} setNewSubject={setNewSubject}
             newTemplate={newTemplate} setNewTemplate={setNewTemplate}
             busy={busy}
@@ -590,6 +595,7 @@ function CreateCampaignPanel({
   isEdit,
   newKey, setNewKey,
   newTitle, setNewTitle,
+  newPublicTitle, setNewPublicTitle,
   newSubject, setNewSubject,
   newTemplate, setNewTemplate,
   busy,
@@ -599,6 +605,7 @@ function CreateCampaignPanel({
   isEdit: boolean;
   newKey: string; setNewKey: (v: string) => void;
   newTitle: string; setNewTitle: (v: string) => void;
+  newPublicTitle: string; setNewPublicTitle: (v: string) => void;
   newSubject: string; setNewSubject: (v: string) => void;
   newTemplate: string; setNewTemplate: (v: string) => void;
   busy: boolean;
@@ -621,8 +628,12 @@ function CreateCampaignPanel({
           <input value={newKey} onChange={(e) => setNewKey(e.target.value)} readOnly={isEdit} placeholder="z. B. 2026-acos" className={`${inputCls}${isEdit ? ' bg-slate-50 text-slate-400 cursor-not-allowed' : ''}`} />
         </label>
         <label className="block sm:col-span-2">
-          <span className="block text-xs font-medium text-slate-500 mb-1">Titel</span>
+          <span className="block text-xs font-medium text-slate-500 mb-1">Titel (intern)</span>
           <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="RKSV-Signaturkartentausch 2026" className={inputCls} />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="block text-xs font-medium text-slate-500 mb-1">Öffentlicher Titel (sieht der Kunde auf der Landing-Seite)</span>
+          <input value={newPublicTitle} onChange={(e) => setNewPublicTitle(e.target.value)} placeholder="RKSV-Signaturkartentausch" className={inputCls} />
         </label>
         <label className="block sm:col-span-2">
           <span className="block text-xs font-medium text-slate-500 mb-1">E-Mail-Betreff</span>

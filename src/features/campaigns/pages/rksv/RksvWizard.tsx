@@ -170,12 +170,15 @@ export default function RksvWizard({
     );
   }
 
+  // Die „Beantworten Sie die Frage"-Zeile nur auf Frage-Schritten zeigen — auf
+  // den Terminal-Schritten (Unterschrift/Angebot/Prüfung) gibt es keine Frage
+  // mehr, und die stehengebliebene Zeile wäre widersprüchlich.
   const intro = (
     <div className="mb-4">
-      <h1 className="text-xl font-bold text-slate-800 mb-1">{campaign.title || 'RKSV-Signaturkarte'}</h1>
+      <h1 className="text-xl font-bold text-slate-800 mb-1">{campaign.publicTitle || campaign.title || 'RKSV-Signaturkarte'}</h1>
       <p className="text-slate-500 text-sm">
-        Ihre RKSV-Signaturkarte muss getauscht werden. Beantworten Sie kurz die folgende Frage,
-        damit wir den richtigen nächsten Schritt für Sie wählen.
+        Ihre RKSV-Signaturkarte muss getauscht werden.
+        {step.kind === 'question' && ' Beantworten Sie kurz die folgende Frage, damit wir den richtigen nächsten Schritt für Sie wählen.'}
       </p>
     </div>
   );
@@ -216,6 +219,10 @@ export default function RksvWizard({
             mit Ihrer Unterschrift. Die Kosten werden wie gewohnt über die reguläre
             Service-/Rechnungsstellung abgerechnet.
           </p>
+          <p className="text-slate-600 text-sm mb-3">
+            Hiermit beauftrage ich die Kitz Computer + Office GmbH mit dem Austausch der
+            RKSV-Signaturkarte sowie den damit verbundenen Arbeiten zur Umstellung der Registrierkasse.
+          </p>
           <input
             type="text"
             value={signedName}
@@ -223,6 +230,16 @@ export default function RksvWizard({
             placeholder="Ihr Name"
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3 focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none"
           />
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-medium text-slate-500">Hier unterschreiben</span>
+            <button
+              type="button"
+              onClick={() => { sigRef.current?.clear(); setError(null); }}
+              className="text-xs text-slate-400 hover:text-red-600"
+            >
+              Löschen
+            </button>
+          </div>
           <SignaturePad ref={sigRef} />
           <button
             onClick={onAuthorize}

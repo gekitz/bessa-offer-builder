@@ -30,7 +30,8 @@ export interface Campaign {
   id: string;
   type: CampaignType;
   key: string;
-  title: string;
+  title: string;            // interne Bezeichnung (Back-Office)
+  publicTitle: string | null; // Überschrift auf der Kunden-Landing (?c=); null → title
   emailSubject: string | null;
   emailTemplate: string | null;
   status: CampaignStatus;

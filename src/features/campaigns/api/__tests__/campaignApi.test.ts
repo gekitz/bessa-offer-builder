@@ -120,6 +120,19 @@ describe('createCampaign', () => {
     expect(insert.created_by_id).toBe('u1');
     expect(insert.created_by_name).toBe('Georg');
   });
+
+  it('maps publicTitle → public_title (defaulting to null when omitted)', async () => {
+    chains.campaigns = makeChain({
+      data: { id: 'c1', type: 'rksv_signature', key: 'k', title: 'T', public_title: 'Öffentlich',
+        email_subject: null, email_template: null, status: 'draft',
+        created_by_id: 'u1', created_by_name: 'Georg', created_at: '', updated_at: '' },
+      error: null,
+    });
+    const res = await createCampaign({ type: 'rksv_signature', key: 'k', title: 'T', publicTitle: 'Öffentlich' }, ACTOR);
+    const insert = chains.campaigns._calls.find((c) => c.method === 'insert')!.args[0] as Record<string, unknown>;
+    expect(insert.public_title).toBe('Öffentlich');
+    expect(res.publicTitle).toBe('Öffentlich');
+  });
 });
 
 describe('updateCampaign', () => {
@@ -156,6 +169,18 @@ describe('updateCampaign', () => {
     await updateCampaign('c1', { emailTemplate: null });
     const update = chains.campaigns._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
     expect(update).toHaveProperty('email_template', null);
+  });
+
+  it('maps publicTitle → public_title and clears it with explicit null', async () => {
+    chains.campaigns = makeChain({ data: campaignRow({ public_title: 'Öffentlich' }), error: null });
+    await updateCampaign('c1', { publicTitle: 'Öffentlich' });
+    let update = chains.campaigns._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(update).toEqual({ public_title: 'Öffentlich' });
+
+    chains.campaigns = makeChain({ data: campaignRow(), error: null });
+    await updateCampaign('c1', { publicTitle: null });
+    update = chains.campaigns._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(update).toHaveProperty('public_title', null);
   });
 });
 
