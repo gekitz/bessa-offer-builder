@@ -15,6 +15,7 @@ import {
   updateCampaign,
 } from '../api/campaignApi';
 import { filterLicensesForSegment, licenseToEnrollSubject, type ViertlSegmentFilter } from '../lib/rksvEnroll';
+import { pickTemplateFields } from '../lib/templatePick';
 import { listLicenses } from '../../viertl/api/viertlApi';
 import type { ViertlCustomerStatus, ViertlLicense } from '../../viertl/types';
 import type {
@@ -220,6 +221,18 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
     setNewKey(''); setNewTitle(''); setNewPublicTitle(''); setNewSubject(''); setNewTemplate('');
   }
 
+  // Inhalt (öffentlicher Titel, Betreff, HTML-Body) aus einer bestehenden
+  // Kampagne als Vorlage übernehmen — NICHT die Identität (Key/Titel bleiben
+  // frei). Nur im Anlegen-Modus angeboten.
+  function applyTemplate(id: string) {
+    const c = campaigns.find((x) => x.id === id);
+    if (!c) return;
+    const t = pickTemplateFields(c);
+    setNewPublicTitle(t.publicTitle);
+    setNewSubject(t.emailSubject);
+    setNewTemplate(t.emailTemplate);
+  }
+
   // Panel im Anlegen-Modus öffnen (leeres Formular). Ist es gerade im
   // Bearbeiten-Modus offen, auf Anlegen umschalten statt zuzuklappen.
   function openCreate() {
@@ -386,6 +399,8 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
         {createOpen && (
           <CreateCampaignPanel
             isEdit={editingId !== null}
+            templates={campaigns}
+            onPickTemplate={applyTemplate}
             newKey={newKey} setNewKey={setNewKey}
             newTitle={newTitle} setNewTitle={setNewTitle}
             newPublicTitle={newPublicTitle} setNewPublicTitle={setNewPublicTitle}
@@ -593,6 +608,8 @@ const CAMPAIGN_TYPE_OPTIONS = [{ value: 'rksv_signature', label: 'RKSV-Signaturk
 
 function CreateCampaignPanel({
   isEdit,
+  templates,
+  onPickTemplate,
   newKey, setNewKey,
   newTitle, setNewTitle,
   newPublicTitle, setNewPublicTitle,
@@ -603,6 +620,8 @@ function CreateCampaignPanel({
   onCancel,
 }: {
   isEdit: boolean;
+  templates: Campaign[];
+  onPickTemplate: (id: string) => void;
   newKey: string; setNewKey: (v: string) => void;
   newTitle: string; setNewTitle: (v: string) => void;
   newPublicTitle: string; setNewPublicTitle: (v: string) => void;
@@ -613,9 +632,28 @@ function CreateCampaignPanel({
   onCancel: () => void;
 }) {
   const inputCls = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none';
+  const [tmplId, setTmplId] = useState('');
+  const templateOptions = [
+    { value: '', label: '— Leer beginnen —' },
+    ...templates.map((c) => ({ value: c.id, label: c.publicTitle || c.title, hint: c.key })),
+  ];
   return (
     <div className="mb-4 bg-white rounded-xl border border-slate-200 p-4">
       <h2 className="font-semibold text-slate-800 mb-3">{isEdit ? 'Kampagne bearbeiten' : 'Neue Kampagne'}</h2>
+      {!isEdit && templates.length > 0 && (
+        <label className="block mb-3">
+          <span className="block text-xs font-medium text-slate-500 mb-1">Vorlage übernehmen (optional)</span>
+          <Select
+            value={tmplId}
+            onChange={(v) => { setTmplId(v); if (v) onPickTemplate(v); }}
+            options={templateOptions}
+            ariaLabel="Vorlage"
+          />
+          <span className="block text-xs text-slate-400 mt-1">
+            Übernimmt öffentlichen Titel, Betreff und E-Mail-Text — Key und Titel bleiben frei.
+          </span>
+        </label>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
           <span className="block text-xs font-medium text-slate-500 mb-1">Typ</span>
