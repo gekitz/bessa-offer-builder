@@ -41,6 +41,7 @@ function rowToCampaign(r: any): Campaign {
     type: r.type,
     key: r.key,
     title: r.title,
+    publicTitle: r.public_title ?? null,
     emailSubject: r.email_subject ?? null,
     emailTemplate: r.email_template ?? null,
     status: r.status,
@@ -110,6 +111,7 @@ export async function createCampaign(
     type: CampaignType;
     key: string;
     title: string;
+    publicTitle?: string | null;
     emailSubject?: string | null;
     emailTemplate?: string | null;
   },
@@ -122,6 +124,7 @@ export async function createCampaign(
       type: input.type,
       key: input.key,
       title: input.title,
+      public_title: input.publicTitle ?? null,
       email_subject: input.emailSubject ?? null,
       email_template: input.emailTemplate ?? null,
       created_by_id: actor.id,
@@ -140,6 +143,7 @@ export async function updateCampaign(
   id: string,
   patch: {
     title?: string;
+    publicTitle?: string | null;
     emailSubject?: string | null;
     emailTemplate?: string | null;
   },
@@ -147,6 +151,7 @@ export async function updateCampaign(
   const sb = requireSupabase();
   const fields: Record<string, unknown> = {};
   if (patch.title !== undefined) fields.title = patch.title;
+  if (patch.publicTitle !== undefined) fields.public_title = patch.publicTitle;
   if (patch.emailSubject !== undefined) fields.email_subject = patch.emailSubject;
   if (patch.emailTemplate !== undefined) fields.email_template = patch.emailTemplate;
   const { data, error } = await sb
