@@ -18,6 +18,8 @@ import {
   listPurchaseOrders,
   listRequestableProducts,
   listSuppliers,
+  markOrderRequestOrdered,
+  markOrderRequestReceived,
   markPurchaseOrderReceived,
   matchPulsaItems,
   pulsaLastImportedAt,
@@ -68,6 +70,8 @@ export default function ProcurementPage() {
   const [ordering, setOrdering] = useState<string | null>(null);
   const [reassigning, setReassigning] = useState<string | null>(null);
   const [receivingId, setReceivingId] = useState<string | null>(null);
+  const [markingOrderedId, setMarkingOrderedId] = useState<string | null>(null);
+  const [markingReceivedId, setMarkingReceivedId] = useState<string | null>(null);
 
   // Jarltech-Live-Preise/Lager (per Edge Function abgerufen), keyed by
   // jarltech_item_id.
@@ -246,6 +250,37 @@ export default function ProcurementPage() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setCancellingId(null);
+    }
+  }
+
+  // Einkäufer-Aktion: eine offene Anfrage manuell als bestellt markieren —
+  // für Bezüge, die telefonisch/ad hoc platziert wurden (keine
+  // Sammelbestellung, kein Versand).
+  async function handleMarkOrdered(id: string) {
+    setMarkingOrderedId(id);
+    setError(null);
+    try {
+      await markOrderRequestOrdered(id);
+      await reloadRequests();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMarkingOrderedId(null);
+    }
+  }
+
+  // Einkäufer-Aktion: eine manuell (PO-los) bestellte Anfrage als erhalten
+  // markieren. Anfragen aus einer Sammelbestellung laufen über die Bestellung.
+  async function handleMarkReceived(id: string) {
+    setMarkingReceivedId(id);
+    setError(null);
+    try {
+      await markOrderRequestReceived(id);
+      await reloadRequests();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMarkingReceivedId(null);
     }
   }
 
@@ -577,7 +612,16 @@ export default function ProcurementPage() {
             />
             <div>
               <h2 className="text-sm font-semibold text-slate-600 mb-2">Alle Anfragen</h2>
-              <RequestList requests={requests} cancellingId={cancellingId} onCancel={handleCancel} highlightId={anfrageId} />
+              <RequestList
+                requests={requests}
+                cancellingId={cancellingId}
+                onCancel={handleCancel}
+                highlightId={anfrageId}
+                onMarkOrdered={isAdmin ? handleMarkOrdered : undefined}
+                markingOrderedId={markingOrderedId}
+                onMarkReceived={isAdmin ? handleMarkReceived : undefined}
+                markingReceivedId={markingReceivedId}
+              />
             </div>
           </div>
         ) : (

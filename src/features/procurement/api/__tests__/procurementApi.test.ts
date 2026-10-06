@@ -35,6 +35,8 @@ import {
   countOpenRequests,
   createOrderRequest,
   createPurchaseOrder,
+  markOrderRequestOrdered,
+  markOrderRequestReceived,
   markPurchaseOrderReceived,
 } from '../procurementApi';
 
@@ -146,6 +148,59 @@ describe('markPurchaseOrderReceived', () => {
       { method: 'eq', args: ['purchase_order_id', 'po1'] },
       { method: 'eq', args: ['status', 'ordered'] },
     ]);
+  });
+});
+
+describe('markOrderRequestOrdered', () => {
+  it('flips a single request to ordered with a timestamp, no PO', async () => {
+    chains.order_requests = makeChain({
+      data: { id: 'r1', product_name: 'Bonrollen', qty: 2, status: 'ordered', ordered_at: 'now', created_at: '', updated_at: '' },
+      error: null,
+    });
+
+    const r = await markOrderRequestOrdered('r1');
+    expect(r.status).toBe('ordered');
+
+    const patch = chains.order_requests._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(patch.status).toBe('ordered');
+    expect(patch.ordered_at).toBeTruthy();
+    expect(patch.unit_price).toBeNull();
+    // No purchase_orders row is ever touched.
+    expect(chains.purchase_orders).toBeUndefined();
+
+    const eq = chains.order_requests._calls.find((c) => c.method === 'eq');
+    expect(eq!.args).toEqual(['id', 'r1']);
+  });
+
+  it('records a unit price when one is supplied', async () => {
+    chains.order_requests = makeChain({
+      data: { id: 'r1', product_name: 'Bonrollen', qty: 2, status: 'ordered', ordered_at: 'now', unit_price: 12.5, created_at: '', updated_at: '' },
+      error: null,
+    });
+
+    await markOrderRequestOrdered('r1', 12.5);
+    const patch = chains.order_requests._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(patch.unit_price).toBe(12.5);
+  });
+});
+
+describe('markOrderRequestReceived', () => {
+  it('flips a single (PO-less) request to received with a timestamp', async () => {
+    chains.order_requests = makeChain({
+      data: { id: 'r1', product_name: 'Bonrollen', qty: 2, status: 'received', received_at: 'now', created_at: '', updated_at: '' },
+      error: null,
+    });
+
+    const r = await markOrderRequestReceived('r1');
+    expect(r.status).toBe('received');
+
+    const patch = chains.order_requests._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(patch.status).toBe('received');
+    expect(patch.received_at).toBeTruthy();
+    expect(chains.purchase_orders).toBeUndefined();
+
+    const eq = chains.order_requests._calls.find((c) => c.method === 'eq');
+    expect(eq!.args).toEqual(['id', 'r1']);
   });
 });
 

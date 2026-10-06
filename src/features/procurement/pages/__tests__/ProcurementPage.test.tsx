@@ -53,6 +53,8 @@ beforeEach(() => {
   vi.mocked(api.createOrderRequest).mockResolvedValue(REQUESTS[0]);
   vi.mocked(api.createPurchaseOrder).mockResolvedValue(PURCHASE_ORDERS[0]);
   vi.mocked(api.updateOrderRequest).mockResolvedValue(REQUESTS[0]);
+  vi.mocked(api.markOrderRequestOrdered).mockResolvedValue({ ...REQUESTS[0], status: 'ordered' });
+  vi.mocked(api.markOrderRequestReceived).mockResolvedValue({ ...REQUESTS[0], status: 'received' });
   vi.mocked(api.markPurchaseOrderReceived).mockResolvedValue({ ...PURCHASE_ORDERS[0], status: 'received' });
   const jtInfo: JarltechItemInfo = { jarltechItemId: 'sunmil3jt', unitPrice: 611.5, listPrice: 690, currency: 'EUR', stock: 37 };
   vi.mocked(jarltech.fetchJarltechPrices).mockResolvedValue(new Map([['sunmil3jt', jtInfo]]));
@@ -108,6 +110,34 @@ describe('ProcurementPage — Anfragen', () => {
     await waitFor(() => expect(screen.getAllByTestId('request-row').length).toBe(3));
     fireEvent.click(screen.getAllByLabelText('Anfrage stornieren')[0]);
     await waitFor(() => expect(api.updateOrderRequest).toHaveBeenCalledWith('r1', { status: 'cancelled' }));
+  });
+
+  it('manually marks an open request as ordered (e.g. phoned in to Pulsa)', async () => {
+    render(<ProcurementPage />);
+    await waitFor(() => expect(screen.getAllByTestId('request-row').length).toBe(3));
+    fireEvent.click(screen.getAllByLabelText('Als bestellt markieren')[0]);
+    await waitFor(() => expect(api.markOrderRequestOrdered).toHaveBeenCalledWith('r1'));
+    // No consolidated purchase order is created for the manual mark.
+    expect(api.createPurchaseOrder).not.toHaveBeenCalled();
+  });
+
+  it('marks a manually-ordered (PO-less) request as received', async () => {
+    vi.mocked(api.listOrderRequests).mockResolvedValue([
+      { ...req('r1', 2, 'Anna'), status: 'ordered', purchaseOrderId: null, orderedAt: '2026-10-01T10:00:00Z' },
+    ]);
+    render(<ProcurementPage />);
+    await waitFor(() => expect(screen.getAllByTestId('request-row').length).toBe(1));
+    fireEvent.click(screen.getByLabelText('Als erhalten markieren'));
+    await waitFor(() => expect(api.markOrderRequestReceived).toHaveBeenCalledWith('r1'));
+  });
+
+  it('shows no receive button for an ordered request that belongs to a purchase order', async () => {
+    vi.mocked(api.listOrderRequests).mockResolvedValue([
+      { ...req('r1', 2, 'Anna'), status: 'ordered', purchaseOrderId: 'po1', orderedAt: '2026-10-01T10:00:00Z' },
+    ]);
+    render(<ProcurementPage />);
+    await waitFor(() => expect(screen.getAllByTestId('request-row').length).toBe(1));
+    expect(screen.queryByLabelText('Als erhalten markieren')).toBeNull();
   });
 });
 

@@ -370,6 +370,40 @@ export async function updateOrderRequest(
   return rowToRequest(data);
 }
 
+// Eine einzelne Anfrage manuell als bestellt markieren — ohne
+// Sammelbestellung (kein Purchase-Order-Datensatz, kein Versand). Für
+// Bezüge, die ad hoc telefonisch platziert wurden (z. B. Pulsa-Artikel, die
+// weder in der Preisliste noch in der XML-Bestellung geführt sind). Der
+// spätere Wareneingang läuft über markOrderRequestReceived (PO-lose Anfrage).
+export async function markOrderRequestOrdered(
+  id: string,
+  unitPrice: number | null = null,
+): Promise<OrderRequest> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('order_requests')
+    .update({ status: 'ordered', ordered_at: new Date().toISOString(), unit_price: unitPrice })
+    .eq('id', id)
+    .select(REQUEST_COLS)
+    .single();
+  if (error) throw error;
+  return rowToRequest(data);
+}
+
+// Eine manuell (PO-los) bestellte Anfrage als erhalten markieren. Anfragen
+// aus einer Sammelbestellung laufen weiter über markPurchaseOrderReceived.
+export async function markOrderRequestReceived(id: string): Promise<OrderRequest> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('order_requests')
+    .update({ status: 'received', received_at: new Date().toISOString() })
+    .eq('id', id)
+    .select(REQUEST_COLS)
+    .single();
+  if (error) throw error;
+  return rowToRequest(data);
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Purchase orders (Sammelbestellung auslösen / Wareneingang)
 // ─────────────────────────────────────────────────────────────────────

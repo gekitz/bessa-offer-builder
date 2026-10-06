@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, PackageCheck, ShoppingCart, X } from 'lucide-react';
 import type { OrderRequest, OrderRequestStatus } from '../types';
 
 const STATUS_LABEL: Record<OrderRequestStatus, string> = {
@@ -26,16 +26,31 @@ export function StatusBadge({ status }: { status: OrderRequestStatus }) {
 
 // Flache Liste aller Anfragen (mit Status). Offene Anfragen lassen sich
 // stornieren; der Rest ist read-only.
+//
+// Für Einkäufer (onMarkOrdered gesetzt) kommen zwei manuelle Aktionen dazu:
+// eine offene Anfrage "als bestellt" markieren (ohne Sammelbestellung, z. B.
+// telefonisch platziert) und eine so bestellte, PO-lose Anfrage "als
+// erhalten" markieren. Anfragen aus einer Sammelbestellung (purchaseOrderId
+// gesetzt) bekommen keinen Erhalten-Button — ihr Wareneingang läuft über die
+// Bestellung.
 export default function RequestList({
   requests,
   cancellingId,
   onCancel,
   highlightId = null,
+  onMarkOrdered,
+  markingOrderedId = null,
+  onMarkReceived,
+  markingReceivedId = null,
 }: {
   requests: OrderRequest[];
   cancellingId: string | null;
   onCancel: (id: string) => void;
   highlightId?: string | null; // Deep-link aus dem Dashboard: hervorheben + hinscrollen
+  onMarkOrdered?: (id: string) => void;   // Einkäufer: offene Anfrage manuell als bestellt markieren
+  markingOrderedId?: string | null;
+  onMarkReceived?: (id: string) => void;  // Einkäufer: PO-lose bestellte Anfrage als erhalten markieren
+  markingReceivedId?: string | null;
 }) {
   const highlightRef = useRef<HTMLLIElement>(null);
   useEffect(() => {
@@ -77,15 +92,41 @@ export default function RequestList({
           </div>
           <StatusBadge status={r.status} />
           {r.status === 'open' && (
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {onMarkOrdered && (
+                <button
+                  type="button"
+                  onClick={() => onMarkOrdered(r.id)}
+                  disabled={markingOrderedId === r.id}
+                  className="text-slate-300 hover:text-blue-600 disabled:opacity-50"
+                  aria-label="Als bestellt markieren"
+                  title="Als bestellt markieren (manuell/telefonisch)"
+                >
+                  {markingOrderedId === r.id ? <Loader2 size={15} className="animate-spin" /> : <ShoppingCart size={15} />}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => onCancel(r.id)}
+                disabled={cancellingId === r.id}
+                className="text-slate-300 hover:text-red-500 disabled:opacity-50"
+                aria-label="Anfrage stornieren"
+                title="Stornieren"
+              >
+                {cancellingId === r.id ? <Loader2 size={15} className="animate-spin" /> : <X size={15} />}
+              </button>
+            </div>
+          )}
+          {r.status === 'ordered' && !r.purchaseOrderId && onMarkReceived && (
             <button
               type="button"
-              onClick={() => onCancel(r.id)}
-              disabled={cancellingId === r.id}
-              className="text-slate-300 hover:text-red-500 flex-shrink-0 disabled:opacity-50"
-              aria-label="Anfrage stornieren"
-              title="Stornieren"
+              onClick={() => onMarkReceived(r.id)}
+              disabled={markingReceivedId === r.id}
+              className="text-slate-300 hover:text-emerald-600 flex-shrink-0 disabled:opacity-50"
+              aria-label="Als erhalten markieren"
+              title="Als erhalten markieren"
             >
-              {cancellingId === r.id ? <Loader2 size={15} className="animate-spin" /> : <X size={15} />}
+              {markingReceivedId === r.id ? <Loader2 size={15} className="animate-spin" /> : <PackageCheck size={15} />}
             </button>
           )}
         </li>
