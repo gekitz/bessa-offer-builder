@@ -20,7 +20,7 @@ import type { JarltechItemInfo } from '../../procurement/lib/jarltechNormalize';
 import type { PulsaMatch, Supplier } from '../../procurement/types';
 
 const CATALOGS = [
-  'BESSA', 'MELZER', 'GASTROTOUCH', 'RCH', 'HARDWARE', 'UNIFY', 'DRUCKER',
+  'BESSA', 'BESSA_KAUF', 'MELZER', 'GASTROTOUCH', 'RCH', 'HARDWARE', 'UNIFY', 'DRUCKER',
   'KUECHENMONITORE', 'KUECHENMONITORE_SUNMI', 'KIOSK', 'ORDERMAN',
   'DIENSTLEISTUNGEN', 'SHARP', 'SHARP_ZUBEHOR', 'BROTHER',
 ];

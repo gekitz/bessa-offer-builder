@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 // data-integrity checks lives in catalogSeed.ts.
 import {
   BESSA,
+  BESSA_KAUF,
   MELZER,
   GASTROTOUCH,
   GASTROTOUCH_MODULE,
@@ -27,6 +28,7 @@ import { isCustomItem } from '../catalogs';
 
 const ALL_PRODUCT_LISTS = [
   ['BESSA', BESSA],
+  ['BESSA_KAUF', BESSA_KAUF],
   ['MELZER', MELZER],
   ['GASTROTOUCH', GASTROTOUCH],
   ['RCH', RCH],
@@ -146,6 +148,38 @@ describe('Brother catalog', () => {
         expect(d.info).toBe('Nur Firmenkunden');
       }
     }
+  });
+});
+
+describe('Bessa Kauf catalog', () => {
+  it('has all 13 purchase SKUs as one-time items', () => {
+    expect(BESSA_KAUF.length).toBe(13);
+    for (const item of BESSA_KAUF) {
+      expect(item.t).toBe('o');
+      expect(item.price).toBeGreaterThanOrEqual(0);
+      expect(item.code).toBeTruthy();
+    }
+  });
+
+  it('charges the permanent Aktion Wartung (15%) on every paid position', () => {
+    for (const item of BESSA_KAUF) {
+      if (item.price! > 0) {
+        // Umstiegs-Aktion: dauerhaft −50% auf die reguläre 30%-Wartung → 15%.
+        expect(item.servicePercent).toBe(15);
+      } else {
+        // The €0 "bessa Zahlen" link carries no Wartung line.
+        expect(item.servicePercent).toBeUndefined();
+      }
+    }
+  });
+
+  it('prices the Kassa purchase licences straight from the price list', () => {
+    const byCode = (code: string) => BESSA_KAUF.find((i) => i.code === code)!;
+    expect(byCode('100').price).toBe(479);
+    expect(byCode('110').price).toBe(605);
+    expect(byCode('111').price).toBe(1058);
+    expect(byCode('120').price).toBe(1134);
+    expect(byCode('121').price).toBe(1562);
   });
 });
 
