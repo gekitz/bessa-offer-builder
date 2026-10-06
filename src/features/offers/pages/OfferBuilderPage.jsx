@@ -50,6 +50,7 @@ import { applyOptionGroup, countedIds } from '../../../lib/optionGroups';
 import {
   COMPANY_DEFAULT,
   BESSA,
+  BESSA_KAUF,
   MELZER,
   GASTROTOUCH,
   UNIFY,
@@ -111,6 +112,7 @@ const CrmPage = lazyWithReload(() => import('../../../components/CrmPage.jsx'));
 
 const POS_TABS = [
   { id: 'bessa', label: 'Bessa' },
+  { id: 'bessa-kauf', label: 'Bessa Kauf' },
   { id: 'melzer', label: 'Melzer' },
   { id: 'gastrotouch', label: 'GastroTouch' },
   { id: 'rch', label: 'RCH' },
@@ -1552,7 +1554,7 @@ function OfferBuilderPageInner() {
                   ? [...SHARP, ...SHARP_ZUBEHOR]
                   : offerType === 'brother'
                   ? [...BROTHER]
-                  : [...BESSA, ...MELZER, ...GASTROTOUCH, ...RCH, ...HARDWARE, ...UNIFY, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...KIOSK, ...ORDERMAN, ...DIENSTLEISTUNGEN];
+                  : [...BESSA, ...BESSA_KAUF, ...MELZER, ...GASTROTOUCH, ...RCH, ...HARDWARE, ...UNIFY, ...KUECHENMONITORE, ...KUECHENMONITORE_SUNMI, ...KIOSK, ...ORDERMAN, ...DIENSTLEISTUNGEN];
                 const results = allItems.filter(item =>
                   item.name.toLowerCase().includes(q)
                   || (item.code && item.code.toLowerCase().includes(q))
@@ -1591,6 +1593,7 @@ function OfferBuilderPageInner() {
                 {builderTab === 'brother' && <TabContent items={BROTHER} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'leihstellung' && <LeihstellungCalculator rental={rental} onChange={setRental} />}
                 {builderTab === 'bessa' && <TabContent items={BESSA} cart={cart} globalTier={globalTier} handlers={handlers} />}
+                {builderTab === 'bessa-kauf' && <TabContent items={BESSA_KAUF} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'melzer' && <TabContent items={MELZER} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'gastrotouch' && <TabContent items={GASTROTOUCH} cart={cart} globalTier={globalTier} handlers={handlers} />}
                 {builderTab === 'rch' && (

@@ -22,6 +22,7 @@ export const COMPANY_DEFAULT = {
 // A hardcoded copy of the catalog is kept in catalogSeed.ts for TESTS and the
 // seed generator only — it is never imported by runtime code.
 export const BESSA: Item[] = [];
+export const BESSA_KAUF: Item[] = [];
 export const MELZER: Item[] = [];
 export const GASTROTOUCH: Item[] = [];
 export const RCH: Item[] = [];

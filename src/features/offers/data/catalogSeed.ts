@@ -52,6 +52,32 @@ export const BESSA: Item[] = [
   { id:'f2d30dd5-e54f-426d-8ea5-20ccb6396b06', code:'209', name:'Gastrotouch Kennzahlen', cat:'Module – Einzelfunktionen', p:{y:39}, t:'m' },
 ];
 
+// bessa Kauflizenz – „AKTION UMSTIEG", Preisliste Stand 01.10.2026. Einmaliger
+// Kaufpreis (netto) + jährliche Wartung. Wartung regulär = 30% des Kaufpreises;
+// die Umstiegs-Aktion gewährt dauerhaft −50% → effektiv 15% (servicePercent).
+// Nur für Österreich, gegen Nachweis der ersetzten Alt-Kasse. Gleiche Struktur
+// wie die MELZER-/GastroTouch-Positionen (Einmalpreis + Wartung).
+export const BESSA_KAUF: Item[] = [
+  // bessa Kassa
+  { id:'bk-100', code:'100', name:'Mobile Kassa', cat:'Kassa – Mobil', price:479, t:'o', servicePercent:15 },
+  { id:'bk-110', code:'110', name:'Kleiner Handelsbetrieb', cat:'Kassa – Handel', price:605, t:'o', servicePercent:15 },
+  { id:'bk-111', code:'111', name:'Großer Handelsbetrieb', cat:'Kassa – Handel', price:1058, t:'o', servicePercent:15 },
+  { id:'bk-120', code:'120', name:'Kleiner Gastrobetrieb', cat:'Kassa – Gastro', price:1134, t:'o', servicePercent:15 },
+  { id:'bk-121', code:'121', name:'Großer Gastrobetrieb', cat:'Kassa – Gastro', price:1562, t:'o', servicePercent:15 },
+
+  // Einzelfunktionen
+  { id:'bk-020', code:'020', name:'Zusätzlicher Bediener', cat:'Kassa – Einzelfunktionen', price:76, t:'o', servicePercent:15 },
+  { id:'bk-021', code:'021', name:'Kundenverwaltung', cat:'Kassa – Einzelfunktionen', price:252, t:'o', servicePercent:15, info:'pro Filiale' },
+  { id:'bk-022', code:'022', name:'Lagerverwaltung', cat:'Kassa – Einzelfunktionen', price:378, t:'o', servicePercent:15, info:'pro Filiallager' },
+  { id:'bk-023', code:'023', name:'Lokale Gutscheinverwaltung', cat:'Kassa – Einzelfunktionen', price:252, t:'o', servicePercent:15, info:'pro Filiale' },
+  { id:'bk-024', code:'024', name:'Erweitertes Berichtswesen', cat:'Kassa – Einzelfunktionen', price:454, t:'o', servicePercent:15 },
+
+  // Kartenzahlung & Nebenterminal
+  { id:'bk-040a', code:'040a', name:'Anbindung bessa Zahlen (Kartenzahlung)', cat:'Kassa – Externe Systeme', price:0, t:'o' },
+  { id:'bk-040', code:'040', name:'Anbindung Kartenzahlungsterminal', cat:'Kassa – Externe Systeme', price:302, t:'o', servicePercent:15, info:'pro Filiale/Anbieter' },
+  { id:'bk-042', code:'042', name:'Nebenterminal', cat:'Kassa – Externe Systeme', price:353, t:'o', servicePercent:15, info:'pro Terminal' },
+];
+
 // Melzer X3000 – UVP-Preisliste gültig ab 01.01.2026
 // Einmaliger Softwarepreis + 30% Wartung pro Jahr (servicePercent). Pepper-Terminal-Varianten sind ausgelassen.
 export const MELZER: Item[] = [
@@ -402,7 +428,7 @@ export const BROTHER: Item[] = [
 // Used by vitest.setup.ts (to fill the empty runtime arrays) and by
 // scripts/gen-products-seed.ts (to regenerate the seed migration).
 export const SEED_CATALOGS: Record<string, Item[]> = {
-  BESSA, MELZER, GASTROTOUCH, RCH, HARDWARE, UNIFY, DRUCKER,
+  BESSA, BESSA_KAUF, MELZER, GASTROTOUCH, RCH, HARDWARE, UNIFY, DRUCKER,
   KUECHENMONITORE, KUECHENMONITORE_SUNMI, KIOSK, ORDERMAN,
   DIENSTLEISTUNGEN, SHARP, SHARP_ZUBEHOR, BROTHER,
 };
