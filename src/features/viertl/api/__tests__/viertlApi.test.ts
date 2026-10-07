@@ -49,6 +49,7 @@ describe('listLicenses', () => {
       data: [{
         id: 'l1', mesonic_kdnr: '236000', name: 'Haus am Wald', contact: 'Martina',
         street: 'Weg 1', plz: '9081', ort: 'Reifnitz', email: null,
+        vendor: 'sharp', device_model: 'Sharp XEA217', source: 'sharp_verkaufsstatistik',
         gastrotouch_version: '67.24', last_update: '2026-03-10', hardware_model: 'Pulse P40',
         hardware_needed: true, wartung: 'sww', status: 'done', customer_status: 'active',
         closed_reason: null, closed_at: null, notes: null, linked_offer_id: null,
@@ -61,6 +62,9 @@ describe('listLicenses', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       mesonicKdnr: '236000',
+      vendor: 'sharp',
+      deviceModel: 'Sharp XEA217',
+      source: 'sharp_verkaufsstatistik',
       gastrotouchVersion: '67.24',
       lastUpdate: '2026-03-10',
       hardwareNeeded: true,
@@ -68,6 +72,19 @@ describe('listLicenses', () => {
       status: 'done',
       customerStatus: 'active',
     });
+  });
+
+  it('defaults vendor to gastrotouch and device_model/source to null for rows predating the columns', async () => {
+    chains.viertl_licenses = makeChain({
+      data: [{
+        id: 'l2', mesonic_kdnr: '100', name: 'Alt-Zeile', wartung: 'none',
+        status: 'new', customer_status: 'active', hardware_needed: false,
+        created_at: 't0', updated_at: 't1',
+      }],
+      error: null,
+    });
+    const rows = await listLicenses();
+    expect(rows[0]).toMatchObject({ vendor: 'gastrotouch', deviceModel: null, source: null });
   });
 });
 
@@ -110,6 +127,15 @@ describe('updateLicense', () => {
     const payload = chains.viertl_licenses._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
     expect(payload.email).toBeNull();
     expect(payload.hardware_model).toBe('CX7');
+  });
+
+  it('maps vendor + deviceModel to snake_case and never writes source (provenance is read-only)', async () => {
+    chains.viertl_licenses = makeChain({ data: { id: 'l1', mesonic_kdnr: '1', name: 'X', wartung: 'none', status: 'new', customer_status: 'active', hardware_needed: false, vendor: 'sharp', device_model: 'X', created_at: '', updated_at: '' }, error: null });
+    await updateLicense('l1', { vendor: 'sharp', deviceModel: 'X' }, ACTOR);
+    const payload = chains.viertl_licenses._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(payload.vendor).toBe('sharp');
+    expect(payload.device_model).toBe('X');
+    expect(payload).not.toHaveProperty('source');
   });
 });
 

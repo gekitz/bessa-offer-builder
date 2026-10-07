@@ -19,6 +19,9 @@ export type ViertlWartung = 'none' | 'sww' | 'sw_hww' | 'miete';
 // Kundenzustand: aktiv / sperrt bald zu / geschlossen (→ Viertl informieren)
 export type ViertlCustomerStatus = 'active' | 'closing' | 'closed';
 
+// Hersteller des POS-Systems. gastrotouch = die bisherige Viertl-Welt.
+export type ViertlVendor = 'gastrotouch' | 'sharp' | 'rch' | 'bhs';
+
 // Audit-/Aktions-Ereignis
 export type ViertlEventType =
   | 'field_change'
@@ -33,6 +36,9 @@ export interface ViertlLicense {
   id: string;
   mesonicKdnr: string;
   name: string;
+  vendor: ViertlVendor;              // Hersteller des POS (gastrotouch = Viertl)
+  deviceModel: string | null;       // Freitext-Gerätemodell ("Sharp XEA217")
+  source: string | null;            // Herkunft der Zeile ('viertl_excel', …) — read-only
   contact: string | null;
   street: string | null;
   plz: string | null;
@@ -71,6 +77,8 @@ export interface ViertlEvent {
 // Editierbare Felder. updatedBy* werden bei jedem Update mitgeschickt,
 // damit der Audit-Trigger weiß, wer geändert hat.
 export interface ViertlLicenseUpdate {
+  vendor?: ViertlVendor;
+  deviceModel?: string | null;
   status?: ViertlStatus;
   customerStatus?: ViertlCustomerStatus;
   wartung?: ViertlWartung;
@@ -90,6 +98,7 @@ export interface ViertlActor {
 
 export interface ViertlFilters {
   search?: string;
+  vendor?: ViertlVendor | 'all';
   status?: ViertlStatus | 'all';
   customerStatus?: ViertlCustomerStatus | 'all';
   hardwareNeeded?: boolean;
