@@ -1018,6 +1018,58 @@ export async function signRepairOrder(
   return rowToRepairOrder(data);
 }
 
+// Reopen a signed Reparaturschein so a forgotten position can be added and
+// the customer can sign again. A signature only ever vouches for the exact
+// content that was on screen when it was given, so reopening MUST void the
+// old signature — status drops back to 'completed' and signature_data /
+// signed_by_name / signed_at are cleared. A fresh signature is then required.
+//
+// Guarded server-side to signed orders that have NOT yet been exported to
+// Mesonic (mesonic_beleg_key IS NULL). Once the Beleg exists in WinLine it is
+// immutable; corrections after that go through repair_order_adjustments
+// (Gutschrift), never by editing the signed document. If the guard matches no
+// row (already exported, or not signed), the update returns no row and we throw.
+export async function reopenSignedRepairOrder(
+  id: string,
+  reason: string,
+  actorId?: string | null,
+): Promise<RepairOrder> {
+  const trimmed = reason.trim();
+  if (!trimmed) throw new Error('Bitte einen Grund für das Wiederöffnen angeben.');
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from('repair_orders')
+    .update({
+      status: 'completed',
+      signature_data: null,
+      signed_by_name: null,
+      signed_at: null,
+    })
+    .eq('id', id)
+    .eq('status', 'signed')
+    .is('mesonic_beleg_key', null)
+    .select(REPAIR_ORDER_COLS)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) {
+    throw new Error(
+      'Reparaturschein kann nicht mehr geöffnet werden — er ist bereits nach Mesonic übertragen oder nicht unterschrieben. Korrekturen bitte als Gutschrift.',
+    );
+  }
+
+  // Audit milestone so the voided signature leaves a trail. Customer-facing
+  // like the sign/close milestones, so the reason is intentionally neutral.
+  void fireAuditComment({
+    ticketId: (data as { ticket_id: string }).ticket_id,
+    kind: 'milestone',
+    body: `Reparaturschein wurde wieder geöffnet (Unterschrift verworfen). Grund: ${trimmed}`,
+    metadata: { repairOrderId: id, reopened: true },
+    actorId: actorId ?? null,
+  });
+
+  return rowToRepairOrder(data);
+}
+
 // Delete a repair order. Guarded to drafts — once a schein is completed,
 // signed or cancelled it belongs to the billing record and must never be
 // removed. The status filter enforces this server-side even if the caller
