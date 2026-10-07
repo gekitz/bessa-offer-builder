@@ -105,4 +105,28 @@ describe('filterLicensesForSegment', () => {
       filterLicensesForSegment(licenses, { customerStatus: 'active', withEmailOnly: true }).map((l) => l.id),
     ).toEqual(['1']);
   });
+
+  it('status filters to a single pipeline stage (e.g. mailed / "Versendet")', () => {
+    const rows = [
+      lic({ id: 'a', status: 'mailed' }),
+      lic({ id: 'b', status: 'mailed' }),
+      lic({ id: 'c', status: 'new' }),
+      lic({ id: 'd', status: 'replied' }),
+    ];
+    expect(filterLicensesForSegment(rows, { status: 'mailed' }).map((l) => l.id)).toEqual(['a', 'b']);
+    // 'all' (or absent) does not filter by status
+    expect(filterLicensesForSegment(rows, { status: 'all' })).toHaveLength(4);
+    expect(filterLicensesForSegment(rows, {})).toHaveLength(4);
+  });
+
+  it('status combines with other predicates (mailed + active + with-email)', () => {
+    const rows = [
+      lic({ id: 'a', status: 'mailed', customerStatus: 'active', email: 'a@x.at' }),
+      lic({ id: 'b', status: 'mailed', customerStatus: 'active', email: null }),
+      lic({ id: 'c', status: 'mailed', customerStatus: 'closed', email: 'c@x.at' }),
+    ];
+    expect(
+      filterLicensesForSegment(rows, { status: 'mailed', customerStatus: 'active', withEmailOnly: true }).map((l) => l.id),
+    ).toEqual(['a']);
+  });
 });
