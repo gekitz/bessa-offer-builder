@@ -12,6 +12,7 @@ import {
   PenTool,
   Plus,
   Receipt,
+  RotateCcw,
   Save,
   SlidersHorizontal,
   Trash2,
@@ -25,6 +26,7 @@ import {
   listTravelZones,
   removeMaterial,
   removeRepairOrderAdjustment,
+  reopenSignedRepairOrder,
   signRepairOrder,
   updateRepairOrder,
 } from '../api/ticketApi';
@@ -96,6 +98,7 @@ export default function RepairOrderDetail({
   const [editingEntry, setEditingEntry] = useState<RepairOrderEntry | null>(null);
   const [showMaterialPicker, setShowMaterialPicker] = useState(false);
   const [showSignature, setShowSignature] = useState(false);
+  const [reopening, setReopening] = useState(false);
 
   // Inline description / gps-travel editing
   const [editingMeta, setEditingMeta] = useState(false);
@@ -302,6 +305,33 @@ export default function RepairOrderDetail({
     setOrder(updated);
     setShowSignature(false);
     onChanged?.();
+  }
+
+  // Void the signature and drop back to 'completed' so a forgotten position
+  // can be added and the customer can re-sign. Only offered before the Beleg
+  // reaches Mesonic (see reopenSignedRepairOrder guard); after that corrections
+  // go through the Korrektur/Gutschrift form below.
+  async function handleReopen() {
+    if (!order) return;
+    const reason = window.prompt(
+      'Reparaturschein wieder öffnen? Die Unterschrift wird verworfen und muss erneut eingeholt werden.\n\nGrund (z. B. "Ersatzteil nachgetragen"):',
+    );
+    if (reason === null) return; // cancelled
+    if (!reason.trim()) {
+      setError('Bitte einen Grund für das Wiederöffnen angeben.');
+      return;
+    }
+    setReopening(true);
+    setError(null);
+    try {
+      const updated = await reopenSignedRepairOrder(order.id, reason, currentEmployeeId);
+      setOrder(updated);
+      onChanged?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReopening(false);
+    }
   }
 
   if (loading) {
@@ -773,13 +803,30 @@ export default function RepairOrderDetail({
           </button>
         )}
         {order.status === 'signed' && (
-          <div className="ml-auto flex items-center gap-1.5 text-sm text-emerald-700">
-            <FileSignature size={14} />
-            {order.signedByName ? `Unterschrieben von ${order.signedByName}` : 'Unterschrieben'}
-            {order.signedAt && (
-              <span className="text-xs text-emerald-600">
-                am {new Date(order.signedAt).toLocaleDateString('de-AT')}
-              </span>
+          <div className="ml-auto flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-sm text-emerald-700">
+              <FileSignature size={14} />
+              {order.signedByName ? `Unterschrieben von ${order.signedByName}` : 'Unterschrieben'}
+              {order.signedAt && (
+                <span className="text-xs text-emerald-600">
+                  am {new Date(order.signedAt).toLocaleDateString('de-AT')}
+                </span>
+              )}
+            </div>
+            {/* Correction path before Mesonic export: void the signature so a
+                forgotten position can be added and re-signed. Once the Beleg
+                exists (mesonicBelegKey set) this is gone — use Korrektur. */}
+            {!order.mesonicBelegKey && (
+              <button
+                type="button"
+                onClick={handleReopen}
+                disabled={reopening}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                title="Unterschrift verwerfen und zum Bearbeiten wieder öffnen"
+              >
+                {reopening ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                Wieder öffnen
+              </button>
             )}
           </div>
         )}
