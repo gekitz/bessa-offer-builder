@@ -13,7 +13,7 @@ const NAV_ITEMS = [
   { id: 'kalender',   label: 'Kalender',   icon: Calendar },
   { id: 'tickets',    label: 'Tickets',    icon: Wrench },
   { id: 'bestellungen', label: 'Bestellungen', icon: ShoppingCart },
-  { id: 'viertl',     label: 'Viertl',     icon: KeyRound },
+  { id: 'viertl',     label: 'Signaturtausch', icon: KeyRound },
   { id: 'kampagnen',  label: 'Kampagnen',  icon: Megaphone },
   { id: 'leihgeraete', label: 'Leihgeräte', icon: PackageOpen },
   { id: 'produkte',   label: 'Produkte',   icon: Package, adminOnly: true },
