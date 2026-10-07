@@ -17,7 +17,7 @@ import {
 import { filterLicensesForSegment, licenseToEnrollSubject, type ViertlSegmentFilter } from '../lib/rksvEnroll';
 import { pickTemplateFields } from '../lib/templatePick';
 import { listLicenses } from '../../viertl/api/viertlApi';
-import type { ViertlCustomerStatus, ViertlLicense } from '../../viertl/types';
+import type { ViertlCustomerStatus, ViertlLicense, ViertlStatus } from '../../viertl/types';
 import type {
   Campaign,
   CampaignActor,
@@ -88,6 +88,7 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
   const [licenses, setLicenses] = useState<ViertlLicense[] | null>(null);
   const [enrollBusy, setEnrollBusy] = useState(false);
   const [segSearch, setSegSearch] = useState('');
+  const [segStatus, setSegStatus] = useState<ViertlStatus | 'all'>('all');
   const [segCustomer, setSegCustomer] = useState<ViertlCustomerStatus | 'all'>('active');
   const [segHwOnly, setSegHwOnly] = useState(false);
   const [segWithEmail, setSegWithEmail] = useState(false); // default false → Druck-Segment mit erfassen (C3)
@@ -97,10 +98,11 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
 
   const segmentFilter = useMemo<ViertlSegmentFilter>(() => ({
     search: segSearch,
+    status: segStatus,
     customerStatus: segCustomer,
     hardwareNeeded: segHwOnly,
     withEmailOnly: segWithEmail,
-  }), [segSearch, segCustomer, segHwOnly, segWithEmail]);
+  }), [segSearch, segStatus, segCustomer, segHwOnly, segWithEmail]);
 
   const segment = useMemo(
     () => (licenses ? filterLicensesForSegment(licenses, segmentFilter) : []),
@@ -498,6 +500,7 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
             {enrollOpen && campaign?.type === 'rksv_signature' && (
               <EnrollPanel
                 segSearch={segSearch} setSegSearch={setSegSearch}
+                segStatus={segStatus} setSegStatus={setSegStatus}
                 segCustomer={segCustomer} setSegCustomer={setSegCustomer}
                 segHwOnly={segHwOnly} setSegHwOnly={setSegHwOnly}
                 segWithEmail={segWithEmail} setSegWithEmail={setSegWithEmail}
@@ -699,9 +702,22 @@ const CUSTOMER_SEG_OPTIONS: { value: ViertlCustomerStatus | 'all'; label: string
   { value: 'all', label: 'Alle Kunden' },
 ];
 
+// Pipeline-Status (ViertlStatus) als Enrol-Filter — Labels wie in ViertlPage
+// (STATUS_META). "Versendet" = mailed: Mail-Merge raus, keine Antwort.
+const STATUS_SEG_OPTIONS: { value: ViertlStatus | 'all'; label: string }[] = [
+  { value: 'all', label: 'Alle Status' },
+  { value: 'new', label: 'Neu' },
+  { value: 'waiting', label: 'Wartet' },
+  { value: 'offer_created', label: 'Angebot' },
+  { value: 'mailed', label: 'Versendet' },
+  { value: 'replied', label: 'Retour' },
+  { value: 'done', label: 'Neue A-Trust ✓' },
+];
+
 // ── Enrol-aus-Viertl-Panel (inline) ──
 function EnrollPanel({
   segSearch, setSegSearch,
+  segStatus, setSegStatus,
   segCustomer, setSegCustomer,
   segHwOnly, setSegHwOnly,
   segWithEmail, setSegWithEmail,
@@ -714,6 +730,7 @@ function EnrollPanel({
   onClose,
 }: {
   segSearch: string; setSegSearch: (v: string) => void;
+  segStatus: ViertlStatus | 'all'; setSegStatus: (v: ViertlStatus | 'all') => void;
   segCustomer: ViertlCustomerStatus | 'all'; setSegCustomer: (v: ViertlCustomerStatus | 'all') => void;
   segHwOnly: boolean; setSegHwOnly: (v: boolean) => void;
   segWithEmail: boolean; setSegWithEmail: (v: boolean) => void;
@@ -748,6 +765,13 @@ function EnrollPanel({
                 className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-red-100"
               />
             </div>
+            <Select
+              value={segStatus}
+              onChange={(v) => setSegStatus(v as ViertlStatus | 'all')}
+              options={STATUS_SEG_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+              className="inline-block min-w-[150px]"
+              ariaLabel="Pipeline-Status"
+            />
             <Select
               value={segCustomer}
               onChange={(v) => setSegCustomer(v as ViertlCustomerStatus | 'all')}
