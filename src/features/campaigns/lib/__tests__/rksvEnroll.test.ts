@@ -8,6 +8,9 @@ function lic(over: Partial<ViertlLicense> = {}): ViertlLicense {
     id: 'l1',
     mesonicKdnr: '12345',
     name: 'Haus am Wald',
+    vendor: 'gastrotouch',
+    deviceModel: null,
+    source: null,
     contact: null,
     street: null,
     plz: '4020',
@@ -25,6 +28,7 @@ function lic(over: Partial<ViertlLicense> = {}): ViertlLicense {
     closedAt: null,
     notes: null,
     linkedOfferId: null,
+    linkedTicketId: null,
     createdAt: '',
     updatedAt: '',
     ...over,
@@ -128,5 +132,33 @@ describe('filterLicensesForSegment', () => {
     expect(
       filterLicensesForSegment(rows, { status: 'mailed', customerStatus: 'active', withEmailOnly: true }).map((l) => l.id),
     ).toEqual(['a']);
+  });
+
+  describe('vendor filter (Signaturtausch Phase A)', () => {
+    const rows = [
+      lic({ id: '1', vendor: 'gastrotouch' }),
+      lic({ id: '2', vendor: 'sharp' }),
+      lic({ id: '3', vendor: 'rch' }),
+    ];
+
+    it('narrows to a single vendor', () => {
+      expect(filterLicensesForSegment(rows, { vendor: 'sharp' }).map((l) => l.id)).toEqual(['2']);
+    });
+
+    it("'all' (or absent) does not filter by vendor", () => {
+      expect(filterLicensesForSegment(rows, { vendor: 'all' }).map((l) => l.id)).toEqual(['1', '2', '3']);
+      expect(filterLicensesForSegment(rows, {}).map((l) => l.id)).toEqual(['1', '2', '3']);
+    });
+
+    it('combines with other predicates (sharp + active drops a closed sharp row)', () => {
+      const mixed = [
+        lic({ id: 's-active', vendor: 'sharp', customerStatus: 'active' }),
+        lic({ id: 's-closed', vendor: 'sharp', customerStatus: 'closed' }),
+        lic({ id: 'g-active', vendor: 'gastrotouch', customerStatus: 'active' }),
+      ];
+      expect(
+        filterLicensesForSegment(mixed, { vendor: 'sharp', customerStatus: 'active' }).map((l) => l.id),
+      ).toEqual(['s-active']);
+    });
   });
 });
