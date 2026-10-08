@@ -185,19 +185,31 @@ export async function mesonicImport(type, template, xmlData, opts = {}) {
 // Customer API (Type 1)
 // ═══════════════════════════════════════════════════════
 
+// Cap the number of AND'd terms so the GET URL stays well under Mesonic's limit.
+const MAX_SEARCH_WORDS = 5;
+
+/**
+ * Build the Mesonic export key for a customer name search.
+ * Splits the query into words and requires each to appear anywhere in the
+ * combined name field (T055.C003), so word order doesn't matter:
+ * "Grünwald Klaus" matches a customer stored as "Klaus Grünwald".
+ */
+export function buildCustomerSearchKey(query) {
+  const words = String(query).trim().split(/\s+/).filter(Boolean).slice(0, MAX_SEARCH_WORDS);
+  // Mesonic requires %% for LIKE wildcards; escape single quotes.
+  const where = words
+    .map((w) => `T055.C003 LIKE '%%${w.replace(/'/g, "''")}%%'`)
+    .join(' AND ');
+  return `where ${where}`;
+}
+
 /** Search customers by name, number, or other fields */
 export async function searchCustomers(query) {
   // If it looks like a customer number (pure digits), fetch by key directly
   if (/^\d+$/.test(query)) {
     return mesonicExport(TYPES.CUSTOMER, TEMPLATES.CUSTOMER_DETAIL, query);
   }
-  // Otherwise use WHERE clause on name (Mesonic requires %% for LIKE wildcards)
-  const escaped = query.replace(/'/g, "''");
-  return mesonicExport(
-    TYPES.CUSTOMER,
-    TEMPLATES.CUSTOMER_DETAIL,
-    `where T055.C003 LIKE '%%${escaped}%%'`
-  );
+  return mesonicExport(TYPES.CUSTOMER, TEMPLATES.CUSTOMER_DETAIL, buildCustomerSearchKey(query));
 }
 
 /** Get all customers (use with caution — may be large) */
