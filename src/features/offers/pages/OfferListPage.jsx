@@ -28,6 +28,7 @@ import {
 
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth';
+import { findIdBySsoEmail } from '../../../lib/ssoMatch';
 import {
   listOffers,
   deleteOffer,
@@ -37,6 +38,7 @@ import {
   markOfferLost,
   listActivities,
   logActivity,
+  listOfferCreators,
 } from '../../../lib/offerApi';
 import {
   StatusBadge,
@@ -182,7 +184,12 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   const [activities, setActivities] = useState([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [stageFilter, setStageFilter] = useState('new');
+  // Default the Ersteller filter to the logged-in user (resolved from the
+  // employees table via SSO email). Falls back to 'all' when no match. The
+  // ref guards against re-applying the default after the user picks their own
+  // filter — it only ever seeds the initial value once.
   const [creatorFilter, setCreatorFilter] = useState('all');
+  const creatorDefaultAppliedRef = useRef(false);
   // Product family filter: 'all' | 'pos' | 'sharp' | 'brother'. The
   // pill row only renders once more than one type exists in the data
   // (i.e. after the first Sharp/Brother offer), so PoS-only installs
@@ -222,6 +229,30 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
   useEffect(() => {
     fetchOffers();
   }, [fetchOffers]);
+
+  // Seed the Ersteller filter with the logged-in user once. Resolves the
+  // employee record from the SSO email (same matching as the offer builder)
+  // and pre-selects their creator_name so each rep lands on their own offers
+  // instead of "Alle". Only runs until it succeeds, and never overrides a
+  // filter the user has already changed.
+  useEffect(() => {
+    if (creatorDefaultAppliedRef.current) return;
+    const email = profile?.microsoft_email || user?.email;
+    if (!email) return;
+    let cancelled = false;
+    listOfferCreators()
+      .then((creators) => {
+        if (cancelled || creatorDefaultAppliedRef.current) return;
+        const id = findIdBySsoEmail(email, creators);
+        const name = creators.find((c) => c.id === id)?.name;
+        if (name) {
+          creatorDefaultAppliedRef.current = true;
+          setCreatorFilter(name);
+        }
+      })
+      .catch((e) => console.warn('listOfferCreators failed:', e));
+    return () => { cancelled = true; };
+  }, [profile, user]);
 
   async function handleDelete(id) {
     if (!confirm('Angebot wirklich löschen?')) return;
@@ -465,7 +496,7 @@ export default function OfferListPage({ onLoad, onNew, onOpenFollowUps }) {
           {uniqueCreators.length > 1 && (
             <CreatorDropdown
               value={creatorFilter}
-              onChange={setCreatorFilter}
+              onChange={(v) => { creatorDefaultAppliedRef.current = true; setCreatorFilter(v); }}
               creators={uniqueCreators}
             />
           )}
