@@ -41,6 +41,7 @@ const PATH_ALIASES: Record<string, AppSection> = {
   '/orders': 'bestellungen',
   '/viertl': 'viertl',
   '/gastrotouch': 'viertl',
+  '/signaturtausch': 'viertl',
   '/kampagnen': 'kampagnen',
   '/campaigns': 'kampagnen',
   '/leihgeraete': 'leihgeraete',

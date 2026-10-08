@@ -14,7 +14,7 @@
 // für unbekannt, und lassen den Schlüssel bei undefined ganz weg.
 
 import { versionOk } from './rksvVersion';
-import type { ViertlCustomerStatus, ViertlLicense, ViertlStatus } from '../../viertl/types';
+import type { ViertlCustomerStatus, ViertlLicense, ViertlStatus, ViertlVendor } from '../../viertl/types';
 
 export interface EnrollSubject {
   subjectType: 'viertl_license';
@@ -32,6 +32,7 @@ export interface EnrollSubject {
 // auch das Druck-/kein-E-Mail-Segment erfasst (C3).
 export interface ViertlSegmentFilter {
   search?: string;
+  vendor?: ViertlVendor | 'all';   // 'all'/undefined ⇒ alle Hersteller
   status?: ViertlStatus | 'all';
   customerStatus?: ViertlCustomerStatus | 'all';
   hardwareNeeded?: boolean;   // true ⇒ nur Lizenzen mit hardwareNeeded
@@ -46,6 +47,7 @@ export function filterLicensesForSegment(
 ): ViertlLicense[] {
   const q = (f.search ?? '').trim().toLowerCase();
   return licenses.filter((l) => {
+    if (f.vendor && f.vendor !== 'all' && l.vendor !== f.vendor) return false;
     if (f.status && f.status !== 'all' && l.status !== f.status) return false;
     if (f.customerStatus && f.customerStatus !== 'all' && l.customerStatus !== f.customerStatus) return false;
     if (f.hardwareNeeded && !l.hardwareNeeded) return false;
