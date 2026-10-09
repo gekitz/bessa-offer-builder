@@ -361,18 +361,34 @@ function escapeXml(str) {
 // Article API (Type 4)
 // ═══════════════════════════════════════════════════════
 
+// Cap the number of AND'd terms so the GET URL stays well under Mesonic's limit.
+const MAX_ARTICLE_SEARCH_WORDS = 5;
+
+/**
+ * Build the Mesonic export key for an article description search.
+ * Splits the query into words and requires each to appear anywhere in the
+ * description field (T024.C003), so word order doesn't matter:
+ * "Drucker Bon" matches an article stored as "Bondrucker ... ".
+ */
+export function buildArticleSearchKey(query) {
+  const words = String(query)
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, MAX_ARTICLE_SEARCH_WORDS);
+  // Mesonic requires %% for LIKE wildcards; escape single quotes.
+  const where = words
+    .map((w) => `T024.C003 LIKE '%%${w.replace(/'/g, "''")}%%'`)
+    .join(' AND ');
+  return `where ${where}`;
+}
+
 /** Search articles by number or description */
 export async function searchArticles(query) {
   if (/^\d+$/.test(query)) {
     return mesonicExport(TYPES.ARTICLE, TEMPLATES.ARTICLE_DETAIL, query);
   }
-  // Mesonic requires %% for LIKE wildcards
-  const escaped = query.replace(/'/g, "''");
-  return mesonicExport(
-    TYPES.ARTICLE,
-    TEMPLATES.ARTICLE_DETAIL,
-    `where T024.C003 LIKE '%%${escaped}%%'`
-  );
+  return mesonicExport(TYPES.ARTICLE, TEMPLATES.ARTICLE_DETAIL, buildArticleSearchKey(query));
 }
 
 /** Get full article details */
