@@ -245,8 +245,25 @@ export function fmtDate(iso) {
   return d.toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+// Default Austrian VAT.
+const DEFAULT_VAT_PERCENT = 20;
+const round2 = (n) => Math.round(n * 100) / 100;
+
+// A single-repair-order `RepairOrderBilling` carries only the net `subtotal`
+// (no VAT fields); the ticket-level `BillingSummary` carries the full
+// net/VAT/gross breakdown. Derive the missing pieces so the totals box renders
+// for either shape instead of printing NaN (RepairOrderDetail passes the former).
+export function deriveTotals(billing) {
+  const subtotalNet = billing.subtotalNet ?? billing.subtotal ?? 0;
+  const vatPercent = billing.vatPercent ?? DEFAULT_VAT_PERCENT;
+  const vatAmount = billing.vatAmount ?? round2((subtotalNet * vatPercent) / 100);
+  const grandTotalGross = billing.grandTotalGross ?? round2(subtotalNet + vatAmount);
+  return { subtotalNet, vatPercent, vatAmount, grandTotalGross };
+}
+
 function RepairOrderPdfDocument({ ticket, repairOrder, billing, employeesByEntry = {} }) {
   // billing.positions already carries the per-row total; we just render.
+  const { subtotalNet, vatPercent, vatAmount, grandTotalGross } = deriveTotals(billing);
   return (
     <Document>
       <Page size="A4" style={base.page}>
@@ -355,17 +372,30 @@ function RepairOrderPdfDocument({ ticket, repairOrder, billing, employeesByEntry
               <Text style={local.totalsValue}>€ {fmt(billing.materialTotal)}</Text>
             </View>
           )}
+          {billing.adjustmentTotal != null && billing.adjustmentTotal !== 0 && (
+            <View style={local.totalsRow}>
+              <Text style={local.totalsLabel}>Korrekturen</Text>
+              <Text
+                style={[
+                  local.totalsValue,
+                  billing.adjustmentTotal < 0 && { color: COLORS.kitzRed },
+                ]}
+              >
+                € {fmt(billing.adjustmentTotal)}
+              </Text>
+            </View>
+          )}
           <View style={local.totalsRow}>
             <Text style={local.totalsLabel}>Summe netto</Text>
-            <Text style={local.totalsValue}>€ {fmt(billing.subtotalNet)}</Text>
+            <Text style={local.totalsValue}>€ {fmt(subtotalNet)}</Text>
           </View>
           <View style={local.totalsRow}>
-            <Text style={local.totalsLabel}>+ {billing.vatPercent} % MWSt.</Text>
-            <Text style={local.totalsValue}>€ {fmt(billing.vatAmount)}</Text>
+            <Text style={local.totalsLabel}>+ {vatPercent} % MWSt.</Text>
+            <Text style={local.totalsValue}>€ {fmt(vatAmount)}</Text>
           </View>
           <View style={local.totalsRowBold}>
             <Text style={local.totalsLabelBold}>Gesamt brutto</Text>
-            <Text style={local.totalsValueBold}>€ {fmt(billing.grandTotalGross)}</Text>
+            <Text style={local.totalsValueBold}>€ {fmt(grandTotalGross)}</Text>
           </View>
         </View>
 
