@@ -1,6 +1,7 @@
 import React from 'react';
 import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import { COLORS, styles as base } from './pdfStyles';
+import { VAT_PERCENT } from '../features/tickets/lib/billing';
 import kitzLogo from '/kitz-logo.png';
 
 // PDF for a signed repair order. Mirrors the OfferPdfDocument header
@@ -245,8 +246,22 @@ export function fmtDate(iso) {
   return d.toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+// A per-repair-order RepairOrderBilling carries `subtotal` (net) but no VAT
+// breakdown; a ticket-level BillingSummary carries subtotalNet/vatAmount/etc.
+// Accept either and derive the net/VAT/gross trio from the same VAT_PERCENT the
+// ticket summary and public PDF use, so all three reconcile. (Reading the
+// summary-only fields off a RepairOrderBilling yielded undefined → fmt(NaN).)
+export function repairOrderPdfTotals(billing) {
+  const subtotalNet = billing.subtotalNet ?? billing.subtotal;
+  const vatPercent = billing.vatPercent ?? VAT_PERCENT;
+  const vatAmount = billing.vatAmount ?? Math.round(subtotalNet * vatPercent) / 100;
+  const grandTotalGross =
+    billing.grandTotalGross ?? Math.round((subtotalNet + vatAmount) * 100) / 100;
+  return { subtotalNet, vatPercent, vatAmount, grandTotalGross };
+}
+
 function RepairOrderPdfDocument({ ticket, repairOrder, billing, employeesByEntry = {} }) {
-  // billing.positions already carries the per-row total; we just render.
+  const { subtotalNet, vatPercent, vatAmount, grandTotalGross } = repairOrderPdfTotals(billing);
   return (
     <Document>
       <Page size="A4" style={base.page}>
@@ -357,15 +372,15 @@ function RepairOrderPdfDocument({ ticket, repairOrder, billing, employeesByEntry
           )}
           <View style={local.totalsRow}>
             <Text style={local.totalsLabel}>Summe netto</Text>
-            <Text style={local.totalsValue}>€ {fmt(billing.subtotalNet)}</Text>
+            <Text style={local.totalsValue}>€ {fmt(subtotalNet)}</Text>
           </View>
           <View style={local.totalsRow}>
-            <Text style={local.totalsLabel}>+ {billing.vatPercent} % MWSt.</Text>
-            <Text style={local.totalsValue}>€ {fmt(billing.vatAmount)}</Text>
+            <Text style={local.totalsLabel}>+ {vatPercent} % MWSt.</Text>
+            <Text style={local.totalsValue}>€ {fmt(vatAmount)}</Text>
           </View>
           <View style={local.totalsRowBold}>
             <Text style={local.totalsLabelBold}>Gesamt brutto</Text>
-            <Text style={local.totalsValueBold}>€ {fmt(billing.grandTotalGross)}</Text>
+            <Text style={local.totalsValueBold}>€ {fmt(grandTotalGross)}</Text>
           </View>
         </View>
 
