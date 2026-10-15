@@ -44,7 +44,8 @@ export type CopierLineKind = 'device' | 'included' | 'accessory' | 'uhg' | 'inst
 
 export interface CopierLine {
   kind: CopierLineKind;
-  /** Cart-item id for editable lines (device, accessory); undefined otherwise. */
+  /** Cart-item (device) id for editable lines (device, accessory, install);
+   *  undefined otherwise. */
   id?: string;
   name: string;
   code?: string;
@@ -58,6 +59,8 @@ export interface CopierLine {
 }
 
 export interface MaintenanceRates {
+  /** Cart-item (device) id — targets the price-edit dialog. */
+  id: string;
   deviceName: string;
   pageBw: number;
   pageColor: number;
@@ -116,7 +119,7 @@ export interface CopierOfferOptions {
 export function buildCopierOffer(cart: Cart, catalog: Catalog, opts: CopierOfferOptions = {}): CopierOffer {
   const entries = Object.entries(cart);
 
-  type Device = { id: string; item: NonNullable<Catalog[string]>; c: CartItem; qty: number; vk: number };
+  type Device = { id: string; item: NonNullable<Catalog[string]>; c: CartItem; qty: number; vk: number; install: number };
   type Accessory = { id: string; item: NonNullable<Catalog[string]>; c: CartItem; qty: number; unit: number };
   const devices: Device[] = [];
   const accessories: Accessory[] = [];
@@ -125,6 +128,9 @@ export function buildCopierOffer(cart: Cart, catalog: Catalog, opts: CopierOffer
   // price for both the device VK and accessory unit prices.
   const overrideOr = (c: CartItem, fallback: number): number =>
     c.priceOverride != null && Number.isFinite(c.priceOverride) ? c.priceOverride : fallback;
+  // Generic override: use the finite override (including 0) else the fallback.
+  const pick = (o: number | undefined | null, fallback: number): number =>
+    o != null && Number.isFinite(o) ? o : fallback;
 
   for (const [id, c] of entries) {
     const item = catalog[id];
@@ -132,7 +138,7 @@ export function buildCopierOffer(cart: Cart, catalog: Catalog, opts: CopierOffer
     if (item.t === 'copier') {
       const qty = c.qty ?? 1;
       if (qty <= 0) continue;
-      devices.push({ id, item, c, qty, vk: overrideOr(c, item.vk ?? 0) });
+      devices.push({ id, item, c, qty, vk: overrideOr(c, item.vk ?? 0), install: pick(c.installOverride, numOr0(item.install)) });
     } else if (item.t === 'o') {
       const qty = c.qty ?? 0;
       if (qty <= 0) continue;
@@ -151,7 +157,7 @@ export function buildCopierOffer(cart: Cart, catalog: Catalog, opts: CopierOffer
 
   // --- Asset base (everything financed/sold, before credits) ---
   let assetBase = 0;
-  for (const d of devices) assetBase += d.vk * d.qty + numOr0(d.item.uhg) * d.qty + numOr0(d.item.install) * d.qty;
+  for (const d of devices) assetBase += d.vk * d.qty + numOr0(d.item.uhg) * d.qty + d.install * d.qty;
   for (const a of accessories) assetBase += a.unit * a.qty;
   assetBase = round2(assetBase);
 
@@ -191,8 +197,7 @@ export function buildCopierOffer(cart: Cart, catalog: Catalog, opts: CopierOffer
     if (uhg > 0) lines.push({ kind: 'uhg', name: 'Reprographievergütung (UHG)', qty: d.qty, unitPrice: uhg, lineTotal: round2(uhg * d.qty) });
   }
   for (const d of devices) {
-    const install = numOr0(d.item.install);
-    if (install > 0) lines.push({ kind: 'install', name: 'Lieferung, Installation und Einschulung', qty: d.qty, unitPrice: install, lineTotal: round2(install * d.qty) });
+    if (d.install > 0) lines.push({ kind: 'install', id: d.id, name: 'Lieferung, Installation und Einschulung', qty: d.qty, unitPrice: d.install, lineTotal: round2(d.install * d.qty) });
   }
   for (const d of devices) {
     if (d.c.tradeIn && numOr0(d.c.tradeIn.value) > 0) {
@@ -241,10 +246,11 @@ export function buildCopierOffer(cart: Cart, catalog: Catalog, opts: CopierOffer
   };
 
   const maintenance: MaintenanceRates[] = devices.map((d) => ({
+    id: d.id,
     deviceName: d.item.name,
-    pageBw: numOr0(d.item.pageBw),
-    pageColor: numOr0(d.item.pageColor),
-    pageScan: numOr0(d.item.pageScan),
+    pageBw: pick(d.c.pageBwOverride, numOr0(d.item.pageBw)),
+    pageColor: pick(d.c.pageColorOverride, numOr0(d.item.pageColor)),
+    pageScan: pick(d.c.pageScanOverride, numOr0(d.item.pageScan)),
   }));
 
   return { isCopierOffer: true, saleMode, lines, assetBase, tradeInTotal, net, vat, gross, financedBase, leasing, maintenance };

@@ -41,6 +41,7 @@ import DatePicker from '../../../components/DatePicker';
 import SortableOfferRow from './SortableOfferRow';
 import EditItemModal from './modals/EditItemModal';
 import LeasingConditionsModal from './modals/LeasingConditionsModal';
+import CopierPricesModal from './modals/CopierPricesModal';
 import { TIER_LABEL } from '../../../data/tiers';
 import { ALL, isCustomItem } from '../data/catalogs';
 import {
@@ -123,6 +124,7 @@ export default function OfferView({
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // { id, item, cartItem, monthly }
   const [editingLeasingId, setEditingLeasingId] = useState(null);
+  const [editingPricesId, setEditingPricesId] = useState(null);
   // A Sharp/MFP offer renders its own copier summary instead of the PoS
   // monthly/once/Wartung/financing sections.
   const isCopier = !!copierOffer?.isCopierOffer;
@@ -402,6 +404,7 @@ export default function OfferView({
             if (item) setEditingItem({ id, item, cartItem: cart[id] || {}, monthly: false });
           }}
           onEditLeasing={!locked && primaryCopierId && onCopierField ? () => setEditingLeasingId(primaryCopierId) : null}
+          onEditPrices={!locked && onCopierField ? (id) => setEditingPricesId(id) : null}
         />
       )}
 
@@ -868,6 +871,18 @@ export default function OfferView({
           }}
         />
       )}
+
+      {editingPricesId && ALL[editingPricesId] && (
+        <CopierPricesModal
+          item={ALL[editingPricesId]}
+          cartItem={cart[editingPricesId] || {}}
+          onClose={() => setEditingPricesId(null)}
+          onSave={(patch) => {
+            onCopierField(editingPricesId, patch);
+            setEditingPricesId(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -878,7 +893,7 @@ const fmtRate = (n) => n.toLocaleString('de-AT', { minimumFractionDigits: 4, max
 // + trade-in lines with the Angebotssumme, the Grenke leasing terms, and the
 // All-in maintenance rates. All inputs (Kauf/Leasing, trade-in, override) live
 // on the device card; this just mirrors what the PDF will print.
-function CopierSummary({ copierOffer, onEditLine, onEditLeasing }) {
+function CopierSummary({ copierOffer, onEditLine, onEditLeasing, onEditPrices }) {
   const { lines, net, vat, gross, leasing, maintenance, saleMode } = copierOffer;
   return (
     <>
@@ -899,7 +914,12 @@ function CopierSummary({ copierOffer, onEditLine, onEditLeasing }) {
                 <span className={`text-sm whitespace-nowrap ${line.kind === 'tradein' ? 'text-emerald-700 font-semibold' : line.kind === 'included' ? 'text-slate-400' : 'font-semibold text-slate-800'}`}>
                   {line.kind === 'included' ? 'inkl.' : `€ ${fmt(line.lineTotal)}`}
                 </span>
-                {line.id && onEditLine && (
+                {line.id && line.kind === 'install' && onEditPrices && (
+                  <button onClick={() => onEditPrices(line.id)} className="text-slate-400 hover:text-red-500 transition-colors" title="Preis bearbeiten" aria-label="Bearbeiten">
+                    <Pencil size={13} />
+                  </button>
+                )}
+                {line.id && line.kind !== 'install' && onEditLine && (
                   <button onClick={() => onEditLine(line.id)} className="text-slate-400 hover:text-red-500 transition-colors" title="Preis/Menge bearbeiten" aria-label="Bearbeiten">
                     <Pencil size={13} />
                   </button>
@@ -946,9 +966,16 @@ function CopierSummary({ copierOffer, onEditLine, onEditLeasing }) {
         <p className="text-amber-900" style={{ fontSize: 12 }}>Inkl. Service, Ersatzteile, Verbrauchsmaterial (Toner, Trommel, Developer), Arbeits- &amp; Wegzeit. Ausgenommen: Papier, Folien, Heftklammern.</p>
         <div className="mt-2 space-y-0.5">
           {maintenance.map((m, i) => (
-            <p key={i} className="text-amber-900" style={{ fontSize: 12 }}>
-              {maintenance.length > 1 ? `${m.deviceName}: ` : ''}s/w € {fmtRate(m.pageBw)} · Farbe € {fmtRate(m.pageColor)} · Scan € {fmtRate(m.pageScan)} (zzgl. 20% MwSt)
-            </p>
+            <div key={i} className="flex items-start justify-between gap-2">
+              <p className="text-amber-900" style={{ fontSize: 12 }}>
+                {maintenance.length > 1 ? `${m.deviceName}: ` : ''}s/w € {fmtRate(m.pageBw)} · Farbe € {fmtRate(m.pageColor)} · Scan € {fmtRate(m.pageScan)} (zzgl. 20% MwSt)
+              </p>
+              {m.id && onEditPrices && (
+                <button onClick={() => onEditPrices(m.id)} className="text-amber-500 hover:text-amber-800 transition-colors flex-shrink-0 mt-0.5" title="Kopienpreise bearbeiten" aria-label="Bearbeiten">
+                  <Pencil size={13} />
+                </button>
+              )}
+            </div>
           ))}
         </div>
         <p className="text-amber-700 mt-1" style={{ fontSize: 11 }}>Abrechnung des tatsächlichen Zählerstandes pro Quartal im Nachhinein.</p>
