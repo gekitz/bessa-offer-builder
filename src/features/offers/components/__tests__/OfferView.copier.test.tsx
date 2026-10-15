@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -80,5 +80,27 @@ describe('OfferView — Sharp/copier summary', () => {
     await userEvent.click(editButtons[0]!);
     // EditItemModal opens with the net-price field (device VK editable).
     expect(screen.getByText('Preis netto (€)')).toBeInTheDocument();
+  });
+
+  it('edits the install price via the install-line pencil → onCopierField(installOverride)', async () => {
+    const onCopierField = vi.fn();
+    render(<OfferView {...(baseProps as any)} onCopierField={onCopierField} />);
+    await userEvent.click(screen.getByTitle('Preis bearbeiten')); // install line pencil
+    const install = screen.getByLabelText('Lieferung, Installation und Einschulung');
+    await userEvent.clear(install);
+    await userEvent.type(install, '350');
+    await userEvent.click(screen.getByRole('button', { name: /Übernehmen/ }));
+    expect(onCopierField).toHaveBeenCalledWith('sharp-bp51c26', expect.objectContaining({ installOverride: 350 }));
+  });
+
+  it('edits the copy prices via the maintenance pencil → onCopierField(pageBwOverride)', async () => {
+    const onCopierField = vi.fn();
+    render(<OfferView {...(baseProps as any)} onCopierField={onCopierField} />);
+    await userEvent.click(screen.getByTitle('Kopienpreise bearbeiten'));
+    const bw = screen.getByLabelText('Preis pro Kopie s/w');
+    await userEvent.clear(bw);
+    await userEvent.type(bw, '0.0065');
+    await userEvent.click(screen.getByRole('button', { name: /Übernehmen/ }));
+    expect(onCopierField).toHaveBeenCalledWith('sharp-bp51c26', expect.objectContaining({ pageBwOverride: 0.0065 }));
   });
 });

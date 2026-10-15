@@ -219,10 +219,11 @@ describe('buildCopierOffer — price overrides (edit dialog)', () => {
     expect(accessory?.id).toBe('sharp-zb-bpfn13');
   });
 
-  it('included and UHG/install lines carry no editable id', () => {
+  it('included and UHG lines carry no editable id; install does (price is editable)', () => {
     const offer = buildCopierOffer({ [BP51C26]: { qty: 1, saleMode: 'kauf' } }, ALL);
     for (const l of offer.lines) {
-      if (l.kind === 'included' || l.kind === 'uhg' || l.kind === 'install') expect(l.id).toBeUndefined();
+      if (l.kind === 'included' || l.kind === 'uhg') expect(l.id).toBeUndefined();
+      if (l.kind === 'install') expect(l.id).toBe(BP51C26);
     }
   });
 });
@@ -232,9 +233,40 @@ describe('buildCopierOffer — maintenance rates', () => {
     const cart: Cart = { [BP51C26]: { qty: 1, saleMode: 'kauf' } };
     const offer = buildCopierOffer(cart, ALL);
     expect(offer.maintenance).toHaveLength(1);
-    expect(offer.maintenance[0]).toMatchObject({ pageBw: 0.0075, pageColor: 0.075, pageScan: 0.0019 });
+    expect(offer.maintenance[0]).toMatchObject({ id: BP51C26, pageBw: 0.0075, pageColor: 0.075, pageScan: 0.0019 });
     // Net is purely the device + UHG + install — rates are not summed in.
     expect(offer.net).toBe(3594.73);
+  });
+
+  it('applies per-device rate overrides (and still never sums them in)', () => {
+    const cart: Cart = {
+      [BP51C26]: { qty: 1, saleMode: 'kauf', pageBwOverride: 0.0065, pageColorOverride: 0.06, pageScanOverride: 0.0015 },
+    };
+    const offer = buildCopierOffer(cart, ALL);
+    expect(offer.maintenance[0]).toMatchObject({ pageBw: 0.0065, pageColor: 0.06, pageScan: 0.0015 });
+    // Overriding the informational rates must not change the totals.
+    expect(offer.net).toBe(3594.73);
+  });
+});
+
+describe('buildCopierOffer — install override', () => {
+  it('overrides the install line price and the Kauf totals, and tags the line id', () => {
+    const cart: Cart = { [BP51C26]: { qty: 1, saleMode: 'kauf', installOverride: 400 } };
+    const offer = buildCopierOffer(cart, ALL);
+    const install = offer.lines.find((l) => l.kind === 'install')!;
+    expect(install.unitPrice).toBe(400);
+    expect(install.id).toBe(BP51C26); // editable → carries the device id
+    // 3150 + 194,73 + 400 = 3744,73 (default install was €250).
+    expect(offer.assetBase).toBe(3744.73);
+    expect(offer.net).toBe(3744.73);
+  });
+
+  it('install override of 0 removes the line and drops it from the base', () => {
+    const cart: Cart = { [BP51C26]: { qty: 1, saleMode: 'kauf', installOverride: 0 } };
+    const offer = buildCopierOffer(cart, ALL);
+    expect(offer.lines.some((l) => l.kind === 'install')).toBe(false);
+    // 3150 + 194,73, no install.
+    expect(offer.net).toBe(3344.73);
   });
 });
 

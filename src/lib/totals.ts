@@ -35,6 +35,15 @@ export interface CartItem extends OptionCartItem {
   restwertPercentOverride?: number;
   /** Override the one-time Bearbeitungsgebühr (default €75, printed term). */
   bearbeitungsgebuehrOverride?: number;
+  /** Override the one-time Lieferung/Installation/Einschulung net price
+   *  (default from the catalog device's `install`). 0 removes the line. */
+  installOverride?: number;
+  /** Override the All-in per-page maintenance rates (net); default from the
+   *  catalog device (`pageBw`/`pageColor`/`pageScan`). Informational — never
+   *  summed into a total. */
+  pageBwOverride?: number;
+  pageColorOverride?: number;
+  pageScanOverride?: number;
 }
 
 export type Cart = Record<string, CartItem>;
