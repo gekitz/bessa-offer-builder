@@ -573,7 +573,7 @@ export default function OfferView({
               <div className="text-right">
                 {(rabattActive || takeBackNet > 0) ? (
                   <>
-                    <div className="text-xs text-slate-500 line-through">€ {fmt(discount.baseNetto * 1.2)} brutto</div>
+                    <div className="text-xs text-slate-500 line-through">€ {fmt(discount.baseNetto)} netto</div>
                     <div className="text-sm text-slate-400">€ {fmt(discount.netto)} netto</div>
                     <div className="font-bold text-lg text-red-400">€ {fmt(discount.brutto)} brutto</div>
                   </>
