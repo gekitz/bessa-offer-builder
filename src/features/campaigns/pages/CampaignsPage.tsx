@@ -17,7 +17,7 @@ import {
 import { filterLicensesForSegment, licenseToEnrollSubject, type ViertlSegmentFilter } from '../lib/rksvEnroll';
 import { pickTemplateFields } from '../lib/templatePick';
 import { listLicenses } from '../../viertl/api/viertlApi';
-import type { ViertlCustomerStatus, ViertlLicense, ViertlStatus } from '../../viertl/types';
+import type { ViertlCustomerStatus, ViertlLicense, ViertlStatus, ViertlVendor } from '../../viertl/types';
 import type {
   Campaign,
   CampaignActor,
@@ -88,6 +88,7 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
   const [licenses, setLicenses] = useState<ViertlLicense[] | null>(null);
   const [enrollBusy, setEnrollBusy] = useState(false);
   const [segSearch, setSegSearch] = useState('');
+  const [segVendor, setSegVendor] = useState<ViertlVendor | 'all'>('all');
   const [segStatus, setSegStatus] = useState<ViertlStatus | 'all'>('all');
   const [segCustomer, setSegCustomer] = useState<ViertlCustomerStatus | 'all'>('active');
   const [segHwOnly, setSegHwOnly] = useState(false);
@@ -98,11 +99,12 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
 
   const segmentFilter = useMemo<ViertlSegmentFilter>(() => ({
     search: segSearch,
+    vendor: segVendor,
     status: segStatus,
     customerStatus: segCustomer,
     hardwareNeeded: segHwOnly,
     withEmailOnly: segWithEmail,
-  }), [segSearch, segStatus, segCustomer, segHwOnly, segWithEmail]);
+  }), [segSearch, segVendor, segStatus, segCustomer, segHwOnly, segWithEmail]);
 
   const segment = useMemo(
     () => (licenses ? filterLicensesForSegment(licenses, segmentFilter) : []),
@@ -500,6 +502,7 @@ export default function CampaignsPage(_props: { onOpenOffer?: (offerId: string) 
             {enrollOpen && campaign?.type === 'rksv_signature' && (
               <EnrollPanel
                 segSearch={segSearch} setSegSearch={setSegSearch}
+                segVendor={segVendor} setSegVendor={setSegVendor}
                 segStatus={segStatus} setSegStatus={setSegStatus}
                 segCustomer={segCustomer} setSegCustomer={setSegCustomer}
                 segHwOnly={segHwOnly} setSegHwOnly={setSegHwOnly}
@@ -695,6 +698,14 @@ function CreateCampaignPanel({
   );
 }
 
+const VENDOR_SEG_OPTIONS: { value: ViertlVendor | 'all'; label: string }[] = [
+  { value: 'all', label: 'Alle Hersteller' },
+  { value: 'gastrotouch', label: 'Gastrotouch' },
+  { value: 'sharp', label: 'Sharp' },
+  { value: 'rch', label: 'RCH' },
+  { value: 'bhs', label: 'BHS' },
+];
+
 const CUSTOMER_SEG_OPTIONS: { value: ViertlCustomerStatus | 'all'; label: string }[] = [
   { value: 'active', label: 'Aktiv' },
   { value: 'closing', label: 'Sperrt zu' },
@@ -717,6 +728,7 @@ const STATUS_SEG_OPTIONS: { value: ViertlStatus | 'all'; label: string }[] = [
 // ── Enrol-aus-Viertl-Panel (inline) ──
 function EnrollPanel({
   segSearch, setSegSearch,
+  segVendor, setSegVendor,
   segStatus, setSegStatus,
   segCustomer, setSegCustomer,
   segHwOnly, setSegHwOnly,
@@ -730,6 +742,7 @@ function EnrollPanel({
   onClose,
 }: {
   segSearch: string; setSegSearch: (v: string) => void;
+  segVendor: ViertlVendor | 'all'; setSegVendor: (v: ViertlVendor | 'all') => void;
   segStatus: ViertlStatus | 'all'; setSegStatus: (v: ViertlStatus | 'all') => void;
   segCustomer: ViertlCustomerStatus | 'all'; setSegCustomer: (v: ViertlCustomerStatus | 'all') => void;
   segHwOnly: boolean; setSegHwOnly: (v: boolean) => void;
@@ -765,6 +778,13 @@ function EnrollPanel({
                 className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-red-100"
               />
             </div>
+            <Select
+              value={segVendor}
+              onChange={(v) => setSegVendor(v as ViertlVendor | 'all')}
+              options={VENDOR_SEG_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+              className="inline-block min-w-[150px]"
+              ariaLabel="Hersteller"
+            />
             <Select
               value={segStatus}
               onChange={(v) => setSegStatus(v as ViertlStatus | 'all')}

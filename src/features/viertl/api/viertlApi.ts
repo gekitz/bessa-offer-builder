@@ -28,6 +28,9 @@ function rowToLicense(r: any): ViertlLicense {
     id: r.id,
     mesonicKdnr: r.mesonic_kdnr,
     name: r.name,
+    vendor: r.vendor ?? 'gastrotouch',
+    deviceModel: r.device_model ?? null,
+    source: r.source ?? null,
     contact: r.contact ?? null,
     street: r.street ?? null,
     plz: r.plz ?? null,
@@ -71,6 +74,8 @@ function rowToEvent(r: any): ViertlEvent {
 // gesetzt bzw. bei Reaktivierung geleert.
 function updateToRow(patch: ViertlLicenseUpdate): Record<string, unknown> {
   const row: Record<string, unknown> = {};
+  if (patch.vendor !== undefined) row.vendor = patch.vendor;
+  if (patch.deviceModel !== undefined) row.device_model = patch.deviceModel;
   if (patch.status !== undefined) row.status = patch.status;
   if (patch.wartung !== undefined) row.wartung = patch.wartung;
   if (patch.gastrotouchVersion !== undefined) row.gastrotouch_version = patch.gastrotouchVersion;

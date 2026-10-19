@@ -13,6 +13,7 @@ import type {
   ViertlEvent,
   ViertlLicense,
   ViertlStatus,
+  ViertlVendor,
   ViertlWartung,
 } from '../types';
 
@@ -48,6 +49,15 @@ const CUSTOMER_OPTIONS = (['active', 'closing', 'closed'] as ViertlCustomerStatu
   .map((v) => ({ value: v, label: CUSTOMER_META[v].label }));
 const WARTUNG_OPTIONS = (['none', 'sww', 'sw_hww', 'miete'] as ViertlWartung[])
   .map((v) => ({ value: v, label: WARTUNG_LABEL[v] }));
+
+const VENDOR_LABEL: Record<ViertlVendor, string> = {
+  gastrotouch: 'Gastrotouch',
+  sharp: 'Sharp',
+  rch: 'RCH',
+  bhs: 'BHS',
+};
+const VENDOR_OPTIONS = (['gastrotouch', 'sharp', 'rch', 'bhs'] as ViertlVendor[])
+  .map((v) => ({ value: v, label: VENDOR_LABEL[v] }));
 
 // Angebotsstatus (aus dem offers-System) → Label/Farbe für die Viertl-Ansicht.
 function offerBadge(status: string): { label: string; cls: string } {
@@ -108,6 +118,8 @@ function fieldLabel(field: string | null): string {
     case 'wartung': return 'Wartung';
     case 'gastrotouch_version': return 'Version';
     case 'hardware_model': return 'Hardware';
+    case 'vendor': return 'Hersteller';
+    case 'device_model': return 'Gerätemodell';
     case 'hardware_needed': return 'Neue Hardware nötig';
     case 'email': return 'E-Mail';
     case 'closed_reason': return 'Schließungsgrund';
@@ -147,6 +159,7 @@ export default function ViertlPage({
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
+  const [vendorFilter, setVendorFilter] = useState<ViertlVendor | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<ViertlStatus | 'all'>('all');
   const [custFilter, setCustFilter] = useState<ViertlCustomerStatus | 'all'>('all');
   const [hwOnly, setHwOnly] = useState(false);
@@ -174,6 +187,7 @@ export default function ViertlPage({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return licenses.filter((l) => {
+      if (vendorFilter !== 'all' && l.vendor !== vendorFilter) return false;
       if (statusFilter !== 'all' && l.status !== statusFilter) return false;
       if (custFilter !== 'all' && l.customerStatus !== custFilter) return false;
       if (hwOnly && !l.hardwareNeeded) return false;
@@ -184,7 +198,7 @@ export default function ViertlPage({
       }
       return true;
     });
-  }, [licenses, search, statusFilter, custFilter, hwOnly, noEmailOnly]);
+  }, [licenses, search, vendorFilter, statusFilter, custFilter, hwOnly, noEmailOnly]);
 
   const sorted = useMemo(() => {
     const dir = sort.dir === 'asc' ? 1 : -1;
@@ -309,7 +323,7 @@ export default function ViertlPage({
       {/* Header */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
         <div>
-          <h1 className="text-lg font-semibold text-slate-800">Viertl / Gastrotouch</h1>
+          <h1 className="text-lg font-semibold text-slate-800">Signaturtausch</h1>
           <p className="text-xs text-slate-500">
             {counts.total} Installationen · {counts.open} offen · {counts.done} erledigt · {counts.hw} × neue HW nötig · {missingEmail.length} ohne E-Mail{uncheckedMissing.length > 0 ? ` (${uncheckedMissing.length} noch nicht geprüft)` : ''}
           </p>
@@ -365,6 +379,13 @@ export default function ViertlPage({
             className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-100"
           />
         </div>
+        <Select
+          value={vendorFilter}
+          onChange={(v) => setVendorFilter(v as ViertlVendor | 'all')}
+          options={[{ value: 'all', label: 'Alle Hersteller' }, ...VENDOR_OPTIONS]}
+          className="inline-block min-w-[150px]"
+          ariaLabel="Hersteller filtern"
+        />
         <Select
           value={statusFilter}
           onChange={(v) => setStatusFilter(v as ViertlStatus | 'all')}
@@ -433,6 +454,11 @@ export default function ViertlPage({
                   <td className="px-4 py-2">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-slate-800">{l.name}</span>
+                      {l.vendor !== 'gastrotouch' && (
+                        <span className="inline-block px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">
+                          {VENDOR_LABEL[l.vendor]}
+                        </span>
+                      )}
                       {l.customerStatus !== 'active' && (
                         <span className={`inline-block px-1.5 py-0.5 rounded-full text-[11px] font-medium ${CUSTOMER_META[l.customerStatus].cls}`}>
                           {CUSTOMER_META[l.customerStatus].label}
@@ -457,7 +483,7 @@ export default function ViertlPage({
                         <Cpu className="w-3.5 h-3.5" />
                       </span>
                     )}
-                    <span className="text-slate-500 text-xs">{l.hardwareModel ?? ''}</span>
+                    <span className="text-slate-500 text-xs">{[l.deviceModel, l.hardwareModel].filter(Boolean).join(' · ')}</span>
                   </td>
                   <td className="px-3 py-2">
                     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_META[l.status].cls}`}>
@@ -709,6 +735,12 @@ function LicenseDetail({
         </div>
 
         <div className="p-4 space-y-4">
+          <Field label="Hersteller">
+            <Select value={license.vendor} onChange={(v) => void patch({ vendor: v as ViertlVendor })} options={VENDOR_OPTIONS} disabled={busy} />
+          </Field>
+          <Field label="Gerätemodell">
+            <BlurInput value={license.deviceModel ?? ''} disabled={busy} onCommit={(v) => void patch({ deviceModel: v || null })} />
+          </Field>
           <Field label="Status">
             <Select value={license.status} onChange={(v) => void patch({ status: v as ViertlStatus })} options={STATUS_OPTIONS} disabled={busy} />
           </Field>
@@ -734,9 +766,11 @@ function LicenseDetail({
               )}
             </div>
           )}
-          <Field label="Wartung">
-            <Select value={license.wartung} onChange={(v) => void patch({ wartung: v as ViertlWartung })} options={WARTUNG_OPTIONS} disabled={busy} />
-          </Field>
+          {license.vendor === 'gastrotouch' && (
+            <Field label="Wartung">
+              <Select value={license.wartung} onChange={(v) => void patch({ wartung: v as ViertlWartung })} options={WARTUNG_OPTIONS} disabled={busy} />
+            </Field>
+          )}
 
           <div className="flex items-center justify-between">
             <span className="text-sm text-slate-600">Neue Hardware nötig</span>
@@ -754,9 +788,11 @@ function LicenseDetail({
           <Field label="Hardware-Modell">
             <BlurInput value={license.hardwareModel ?? ''} disabled={busy} onCommit={(v) => void patch({ hardwareModel: v || null })} />
           </Field>
-          <Field label="Version">
-            <BlurInput value={license.gastrotouchVersion ?? ''} disabled={busy} onCommit={(v) => void patch({ gastrotouchVersion: v || null })} />
-          </Field>
+          {license.vendor === 'gastrotouch' && (
+            <Field label="Version">
+              <BlurInput value={license.gastrotouchVersion ?? ''} disabled={busy} onCommit={(v) => void patch({ gastrotouchVersion: v || null })} />
+            </Field>
+          )}
           <Field label="E-Mail">
             <div className="flex gap-2">
               <div className="flex-1">
