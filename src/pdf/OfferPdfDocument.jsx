@@ -350,7 +350,7 @@ function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce
         <Text style={styles.periodSummaryLabel}>{firstYearLabel}</Text>
         <View style={styles.periodSummaryValues}>
           {hasDeduction && (
-            <Text style={styles.periodSummaryStrike}>{fmt(discount.baseNetto * 1.2)} brutto</Text>
+            <Text style={styles.periodSummaryStrike}>{fmt(discount.baseNetto)} netto</Text>
           )}
           <Text style={styles.periodSummaryNetto}>{fmt(discount.netto)} netto</Text>
           <Text style={styles.periodSummaryBrutto}>{fmt(discount.brutto)} brutto</Text>
