@@ -59,6 +59,7 @@ function fmtDateTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString('de-AT', {
+    timeZone: 'Europe/Vienna',
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
@@ -504,7 +505,7 @@ serve(async (req: Request) => {
       const apptInfo = appointment
         ? `<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:14px 18px;margin:0 0 18px;font-size:14px;color:#1e1b4b;">
             <div><strong>${escapeHtml(appointment.title)}</strong></div>
-            <div style="margin-top:4px;">${escapeHtml(fmtDateTime(appointment.starts_at))} – ${escapeHtml(new Date(appointment.ends_at).toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' }))}</div>
+            <div style="margin-top:4px;">${escapeHtml(fmtDateTime(appointment.starts_at))} – ${escapeHtml(new Date(appointment.ends_at).toLocaleTimeString('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' }))}</div>
             ${appointment.location ? `<div style="margin-top:4px;color:#5b21b6;">Ort: ${escapeHtml(appointment.location)}</div>` : ''}
           </div>`
         : '';

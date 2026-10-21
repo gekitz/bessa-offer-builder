@@ -79,6 +79,7 @@ function fmtDateTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString('de-AT', {
+    timeZone: 'Europe/Vienna',
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
@@ -87,7 +88,7 @@ function fmtDateTime(iso: string): string {
 function fmtTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString('de-AT', { timeZone: 'Europe/Vienna', hour: '2-digit', minute: '2-digit' });
 }
 
 function escapeHtml(s: string | null | undefined): string {

@@ -171,13 +171,13 @@ function fmtEur(n: number): string {
 function fmtDateTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' });
+  return d.toLocaleString('de-AT', { timeZone: 'Europe/Vienna', dateStyle: 'short', timeStyle: 'short' });
 }
 
 function fmtDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('de-AT');
+  return d.toLocaleDateString('de-AT', { timeZone: 'Europe/Vienna' });
 }
 
 function escapeHtml(s: string): string {
@@ -315,6 +315,7 @@ export interface RenderOptions {
 
 export function renderDigestHtml(data: DigestData, opts: RenderOptions = {}): string {
   const dateStr = data.generatedAt.toLocaleDateString('de-AT', {
+    timeZone: 'Europe/Vienna',
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
   });
 
@@ -351,7 +352,7 @@ export function renderDigestHtml(data: DigestData, opts: RenderOptions = {}): st
 }
 
 export function digestSubject(data: DigestData): string {
-  const dateStr = data.generatedAt.toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit' });
+  const dateStr = data.generatedAt.toLocaleDateString('de-AT', { timeZone: 'Europe/Vienna', day: '2-digit', month: '2-digit' });
   const hotPrefix = data.totalHot > 0 ? `🔥 ${data.totalHot} heiße Spur · ` : '';
   return `Follow-ups ${dateStr} — ${hotPrefix}${data.totalOverdue} überfällig, ${data.totalDueToday} heute`;
 }

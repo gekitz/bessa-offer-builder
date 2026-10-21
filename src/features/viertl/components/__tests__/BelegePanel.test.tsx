@@ -23,6 +23,7 @@ const CACHE: BelegeCacheState = {
       laufnummer: '1',
       belegart: '8',
       datumFaktura: '2026-08-01',
+      kumulierterZahlungsbetrag: 3180,
       fetchedAt: '2026-09-01T00:00:00Z',
       positions: [
         // Hardware (Erlöskonto 8000, Datentyp 1) → grün, anklickbar
@@ -63,6 +64,16 @@ describe('BelegePanel — Hardware in Feld übernehmen', () => {
     await user.click(await screen.findByRole('button', { name: /Belegart 8/ }));
     await user.click(screen.getByText('KASSEN-PROGRAMMIERUNG'));
     expect(onPickHardware).not.toHaveBeenCalled();
+  });
+
+  it('zeigt den kumulierten Zahlungsbetrag als "Bezahlt"-Zeile', async () => {
+    const user = userEvent.setup();
+    render(<BelegePanel kdnr="272765" />);
+
+    await user.click(await screen.findByRole('button', { name: /Belegart 8/ }));
+    const cell = screen.getByText('Bezahlt:').closest('tr')!;
+    // Betrag mit 2 Nachkommastellen (Tausendertrennung je nach ICU) + €-Zeichen
+    expect(cell.textContent?.replace(/\s/g, '')).toMatch(/€3\.?180,00/);
   });
 
   it('ohne onPickHardware sind die Zeilen nicht anklickbar (kein Titel)', async () => {
