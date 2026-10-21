@@ -68,9 +68,16 @@ export default function BelegePanel({
             {progress ? `${progress.n} · ${progress.found} neu` : '…'} — Stopp
           </button>
         ) : hasCache ? (
-          <button onClick={() => void sync(false)} className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">
-            <RefreshCw className="w-3.5 h-3.5" /> Neue laden
-          </button>
+          <span className="inline-flex items-center gap-3">
+            <button onClick={() => void sync(false)} className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">
+              <RefreshCw className="w-3.5 h-3.5" /> Neue laden
+            </button>
+            {/* Voller Re-Scan: aktualisiert auch bestehende Belege — nötig für
+                veränderliche Felder wie den kumulierten Zahlungsbetrag (Bezahlt). */}
+            <button onClick={() => void sync(true)} title="Alle Belege neu einlesen (aktualisiert u. a. den Zahlungsbetrag)" className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600">
+              <RefreshCw className="w-3.5 h-3.5" /> Alle neu laden
+            </button>
+          </span>
         ) : null}
       </div>
 
