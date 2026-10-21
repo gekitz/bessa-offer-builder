@@ -34,7 +34,7 @@ describe('syncBelege', () => {
     chains.mesonic_beleg_sync = makeChain({ data: { synced_index: 4, synced_at: 't' }, error: null });
     chains.mesonic_beleg = makeChain({ data: [], error: null });
     fetchMock.mockResolvedValue({
-      belege: [{ index: 5, laufnummer: '9', belegart: '4', datumFaktura: '2024-05-01', positions: [{ datentyp: '1', artikelnummer: 'HW', erloeskonto: '8000', bezeichnung: 'x', menge: 1, einzelpreis: 10 }] }],
+      belege: [{ index: 5, laufnummer: '9', belegart: '4', datumFaktura: '2024-05-01', kumulierterZahlungsbetrag: 1500, positions: [{ datentyp: '1', artikelnummer: 'HW', erloeskonto: '8000', bezeichnung: 'x', menge: 1, einzelpreis: 10 }] }],
       scannedTo: 7,
     });
 
@@ -46,7 +46,7 @@ describe('syncBelege', () => {
     // beleg upsert payload
     const upsertBeleg = chains.mesonic_beleg._calls.find((c: any) => c.method === 'upsert');
     const rows = upsertBeleg.args[0] as any[];
-    expect(rows[0]).toMatchObject({ mesonic_kdnr: '272765', beleg_index: 5, belegart: '4', datum_faktura: '2024-05-01' });
+    expect(rows[0]).toMatchObject({ mesonic_kdnr: '272765', beleg_index: 5, belegart: '4', datum_faktura: '2024-05-01', kumulierter_zahlungsbetrag: 1500 });
 
     // sync pointer advanced to max(prev=4, scannedTo=7) = 7
     const upsertSync = chains.mesonic_beleg_sync._calls.find((c: any) => c.method === 'upsert');

@@ -45,6 +45,9 @@ export interface Beleg {
   laufnummer: string;
   belegart: string;
   datumFaktura: string | null;   // ISO (YYYY-MM-DD) oder null
+  // Kumulierter Zahlungsbetrag (OP-Ausgleich) — bereits gegen den Beleg
+  // gebuchte Zahlungen, NICHT die Belegsumme. 0 bei unbezahlten Belegen.
+  kumulierterZahlungsbetrag: number;
   positions: BelegPosition[];
 }
 
@@ -77,6 +80,7 @@ export function parseBeleg(xml: string, index: number | null = null): Beleg | nu
     laufnummer: text(head, 'Laufnummer'),
     belegart: text(head, 'Belegart'),
     datumFaktura: text(head, 'DatumFaktura') || null,
+    kumulierterZahlungsbetrag: Number(text(head, 'KumulierterZahlungsbetrag') || 0),
     positions,
   };
 }
@@ -99,6 +103,7 @@ export function parseBelege(xml: string): Beleg[] {
       laufnummer: lauf,
       belegart: text(h, 'Belegart'),
       datumFaktura: text(h, 'DatumFaktura') || null,
+      kumulierterZahlungsbetrag: Number(text(h, 'KumulierterZahlungsbetrag') || 0),
       positions: [],
     });
   }

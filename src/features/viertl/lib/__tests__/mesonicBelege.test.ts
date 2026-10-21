@@ -5,7 +5,7 @@ import { parseBeleg, parseBelege, isEmptyBeleg, articlePositions, latestHardware
 const WITH_DATA = `<?xml version="1.0" encoding="UTF-8"?><MESOWebService TemplateType="30" Template="WEBBelege">
   <WEBBelegeT025>
     <BELEGKEY>1</BELEGKEY><Kontonummer>272765</Kontonummer><Laufnummer>2</Laufnummer>
-    <DatumFaktura>2020-07-31</DatumFaktura><Belegart>4</Belegart>
+    <DatumFaktura>2020-07-31</DatumFaktura><Belegart>4</Belegart><KumulierterZahlungsbetrag>1500.00</KumulierterZahlungsbetrag>
   </WEBBelegeT025>
   <WEBBelegeT026><BELEGKEY>1</BELEGKEY><Datentyp>3</Datentyp><Artikelnummer>TEXT</Artikelnummer><Mengegeliefert>14.00</Mengegeliefert><Einzelpreis>0.00</Einzelpreis><Bezeichnung>Auflistung Stunden</Bezeichnung></WEBBelegeT026>
   <WEBBelegeT026><BELEGKEY>1</BELEGKEY><Datentyp>1</Datentyp><Artikelnummer>HW-KASSE</Artikelnummer><Mengegeliefert>1.00</Mengegeliefert><Einzelpreis>1400.00</Einzelpreis><Erloeskonto>8000</Erloeskonto><Bezeichnung>Kassenterminal</Bezeichnung></WEBBelegeT026>
@@ -25,6 +25,7 @@ describe('parseBeleg', () => {
     expect(b.kontonummer).toBe('272765');
     expect(b.belegart).toBe('4');
     expect(b.datumFaktura).toBe('2020-07-31');
+    expect(b.kumulierterZahlungsbetrag).toBe(1500);
     expect(b.positions).toHaveLength(3);
     expect(b.positions[1]).toMatchObject({ datentyp: '1', artikelnummer: 'HW-KASSE', einzelpreis: 1400, erloeskonto: '8000' });
   });
@@ -33,6 +34,7 @@ describe('parseBeleg', () => {
     const b = parseBeleg(EMPTY, 5)!;
     expect(b.belegart).toBe('12');
     expect(b.datumFaktura).toBeNull();
+    expect(b.kumulierterZahlungsbetrag).toBe(0); // Feld fehlt → 0
     expect(b.positions).toHaveLength(0);
   });
 

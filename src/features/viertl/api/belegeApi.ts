@@ -18,6 +18,7 @@ export interface CachedBeleg {
   laufnummer: string;
   belegart: string;
   datumFaktura: string | null;
+  kumulierterZahlungsbetrag: number;  // bereits gezahlt (OP-Ausgleich), nicht Belegsumme
   positions: BelegPosition[];
   fetchedAt: string;
 }
@@ -34,6 +35,7 @@ function rowToCachedBeleg(r: any): CachedBeleg {
     laufnummer: r.laufnummer ?? '',
     belegart: r.belegart ?? '',
     datumFaktura: r.datum_faktura ?? null,
+    kumulierterZahlungsbetrag: Number(r.kumulierter_zahlungsbetrag ?? 0),
     positions: Array.isArray(r.positions) ? r.positions : [],
     fetchedAt: r.fetched_at,
   };
@@ -95,6 +97,7 @@ export async function syncBelege(kdnr: string, opts: SyncOpts = {}): Promise<Bel
         laufnummer: b.laufnummer,
         belegart: b.belegart,
         datum_faktura: b.datumFaktura,
+        kumulierter_zahlungsbetrag: b.kumulierterZahlungsbetrag,
         positions: b.positions,
         fetched_at: new Date().toISOString(),
       }));
