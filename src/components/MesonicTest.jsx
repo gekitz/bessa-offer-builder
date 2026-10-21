@@ -658,7 +658,7 @@ function KundenBelegeTester() {
                   >
                     <span className="font-mono text-slate-700">
                       {open ? '▾' : '▸'} #{b.index} · {b.datumFaktura ?? '—'} · Belegart {b.belegart}
-                      <span className="ml-2 text-violet-700">Bezahlt € {b.kumulierterZahlungsbetrag ?? 0}</span>
+                      <span className="ml-2 text-violet-700">Summe € {b.positions.reduce((s, p) => s + (p.zwischensumme ?? 0), 0).toFixed(2)}</span>
                     </span>
                     <span className="text-xs text-slate-500">{arts.length} Artikel / {b.positions.length} Pos</span>
                   </button>
