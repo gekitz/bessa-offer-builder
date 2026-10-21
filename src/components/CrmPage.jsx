@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, X, Loader2, ArrowLeft, Building2, Phone, Mail, MapPin, User, FileText, ChevronRight, AlertCircle, RefreshCw, Plus, Pen, Save, CheckCircle2, Wrench } from 'lucide-react';
+import { Search, X, Loader2, ArrowLeft, Building2, Phone, Mail, MapPin, User, FileText, ChevronRight, AlertCircle, RefreshCw, Plus, Pen, Save, CheckCircle2, Wrench, Lock } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { searchCustomers, getCustomer, listCustomers, getCustomerContacts, saveCustomer, validateCustomer, TYPES, TEMPLATES, mesonicExport } from '../lib/mesonicApi';
+import { searchCustomers, getCustomer, listCustomers, getCustomerContacts, saveCustomer, validateCustomer, TYPES, TEMPLATES, mesonicExport, KONTEN_IMPORT_FIXED, KONTEN_IMPORT_FIXED_LABELS } from '../lib/mesonicApi';
 import CustomerForm from './CustomerForm';
 import BelegePanel from '../features/viertl/components/BelegePanel';
 import ContactsPanel from './ContactsPanel';
@@ -354,6 +354,20 @@ function CustomerDetail({ record, onBack, onEdit, onCreateTicket, onOpenCustomer
                     <span className="text-slate-600" style={{ fontSize: 12 }}>{f.value}</span>
                   </div>
                 ))}
+
+                {/* Fixe ERP-Werte — company constants applied to every customer */}
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <div className="flex items-center gap-1.5 mb-2 text-slate-400" style={{ fontSize: 11 }}>
+                    <Lock size={11} />
+                    <span className="font-medium uppercase" style={{ letterSpacing: '0.05em' }}>Fixe ERP-Werte</span>
+                  </div>
+                  {Object.entries(KONTEN_IMPORT_FIXED_LABELS).map(([key, label]) => (
+                    <div key={key} className="flex items-start gap-3">
+                      <span className="text-slate-400 flex-shrink-0" style={{ fontSize: 11, width: 140, paddingTop: 1 }}>{label}</span>
+                      <span className="text-slate-600 font-medium" style={{ fontSize: 12 }}>{KONTEN_IMPORT_FIXED[key]}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

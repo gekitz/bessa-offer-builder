@@ -298,6 +298,16 @@ export const KONTEN_IMPORT_FIXED = {
   'E-Billing-Schema': '1',
 };
 
+// Human-readable German labels for the hard-fixed fields — shared by the CRM
+// customer form and the customer detail view so both read from one source.
+export const KONTEN_IMPORT_FIXED_LABELS = {
+  BelegkopieAG: 'Belegexemplare Angebot',
+  BelegkopieAB: 'Belegexemplare Auftragsbestätigung',
+  BelegkopieLS: 'Belegexemplare Lieferschein',
+  BelegkopieFA: 'Belegexemplare Rechnung',
+  'E-Billing-Schema': 'E-Billing-Schema (PDF, unsigniert)',
+};
+
 // Map a few common non-canonical field names onto the XSD tag names.
 const KONTEN_IMPORT_ALIASES = {
   Email: 'E-Mail',

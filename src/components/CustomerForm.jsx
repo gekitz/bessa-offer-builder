@@ -1,17 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, Save, Loader2, CheckCircle2, AlertCircle, Building2, ChevronDown, Lock } from 'lucide-react';
-import { saveCustomer, validateCustomer, KONTEN_IMPORT_FIXED } from '../lib/mesonicApi';
-
-// Hard-fixed ERP constants that go to every new customer. Values come straight
-// from KONTEN_IMPORT_FIXED so this display can never drift from what's actually
-// sent; the labels just make the raw XSD tags human-readable.
-const FIXED_FIELD_LABELS = {
-  BelegkopieAG: 'Belegexemplare Angebot',
-  BelegkopieAB: 'Belegexemplare Auftragsbestätigung',
-  BelegkopieLS: 'Belegexemplare Lieferschein',
-  BelegkopieFA: 'Belegexemplare Rechnung',
-  'E-Billing-Schema': 'E-Billing-Schema (PDF, unsigniert)',
-};
+import { saveCustomer, validateCustomer, KONTEN_IMPORT_FIXED, KONTEN_IMPORT_FIXED_LABELS } from '../lib/mesonicApi';
 
 // ═══════════════════════════════════════════════════════
 // Customer Form — Create or edit a Mesonic customer
@@ -217,7 +206,7 @@ export default function CustomerForm({ initialData, onSaved, onCancel }) {
             </summary>
             <div className="px-3 pb-3 pt-1 border-t border-slate-200">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2">
-                {Object.entries(FIXED_FIELD_LABELS).map(([key, label]) => (
+                {Object.entries(KONTEN_IMPORT_FIXED_LABELS).map(([key, label]) => (
                   <div key={key} className="flex items-center justify-between gap-2">
                     <dt className="text-slate-500 truncate" style={{ fontSize: 11 }}>{label}</dt>
                     <dd className="font-mono font-semibold text-slate-700" style={{ fontSize: 12 }}>{KONTEN_IMPORT_FIXED[key]}</dd>
