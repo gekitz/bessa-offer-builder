@@ -58,6 +58,23 @@ function text(el: Element | null, tag: string): string {
   return node?.textContent?.trim() ?? '';
 }
 
+// Eine T026-Position aus ihrem Element lesen. Die Zeilensumme (zwischensumme)
+// bevorzugt das WinLine-Feld `Zwischensumme` (falls es je einen Wert liefert —
+// dann inkl. Zeilenrabatt); sonst rechnen wir sie selbst aus Menge × Einzelpreis.
+function parsePosition(p: Element): BelegPosition {
+  const menge = Number(text(p, 'Mengegeliefert') || 0);
+  const einzelpreis = Number(text(p, 'Einzelpreis') || 0);
+  return {
+    datentyp: text(p, 'Datentyp'),
+    artikelnummer: text(p, 'Artikelnummer'),
+    bezeichnung: text(p, 'Bezeichnung'),
+    menge,
+    einzelpreis,
+    erloeskonto: text(p, 'Erloeskonto'),
+    zwischensumme: Number(text(p, 'Zwischensumme')) || menge * einzelpreis,
+  };
+}
+
 // Rohes WEBBelege-XML → Beleg (oder null bei Fehler/keinem Kopf).
 export function parseBeleg(xml: string, index: number | null = null): Beleg | null {
   if (!xml || /<OverallSuccess>\s*false/i.test(xml)) return null;
@@ -66,15 +83,7 @@ export function parseBeleg(xml: string, index: number | null = null): Beleg | nu
   const head = doc.getElementsByTagName('WEBBelegeT025')[0] ?? null;
   if (!head) return null;
 
-  const positions: BelegPosition[] = Array.from(doc.getElementsByTagName('WEBBelegeT026')).map((p) => ({
-    datentyp: text(p, 'Datentyp'),
-    artikelnummer: text(p, 'Artikelnummer'),
-    bezeichnung: text(p, 'Bezeichnung'),
-    menge: Number(text(p, 'Mengegeliefert') || 0),
-    einzelpreis: Number(text(p, 'Einzelpreis') || 0),
-    erloeskonto: text(p, 'Erloeskonto'),
-    zwischensumme: Number(text(p, 'Zwischensumme') || 0),
-  }));
+  const positions: BelegPosition[] = Array.from(doc.getElementsByTagName('WEBBelegeT026')).map(parsePosition);
 
   return {
     index,
@@ -112,14 +121,7 @@ export function parseBelege(xml: string): Beleg[] {
   for (const p of Array.from(doc.getElementsByTagName('WEBBelegeT026'))) {
     const beleg = byKey.get(text(p, 'BELEGKEY'));
     if (!beleg) continue;
-    beleg.positions.push({
-      datentyp: text(p, 'Datentyp'),
-      artikelnummer: text(p, 'Artikelnummer'),
-      bezeichnung: text(p, 'Bezeichnung'),
-      menge: Number(text(p, 'Mengegeliefert') || 0),
-      einzelpreis: Number(text(p, 'Einzelpreis') || 0),
-      erloeskonto: text(p, 'Erloeskonto'),
-    });
+    beleg.positions.push(parsePosition(p));
   }
   return Array.from(byKey.values());
 }

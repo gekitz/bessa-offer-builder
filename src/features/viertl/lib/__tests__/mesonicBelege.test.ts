@@ -28,6 +28,8 @@ describe('parseBeleg', () => {
     expect(b.kumulierterZahlungsbetrag).toBe(1500);
     expect(b.positions).toHaveLength(3);
     expect(b.positions[1]).toMatchObject({ datentyp: '1', artikelnummer: 'HW-KASSE', einzelpreis: 1400, erloeskonto: '8000', zwischensumme: 1400 });
+    // Dritte Position hat kein <Zwischensumme> → aus Menge × Einzelpreis gerechnet (14 × 100)
+    expect(b.positions[2]).toMatchObject({ artikelnummer: '30003046KL', menge: 14, einzelpreis: 100, zwischensumme: 1400 });
   });
 
   it('returns a head with no positions for the empty placeholder', () => {
@@ -61,7 +63,7 @@ describe('parseBelege (batch)', () => {
     expect(b1.index).toBe(1);
     expect(b1.belegart).toBe('8');
     expect(b1.positions).toHaveLength(1);
-    expect(b1.positions[0]).toMatchObject({ artikelnummer: '38100500KL', erloeskonto: '8050' });
+    expect(b1.positions[0]).toMatchObject({ artikelnummer: '38100500KL', erloeskonto: '8050', zwischensumme: 3000 }); // 1 × 3000, batch-Pfad
     expect(b2.positions).toHaveLength(1);
     expect(b2.positions[0].datentyp).toBe('3');
   });
