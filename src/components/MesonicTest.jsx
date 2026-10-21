@@ -551,6 +551,8 @@ function KundenBelegeTester() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [openIdx, setOpenIdx] = useState(null);
+  const [rawXml, setRawXml] = useState(null);
+  const [rawBusy, setRawBusy] = useState(false);
   const abortRef = useRef(false);
 
   async function run() {
@@ -568,6 +570,23 @@ function KundenBelegeTester() {
       setError(e.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Roh-XML der ersten n Belege holen — zum Inspizieren der echten Tags
+  // (z. B. ob/wie KumulierterZahlungsbetrag im T025-Kopf geliefert wird).
+  async function runRaw() {
+    setRawBusy(true); setError(null); setRawXml(null);
+    try {
+      const k = konto.trim();
+      const n = Math.min(Number(max) || 10, 15); // URL/Antwort klein halten
+      const keys = Array.from({ length: n }, (_, i) => `'${k}-${i + 1}'`).join(',');
+      const xml = await mesonicExportRaw(30, 'WEBBelege', keys);
+      setRawXml(xml);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setRawBusy(false);
     }
   }
 
@@ -595,9 +614,19 @@ function KundenBelegeTester() {
             Belege laden
           </button>
         )}
+        <button onClick={runRaw} disabled={rawBusy || busy} className="px-3 py-1.5 text-sm rounded bg-white border border-violet-300 text-violet-800 hover:bg-violet-100 disabled:opacity-40">
+          {rawBusy ? 'Lädt…' : 'Roh-XML (erste n)'}
+        </button>
       </div>
 
       {error && <div className="text-sm text-rose-700 mb-2">{error}</div>}
+
+      {rawXml && (
+        <details open className="mb-3">
+          <summary className="text-xs font-semibold text-violet-800 cursor-pointer">Roh-XML — Tags im T025-Kopf prüfen (z. B. KumulierterZahlungsbetrag)</summary>
+          <pre className="mt-1 p-2 bg-slate-900 text-slate-100 text-[11px] rounded overflow-auto max-h-96 whitespace-pre-wrap break-all">{rawXml}</pre>
+        </details>
+      )}
 
       {hw && (
         <div className="mb-3 p-2 rounded bg-white border border-violet-200 text-sm">
@@ -629,6 +658,7 @@ function KundenBelegeTester() {
                   >
                     <span className="font-mono text-slate-700">
                       {open ? '▾' : '▸'} #{b.index} · {b.datumFaktura ?? '—'} · Belegart {b.belegart}
+                      <span className="ml-2 text-violet-700">Bezahlt € {b.kumulierterZahlungsbetrag ?? 0}</span>
                     </span>
                     <span className="text-xs text-slate-500">{arts.length} Artikel / {b.positions.length} Pos</span>
                   </button>
