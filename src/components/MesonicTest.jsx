@@ -669,7 +669,8 @@ function KundenBelegeTester() {
                           <tr className="text-slate-400 text-left">
                             <th className="pr-2 py-1">Typ</th><th className="pr-2">Erlöskto</th><th className="pr-2">Artikelnr</th>
                             <th className="pr-2">Bezeichnung</th><th className="pr-2 text-right">Menge</th>
-                            <th className="text-right">Einzelpreis</th>
+                            <th className="pr-2 text-right">Einzelpreis</th>
+                            <th className="text-right">Zwischensumme</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -683,7 +684,8 @@ function KundenBelegeTester() {
                                 <td className="pr-2 font-mono">{p.artikelnummer}</td>
                                 <td className="pr-2">{hw ? '🔧 ' : ''}{p.bezeichnung}</td>
                                 <td className="pr-2 text-right">{p.menge}</td>
-                                <td className="text-right">€ {p.einzelpreis}</td>
+                                <td className="pr-2 text-right">€ {p.einzelpreis}</td>
+                                <td className="text-right">€ {p.zwischensumme}</td>
                               </tr>
                             );
                           })}
