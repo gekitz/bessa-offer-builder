@@ -8,7 +8,7 @@ const WITH_DATA = `<?xml version="1.0" encoding="UTF-8"?><MESOWebService Templat
     <DatumFaktura>2020-07-31</DatumFaktura><Belegart>4</Belegart><KumulierterZahlungsbetrag>1500.00</KumulierterZahlungsbetrag>
   </WEBBelegeT025>
   <WEBBelegeT026><BELEGKEY>1</BELEGKEY><Datentyp>3</Datentyp><Artikelnummer>TEXT</Artikelnummer><Mengegeliefert>14.00</Mengegeliefert><Einzelpreis>0.00</Einzelpreis><Bezeichnung>Auflistung Stunden</Bezeichnung></WEBBelegeT026>
-  <WEBBelegeT026><BELEGKEY>1</BELEGKEY><Datentyp>1</Datentyp><Artikelnummer>HW-KASSE</Artikelnummer><Mengegeliefert>1.00</Mengegeliefert><Einzelpreis>1400.00</Einzelpreis><Erloeskonto>8000</Erloeskonto><Bezeichnung>Kassenterminal</Bezeichnung></WEBBelegeT026>
+  <WEBBelegeT026><BELEGKEY>1</BELEGKEY><Datentyp>1</Datentyp><Artikelnummer>HW-KASSE</Artikelnummer><Mengegeliefert>1.00</Mengegeliefert><Einzelpreis>1400.00</Einzelpreis><Erloeskonto>8000</Erloeskonto><Bezeichnung>Kassenterminal</Bezeichnung><Zwischensumme>1400.00</Zwischensumme></WEBBelegeT026>
   <WEBBelegeT026><BELEGKEY>1</BELEGKEY><Datentyp>1</Datentyp><Artikelnummer>30003046KL</Artikelnummer><Mengegeliefert>14.00</Mengegeliefert><Einzelpreis>100.00</Einzelpreis><Erloeskonto>8400</Erloeskonto><Bezeichnung>KASSEN-PROGRAMMIERUNG,INSTALLATION,EINSCHULUNG</Bezeichnung></WEBBelegeT026>
 </MESOWebService>`;
 
@@ -27,7 +27,7 @@ describe('parseBeleg', () => {
     expect(b.datumFaktura).toBe('2020-07-31');
     expect(b.kumulierterZahlungsbetrag).toBe(1500);
     expect(b.positions).toHaveLength(3);
-    expect(b.positions[1]).toMatchObject({ datentyp: '1', artikelnummer: 'HW-KASSE', einzelpreis: 1400, erloeskonto: '8000' });
+    expect(b.positions[1]).toMatchObject({ datentyp: '1', artikelnummer: 'HW-KASSE', einzelpreis: 1400, erloeskonto: '8000', zwischensumme: 1400 });
   });
 
   it('returns a head with no positions for the empty placeholder', () => {

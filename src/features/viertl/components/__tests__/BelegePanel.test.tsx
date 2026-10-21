@@ -23,13 +23,13 @@ const CACHE: BelegeCacheState = {
       laufnummer: '1',
       belegart: '8',
       datumFaktura: '2026-08-01',
-      kumulierterZahlungsbetrag: 3180,
+      kumulierterZahlungsbetrag: 0,
       fetchedAt: '2026-09-01T00:00:00Z',
       positions: [
         // Hardware (Erlöskonto 8000, Datentyp 1) → grün, anklickbar
-        { datentyp: '1', artikelnummer: '38100500', bezeichnung: 'ORDERMAN MAX2', menge: 1, einzelpreis: 3000, erloeskonto: '8000' },
+        { datentyp: '1', artikelnummer: '38100500', bezeichnung: 'ORDERMAN MAX2', menge: 1, einzelpreis: 3000, erloeskonto: '8000', zwischensumme: 3000 },
         // Kein Hardware-Konto → nicht anklickbar
-        { datentyp: '1', artikelnummer: '30003046', bezeichnung: 'KASSEN-PROGRAMMIERUNG', menge: 2, einzelpreis: 90, erloeskonto: '8040' },
+        { datentyp: '1', artikelnummer: '30003046', bezeichnung: 'KASSEN-PROGRAMMIERUNG', menge: 2, einzelpreis: 90, erloeskonto: '8040', zwischensumme: 180 },
       ],
     },
   ],
@@ -66,13 +66,13 @@ describe('BelegePanel — Hardware in Feld übernehmen', () => {
     expect(onPickHardware).not.toHaveBeenCalled();
   });
 
-  it('zeigt den kumulierten Zahlungsbetrag als "Bezahlt"-Zeile', async () => {
+  it('zeigt die Positions-Zwischensummen als "Summe"-Zeile', async () => {
     const user = userEvent.setup();
     render(<BelegePanel kdnr="272765" />);
 
     await user.click(await screen.findByRole('button', { name: /Belegart 8/ }));
-    const cell = screen.getByText('Bezahlt:').closest('tr')!;
-    // Betrag mit 2 Nachkommastellen (Tausendertrennung je nach ICU) + €-Zeichen
+    const cell = screen.getByText('Summe:').closest('tr')!;
+    // 3000 + 180 = 3180, 2 Nachkommastellen (Tausendertrennung je nach ICU) + €
     expect(cell.textContent?.replace(/\s/g, '')).toMatch(/€3\.?180,00/);
   });
 

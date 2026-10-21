@@ -159,9 +159,9 @@ function BelegRow({ beleg, open, onToggle, highlightHardware, onPickHardware }: 
             </tbody>
             <tfoot>
               <tr className="border-t border-slate-200 text-slate-600 font-medium">
-                <td colSpan={3} className="pt-1 pr-1 text-right">Bezahlt:</td>
+                <td colSpan={3} className="pt-1 pr-1 text-right">Summe:</td>
                 <td className="pt-1 text-right whitespace-nowrap">
-                  € {(beleg.kumulierterZahlungsbetrag ?? 0).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  € {beleg.positions.reduce((s, p) => s + (p.zwischensumme ?? 0), 0).toLocaleString('de-AT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
               </tr>
             </tfoot>

@@ -27,6 +27,7 @@ export interface BelegPosition {
   menge: number;
   einzelpreis: number;
   erloeskonto: string;   // Erlöskonto — 8000 deutet oft (nicht immer) auf Hardware
+  zwischensumme: number; // Positions-Zwischensumme aus WinLine (Netto-Zeilenwert)
 }
 
 // Erlöskonten für POS-Systeme (das, was für den Hardware-/ATrust-Tausch
@@ -72,6 +73,7 @@ export function parseBeleg(xml: string, index: number | null = null): Beleg | nu
     menge: Number(text(p, 'Mengegeliefert') || 0),
     einzelpreis: Number(text(p, 'Einzelpreis') || 0),
     erloeskonto: text(p, 'Erloeskonto'),
+    zwischensumme: Number(text(p, 'Zwischensumme') || 0),
   }));
 
   return {
