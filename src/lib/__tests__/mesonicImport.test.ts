@@ -41,6 +41,12 @@ const SCHEMA_ORDER = [
   'Land',
   'Mobiltelefonnummer',
   'IDNr',
+  'BelegkopieAG',
+  'BelegkopieAB',
+  'BelegkopieLS',
+  'BelegkopieFA',
+  'RechnungsversandE-Mail-Adresse',
+  'E-Billing-Schema',
 ];
 
 /** Extract emitted tag names in document order. */
@@ -119,12 +125,58 @@ describe('buildKontenImportXml', () => {
     expect(xml).not.toContain('<Mobiltelefon>');
   });
 
-  it('maps UID onto the IDNr import element, emitted last in the sequence', () => {
+  it('maps UID onto the IDNr import element', () => {
     const xml = buildKontenImportXml({ Name: 'Foo GmbH', UID: 'ATU12345678' });
     expect(xml).toContain('<IDNr>ATU12345678</IDNr>');
     expect(xml).not.toContain('<UID>');
+  });
+
+  it('always emits the hard-fixed Belegexemplare and E-Billing schema', () => {
+    const xml = buildKontenImportXml({ Name: 'Foo GmbH' });
+    expect(xml).toContain('<BelegkopieAG>1</BelegkopieAG>');
+    expect(xml).toContain('<BelegkopieAB>1</BelegkopieAB>');
+    expect(xml).toContain('<BelegkopieLS>2</BelegkopieLS>');
+    expect(xml).toContain('<BelegkopieFA>1</BelegkopieFA>');
+    expect(xml).toContain('<E-Billing-Schema>1</E-Billing-Schema>');
+  });
+
+  it('ignores caller-supplied values for the hard-fixed fields', () => {
+    const xml = buildKontenImportXml({
+      Name: 'Foo GmbH',
+      BelegkopieAG: '9',
+      BelegkopieLS: '0',
+      'E-Billing-Schema': '7',
+    });
+    // caller values are overridden by the company constants
+    expect(xml).toContain('<BelegkopieAG>1</BelegkopieAG>');
+    expect(xml).toContain('<BelegkopieLS>2</BelegkopieLS>');
+    expect(xml).toContain('<E-Billing-Schema>1</E-Billing-Schema>');
+  });
+
+  it('defaults RechnungsversandE-Mail-Adresse to the customer E-Mail', () => {
+    const xml = buildKontenImportXml({ Name: 'Foo GmbH', 'E-Mail': 'x@y.at' });
+    expect(xml).toContain('<RechnungsversandE-Mail-Adresse>x@y.at</RechnungsversandE-Mail-Adresse>');
+  });
+
+  it('lets a caller override the Rechnungsversand e-mail (CRM edit case)', () => {
+    const xml = buildKontenImportXml({
+      Name: 'Foo GmbH',
+      'E-Mail': 'x@y.at',
+      'RechnungsversandE-Mail-Adresse': 'rechnung@y.at',
+    });
+    expect(xml).toContain('<RechnungsversandE-Mail-Adresse>rechnung@y.at</RechnungsversandE-Mail-Adresse>');
+    expect(xml).not.toContain('<RechnungsversandE-Mail-Adresse>x@y.at</RechnungsversandE-Mail-Adresse>');
+  });
+
+  it('maps the RechnungsEmail alias onto the canonical tag', () => {
+    const xml = buildKontenImportXml({ Name: 'Foo GmbH', RechnungsEmail: 'rechnung@y.at' });
+    expect(xml).toContain('<RechnungsversandE-Mail-Adresse>rechnung@y.at</RechnungsversandE-Mail-Adresse>');
+  });
+
+  it('emits E-Billing-Schema last in the sequence', () => {
+    const xml = buildKontenImportXml({ Name: 'Foo GmbH', 'E-Mail': 'x@y.at' });
     const emitted = tagsOf(xml);
-    expect(emitted[emitted.length - 1]).toBe('IDNr');
+    expect(emitted[emitted.length - 1]).toBe('E-Billing-Schema');
   });
 
   it('escapes XML-special characters in values', () => {

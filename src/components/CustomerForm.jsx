@@ -1,6 +1,17 @@
 import { useState } from 'react';
-import { ArrowLeft, Save, Loader2, CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
-import { saveCustomer, validateCustomer } from '../lib/mesonicApi';
+import { ArrowLeft, Save, Loader2, CheckCircle2, AlertCircle, Building2, ChevronDown, Lock } from 'lucide-react';
+import { saveCustomer, validateCustomer, KONTEN_IMPORT_FIXED } from '../lib/mesonicApi';
+
+// Hard-fixed ERP constants that go to every new customer. Values come straight
+// from KONTEN_IMPORT_FIXED so this display can never drift from what's actually
+// sent; the labels just make the raw XSD tags human-readable.
+const FIXED_FIELD_LABELS = {
+  BelegkopieAG: 'Belegexemplare Angebot',
+  BelegkopieAB: 'Belegexemplare Auftragsbestätigung',
+  BelegkopieLS: 'Belegexemplare Lieferschein',
+  BelegkopieFA: 'Belegexemplare Rechnung',
+  'E-Billing-Schema': 'E-Billing-Schema (PDF, unsigniert)',
+};
 
 // ═══════════════════════════════════════════════════════
 // Customer Form — Create or edit a Mesonic customer
@@ -25,6 +36,7 @@ const FORM_FIELDS = [
   { key: 'Telefon', label: 'Telefon', placeholder: '+43 ...' },
   { key: 'Mobiltelefonnummer', label: 'Mobiltelefon', placeholder: '+43 ...' },
   { key: 'E-Mail', label: 'E-Mail', placeholder: 'name@firma.at', type: 'email' },
+  { key: 'RechnungsversandE-Mail-Adresse', label: 'Rechnungs-E-Mail', placeholder: 'leer = gleiche wie E-Mail', type: 'email' },
   { key: 'UID', label: 'UID-Nummer', placeholder: 'z.B. ATU12345678', colSpan: 2 },
 ];
 
@@ -194,6 +206,26 @@ export default function CustomerForm({ initialData, onSaved, onCancel }) {
               </div>
             ))}
           </div>
+
+          {/* Fixed ERP values — read-only, shown for transparency */}
+          <details className="group mt-4 rounded-lg border border-slate-200 bg-slate-50">
+            <summary className="flex items-center gap-2 cursor-pointer select-none px-3 py-2 text-slate-500 hover:text-slate-700" style={{ fontSize: 12 }}>
+              <Lock size={12} />
+              <span className="font-medium">Fixe ERP-Werte</span>
+              <span className="text-slate-400">(nicht editierbar)</span>
+              <ChevronDown size={14} className="ml-auto transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="px-3 pb-3 pt-1 border-t border-slate-200">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2">
+                {Object.entries(FIXED_FIELD_LABELS).map(([key, label]) => (
+                  <div key={key} className="flex items-center justify-between gap-2">
+                    <dt className="text-slate-500 truncate" style={{ fontSize: 11 }}>{label}</dt>
+                    <dd className="font-mono font-semibold text-slate-700" style={{ fontSize: 12 }}>{KONTEN_IMPORT_FIXED[key]}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </details>
 
           {/* Error */}
           {error && (

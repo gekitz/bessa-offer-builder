@@ -249,13 +249,26 @@ const KONTEN_IMPORT_ORDER = [
   'Ort',
   'Land',
   'Mobiltelefonnummer',
-  'IDNr',                  // UID-Nummer (T058.C022) — letztes Element der XSD-Sequenz
+  'IDNr',                  // UID-Nummer (T058.C022)
+  'BelegkopieAG',          // xs:integer — Anzahl Belegexemplare Angebot (hard fixed)
+  'BelegkopieAB',          // xs:integer — Anzahl Belegexemplare Auftragsbestätigung (hard fixed)
+  'BelegkopieLS',          // xs:integer — Anzahl Belegexemplare Lieferschein (hard fixed)
+  'BelegkopieFA',          // xs:integer — Anzahl Belegexemplare Faktura/Rechnung (hard fixed)
+  'RechnungsversandE-Mail-Adresse', // defaults to E-Mail, editable in CRM
+  'E-Billing-Schema',      // letztes Element der XSD-Sequenz (hard fixed)
 ];
 
 const KONTEN_IMPORT_REQUIRED = new Set(KONTEN_IMPORT_ORDER.slice(0, 9));
 
 // Fields the XSD types as xs:integer — sent as bare integers (no padding/decimals).
-const KONTEN_IMPORT_INTEGER = new Set(['Kennzeichen', 'Preisliste']);
+const KONTEN_IMPORT_INTEGER = new Set([
+  'Kennzeichen',
+  'Preisliste',
+  'BelegkopieAG',
+  'BelegkopieAB',
+  'BelegkopieLS',
+  'BelegkopieFA',
+]);
 
 // Defaults for the mandatory ERP fields a salesperson never types. Values are
 // the ones that are constant across every account in WebKontenExport. Kontonummer
@@ -273,6 +286,18 @@ const KONTEN_IMPORT_DEFAULTS = {
   ZahlungskonditionFAKT: '3',
 };
 
+// Hard-fixed values — always emitted with exactly these values; a caller cannot
+// override them (applied after the provided fields). Anzahl Belegexemplare per
+// Beleg type (AG/AB/LS/FA) and the E-Billing output schema (1 = PDF-Ausgabe
+// unsigniert) are company-wide constants, not per-customer data.
+export const KONTEN_IMPORT_FIXED = {
+  BelegkopieAG: '1',
+  BelegkopieAB: '1',
+  BelegkopieLS: '2',
+  BelegkopieFA: '1',
+  'E-Billing-Schema': '1',
+};
+
 // Map a few common non-canonical field names onto the XSD tag names.
 const KONTEN_IMPORT_ALIASES = {
   Email: 'E-Mail',
@@ -281,6 +306,9 @@ const KONTEN_IMPORT_ALIASES = {
   UID: 'IDNr',
   'UID-Nummer': 'IDNr',
   UIDNummer: 'IDNr',
+  RechnungsEmail: 'RechnungsversandE-Mail-Adresse',
+  'Rechnungs-E-Mail': 'RechnungsversandE-Mail-Adresse',
+  RechnungsversandEmail: 'RechnungsversandE-Mail-Adresse',
 };
 
 /**
@@ -304,6 +332,15 @@ export function buildKontenImportXml(fields = {}) {
   }
 
   const merged = { ...KONTEN_IMPORT_DEFAULTS, ...provided };
+
+  // Rechnungsversand-E-Mail defaults to the customer's E-Mail; a caller (e.g. the
+  // CRM view) may have supplied a different one, which is kept.
+  if (!merged['RechnungsversandE-Mail-Adresse'] && merged['E-Mail']) {
+    merged['RechnungsversandE-Mail-Adresse'] = merged['E-Mail'];
+  }
+
+  // Hard-fixed company constants win over anything the caller passed.
+  Object.assign(merged, KONTEN_IMPORT_FIXED);
 
   const lines = [];
   for (const key of KONTEN_IMPORT_ORDER) {
