@@ -66,9 +66,27 @@ describe('computeAutoTerms', () => {
     ]);
   });
 
-  it('keeps the PoS defaults when offerType is not brother even if lieferung/zahlungsziel are passed', () => {
+  it('keeps the standard defaults for a PoS offer when no edits are provided', () => {
+    expect(computeAutoTerms({}, { offerType: 'pos' })).toEqual([
+      'Lieferzeit: 2 Wochen',
+      'Zahlungsziel: 10 Tage netto Kassa',
+      TRAVEL_TERM,
+    ]);
+  });
+
+  it('honours edited Lieferzeit/Zahlungsziel on a PoS offer', () => {
     expect(
-      computeAutoTerms({}, { offerType: 'pos', lieferung: 'ruecksprache', zahlungsziel: 'wie vereinbart' }),
+      computeAutoTerms({}, { offerType: 'pos', lieferung: '3-4 Wochen', zahlungsziel: '30 Tage netto' }),
+    ).toEqual([
+      'Lieferzeit: 3-4 Wochen',
+      'Zahlungsziel: 30 Tage netto',
+      TRAVEL_TERM,
+    ]);
+  });
+
+  it('falls back to the standard defaults when PoS edits are blank', () => {
+    expect(
+      computeAutoTerms({}, { offerType: 'pos', lieferung: '   ', zahlungsziel: '' }),
     ).toEqual([
       'Lieferzeit: 2 Wochen',
       'Zahlungsziel: 10 Tage netto Kassa',

@@ -91,9 +91,18 @@ describe('OfferView — Brother offer', () => {
     expect(screen.getByText('Lieferzeit: lagernd')).toBeInTheDocument();
   });
 
-  it('keeps the "Kosten im ersten Jahr" framing for a normal PoS offer (regression guard)', () => {
+  it('labels a PoS offer with only Einmalige Kosten "Kosten" too (no recurring → no "erstes Jahr")', () => {
+    // Same pure one-off cart, but a normal PoS offer: the "im ersten Jahr"
+    // framing is just as meaningless when nothing recurs.
     render(<OfferView {...(baseProps as any)} offerType="pos" />);
+    expect(screen.getByText('GESAMTÜBERSICHT')).toBeInTheDocument();
+    expect(screen.getByText('Kosten')).toBeInTheDocument();
+    expect(screen.queryByText(/Kosten im ersten Jahr/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the "Kosten im ersten Jahr" framing for a PoS offer that recurs (regression guard)', () => {
+    const recurringTotals = { monthly: 100, once: 500, yearly: 0, periodTotal: 1700, periodMonthly: 1200, maxMonths: 12 };
+    render(<OfferView {...(baseProps as any)} offerType="pos" totals={recurringTotals} />);
     expect(screen.getByText(/Kosten im ersten Jahr/)).toBeInTheDocument();
-    expect(screen.queryByText('Lieferung & Zahlung')).not.toBeInTheDocument();
   });
 });

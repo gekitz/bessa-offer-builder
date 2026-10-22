@@ -49,6 +49,8 @@ import {
   LIEFERUNG_OPTIONS,
   DEFAULT_LIEFERUNG,
   DEFAULT_ZAHLUNGSZIEL,
+  STANDARD_LIEFERZEIT,
+  STANDARD_ZAHLUNGSZIEL,
 } from '../../../data/autoTermRules';
 import {
   isMonthly,
@@ -113,9 +115,9 @@ export default function OfferView({
   onCopierField,
   isRental = false,
   offerType = 'pos',
-  lieferung = DEFAULT_LIEFERUNG,
+  lieferung = '',
   setLieferung = () => {},
-  zahlungsziel = DEFAULT_ZAHLUNGSZIEL,
+  zahlungsziel = '',
   setZahlungsziel = () => {},
   locked = false,
   lockedAt = null,
@@ -128,9 +130,15 @@ export default function OfferView({
   // A Sharp/MFP offer renders its own copier summary instead of the PoS
   // monthly/once/Wartung/financing sections.
   const isCopier = !!copierOffer?.isCopierOffer;
-  // A Brother offer is a pure one-off hardware sale: the GESAMTÜBERSICHT drops
-  // the "im ersten Jahr" framing, and delivery/payment terms are rep-editable.
+  // A Brother offer is a pure one-off hardware sale: delivery/payment terms are
+  // rep-editable.
   const isBrother = offerType === 'brother';
+  // The "Kosten im ersten Jahr (monatlich × Laufzeit + …)" framing only makes
+  // sense when the offer actually recurs. A pure one-off offer — always true for
+  // Brother, but also any PoS offer with only Einmalige Kosten (no monthly/
+  // Wartung) — just shows "Kosten". The "jedes weitere Jahr" row already hides
+  // itself in that case.
+  const hasRecurring = totals.monthly > 0 || totals.yearly > 0;
   // Leasing conditions are whole-offer; edited against the primary device entry.
   const primaryCopierId = isCopier ? (Object.keys(cart).find((id) => ALL[id]?.t === 'copier') || null) : null;
   const allOrdered = orderedCartEntries(cart, cartOrder).filter(([id]) => ALL[id]);
@@ -565,8 +573,8 @@ export default function OfferView({
           <div className="p-4 space-y-3">
             <div className="flex justify-between items-center pb-3 border-b border-white/10">
               <div>
-                <div className="text-sm text-slate-300">{isBrother ? 'Kosten' : 'Kosten im ersten Jahr'}</div>
-                {!isBrother && (
+                <div className="text-sm text-slate-300">{hasRecurring ? 'Kosten im ersten Jahr' : 'Kosten'}</div>
+                {hasRecurring && (
                   <div className="text-xs text-slate-400">(monatlich × Laufzeit + einmalig{totals.yearly > 0 ? ' + Wartung' : ''})</div>
                 )}
               </div>
@@ -699,7 +707,7 @@ export default function OfferView({
                   key={o.value}
                   type="button"
                   onClick={() => setLieferung(o.value)}
-                  className={`px-3 py-1.5 rounded-full font-medium transition-colors ${lieferung === o.value ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                  className={`px-3 py-1.5 rounded-full font-medium transition-colors ${(lieferung || DEFAULT_LIEFERUNG) === o.value ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                   style={{ fontSize: 12 }}
                 >
                   {o.label}
@@ -715,6 +723,37 @@ export default function OfferView({
               value={zahlungsziel}
               onChange={(e) => setZahlungsziel(e.target.value)}
               placeholder={DEFAULT_ZAHLUNGSZIEL}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Standard delivery + payment — rep-editable free text, feed the
+          Bedingungen list below. Brother has its own editor above; copier/rental
+          keep their fixed flows. Hidden once the offer is locked. */}
+      {!isBrother && !isCopier && !locked && (
+        <div className="bg-white rounded-xl border-2 border-slate-200 mb-4" style={{ padding: '16px' }}>
+          <span className="font-bold text-slate-700 block mb-3" style={{ fontSize: 13 }}>Lieferung &amp; Zahlung</span>
+          <div className="mb-4">
+            <label className="block text-slate-500 mb-1.5" style={{ fontSize: 12 }} htmlFor="std-lieferzeit">Lieferzeit</label>
+            <input
+              id="std-lieferzeit"
+              type="text"
+              value={lieferung}
+              onChange={(e) => setLieferung(e.target.value)}
+              placeholder={STANDARD_LIEFERZEIT}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+            />
+          </div>
+          <div>
+            <label className="block text-slate-500 mb-1.5" style={{ fontSize: 12 }} htmlFor="std-zahlungsziel">Zahlungsziel</label>
+            <input
+              id="std-zahlungsziel"
+              type="text"
+              value={zahlungsziel}
+              onChange={(e) => setZahlungsziel(e.target.value)}
+              placeholder={STANDARD_ZAHLUNGSZIEL}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
             />
           </div>
