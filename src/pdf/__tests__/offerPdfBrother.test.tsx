@@ -32,12 +32,23 @@ async function renderSize(props: Record<string, unknown>): Promise<number> {
 }
 
 describe('OfferPdfDocument — Brother offer', () => {
-  it('renders the short "Kosten" label for Brother vs. the long "im ersten Jahr" label for PoS', async () => {
+  it('renders the short "Kosten" label for a pure one-off offer, regardless of offerType', async () => {
+    // Both are pure one-off (only Einmalige Kosten), so both get the short
+    // "Kosten" label — the label keys off whether the offer recurs, not off
+    // offerType. Same inputs → identical PDF size.
     const brother = await renderSize({ offerType: 'brother', autoTerms: [] });
     const pos = await renderSize({ offerType: 'pos', autoTerms: [] });
-    // The PoS label ("Kosten im ersten Jahr (monatlich × Laufzeit + einmalig)")
-    // is far longer than Brother's "Kosten", so the PoS PDF is strictly larger.
-    expect(pos).toBeGreaterThan(brother);
+    expect(pos).toBe(brother);
+  }, 30000);
+
+  it('switches to the long "im ersten Jahr" label once the offer recurs', async () => {
+    const totals = computeTotals({}, ALL);
+    const recurringTotals = { ...totals, monthly: 100, once: 232.5, periodTotal: 1432.5, periodMonthly: 1200, maxMonths: 12 };
+    const onceOnly = await renderSize({ offerType: 'pos', autoTerms: [] });
+    const recurring = await renderSize({ offerType: 'pos', autoTerms: [], totals: recurringTotals });
+    // The recurring label ("Kosten im ersten Jahr (monatlich × Laufzeit +
+    // einmalig)") plus the "jedes weitere Jahr" row make the PDF strictly larger.
+    expect(recurring).toBeGreaterThan(onceOnly);
   }, 30000);
 
   it('draws the (Brother) auto-terms into the Bedingungen block', async () => {

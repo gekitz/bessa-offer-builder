@@ -326,16 +326,18 @@ function TotalsBox({ netto, isMonthly, accumulated = null }) {
 }
 
 // Period total summary component
-function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce, hasYearly, discount, takeBackName, isBrother = false }) {
+function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce, hasYearly, discount, takeBackName }) {
   const recurring = periodMonthly + yearly;
   const showRecurringRow = (hasMonthly && hasOnce) || hasYearly;
+  const hasRecurring = hasMonthly || hasYearly;
   const rabattActive = discount?.rabattActive;
   const skontoActive = discount?.skontoActive;
   const takeBackAmount = discount?.takeBack > 0 ? discount.takeBack : 0;
   const hasDeduction = rabattActive || takeBackAmount > 0;
-  // Brother is a pure one-off sale — no monthly/Wartung — so the "im ersten
-  // Jahr (monatlich × Laufzeit …)" framing is meaningless; just "Kosten".
-  const firstYearLabel = isBrother
+  // The "im ersten Jahr (monatlich × Laufzeit …)" framing only makes sense when
+  // the offer recurs. A pure one-off sale — Brother, or any PoS offer with only
+  // Einmalige Kosten (no monthly/Wartung) — just shows "Kosten".
+  const firstYearLabel = !hasRecurring
     ? 'Kosten'
     : 'Kosten im ersten Jahr (monatlich × Laufzeit + einmalig' + (hasYearly ? ' + Wartung' : '') + ')';
   const recurringLabel =
@@ -762,7 +764,6 @@ export default function OfferPdfDocument({
   // A Sharp/MFP offer renders its own itemised copier layout (device table +
   // Grenke leasing + maintenance rates) instead of the PoS monthly/once tables.
   const isCopier = !!copierOffer?.isCopierOffer;
-  const isBrother = offerType === 'brother';
 
   // Running-costs Laufzeit lives in the section header when every counted line
   // shares one tier; otherwise it's "gemischt" and each row prints its own.
@@ -877,7 +878,6 @@ export default function OfferPdfDocument({
             hasYearly={(totals.yearly || 0) > 0}
             discount={discount}
             takeBackName={takeBack?.name}
-            isBrother={isBrother}
           />
         )}
 

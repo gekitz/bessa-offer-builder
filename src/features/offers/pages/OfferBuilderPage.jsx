@@ -36,7 +36,7 @@ import { supabase } from '../../../lib/supabase';
 import { generateAcceptQr } from '../../../lib/qr';
 import { useAuth } from '../../../lib/auth';
 import { TIERS, TIER_LABEL_OFFER, TIER_SHORT } from '../../../data/tiers';
-import { computeAutoTerms, DEFAULT_LIEFERUNG, DEFAULT_ZAHLUNGSZIEL } from '../../../data/autoTermRules';
+import { computeAutoTerms } from '../../../data/autoTermRules';
 import {
   isMonthly,
   price,
@@ -301,8 +301,8 @@ function OfferBuilderPageInner() {
   // when off. See src/lib/discounts.ts / copierOffer.ts.
   const [takeBack, setTakeBack] = useState(null);
   // Brother-only delivery/payment terms — feed the auto-generated Bedingungen.
-  const [lieferung, setLieferung] = useState(DEFAULT_LIEFERUNG);
-  const [zahlungsziel, setZahlungsziel] = useState(DEFAULT_ZAHLUNGSZIEL);
+  const [lieferung, setLieferung] = useState('');
+  const [zahlungsziel, setZahlungsziel] = useState('');
   const [mandatsRef, setMandatsRef] = useState(() => Date.now().toString().slice(-12));
   const [serviceStartDate, setServiceStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [currentOfferId, setCurrentOfferId] = useState(null);
@@ -480,8 +480,8 @@ function OfferBuilderPageInner() {
         setTakeBack(data.takeBack || null);
         setGlobalTier(data.globalTier || '12mo');
         setOfferType(offer.offer_type || data.offerType || 'pos');
-        setLieferung(data.lieferung || DEFAULT_LIEFERUNG);
-        setZahlungsziel(data.zahlungsziel || DEFAULT_ZAHLUNGSZIEL);
+        setLieferung(data.lieferung || '');
+        setZahlungsziel(data.zahlungsziel || '');
         setPaymentEnabled(!!offer.payment_enabled);
         setRental(data.rental || emptyRentalState());
         setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
@@ -810,8 +810,9 @@ function OfferBuilderPageInner() {
     const takeBackNet = Number(takeBack?.value) > 0 ? Number(takeBack.value) : 0;
     if (!copierOffer.isCopierOffer && (rabattActive || skontoActive || takeBackNet > 0) && totals.periodTotal > 0) {
       const d2 = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive, takeBack: takeBackNet });
+      const hasRecurring = totals.monthly > 0 || totals.yearly > 0;
       lines.push('----------------------------------------');
-      lines.push('GESAMT (erstes Jahr)');
+      lines.push(hasRecurring ? 'GESAMT (erstes Jahr)' : 'GESAMT');
       lines.push('----------------------------------------');
       lines.push(`  Netto:         EUR ${fmt(d2.baseNetto)}`);
       if (rabattActive) {
@@ -1298,8 +1299,8 @@ function OfferBuilderPageInner() {
       setTakeBack(data.takeBack || null);
       setGlobalTier(data.globalTier || '12mo');
       setOfferType(offer.offer_type || data.offerType || 'pos');
-      setLieferung(data.lieferung || DEFAULT_LIEFERUNG);
-      setZahlungsziel(data.zahlungsziel || DEFAULT_ZAHLUNGSZIEL);
+      setLieferung(data.lieferung || '');
+      setZahlungsziel(data.zahlungsziel || '');
       setRental(data.rental || emptyRentalState());
       setMandatsRef(data.mandatsRef || Date.now().toString().slice(-12));
       setServiceStartDate(offer.service_start_date || new Date().toISOString().slice(0, 10));
@@ -1334,8 +1335,8 @@ function OfferBuilderPageInner() {
     setTakeBack(null);
     setGlobalTier('12mo');
     setOfferType(type);
-    setLieferung(DEFAULT_LIEFERUNG);
-    setZahlungsziel(DEFAULT_ZAHLUNGSZIEL);
+    setLieferung('');
+    setZahlungsziel('');
     setRental(emptyRentalState());
     setMandatsRef(Date.now().toString().slice(-12));
     setServiceStartDate(new Date().toISOString().slice(0, 10));
@@ -1379,8 +1380,8 @@ function OfferBuilderPageInner() {
       setNotes('');
       setBriefing('');
       setRaten(12);
-      setLieferung(DEFAULT_LIEFERUNG);
-      setZahlungsziel(DEFAULT_ZAHLUNGSZIEL);
+      setLieferung('');
+      setZahlungsziel('');
       setCurrentOfferId(null);
       setMandatsRef(Date.now().toString().slice(-12));
     }

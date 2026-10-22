@@ -48,6 +48,9 @@ export default function SignModal({ customer, totals, finanzOpen, globalTier, ra
   const showSepa = finanzOpen && (totals.monthly > 0 || totals.once > 0 || totals.yearly > 0);
   const takeBackNet = Number(takeBack?.value) > 0 ? Number(takeBack!.value) : 0;
   const discount = computeDiscounts(totals.periodTotal, { rabattActive, skontoActive, takeBack: takeBackNet });
+  // "(erstes Jahr)" only applies when the offer recurs; a pure one-off offer
+  // (only Einmalige Kosten) just has a "Gesamt".
+  const hasRecurring = totals.monthly > 0 || totals.yearly > 0;
 
   async function handleConfirm() {
     if (offerPadRef.current?.isEmpty()) { setError('Bitte Auftragsbestätigung unterschreiben.'); return; }
@@ -116,7 +119,7 @@ export default function SignModal({ customer, totals, finanzOpen, globalTier, ra
               {(rabattActive || takeBackNet > 0) && (
                 <div className="flex justify-between">
                   <span className="text-slate-500">
-                    Gesamt (erstes Jahr){rabattActive ? ', inkl. 2% Rabatt' : ''}
+                    Gesamt{hasRecurring ? ' (erstes Jahr)' : ''}{rabattActive ? ', inkl. 2% Rabatt' : ''}
                   </span>
                   <span className="font-semibold text-emerald-600">€ {fmt(discount.brutto)} brutto</span>
                 </div>
