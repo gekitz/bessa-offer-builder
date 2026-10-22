@@ -68,25 +68,28 @@ describe('OfferView — Brother offer', () => {
     expect(screen.getByText('Zahlungsziel: netto Kassa')).toBeInTheDocument();
   });
 
-  it('lets the rep switch the Lieferzeit to "nach Rücksprache"', async () => {
+  it('lets the rep edit the Lieferzeit via the Bedingungen pencil → modal', async () => {
     const setLieferung = vi.fn();
-    render(<OfferView {...(baseProps as any)} lieferung="lagernd" setLieferung={setLieferung} />);
-    await userEvent.click(screen.getByRole('button', { name: 'nach Rücksprache' }));
-    expect(setLieferung).toHaveBeenCalledWith('ruecksprache');
+    render(<OfferView {...(baseProps as any)} setLieferung={setLieferung} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }));
+    await userEvent.type(screen.getByLabelText('Lieferzeit'), 'nach Rücksprache');
+    await userEvent.click(screen.getByRole('button', { name: /Übernehmen/ }));
+    expect(setLieferung).toHaveBeenCalledWith('nach Rücksprache');
   });
 
-  it('lets the rep edit the Zahlungsziel', async () => {
+  it('lets the rep edit the Zahlungsziel via the modal', async () => {
     const setZahlungsziel = vi.fn();
-    render(<OfferView {...(baseProps as any)} zahlungsziel="netto Kassa" setZahlungsziel={setZahlungsziel} />);
-    const input = screen.getByLabelText('Zahlungsziel');
-    await userEvent.type(input, '!');
-    expect(setZahlungsziel).toHaveBeenCalled();
+    render(<OfferView {...(baseProps as any)} setZahlungsziel={setZahlungsziel} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }));
+    await userEvent.type(screen.getByLabelText('Zahlungsziel'), 'wie vereinbart');
+    await userEvent.click(screen.getByRole('button', { name: /Übernehmen/ }));
+    expect(setZahlungsziel).toHaveBeenCalledWith('wie vereinbart');
   });
 
-  it('hides the delivery/payment editor once the offer is locked', () => {
+  it('hides the Bedingungen pencil once the offer is locked', () => {
     render(<OfferView {...(baseProps as any)} locked />);
-    // The label heading of the editor card is gone…
-    expect(screen.queryByText('Lieferung & Zahlung')).not.toBeInTheDocument();
+    // The edit entry point is gone…
+    expect(screen.queryByRole('button', { name: 'Bearbeiten' })).not.toBeInTheDocument();
     // …but the chosen terms still print in the Bedingungen list.
     expect(screen.getByText('Lieferzeit: lagernd')).toBeInTheDocument();
   });
