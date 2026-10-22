@@ -42,16 +42,10 @@ import SortableOfferRow from './SortableOfferRow';
 import EditItemModal from './modals/EditItemModal';
 import LeasingConditionsModal from './modals/LeasingConditionsModal';
 import CopierPricesModal from './modals/CopierPricesModal';
+import TermsModal from './modals/TermsModal';
 import { TIER_LABEL } from '../../../data/tiers';
 import { ALL, isCustomItem } from '../data/catalogs';
-import {
-  computeAutoTerms,
-  LIEFERUNG_OPTIONS,
-  DEFAULT_LIEFERUNG,
-  DEFAULT_ZAHLUNGSZIEL,
-  STANDARD_LIEFERZEIT,
-  STANDARD_ZAHLUNGSZIEL,
-} from '../../../data/autoTermRules';
+import { computeAutoTerms } from '../../../data/autoTermRules';
 import {
   isMonthly,
   price,
@@ -127,6 +121,7 @@ export default function OfferView({
   const [editingItem, setEditingItem] = useState(null); // { id, item, cartItem, monthly }
   const [editingLeasingId, setEditingLeasingId] = useState(null);
   const [editingPricesId, setEditingPricesId] = useState(null);
+  const [editingTerms, setEditingTerms] = useState(false);
   // A Sharp/MFP offer renders its own copier summary instead of the PoS
   // monthly/once/Wartung/financing sections.
   const isCopier = !!copierOffer?.isCopierOffer;
@@ -694,76 +689,24 @@ export default function OfferView({
         </div>
       )}
 
-      {/* Brother delivery + payment — rep-editable, feed the Bedingungen list
-          below. Hidden once the offer is locked (accepted/signed). */}
-      {isBrother && !locked && (
-        <div className="bg-white rounded-xl border-2 border-slate-200 mb-4" style={{ padding: '16px' }}>
-          <span className="font-bold text-slate-700 block mb-3" style={{ fontSize: 13 }}>Lieferung &amp; Zahlung</span>
-          <div className="mb-4">
-            <span className="block text-slate-500 mb-1.5" style={{ fontSize: 12 }}>Lieferzeit</span>
-            <div className="flex flex-wrap gap-2">
-              {LIEFERUNG_OPTIONS.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => setLieferung(o.value)}
-                  className={`px-3 py-1.5 rounded-full font-medium transition-colors ${(lieferung || DEFAULT_LIEFERUNG) === o.value ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                  style={{ fontSize: 12 }}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="block text-slate-500 mb-1.5" style={{ fontSize: 12 }} htmlFor="brother-zahlungsziel">Zahlungsziel</label>
-            <input
-              id="brother-zahlungsziel"
-              type="text"
-              value={zahlungsziel}
-              onChange={(e) => setZahlungsziel(e.target.value)}
-              placeholder={DEFAULT_ZAHLUNGSZIEL}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Standard delivery + payment — rep-editable free text, feed the
-          Bedingungen list below. Brother has its own editor above; copier/rental
-          keep their fixed flows. Hidden once the offer is locked. */}
-      {!isBrother && !isCopier && !locked && (
-        <div className="bg-white rounded-xl border-2 border-slate-200 mb-4" style={{ padding: '16px' }}>
-          <span className="font-bold text-slate-700 block mb-3" style={{ fontSize: 13 }}>Lieferung &amp; Zahlung</span>
-          <div className="mb-4">
-            <label className="block text-slate-500 mb-1.5" style={{ fontSize: 12 }} htmlFor="std-lieferzeit">Lieferzeit</label>
-            <input
-              id="std-lieferzeit"
-              type="text"
-              value={lieferung}
-              onChange={(e) => setLieferung(e.target.value)}
-              placeholder={STANDARD_LIEFERZEIT}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
-            />
-          </div>
-          <div>
-            <label className="block text-slate-500 mb-1.5" style={{ fontSize: 12 }} htmlFor="std-zahlungsziel">Zahlungsziel</label>
-            <input
-              id="std-zahlungsziel"
-              type="text"
-              value={zahlungsziel}
-              onChange={(e) => setZahlungsziel(e.target.value)}
-              placeholder={STANDARD_ZAHLUNGSZIEL}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Auto-generated terms */}
+      {/* Auto-generated terms. Lieferzeit + Zahlungsziel are rep-editable via
+          the pencil → TermsModal, consistent with the copier Kopienpreise block. */}
       {autoTerms.length > 0 && (
         <div className="bg-amber-50 rounded-xl border-2 border-amber-200 mb-4" style={{ padding: '14px 16px' }}>
-          <span className="font-bold text-amber-900 block mb-2" style={{ fontSize: 13 }}>Bedingungen</span>
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <span className="font-bold text-amber-900" style={{ fontSize: 13 }}>Bedingungen</span>
+            {!locked && (
+              <button
+                type="button"
+                onClick={() => setEditingTerms(true)}
+                className="text-amber-500 hover:text-amber-800 transition-colors flex-shrink-0"
+                title="Lieferzeit &amp; Zahlungsziel bearbeiten"
+                aria-label="Bearbeiten"
+              >
+                <Pencil size={13} />
+              </button>
+            )}
+          </div>
           <ul className="list-disc pl-5 text-amber-900 space-y-1" style={{ fontSize: 12 }}>
             {autoTerms.map((t, i) => <li key={i}>{t}</li>)}
           </ul>
@@ -919,6 +862,20 @@ export default function OfferView({
           onSave={(patch) => {
             onCopierField(editingPricesId, patch);
             setEditingPricesId(null);
+          }}
+        />
+      )}
+
+      {editingTerms && (
+        <TermsModal
+          lieferung={lieferung}
+          zahlungsziel={zahlungsziel}
+          offerType={offerType}
+          onClose={() => setEditingTerms(false)}
+          onSave={({ lieferung: l, zahlungsziel: z }) => {
+            setLieferung(l);
+            setZahlungsziel(z);
+            setEditingTerms(false);
           }}
         />
       )}

@@ -70,38 +70,42 @@ function Harness(props: Record<string, unknown> = {}) {
   );
 }
 
-describe('OfferView — standard delivery/payment terms', () => {
-  it('shows an editable Lieferung & Zahlung card on a PoS offer', () => {
-    render(<Harness />);
-    expect(screen.getByText('Lieferung & Zahlung')).toBeInTheDocument();
-    expect(screen.getByLabelText('Lieferzeit')).toBeInTheDocument();
-    expect(screen.getByLabelText('Zahlungsziel')).toBeInTheDocument();
-  });
-
+describe('OfferView — editable delivery/payment terms', () => {
   it('defaults the Bedingungen to the standard Lieferzeit/Zahlungsziel', () => {
     render(<Harness />);
     expect(screen.getByText('Lieferzeit: 2 Wochen')).toBeInTheDocument();
     expect(screen.getByText('Zahlungsziel: 10 Tage netto Kassa')).toBeInTheDocument();
   });
 
-  it('reflects an edited Lieferzeit live in the Bedingungen list', async () => {
+  it('shows a pencil on the Bedingungen block that opens the TermsModal', async () => {
     render(<Harness />);
-    const input = screen.getByLabelText('Lieferzeit');
-    await userEvent.type(input, '3-4 Wochen');
+    // Modal is closed until the pencil is clicked.
+    expect(screen.queryByLabelText('Lieferzeit')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }));
+    expect(screen.getByLabelText('Lieferzeit')).toBeInTheDocument();
+    expect(screen.getByLabelText('Zahlungsziel')).toBeInTheDocument();
+  });
+
+  it('applies an edited Lieferzeit to the Bedingungen list', async () => {
+    render(<Harness />);
+    await userEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }));
+    await userEvent.type(screen.getByLabelText('Lieferzeit'), '3-4 Wochen');
+    await userEvent.click(screen.getByRole('button', { name: /Übernehmen/ }));
     expect(screen.getByText('Lieferzeit: 3-4 Wochen')).toBeInTheDocument();
     expect(screen.queryByText('Lieferzeit: 2 Wochen')).not.toBeInTheDocument();
   });
 
-  it('reflects an edited Zahlungsziel live in the Bedingungen list', async () => {
+  it('applies an edited Zahlungsziel to the Bedingungen list', async () => {
     render(<Harness />);
-    const input = screen.getByLabelText('Zahlungsziel');
-    await userEvent.type(input, '30 Tage netto');
+    await userEvent.click(screen.getByRole('button', { name: 'Bearbeiten' }));
+    await userEvent.type(screen.getByLabelText('Zahlungsziel'), '30 Tage netto');
+    await userEvent.click(screen.getByRole('button', { name: /Übernehmen/ }));
     expect(screen.getByText('Zahlungsziel: 30 Tage netto')).toBeInTheDocument();
   });
 
-  it('hides the editor once the offer is locked (terms still print)', () => {
+  it('hides the pencil once the offer is locked (terms still print)', () => {
     render(<Harness lieferung="3 Wochen" locked />);
-    expect(screen.queryByText('Lieferung & Zahlung')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Bearbeiten' })).not.toBeInTheDocument();
     expect(screen.getByText('Lieferzeit: 3 Wochen')).toBeInTheDocument();
   });
 });
