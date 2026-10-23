@@ -262,14 +262,23 @@ export async function notifyViertlClosure(
   return data as { ok: true; to: string };
 }
 
-// Ergebnis eines Mesonic-E-Mail-Abrufs festhalten. Stempelt IMMER
-// email_checked_at (damit die Zeile aus dem Backfill-Set fällt, auch wenn
-// Mesonic keine E-Mail kennt) und schreibt die E-Mail nur, wenn gefunden.
-// Die E-Mail-Änderung protokolliert der Audit-Trigger; email_checked_at
-// ist nicht getrackt → keine Log-Flut.
+// Ergebnis eines Mesonic-Abrufs festhalten. Stempelt IMMER email_checked_at
+// (damit die Zeile aus dem Backfill-Set fällt, auch wenn Mesonic nichts
+// kennt) und schreibt die mitgegebenen Stammdaten nur, wenn vorhanden.
+// Adressfelder (street/plz/ort) kommen aus demselben Kontonummer-Abruf wie
+// die E-Mail; der Aufrufer entscheidet per Fill-if-empty, welche er
+// mitschickt. Die E-Mail-Änderung protokolliert der Audit-Trigger; Adresse
+// und email_checked_at sind nicht getrackt → keine Log-Flut.
+export interface MesonicLookupPatch {
+  email: string | null;
+  street?: string | null;
+  plz?: string | null;
+  ort?: string | null;
+}
+
 export async function recordMesonicLookup(
   licenseId: string,
-  email: string | null,
+  patch: MesonicLookupPatch,
   actor: ViertlActor,
 ): Promise<ViertlLicense> {
   const sb = requireSupabase();
@@ -278,7 +287,10 @@ export async function recordMesonicLookup(
     updated_by_id: actor.id,
     updated_by_name: actor.name,
   };
-  if (email) row.email = email;
+  if (patch.email) row.email = patch.email;
+  if (patch.street) row.street = patch.street;
+  if (patch.plz) row.plz = patch.plz;
+  if (patch.ort) row.ort = patch.ort;
   const { data, error } = await sb
     .from('viertl_licenses')
     .update(row)

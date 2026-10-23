@@ -236,15 +236,23 @@ export default function ViertlPage({
     [actor],
   );
 
-  // E-Mail einer einzelnen Installation aus Mesonic ziehen (Kd.Nr → Konto).
+  // Stammdaten einer einzelnen Installation aus Mesonic ziehen (Kd.Nr →
+  // Konto). Derselbe Abruf liefert E-Mail UND Adresse — die Adresse wird nur
+  // gefüllt, wo sie noch fehlt (Fill-if-empty), damit die aus dem Viertl-Excel
+  // importierten Gastrotouch-Adressen nicht überschrieben werden; die
+  // Sharp-/RCH-/BHS-Zeilen kamen ohne Adresse und werden so nachgezogen.
   // Markiert die Zeile immer als geprüft (email_checked_at), damit der
-  // Backfill weiterrückt — auch wenn Mesonic keine E-Mail kennt.
+  // Backfill weiterrückt — auch wenn Mesonic nichts kennt.
   const fetchEmail = useCallback(
     async (license: ViertlLicense): Promise<string | null> => {
-      const { email } = await fetchMesonicContact(license.mesonicKdnr);
-      const updated = await recordMesonicLookup(license.id, email, actor);
+      const c = await fetchMesonicContact(license.mesonicKdnr);
+      const patch = { email: c.email } as Parameters<typeof recordMesonicLookup>[1];
+      if (!license.street && c.street) patch.street = c.street;
+      if (!license.plz && c.plz) patch.plz = c.plz;
+      if (!license.ort && c.ort) patch.ort = c.ort;
+      const updated = await recordMesonicLookup(license.id, patch, actor);
       setLicenses((prev) => prev.map((l) => (l.id === license.id ? updated : l)));
-      return email;
+      return c.email;
     },
     [actor],
   );
@@ -272,14 +280,19 @@ export default function ViertlPage({
     [actor],
   );
 
-  // Bulk-Backfill (Admin): Installationen ohne E-Mail sequenziell aus
-  // Mesonic nachladen. Sequenziell + gedrosselt (Session-Pool). Ziel sind
-  // NUR noch nicht geprüfte Zeilen (email_checked_at IS NULL) — so rückt
-  // der Backfill weiter, statt bei E-Mail-losen Kunden festzuhängen.
+  // Bulk-Backfill (Admin): Installationen mit unvollständigen Stammdaten
+  // sequenziell aus Mesonic nachladen. Sequenziell + gedrosselt
+  // (Session-Pool). „Unvollständig“ = keine E-Mail ODER keine Adresse (Ort) —
+  // ein Abruf liefert beides. Ziel sind NUR noch nicht geprüfte Zeilen
+  // (email_checked_at IS NULL), so rückt der Backfill weiter statt bei
+  // datenlosen Kunden festzuhängen.
+  const needsData = useCallback((l: ViertlLicense) => !l.email || !l.ort, []);
   const missingEmail = useMemo(() => licenses.filter((l) => !l.email), [licenses]);
+  const missingAddress = useMemo(() => licenses.filter((l) => !l.ort), [licenses]);
+  const missingData = useMemo(() => licenses.filter(needsData), [licenses, needsData]);
   const uncheckedMissing = useMemo(
-    () => licenses.filter((l) => !l.email && !l.emailCheckedAt),
-    [licenses],
+    () => licenses.filter((l) => needsData(l) && !l.emailCheckedAt),
+    [licenses, needsData],
   );
   const [backfill, setBackfill] = useState<{ running: boolean; done: number; total: number; found: number; stopped?: string } | null>(null);
   const abortRef = useRef(false);
@@ -287,7 +300,7 @@ export default function ViertlPage({
   // recheckAll=true prüft auch schon geprüfte E-Mail-lose Zeilen erneut
   // (z. B. nachdem in Mesonic E-Mails nachgepflegt wurden).
   const runBackfill = useCallback(async (recheckAll = false) => {
-    const pool = licenses.filter((l) => !l.email && (recheckAll || !l.emailCheckedAt));
+    const pool = licenses.filter((l) => needsData(l) && (recheckAll || !l.emailCheckedAt));
     // Pro Lauf begrenzen, damit ein einzelner Klick den Session-Pool nicht
     // überlasten kann — bei Bedarf einfach erneut starten.
     const targets = pool.slice(0, BACKFILL_MAX_PER_RUN);
@@ -316,7 +329,7 @@ export default function ViertlPage({
       if (i < targets.length - 1 && !abortRef.current) await sleep(BACKFILL_DELAY_MS);
     }
     setBackfill((b) => (b ? { ...b, running: false, stopped } : b));
-  }, [licenses, fetchEmail]);
+  }, [licenses, fetchEmail, needsData]);
 
   return (
     <div className="flex flex-col h-full">
@@ -325,7 +338,7 @@ export default function ViertlPage({
         <div>
           <h1 className="text-lg font-semibold text-slate-800">Signaturtausch</h1>
           <p className="text-xs text-slate-500">
-            {counts.total} Installationen · {counts.open} offen · {counts.done} erledigt · {counts.hw} × neue HW nötig · {missingEmail.length} ohne E-Mail{uncheckedMissing.length > 0 ? ` (${uncheckedMissing.length} noch nicht geprüft)` : ''}
+            {counts.total} Installationen · {counts.open} offen · {counts.done} erledigt · {counts.hw} × neue HW nötig · {missingEmail.length} ohne E-Mail · {missingAddress.length} ohne Adresse{uncheckedMissing.length > 0 ? ` (${uncheckedMissing.length} noch nicht geprüft)` : ''}
           </p>
           {backfill && !backfill.running && backfill.stopped && (
             <p className="text-xs text-amber-600 mt-0.5">{backfill.stopped}</p>
@@ -345,17 +358,17 @@ export default function ViertlPage({
               <button
                 onClick={() => void runBackfill()}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
-                title={`E-Mails aus Mesonic nachladen (Kd.Nr → Konto). Gedrosselt, max. ${BACKFILL_MAX_PER_RUN} pro Lauf, um Mesonic nicht zu überlasten — bei Bedarf mehrfach starten. Prüft nur noch nicht geprüfte Zeilen.`}
+                title={`Stammdaten (E-Mail + Adresse) aus Mesonic nachladen (Kd.Nr → Konto). Gedrosselt, max. ${BACKFILL_MAX_PER_RUN} pro Lauf, um Mesonic nicht zu überlasten — bei Bedarf mehrfach starten. Prüft nur noch nicht geprüfte Zeilen.`}
               >
-                <Download className="w-4 h-4" /> E-Mails laden ({Math.min(uncheckedMissing.length, BACKFILL_MAX_PER_RUN)} von {uncheckedMissing.length})
+                <Download className="w-4 h-4" /> Stammdaten laden ({Math.min(uncheckedMissing.length, BACKFILL_MAX_PER_RUN)} von {uncheckedMissing.length})
               </button>
-            ) : missingEmail.length > 0 ? (
+            ) : missingData.length > 0 ? (
               <button
                 onClick={() => void runBackfill(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
-                title="Alle E-Mail-losen Kunden wurden bereits geprüft (Mesonic kennt keine E-Mail). Erneut prüfen — z. B. nachdem in Mesonic E-Mails nachgepflegt wurden."
+                title="Alle unvollständigen Kunden wurden bereits geprüft (Mesonic kennt keine E-Mail/Adresse). Erneut prüfen — z. B. nachdem in Mesonic nachgepflegt wurde."
               >
-                <RefreshCw className="w-4 h-4" /> {missingEmail.length} ohne E-Mail erneut prüfen
+                <RefreshCw className="w-4 h-4" /> {missingData.length} unvollständig erneut prüfen
               </button>
             ) : null
           )}
@@ -801,7 +814,7 @@ function LicenseDetail({
               <button
                 onClick={() => void fetchEmail()}
                 disabled={busy || fetchingEmail}
-                title="Aus Mesonic laden (Kd.Nr → Konto)"
+                title="E-Mail + Adresse aus Mesonic laden (Kd.Nr → Konto)"
                 className="shrink-0 inline-flex items-center gap-1 px-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
               >
                 {fetchingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
