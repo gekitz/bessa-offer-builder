@@ -14,6 +14,9 @@ export interface MesonicContact {
   phone: string | null;
   mobile: string | null;
   contact: string | null;
+  street: string | null;
+  plz: string | null;
+  ort: string | null;
 }
 
 // Erstes nicht-leeres Feld aus einer Alias-Liste (case-insensitiv wäre
@@ -28,12 +31,16 @@ function pick(record: Record<string, unknown>, ...keys: string[]): string | null
 
 // Reiner Extractor (unit-testbar) — spiegelt die F-Accessoren in CrmPage.
 export function extractContact(record: Record<string, unknown> | null | undefined): MesonicContact {
-  if (!record) return { email: null, phone: null, mobile: null, contact: null };
+  if (!record) return { email: null, phone: null, mobile: null, contact: null, street: null, plz: null, ort: null };
   return {
     email:   pick(record, 'Email', 'E-Mail', 'EMail', 'T055_C013', 'T055.C013'),
     phone:   pick(record, 'Telefon', 'Tel', 'T055_C011', 'T055.C011'),
     mobile:  pick(record, 'Mobiltelefon', 'Mobil', 'Handy', 'T055_C082', 'T055.C082'),
     contact: pick(record, 'Ansprechpartner', 'Kontakt', 'T055_C061', 'T055.C061'),
+    // Adresse — gleiche Alias-Ketten wie die CRM-Ansicht (CrmPage.jsx F-Accessoren).
+    street:  pick(record, 'Strasse', 'Straße', 'Straẞe', 'T055_C007', 'T055.C007'),
+    plz:     pick(record, 'Postleitzahl', 'PLZ', 'T055_C008', 'T055.C008'),
+    ort:     pick(record, 'Ort', 'Stadt', 'T055_C009', 'T055.C009'),
   };
 }
 

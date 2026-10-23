@@ -142,7 +142,7 @@ describe('updateLicense', () => {
 describe('recordMesonicLookup', () => {
   it('always stamps email_checked_at and writes the email when found', async () => {
     chains.viertl_licenses = makeChain({ data: { id: 'l1', mesonic_kdnr: '1', name: 'X', wartung: 'none', status: 'new', customer_status: 'active', hardware_needed: false, email: 'a@b.at', email_checked_at: 'now', created_at: '', updated_at: '' }, error: null });
-    await recordMesonicLookup('l1', 'a@b.at', ACTOR);
+    await recordMesonicLookup('l1', { email: 'a@b.at' }, ACTOR);
     const payload = chains.viertl_licenses._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
     expect(payload.email).toBe('a@b.at');
     expect(typeof payload.email_checked_at).toBe('string');
@@ -151,10 +151,20 @@ describe('recordMesonicLookup', () => {
 
   it('stamps checked_at but does NOT touch email when none was found', async () => {
     chains.viertl_licenses = makeChain({ data: { id: 'l1', mesonic_kdnr: '1', name: 'X', wartung: 'none', status: 'new', customer_status: 'active', hardware_needed: false, email: null, email_checked_at: 'now', created_at: '', updated_at: '' }, error: null });
-    await recordMesonicLookup('l1', null, ACTOR);
+    await recordMesonicLookup('l1', { email: null }, ACTOR);
     const payload = chains.viertl_licenses._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
     expect(payload).not.toHaveProperty('email');
     expect(typeof payload.email_checked_at).toBe('string');
+  });
+
+  it('writes the address (street/plz/ort) when provided, skipping blanks', async () => {
+    chains.viertl_licenses = makeChain({ data: { id: 'l1', mesonic_kdnr: '1', name: 'X', wartung: 'none', status: 'new', customer_status: 'active', hardware_needed: false, email: null, plz: '9843', ort: 'Großkirchheim', email_checked_at: 'now', created_at: '', updated_at: '' }, error: null });
+    await recordMesonicLookup('l1', { email: null, plz: '9843', ort: 'Großkirchheim' }, ACTOR);
+    const payload = chains.viertl_licenses._calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>;
+    expect(payload.plz).toBe('9843');
+    expect(payload.ort).toBe('Großkirchheim');
+    expect(payload).not.toHaveProperty('street');
+    expect(payload).not.toHaveProperty('email');
   });
 });
 
