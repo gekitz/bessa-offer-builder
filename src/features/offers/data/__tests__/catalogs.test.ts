@@ -25,7 +25,6 @@ import {
   SEED_CATALOG_IDS,
 } from '../catalogSeed';
 import { isCustomItem } from '../catalogs';
-import { availableTiers, discountedPrice, price } from '../../../../lib/pricing';
 
 const ALL_PRODUCT_LISTS = [
   ['BESSA', BESSA],
@@ -74,31 +73,6 @@ describe('catalog seed', () => {
     for (const id of Object.keys(SEED_ALL)) {
       expect(SEED_CATALOG_IDS.has(id)).toBe(true);
     }
-  });
-});
-
-describe('Gastro-Kiosk-Bestellungen rental tiers (code 203)', () => {
-  const kiosk = BESSA.find((i) => i.code === '203')!;
-
-  it('exists and is a monthly product', () => {
-    expect(kiosk).toBeDefined();
-    expect(kiosk.t).toBe('m');
-  });
-
-  it('carries all four tiers so it can be used in a rental offer', () => {
-    expect(availableTiers(kiosk)).toEqual(['12mo', '6mo', '2mo', 'event']);
-  });
-
-  it('prices each tier correctly', () => {
-    expect(price(kiosk, '12mo', undefined)).toBe(99);
-    expect(price(kiosk, '6mo', undefined)).toBe(125);
-    expect(price(kiosk, '2mo', undefined)).toBe(159);
-    expect(price(kiosk, 'event', undefined)).toBe(198);
-  });
-
-  it('keeps the "Weiterer Kiosk" −50% discount on the new rental tiers', () => {
-    expect(discountedPrice(kiosk, '2mo', undefined)).toBe(159 / 2);
-    expect(discountedPrice(kiosk, 'event', undefined)).toBe(198 / 2);
   });
 });
 
