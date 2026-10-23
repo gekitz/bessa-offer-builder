@@ -103,6 +103,7 @@ export const RENTAL_SOFTWARE_IDS: readonly string[] = [
   'eceb4278-06cc-4fe5-9413-d41ae999166c', // 042 Nebenterminal          (Funkterminal)
   '65e7e1a8-23b3-444f-8b18-c5ca7312cf28', // 040 Anbindung Kartenzahlungsterminal (Kreditkartemodul)
   '0824405f-8780-4371-919b-5cee2c6efb07', // 043 Bestellmonitor         (Bestellmonitor)
+  'd2c207cf-3c6f-41f6-a1df-739e8e48d4bb', // 203 Gastro-Kiosk-Bestellungen (bessa Gastro Kiosk)
 ] as const;
 
 export interface RentalState {

@@ -24,6 +24,7 @@ import { buildCopierOffer } from './copierOffer';
 const MOBILE_KASSA = '3942f638-1abb-4be9-85a5-d3bf442aa3d8'; // code 100, p:{y:19,s:25,m:30,e:38}
 const KARTENZAHLUNG = '65e7e1a8-23b3-444f-8b18-c5ca7312cf28'; // code 040, p:{y:12,s:15,m:18,e:24}
 const KLEINER_HANDEL = 'cb003c42-11dc-48c9-a5de-68a2c998501a'; // code 110, p:{y:24,s:30,m:40,e:48}
+const GASTRO_KIOSK = 'd2c207cf-3c6f-41f6-a1df-739e8e48d4bb'; // code 203, p:{y:99,s:125}
 const STANDALONE_MOBILE = 'standalone-mobile'; // Einstand 259
 
 // The scenario captured in the source spreadsheet:
@@ -63,6 +64,11 @@ describe('rental catalog integrity', () => {
   it('offers the Kleiner Handelsbetrieb licence among the software', () => {
     expect(RENTAL_SOFTWARE_IDS).toContain(KLEINER_HANDEL);
     expect(ALL[KLEINER_HANDEL]?.name).toBe('Kleiner Handelsbetrieb');
+  });
+
+  it('offers the bessa Gastro Kiosk licence among the software', () => {
+    expect(RENTAL_SOFTWARE_IDS).toContain(GASTRO_KIOSK);
+    expect(ALL[GASTRO_KIOSK]?.name).toBe('Gastro-Kiosk-Bestellungen');
   });
 
   it('services are fixed prices', () => {
@@ -111,6 +117,17 @@ describe('software pricing derives from the bessa tiers', () => {
     expect(softwareUnitPrice(KLEINER_HANDEL, rentalTerm('1-3d'))).toBe(48); // p.e × 1
     expect(softwareUnitPrice(KLEINER_HANDEL, rentalTerm('2mo'))).toBe(80); // p.m 40 × 2
     expect(softwareUnitPrice(KLEINER_HANDEL, rentalTerm('6mo'))).toBe(180); // p.s 30 × 6
+  });
+
+  it('prices the bessa Gastro Kiosk licence off its tiers', () => {
+    // Only the 12-/6-Monats tiers exist on code 203 (p:{y:99,s:125}).
+    expect(softwareUnitPrice(GASTRO_KIOSK, rentalTerm('6mo'))).toBe(750); // p.s 125 × 6
+    // No 2-Monats/Event tier, so shorter terms fall back to the 12-Monats
+    // rate (99). NOTE: this makes the short terms cheaper per unit than the
+    // 6-month tier — add p.m/p.e to code 203 if a proper short-term rate is
+    // wanted.
+    expect(softwareUnitPrice(GASTRO_KIOSK, rentalTerm('2mo'))).toBe(198); // 99 × 2 (fallback)
+    expect(softwareUnitPrice(GASTRO_KIOSK, rentalTerm('1-3d'))).toBe(99); // 99 × 1 (fallback)
   });
 });
 
