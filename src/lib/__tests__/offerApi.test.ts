@@ -100,6 +100,36 @@ describe('saveOffer', () => {
     expect(result).toEqual({ id: 'new-uuid' });
   });
 
+  it('persists amortMonths into offer_data only when set', async () => {
+    // Unset (default) → the key is omitted, so the offer prices exactly as before.
+    let chain = makeChain({ data: { id: 'x' }, error: null });
+    fromMock.mockReturnValue(chain);
+    await saveOffer(baseOfferArgs);
+    expect(chain.insert.mock.calls[0][0].offer_data).not.toHaveProperty('amortMonths');
+
+    // A rep-chosen value is stored as a number.
+    chain = makeChain({ data: { id: 'x' }, error: null });
+    fromMock.mockReturnValue(chain);
+    // amortMonths' JS default (= null) pins its inferred param type to null, so
+    // cast past checkJs — the runtime persistence path is what this asserts.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await saveOffer({ ...baseOfferArgs, amortMonths: 16 } as any);
+    expect(chain.insert.mock.calls[0][0].offer_data.amortMonths).toBe(16);
+  });
+
+  it('persists laufzeitMonths (contract-term override) only when set', async () => {
+    let chain = makeChain({ data: { id: 'x' }, error: null });
+    fromMock.mockReturnValue(chain);
+    await saveOffer(baseOfferArgs);
+    expect(chain.insert.mock.calls[0][0].offer_data).not.toHaveProperty('laufzeitMonths');
+
+    chain = makeChain({ data: { id: 'x' }, error: null });
+    fromMock.mockReturnValue(chain);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await saveOffer({ ...baseOfferArgs, laufzeitMonths: 36 } as any);
+    expect(chain.insert.mock.calls[0][0].offer_data.laufzeitMonths).toBe(36);
+  });
+
   it('persists the customer UID-Nummer', async () => {
     const chain = makeChain({ data: { id: 'uid-uuid' }, error: null });
     fromMock.mockReturnValue(chain);

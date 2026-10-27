@@ -96,6 +96,70 @@ describe('computePlanPricing', () => {
     expect(Number.isFinite(p.miete.monthlyBrutto)).toBe(true);
     expect(Number.isFinite(p.ratenzahlung.ratePerMonthBrutto)).toBe(true);
   });
+
+  it('amortMonths defaults to the contract months → rent unchanged', () => {
+    const base = computePlanPricing(BASIS).miete.monthlyBrutto;
+    // Unset, explicitly equal to months, and ≤0 all collapse to the default.
+    expect(computePlanPricing({ ...BASIS, amortMonths: 12 }).miete.monthlyBrutto).toBeCloseTo(base, 10);
+    expect(computePlanPricing({ ...BASIS, amortMonths: 0 }).miete.monthlyBrutto).toBeCloseTo(base, 10);
+    expect(computePlanPricing({ ...BASIS, amortMonths: -4 }).miete.monthlyBrutto).toBeCloseTo(base, 10);
+  });
+
+  it('amortMonths spreads the one-time bucket over its own horizon; recurring stays tied to months', () => {
+    // onceFinancedNet = 500, recurring = 1750 − 500 = 1250 (monthly×12 + yearly).
+    // Rent = recurring/months + once/amort, gross with VAT and the 8% surcharge.
+    const rent = (amort: number) => (1250 / 12 + 500 / amort) * VAT * FIN_SURCHARGE;
+    expect(computePlanPricing({ ...BASIS, amortMonths: 8 }).miete.monthlyBrutto).toBeCloseTo(rent(8), 10);
+    expect(computePlanPricing({ ...BASIS, amortMonths: 16 }).miete.monthlyBrutto).toBeCloseTo(rent(16), 10);
+    expect(computePlanPricing({ ...BASIS, amortMonths: 24 }).miete.monthlyBrutto).toBeCloseTo(rent(24), 10);
+    // Shorter horizon → higher rent; longer → lower.
+    const r8 = computePlanPricing({ ...BASIS, amortMonths: 8 }).miete.monthlyBrutto;
+    const r16 = computePlanPricing({ ...BASIS, amortMonths: 16 }).miete.monthlyBrutto;
+    expect(r8).toBeGreaterThan(r16);
+  });
+
+  it('amortMonths changes only the Miete rent, never Standard or Ratenzahlung', () => {
+    const base = computePlanPricing(BASIS);
+    const amort = computePlanPricing({ ...BASIS, amortMonths: 24 });
+    expect(amort.standard).toEqual(base.standard);
+    expect(amort.ratenzahlung).toEqual(base.ratenzahlung);
+    expect(amort.miete.depositBrutto).toBe(base.miete.depositBrutto);
+    expect(amort.miete.monthlyBrutto).not.toBeCloseTo(base.miete.monthlyBrutto, 2);
+  });
+
+  it('steps the rent down once the one-time bucket is amortised (amort < months)', () => {
+    const p = computePlanPricing({ ...BASIS, amortMonths: 8 }).miete;
+    expect(p.stepMonths).toBe(8);
+    // Phase 1 = recurring + once/8; phase 2 = recurring only.
+    expect(p.monthlyBrutto).toBeCloseTo((1250 / 12 + 500 / 8) * VAT * FIN_SURCHARGE, 10);
+    expect(p.monthlyAfterBrutto).toBeCloseTo((1250 / 12) * VAT * FIN_SURCHARGE, 10);
+    expect(p.monthlyAfterBrutto).toBeLessThan(p.monthlyBrutto);
+  });
+
+  it('does not step when amort ≥ months or there is no one-time bucket (flat rent)', () => {
+    // Default (amort = months): flat, after === monthly, no step.
+    const flat = computePlanPricing(BASIS).miete;
+    expect(flat.stepMonths).toBeNull();
+    expect(flat.monthlyAfterBrutto).toBeCloseTo(flat.monthlyBrutto, 10);
+
+    // amort beyond the term: lower flat rent, still no step (hardware not fully
+    // recovered within the term — the caller/owner accepts that trade-off).
+    const long = computePlanPricing({ ...BASIS, amortMonths: 24 }).miete;
+    expect(long.stepMonths).toBeNull();
+    expect(long.monthlyAfterBrutto).toBeCloseTo(long.monthlyBrutto, 10);
+    expect(long.monthlyBrutto).toBeLessThan(flat.monthlyBrutto);
+
+    // No one-time bucket → nothing to amortise → flat even with a short horizon.
+    const noOnce = computePlanPricing({ ...BASIS, onceNet: 0, periodNet: 1250, amortMonths: 6 }).miete;
+    expect(noOnce.stepMonths).toBeNull();
+  });
+
+  it('amortMonths composes with Rabatt and Hardware-Rücknahme on the once bucket', () => {
+    // onceFinancedNet = 500×0.98 − 300 = 190; the take-back cancels out of the
+    // recurring part: recurring = (1750 − 500)×0.98 = 1225.
+    const p = computePlanPricing({ ...BASIS, rabattActive: true, takeBack: 300, amortMonths: 20 });
+    expect(p.miete.monthlyBrutto).toBeCloseTo((1225 / 12 + 190 / 20) * VAT * FIN_SURCHARGE, 10);
+  });
 });
 
 describe('planBasisFromOffer', () => {
@@ -133,6 +197,18 @@ describe('planBasisFromOffer', () => {
     expect(basis.rabattActive).toBe(false);
   });
 
+  it('prefers an explicit laufzeitMonths over the tier for legacy months', () => {
+    const basis = planBasisFromOffer({
+      total_monthly: 100,
+      total_once: 500,
+      total_period: 100 * 24 + 500, // period built over the 24-month term
+      offer_data: { globalTier: '12mo', laufzeitMonths: 24 },
+    });
+    expect(basis.months).toBe(24);
+    // yearly = period − monthly×24 − once = 0 (back-calc uses the same term)
+    expect(basis.yearlyNet).toBe(0);
+  });
+
   it('uses the tier for the legacy months fallback', () => {
     const basis = planBasisFromOffer({
       total_monthly: 100,
@@ -163,6 +239,26 @@ describe('planBasisFromOffer', () => {
       offer_data: { acceptSnapshot: { ...snapshot, takeBack: 300 } },
     });
     expect(basis.takeBack).toBe(300);
+  });
+
+  it('reads an explicit amortMonths from offer_data (snapshot + legacy paths)', () => {
+    const snap = planBasisFromOffer({
+      offer_data: { amortMonths: 16, acceptSnapshot: snapshot },
+    });
+    expect(snap.amortMonths).toBe(16);
+
+    const legacy = planBasisFromOffer({
+      total_monthly: 100,
+      total_once: 500,
+      total_period: 1750,
+      offer_data: { globalTier: '12mo', amortMonths: 24 },
+    });
+    expect(legacy.amortMonths).toBe(24);
+  });
+
+  it('leaves amortMonths unset when offer_data has none → default rent', () => {
+    expect(planBasisFromOffer({ offer_data: { acceptSnapshot: snapshot } }).amortMonths).toBeUndefined();
+    expect(planBasisFromOffer({}).amortMonths).toBeUndefined();
   });
 });
 

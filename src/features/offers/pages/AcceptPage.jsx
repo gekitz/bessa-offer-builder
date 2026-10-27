@@ -91,7 +91,15 @@ function AcceptanceDetails({ offer }) {
     }
   } else if (plan === 'miete') {
     rows.push({ label: 'Kaution (einmalig)', value: pricing.miete.depositBrutto, per: ' brutto', taxFree: true });
-    rows.push({ label: 'Miete monatlich (inkl. 8%)', value: pricing.miete.monthlyBrutto, per: '/Monat brutto' });
+    const step = pricing.miete.stepMonths;
+    rows.push({
+      label: step ? `Miete monatlich, erste ${step} Monate (inkl. 8%)` : 'Miete monatlich (inkl. 8%)',
+      value: pricing.miete.monthlyBrutto,
+      per: '/Monat brutto',
+    });
+    if (step) {
+      rows.push({ label: `Ab Monat ${step + 1}: Miete monatlich`, value: pricing.miete.monthlyAfterBrutto, per: '/Monat brutto' });
+    }
   }
 
   return (
@@ -296,7 +304,15 @@ export default function AcceptPage({ shareCode }) {
 
   const planC = [
     { label: 'Kaution (rückzahlbar)', value: pricing.miete.depositBrutto, taxFree: true },
-    { label: `Miete (${maxMonths} Monate)`, value: pricing.miete.monthlyBrutto, per: '/Mo', emphasis: true },
+    {
+      label: pricing.miete.stepMonths ? `Miete (erste ${pricing.miete.stepMonths} Mon.)` : `Miete (${maxMonths} Monate)`,
+      value: pricing.miete.monthlyBrutto,
+      per: '/Mo',
+      emphasis: true,
+    },
+    ...(pricing.miete.stepMonths
+      ? [{ label: `ab Monat ${pricing.miete.stepMonths + 1}`, value: pricing.miete.monthlyAfterBrutto, per: '/Mo', emphasis: true }]
+      : []),
   ];
 
   return (

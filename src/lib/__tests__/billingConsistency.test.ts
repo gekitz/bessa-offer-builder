@@ -266,9 +266,12 @@ describe('displayed euro strings round to the exact charged cents', () => {
     // de-AT groups thousands with U+00A0 — strip everything but digits and
     // the decimal comma, then normalise the comma.
     const parseFmt = (s: string) => Number(s.replace(/[^\d,]/g, '').replace(',', '.'));
-    const fieldGroups = pricing as unknown as Record<string, Record<string, number>>;
+    const fieldGroups = pricing as unknown as Record<string, Record<string, number | null>>;
+    // stepMonths is metadata (a month count / null), not a euro amount.
+    const NON_EURO = new Set(['stepMonths']);
     for (const fields of Object.values(fieldGroups)) {
-      for (const euro of Object.values(fields)) {
+      for (const [key, euro] of Object.entries(fields)) {
+        if (NON_EURO.has(key) || euro == null) continue;
         expect(Math.round(parseFmt(fmt(euro)) * 100)).toBe(toCents(euro));
       }
     }

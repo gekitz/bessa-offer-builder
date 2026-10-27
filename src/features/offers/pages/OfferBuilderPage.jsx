@@ -79,6 +79,7 @@ import ItemCard from '../components/ItemCard';
 import CatGroup from '../components/CatGroup';
 import TabContent from '../components/TabContent';
 import SignModal from '../components/modals/SignModal';
+import SettingsModal from '../components/modals/SettingsModal';
 import CustomItemModal from '../components/modals/CustomItemModal';
 import EmailPreviewModal from '../components/modals/EmailPreviewModal';
 import OfferDetailsModal from '../components/modals/OfferDetailsModal';
@@ -218,6 +219,9 @@ function OfferBuilderPageInner() {
   const { profile, user } = useAuth();
   const currentEmail = (profile?.microsoft_email || user?.email || '').toLowerCase();
   const isBillingAdmin = currentEmail === 'kg@kitz.co.at';
+  // The Miete hardware-amortisation lever is owner-only — same single identity
+  // as the billing admin. Everyone else never sees it and offers price as before.
+  const canEditAmort = currentEmail === 'kg@kitz.co.at';
   const [billingToggle, setBillingToggle] = useState(() => {
     if (typeof window === 'undefined') return true;
     const v = window.localStorage.getItem('billingEnabled');
@@ -227,6 +231,22 @@ function OfferBuilderPageInner() {
     try { window.localStorage.setItem('billingEnabled', String(billingToggle)); } catch {}
   }, [billingToggle]);
   const billingEnabled = isBillingAdmin && billingToggle;
+  // Owner-only global default for the Miete hardware-amortisation horizon (months).
+  // null = use the Laufzeit (rent unchanged). Set in the Einstellungen modal and
+  // baked into each offer's offer_data at save, so the accept page / Stripe charge
+  // match what was quoted. Persisted like the Stripe toggle above.
+  const [amortMonths, setAmortMonths] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const v = Number(window.localStorage.getItem('amortMonths'));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  });
+  useEffect(() => {
+    try {
+      if (amortMonths) window.localStorage.setItem('amortMonths', String(amortMonths));
+      else window.localStorage.removeItem('amortMonths');
+    } catch {}
+  }, [amortMonths]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // Active section is derived from the URL path (HashRouter, see
   // App.jsx). Sidebar nav writes to history via useNavigate; the
   // browser back/forward buttons + deep links work for free.
@@ -289,6 +309,11 @@ function OfferBuilderPageInner() {
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [raten, setRaten] = useState(12);
+  // Per-offer contract-term override (Laufzeit in months). null = use the tier
+  // default (TIER_MONTHS[globalTier]). Lets a rental run beyond the 12-month tier
+  // cap; the tier still drives the per-unit monthly price. Persisted in
+  // offer_data and frozen into the accept snapshot so pricing/charge match.
+  const [laufzeitMonths, setLaufzeitMonths] = useState(null);
   const [search, setSearch] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
   const [finanzOpen, setFinanzOpen] = useState(false);
@@ -474,6 +499,7 @@ function OfferBuilderPageInner() {
         setNotes(data.notes || '');
         setBriefing(offer.briefing || '');
         setRaten(data.raten || 12);
+        setLaufzeitMonths(data.laufzeitMonths ?? null);
         setFinanzOpen(data.finanzOpen || false);
         setRabattActive(data.rabattActive || false);
         setSkontoActive(data.skontoActive || false);
@@ -522,6 +548,7 @@ function OfferBuilderPageInner() {
       setCreator(savedOffer.creator || ssoCreatorId() || '');
       setNotes(savedOffer.notes || '');
       setRaten(savedOffer.raten || 12);
+      setLaufzeitMonths(savedOffer.laufzeitMonths ?? null);
       setFinanzOpen(savedOffer.finanzOpen || false);
       setRabattActive(savedOffer.rabattActive || false);
       setSkontoActive(savedOffer.skontoActive || false);
@@ -666,7 +693,7 @@ function OfferBuilderPageInner() {
   }
 
   // Totals
-  const totals = useMemo(() => computeTotals(cart, ALL), [cart]);
+  const totals = useMemo(() => computeTotals(cart, ALL, laufzeitMonths), [cart, laufzeitMonths]);
   // Sharp/MFP copier breakdown (device + Grenke leasing + maintenance). Empty
   // (isCopierOffer=false) for ordinary PoS carts, in which case the PDF falls
   // back to the standard monthly/once tables.
@@ -693,7 +720,7 @@ function OfferBuilderPageInner() {
   // page + Stripe charge read this snapshot — it must exist and match what
   // the builder showed at the moment the offer left the house.
   function buildAcceptSnapshot() {
-    return computeAcceptTotals({ cart, customItems: getCustomItemsFromCart(), takeBack }, ALL);
+    return computeAcceptTotals({ cart, customItems: getCustomItemsFromCart(), takeBack, laufzeitMonths }, ALL);
   }
 
   // Frozen per-line snapshot for the Mesonic-Angebot export (Belegart 17).
@@ -871,7 +898,7 @@ function OfferBuilderPageInner() {
             creatorName: creatorInfo?.name || creator,
             creatorEmail: creatorInfo?.email || null,
             briefing,
-            cart, globalTier, notes, raten, finanzOpen, rabattActive, skontoActive, takeBack,
+            cart, globalTier, notes, raten, amortMonths, laufzeitMonths, finanzOpen, rabattActive, skontoActive, takeBack,
             totalMonthly: persistTotals.monthly,
             totalOnce: persistTotals.once,
             totalPeriod: persistTotals.periodTotal,
@@ -908,6 +935,8 @@ function OfferBuilderPageInner() {
         totals,
         notes,
         raten,
+        amortMonths,
+        laufzeitMonths,
         rabattActive,
         skontoActive,
         takeBack,
@@ -977,6 +1006,8 @@ function OfferBuilderPageInner() {
         globalTier,
         notes,
         raten,
+        amortMonths,
+        laufzeitMonths,
         finanzOpen,
         rabattActive,
         skontoActive,
@@ -1093,6 +1124,8 @@ function OfferBuilderPageInner() {
         globalTier,
         notes,
         raten,
+        amortMonths,
+        laufzeitMonths,
         finanzOpen,
         rabattActive,
         skontoActive,
@@ -1147,7 +1180,7 @@ function OfferBuilderPageInner() {
         creatorName: creatorInfoForSave?.name || creator,
         creatorEmail: creatorInfoForSave?.email || null,
         briefing,
-        cart, globalTier, notes, raten, finanzOpen, rabattActive, skontoActive, takeBack,
+        cart, globalTier, notes, raten, amortMonths, laufzeitMonths, finanzOpen, rabattActive, skontoActive, takeBack,
         totalMonthly: persistTotals.monthly,
         totalOnce: persistTotals.once,
         totalPeriod: persistTotals.periodTotal,
@@ -1238,7 +1271,7 @@ function OfferBuilderPageInner() {
     const acceptQrDataUrl = acceptEnabled ? await generateAcceptQr(shareCode) : null;
     const pdfBlob = await generateOfferPdfBlob({
       customer, monthlyItems, onceItems, wartungItems, autoTerms,
-      totals, notes, raten,
+      totals, notes, raten, amortMonths, laufzeitMonths,
       showFinancing: finanzOpen, creator: creatorInfo,
       mandatsRef, signatures, acceptQrDataUrl, serviceStartDate, copierOffer,
       isRental: offerType === 'rental',
@@ -1293,6 +1326,7 @@ function OfferBuilderPageInner() {
       setNotes(data.notes || '');
       setBriefing(offer.briefing || '');
       setRaten(data.raten || 12);
+      setLaufzeitMonths(data.laufzeitMonths ?? null);
       setFinanzOpen(data.finanzOpen || false);
       setRabattActive(data.rabattActive || false);
       setSkontoActive(data.skontoActive || false);
@@ -1324,6 +1358,7 @@ function OfferBuilderPageInner() {
     setNotes('');
     setBriefing('');
     setRaten(12);
+    setLaufzeitMonths(null);
     setCurrentOfferId(null);
     setShareCodeState(null);
     setOfferLocked(false);
@@ -1380,6 +1415,7 @@ function OfferBuilderPageInner() {
       setNotes('');
       setBriefing('');
       setRaten(12);
+      setLaufzeitMonths(null);
       setLieferung('');
       setZahlungsziel('');
       setCurrentOfferId(null);
@@ -1395,11 +1431,21 @@ function OfferBuilderPageInner() {
         if (s === 'angebote') setOfferView('list');
         setOfferOrigin(null); // Sidebar-Navigation verwirft den Viertl-Rückweg
       }}
-      showBillingToggle={isBillingAdmin}
-      billingToggle={billingToggle}
-      onToggleBilling={setBillingToggle}
+      showSettings={isBillingAdmin || canEditAmort}
+      onOpenSettings={() => setSettingsOpen(true)}
       badges={{ angebote: myActionNeededCount, kalender: pendingApprovalsCount, tickets: myTicketCount, bestellungen: openRequestCount }}
     >
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          canEditBilling={isBillingAdmin}
+          billingToggle={billingToggle}
+          onToggleBilling={setBillingToggle}
+          canEditAmort={canEditAmort}
+          amortMonths={amortMonths}
+          onChangeAmort={setAmortMonths}
+        />
+      )}
       {/* ═══ ANGEBOTE SECTION ═══ */}
       {section === 'angebote' && offerView === 'list' && (
         <div className="flex-1 overflow-auto px-4 py-4 md:px-8 md:py-6">
@@ -1508,10 +1554,11 @@ function OfferBuilderPageInner() {
               </div>
             </div>
 
-            {/* Tier selector – Bessa tab only */}
+            {/* Tier selector – Bessa tab only. The pills pick the PRICE tier; the
+                contract term (Laufzeit in months) is edited in the financing block. */}
             {builderTab === 'bessa' && (
               <div className="flex items-center gap-2 px-3 pb-2 md:px-5">
-                <span className="text-slate-500" style={{ fontSize: 11 }}>Laufzeit:</span>
+                <span className="text-slate-500" style={{ fontSize: 11 }}>Preisstufe:</span>
                 <div className="flex gap-0.5 md:gap-1">
                   {TIERS.map(t => (
                     <button key={t} onClick={() => setGlobalTier(t)}
@@ -1618,7 +1665,7 @@ function OfferBuilderPageInner() {
                   <>
                     <OfferView
                       cart={cart} copierOffer={copierOffer} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} creators={creators} notes={notes} setNotes={setNotes} briefing={briefing} setBriefing={setBriefing}
-                      totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
+                      totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} amortMonths={amortMonths} laufzeitMonths={laufzeitMonths} setLaufzeitMonths={setLaufzeitMonths} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
                       rabattActive={rabattActive} setRabattActive={setRabattActive} skontoActive={skontoActive} setSkontoActive={setSkontoActive}
                       takeBack={takeBack} setTakeBack={setTakeBack}
                       serviceStartDate={serviceStartDate} setServiceStartDate={setServiceStartDate}

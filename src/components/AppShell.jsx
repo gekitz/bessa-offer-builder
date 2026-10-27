@@ -23,9 +23,8 @@ const NAV_ITEMS = [
 export default function AppShell({
   activeSection,
   onNavigate,
-  showBillingToggle = false,
-  billingToggle = false,
-  onToggleBilling,
+  showSettings = false,
+  onOpenSettings,
   // Per-section badge counts. Consumed by `kalender` (pending leave
   // approvals) and `tickets` (open assigned tickets). The shape lets
   // us add more later. A 0 / undefined count renders no badge.
@@ -136,36 +135,23 @@ export default function AppShell({
 
           {/* Footer: user + collapse */}
           <div className="border-t border-slate-100 flex-shrink-0" style={{ padding: collapsed ? '12px 8px' : '12px' }}>
-            {showBillingToggle && !collapsed && (
-              <div className="flex items-center justify-between mb-3 px-1">
-                <span className="text-slate-500" style={{ fontSize: 11, fontWeight: 500 }}>Stripe-Integration</span>
-                <button
-                  onClick={() => onToggleBilling?.(!billingToggle)}
-                  className={`relative inline-flex items-center rounded-full transition-colors ${billingToggle ? 'bg-red-500' : 'bg-slate-300'}`}
-                  style={{ width: 32, height: 18 }}
-                  title={billingToggle ? 'Stripe-Integration aktiv' : 'Stripe-Integration aus'}
-                >
-                  <span
-                    className="inline-block bg-white rounded-full shadow"
-                    style={{
-                      width: 14, height: 14,
-                      transform: billingToggle ? 'translateX(15px)' : 'translateX(2px)',
-                      transition: 'transform 120ms ease',
-                    }}
-                  />
-                </button>
-              </div>
-            )}
-            {showBillingToggle && collapsed && (
+            {showSettings && !collapsed && (
               <button
-                onClick={() => onToggleBilling?.(!billingToggle)}
-                className={`w-full flex justify-center mb-3 transition-colors ${billingToggle ? 'text-red-500 hover:text-red-600' : 'text-slate-300 hover:text-slate-500'}`}
-                title={billingToggle ? 'Stripe-Integration aktiv' : 'Stripe-Integration aus'}
+                onClick={() => onOpenSettings?.()}
+                className="w-full flex items-center gap-2 mb-3 px-1 text-slate-500 hover:text-slate-700 transition-colors"
+                title="Einstellungen"
               >
-                <span
-                  className={`inline-block rounded-full ${billingToggle ? 'bg-red-500' : 'bg-slate-300'}`}
-                  style={{ width: 10, height: 10 }}
-                />
+                <Settings size={15} />
+                <span style={{ fontSize: 11, fontWeight: 500 }}>Einstellungen</span>
+              </button>
+            )}
+            {showSettings && collapsed && (
+              <button
+                onClick={() => onOpenSettings?.()}
+                className="w-full flex justify-center mb-3 text-slate-400 hover:text-slate-600 transition-colors"
+                title="Einstellungen"
+              >
+                <Settings size={16} />
               </button>
             )}
             {!collapsed && displayName && (

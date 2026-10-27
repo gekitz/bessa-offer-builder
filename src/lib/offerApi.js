@@ -1,13 +1,19 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, finanzOpen, rabattActive = false, skontoActive = false, takeBack = null, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', lieferung = undefined, zahlungsziel = undefined, rental = null, paymentEnabled = false, acceptSnapshot = undefined, lineSnapshot = undefined }) {
+export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, amortMonths = null, laufzeitMonths = null, finanzOpen, rabattActive = false, skontoActive = false, takeBack = null, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', lieferung = undefined, zahlungsziel = undefined, rental = null, paymentEnabled = false, acceptSnapshot = undefined, lineSnapshot = undefined }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   // offer_type lives in a top-level column (source of truth for the
   // list filter) but is also mirrored into offer_data so the share /
   // URL load path — which only reads offer_data — restores it too.
   const offerData = { cart, globalTier, notes, raten, finanzOpen, rabattActive: !!rabattActive, skontoActive: !!skontoActive, address: customer.address || '', mandatsRef: mandatsRef || '', offerType };
+  // Internal Miete amortisation lever — only persisted when a value is set, so
+  // untouched offers never carry it and price exactly as before.
+  if (Number(amortMonths) > 0) offerData.amortMonths = Number(amortMonths);
+  // Contract-term override (Laufzeit in months) — same "only when set" rule, so
+  // offers using the tier default never carry it.
+  if (Number(laufzeitMonths) > 0) offerData.laufzeitMonths = Number(laufzeitMonths);
   // Hardware take-back (Hardware-Rücknahme) — a net credit for used hardware
   // handed back. Persisted only when set so untouched offers stay unchanged.
   if (takeBack && Number(takeBack.value) > 0) offerData.takeBack = { name: takeBack.name || '', value: Number(takeBack.value) };
