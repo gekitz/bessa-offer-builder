@@ -52,7 +52,7 @@ export function computeAcceptTotals(offerData, catalog) {
   const data = offerData || {};
   const merged = { ...(data.customItems || {}), ...catalog };
   const cart = data.cart || {};
-  const { monthly, once, yearly, periodTotal, maxMonths } = computeTotals(cart, merged);
+  const { monthly, once, yearly, periodTotal, maxMonths } = computeTotals(cart, merged, data.laufzeitMonths);
   const { laborMinutes, laborAmount } = computeLabor(cart, merged);
   const tb = Number(data.takeBack?.value);
   const takeBack = Number.isFinite(tb) && tb > 0 ? round2(tb) : 0;

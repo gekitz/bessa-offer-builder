@@ -240,7 +240,11 @@ export default function OfferDetailsModal({
   // Recompute totals from the cart so they always reflect what's
   // shown in the items table, even if the persisted total_* drifts.
   const recomputed = offer?.offer_data?.cart
-    ? computeTotals(offer.offer_data.cart as Parameters<typeof computeTotals>[0], ALL as Parameters<typeof computeTotals>[1])
+    ? computeTotals(
+        offer.offer_data.cart as Parameters<typeof computeTotals>[0],
+        ALL as Parameters<typeof computeTotals>[1],
+        (offer.offer_data as { laufzeitMonths?: number }).laufzeitMonths,
+      )
     : null;
   const monthly = Number(offer?.total_monthly || recomputed?.monthly || 0);
   const once = Number(offer?.total_once || recomputed?.once || 0);

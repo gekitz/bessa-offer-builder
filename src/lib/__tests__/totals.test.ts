@@ -150,4 +150,44 @@ describe('computeTotals', () => {
     expect(t.periodTotal).toBe(360 + 1250 + 100);
     expect(t.maxMonths).toBe(12);
   });
+
+  describe('laufzeitMonths override (editable contract term)', () => {
+    it('counts every monthly line over the override instead of its tier months', () => {
+      const cart: Cart = {
+        kassa: { qty: 2, tier: '12mo' },   // 30/mo
+        webkassa: { qty: 1, tier: '6mo' }, // 25/mo (tier would be 6 months)
+      };
+      const t = computeTotals(cart, catalog, 36);
+      // monthly unchanged (tier price), but the period runs the full 36 months.
+      expect(t.monthly).toBe(2 * 30 + 25);
+      expect(t.periodMonthly).toBe((2 * 30 + 25) * 36);
+      expect(t.periodTotal).toBe((2 * 30 + 25) * 36);
+      expect(t.maxMonths).toBe(36);
+    });
+
+    it('rolls the one-time + service into the override-length period', () => {
+      const cart: Cart = {
+        kassa: { qty: 1, tier: '12mo' }, // 30/mo
+        install: { qty: 1 },             // 250 once
+        melzer: { qty: 1 },              // 1000 once + 100 yearly service
+      };
+      const t = computeTotals(cart, catalog, 24);
+      expect(t.periodTotal).toBe(30 * 24 + 1250 + 100); // yearly still counted once
+      expect(t.maxMonths).toBe(24);
+    });
+
+    it('applies the term to a pure one-time cart (no monthly lines)', () => {
+      const t = computeTotals({ hardware: { qty: 1 } }, catalog, 36);
+      expect(t.maxMonths).toBe(36);
+      expect(t.once).toBe(800);
+    });
+
+    it('ignores a non-positive or non-finite override (falls back to tier months)', () => {
+      const cart: Cart = { kassa: { qty: 1, tier: '12mo' } };
+      expect(computeTotals(cart, catalog, 0).maxMonths).toBe(12);
+      expect(computeTotals(cart, catalog, -5).maxMonths).toBe(12);
+      expect(computeTotals(cart, catalog, null).maxMonths).toBe(12);
+      expect(computeTotals(cart, catalog, undefined).periodMonthly).toBe(30 * 12);
+    });
+  });
 });

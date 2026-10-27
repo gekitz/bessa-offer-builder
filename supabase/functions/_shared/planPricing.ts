@@ -45,6 +45,16 @@ export interface PlanBasis {
   takeBack?: number;
   /** Contract length in months (Miete divisor, fixed-term cancel horizon). */
   months: number;
+  /**
+   * Horizon (months) over which the one-time bucket (hardware + setup) is
+   * amortised into the monthly Miete. Lets a longer rental spread the upfront
+   * cost thinner — a smaller value recovers it faster (safer against early
+   * drop-out), a larger value lowers the monthly. Defaults to `months`, which
+   * recovers the one-time cost over the first year exactly as before, so an
+   * unset value leaves the rent unchanged. Internal pricing lever; the
+   * recurring part (software + Wartung) always stays tied to `months`.
+   */
+  amortMonths?: number;
   /** Number of Ratenzahlung installments. */
   raten: number;
 }
@@ -63,7 +73,19 @@ export interface PlanPricing {
   };
   miete: {
     depositBrutto: number;
+    /** Monthly rent while the one-time bucket is still being amortised (phase 1). */
     monthlyBrutto: number;
+    /**
+     * Monthly rent after the one-time bucket is paid off — recurring only
+     * (software + Wartung), phase 2. Equals monthlyBrutto when nothing steps.
+     */
+    monthlyAfterBrutto: number;
+    /**
+     * Length of phase 1 in months when the rent steps down (the one-time bucket
+     * finishes amortising before the term ends). null = flat rent for the whole
+     * term, i.e. monthlyBrutto every month and no phase 2.
+     */
+    stepMonths: number | null;
   };
 }
 
@@ -81,6 +103,23 @@ export function computePlanPricing(basis: PlanBasis): PlanPricing {
   const ratenTotal = financedBrutto * FIN_SURCHARGE;
   const months = basis.months > 0 ? basis.months : 12;
   const raten = basis.raten > 0 ? basis.raten : 12;
+  // The one-time bucket amortises over its own horizon; default = months, i.e.
+  // unchanged. Split financedNet into its recurring part (software + Wartung,
+  // tied to the contract months) and its one-time part (onceNet less take-back).
+  // The two re-add to financedNet, so when amortMonths === months the rent is
+  // bit-for-bit the previous (financedBrutto / months) × surcharge.
+  const amortMonths = basis.amortMonths && basis.amortMonths > 0 ? basis.amortMonths : months;
+  const onceFinancedNet = basis.onceNet * (basis.rabattActive ? 1 - RABATT_PCT : 1) - takeBack;
+  const recurringFinancedNet = financedNet - onceFinancedNet;
+  // Phase 1: recurring + the one-time bucket amortised over amortMonths.
+  const mieteMonthlyNet = recurringFinancedNet / months + onceFinancedNet / amortMonths;
+  // Phase 2: recurring only, once the hardware/setup is paid off.
+  const mieteAfterNet = recurringFinancedNet / months;
+  // The rent steps down only when the one-time bucket finishes amortising
+  // strictly before the term ends (and there is something to amortise). When it
+  // doesn't — amortMonths ≥ months, or no one-time cost — the rent is flat and
+  // phase 2 never happens, so stepMonths is null and the two monthlies match.
+  const stepsDown = onceFinancedNet > 0 && amortMonths < months;
 
   return {
     standard: {
@@ -96,7 +135,9 @@ export function computePlanPricing(basis: PlanBasis): PlanPricing {
     },
     miete: {
       depositBrutto: MIETE_DEPOSIT_BRUTTO,
-      monthlyBrutto: (financedBrutto / months) * FIN_SURCHARGE,
+      monthlyBrutto: mieteMonthlyNet * VAT * FIN_SURCHARGE,
+      monthlyAfterBrutto: (stepsDown ? mieteAfterNet : mieteMonthlyNet) * VAT * FIN_SURCHARGE,
+      stepMonths: stepsDown ? amortMonths : null,
     },
   };
 }
@@ -109,6 +150,8 @@ export interface OfferRowLike {
   offer_data?: {
     globalTier?: string;
     raten?: number;
+    amortMonths?: number;
+    laufzeitMonths?: number;
     rabattActive?: boolean;
     acceptSnapshot?: {
       monthly?: number;
@@ -132,6 +175,10 @@ export function planBasisFromOffer(offer: OfferRowLike): PlanBasis {
   const raten = Number(data.raten) || 12;
   const rabattActive = !!data.rabattActive;
 
+  // Optional internal pricing lever; absent on legacy/most offers → falls back
+  // to the contract months in computePlanPricing, i.e. the unchanged rent.
+  const amortMonths = num(data.amortMonths) || undefined;
+
   const snap = data.acceptSnapshot;
   if (snap) {
     return {
@@ -141,17 +188,20 @@ export function planBasisFromOffer(offer: OfferRowLike): PlanBasis {
       periodNet: num(snap.periodTotal),
       takeBack: num(snap.takeBack),
       months: num(snap.maxMonths) || 12,
+      amortMonths,
       raten,
       rabattActive,
     };
   }
 
-  const months = TIER_MONTHS[data.globalTier || '12mo'] || 12;
+  // The editable contract-term override wins over the tier default when present,
+  // so the yearly back-calc below uses the same horizon the totals were built on.
+  const months = num(data.laufzeitMonths) || TIER_MONTHS[data.globalTier || '12mo'] || 12;
   const monthlyNet = num(offer.total_monthly);
   const onceNet = num(offer.total_once);
   const periodNet = num(offer.total_period);
   const yearlyNet = Math.max(0, periodNet - monthlyNet * months - onceNet);
-  return { monthlyNet, onceNet, yearlyNet, periodNet, takeBack: 0, months, raten, rabattActive };
+  return { monthlyNet, onceNet, yearlyNet, periodNet, takeBack: 0, months, amortMonths, raten, rabattActive };
 }
 
 /** Euro → integer cents, the amount Stripe is given. */

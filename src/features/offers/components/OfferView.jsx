@@ -43,7 +43,7 @@ import EditItemModal from './modals/EditItemModal';
 import LeasingConditionsModal from './modals/LeasingConditionsModal';
 import CopierPricesModal from './modals/CopierPricesModal';
 import TermsModal from './modals/TermsModal';
-import { TIER_LABEL } from '../../../data/tiers';
+import { TIER_LABEL, TIER_MONTHS } from '../../../data/tiers';
 import { ALL, isCustomItem } from '../data/catalogs';
 import { computeAutoTerms } from '../../../data/autoTermRules';
 import {
@@ -79,6 +79,9 @@ export default function OfferView({
   linkCopied,
   raten,
   setRaten,
+  amortMonths = null,
+  laufzeitMonths = null,
+  setLaufzeitMonths = () => {},
   pdfLoading,
   finanzOpen,
   setFinanzOpen,
@@ -190,6 +193,7 @@ export default function OfferView({
     rabattActive,
     takeBack: takeBackNet,
     months: totals.maxMonths,
+    amortMonths: amortMonths || undefined,
     raten,
   });
 
@@ -568,7 +572,13 @@ export default function OfferView({
           <div className="p-4 space-y-3">
             <div className="flex justify-between items-center pb-3 border-b border-white/10">
               <div>
-                <div className="text-sm text-slate-300">{hasRecurring ? 'Kosten im ersten Jahr' : 'Kosten'}</div>
+                <div className="text-sm text-slate-300">
+                  {!hasRecurring
+                    ? 'Kosten'
+                    : totals.maxMonths === 12
+                      ? 'Kosten im ersten Jahr'
+                      : `Kosten für ${totals.maxMonths} Monate`}
+                </div>
                 {hasRecurring && (
                   <div className="text-xs text-slate-400">(monatlich × Laufzeit + einmalig{totals.yearly > 0 ? ' + Wartung' : ''})</div>
                 )}
@@ -600,7 +610,10 @@ export default function OfferView({
                 <span className="text-emerald-400">− € {fmt(discount.takeBack)} netto</span>
               </div>
             )}
-            {(totals.monthly > 0 && totals.once > 0) || totals.yearly > 0 ? (
+            {/* "jedes weitere Jahr" only makes sense on a true annual cycle. For a
+                fixed, non-12-month term (e.g. a multi-year rental) there is no
+                recurring year, so the row is hidden. */}
+            {totals.maxMonths === 12 && ((totals.monthly > 0 && totals.once > 0) || totals.yearly > 0) ? (
               <div className="flex justify-between items-center">
                 <div>
                   <div className="text-sm text-slate-300">Kosten jedes weitere Jahr</div>
@@ -634,6 +647,38 @@ export default function OfferView({
           </button>
 
           {finanzOpen && <>
+            {/* Laufzeit (contract term) — drives the period total, the Miete
+                divisor/step-down and the Stripe cancel. Empty = the price-tier
+                default (shown as placeholder). The tier pills still set pricing. */}
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/60">
+              <div>
+                <span className="font-bold text-slate-800" style={{ fontSize: 14 }}>Laufzeit</span>
+                <div className="text-xs text-slate-400">Vertragsdauer in Monaten</div>
+              </div>
+              {locked ? (
+                <span className="font-semibold text-slate-700" style={{ fontSize: 14 }}>
+                  {laufzeitMonths || TIER_MONTHS[globalTier] || 12} Monate
+                </span>
+              ) : (
+                <label className="flex items-center gap-1.5 text-sm text-slate-600">
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    inputMode="numeric"
+                    value={laufzeitMonths ?? ''}
+                    onChange={(e) => {
+                      const n = parseInt(e.target.value, 10);
+                      setLaufzeitMonths(Number.isFinite(n) && n > 0 ? n : null);
+                    }}
+                    placeholder={String(TIER_MONTHS[globalTier] ?? 12)}
+                    title="Eigene Laufzeit in Monaten (leer = Standard der gewählten Preisstufe)"
+                    className={`w-16 rounded-lg border px-2 py-1 text-center focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-200 ${laufzeitMonths ? 'border-red-300 text-red-700 font-semibold' : 'border-slate-200 text-slate-600'}`}
+                  />
+                  <span>Monate</span>
+                </label>
+              )}
+            </div>
             {/* Option 1: Ratenzahlung */}
             <div className="p-4 border-b border-slate-200">
               <div className="flex items-center gap-2 mb-3">
@@ -680,9 +725,22 @@ export default function OfferView({
                   <span className="font-semibold text-red-700">€ {fmt(planPricing.miete.depositBrutto)} brutto</span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-                  <span className="text-sm text-slate-600">Monatliche Miete (+8%)</span>
+                  <span className="text-sm text-slate-600">
+                    {planPricing.miete.stepMonths
+                      ? `Monatliche Miete, erste ${planPricing.miete.stepMonths} Monate (+8%)`
+                      : 'Monatliche Miete (+8%)'}
+                  </span>
                   <span className="font-semibold">€ {fmt(planPricing.miete.monthlyBrutto)}/Monat brutto</span>
                 </div>
+                {/* After the hardware/setup is amortised, the rent drops to the
+                    recurring-only rate for the rest of the term (honoured by the
+                    Stripe schedule on acceptance). Only shown when it steps. */}
+                {planPricing.miete.stepMonths && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-slate-600">ab Monat {planPricing.miete.stepMonths + 1} (+8%)</span>
+                    <span className="font-semibold text-emerald-700">€ {fmt(planPricing.miete.monthlyAfterBrutto)}/Monat brutto</span>
+                  </div>
+                )}
               </div>
             </div>
           </>}

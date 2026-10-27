@@ -202,10 +202,12 @@ function qtyLabel(item) {
 // monthly line total and the yearly figure (monthly × Laufzeit-Monate). When
 // the offer mixes Laufzeiten, each line prints its own Laufzeit as a sub-label
 // (showTier) since it no longer lives in a column.
-function MonthlyTableRow({ item, index, showTier }) {
+function MonthlyTableRow({ item, index, showTier, termMonths = null }) {
   const isAlt = index % 2 === 1;
   const tierLabel = item.tier ? TIER_LABEL[item.tier] : '';
-  const months = item.tier ? TIER_MONTHS[item.tier] : 0;
+  // A contract-term override wins over the line's price-tier months, so the
+  // "Jährlich" (monthly × Laufzeit) figure matches the overridden period total.
+  const months = termMonths ?? (item.tier ? TIER_MONTHS[item.tier] : 0);
   const isAlternative = item.optionSelected === false;
   const isOptional = item.optional === true;
   const muted = isAlternative || isOptional;
@@ -326,9 +328,12 @@ function TotalsBox({ netto, isMonthly, accumulated = null }) {
 }
 
 // Period total summary component
-function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce, hasYearly, discount, takeBackName }) {
+function PeriodSummary({ periodTotal, periodMonthly, maxMonths = 12, yearly, hasMonthly, hasOnce, hasYearly, discount, takeBackName }) {
   const recurring = periodMonthly + yearly;
-  const showRecurringRow = (hasMonthly && hasOnce) || hasYearly;
+  // The "jedes weitere Jahr" row only makes sense on a true annual cycle; a
+  // fixed non-12-month term (e.g. a multi-year rental) has no recurring year.
+  const annualCycle = maxMonths === 12;
+  const showRecurringRow = annualCycle && ((hasMonthly && hasOnce) || hasYearly);
   const hasRecurring = hasMonthly || hasYearly;
   const rabattActive = discount?.rabattActive;
   const skontoActive = discount?.skontoActive;
@@ -339,7 +344,9 @@ function PeriodSummary({ periodTotal, periodMonthly, yearly, hasMonthly, hasOnce
   // Einmalige Kosten (no monthly/Wartung) — just shows "Kosten".
   const firstYearLabel = !hasRecurring
     ? 'Kosten'
-    : 'Kosten im ersten Jahr (monatlich × Laufzeit + einmalig' + (hasYearly ? ' + Wartung' : '') + ')';
+    : annualCycle
+      ? 'Kosten im ersten Jahr (monatlich × Laufzeit + einmalig' + (hasYearly ? ' + Wartung' : '') + ')'
+      : `Kosten für ${maxMonths} Monate (monatlich × Laufzeit + einmalig` + (hasYearly ? ' + Wartung' : '') + ')';
   const recurringLabel =
     'Kosten jedes weitere Jahr (monatlich × Laufzeit' + (hasYearly ? ' + Wartung' : '') + ')';
 
@@ -574,6 +581,8 @@ function FinancingSection({ pricing, raten }) {
   const downPayment = pricing.ratenzahlung.anzahlungBrutto;
   const perRate = pricing.ratenzahlung.ratePerMonthBrutto;
   const monthlyRent = pricing.miete.monthlyBrutto;
+  const rentAfter = pricing.miete.monthlyAfterBrutto;
+  const stepMonths = pricing.miete.stepMonths;
   const deposit = pricing.miete.depositBrutto;
 
   return (
@@ -611,9 +620,17 @@ function FinancingSection({ pricing, raten }) {
           </Text>
         </View>
         <View style={styles.financingRow}>
-          <Text style={styles.financingLabel}>Monatliche Miete (+8%)</Text>
+          <Text style={styles.financingLabel}>
+            {stepMonths ? `Monatliche Miete, erste ${stepMonths} Monate (+8%)` : 'Monatliche Miete (+8%)'}
+          </Text>
           <Text style={styles.financingValue}>{fmt(monthlyRent)}/Monat brutto</Text>
         </View>
+        {stepMonths ? (
+          <View style={styles.financingRow}>
+            <Text style={styles.financingLabel}>ab Monat {stepMonths + 1} (+8%)</Text>
+            <Text style={styles.financingValue}>{fmt(rentAfter)}/Monat brutto</Text>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -731,6 +748,8 @@ export default function OfferPdfDocument({
   totals,
   notes,
   raten,
+  amortMonths = null,
+  laufzeitMonths = null,
   rabattActive = false,
   skontoActive = false,
   takeBack = null,
@@ -759,6 +778,7 @@ export default function OfferPdfDocument({
     rabattActive,
     takeBack: takeBackNet,
     months: totals.maxMonths,
+    amortMonths: amortMonths || undefined,
     raten,
   });
   // A Sharp/MFP offer renders its own itemised copier layout (device table +
@@ -777,7 +797,12 @@ export default function OfferPdfDocument({
   ];
   const uniformTier = runningTiers.length === 1 ? runningTiers[0] : null;
   const mixedTiers = runningTiers.length > 1;
-  const laufzeitNote = `Laufzeit: ${uniformTier ? TIER_LABEL[uniformTier] : 'gemischt'}`;
+  // A contract-term override makes every line run the same custom Laufzeit, so
+  // it reads as uniform at that month count (overriding the per-tier label).
+  const termOverride = Number(laufzeitMonths) > 0 ? Number(laufzeitMonths) : null;
+  const laufzeitNote = termOverride
+    ? `Laufzeit: ${termOverride} Monate`
+    : `Laufzeit: ${uniformTier ? TIER_LABEL[uniformTier] : 'gemischt'}`;
 
   return (
     <Document>
@@ -830,7 +855,7 @@ export default function OfferPdfDocument({
             </SectionTitle>
             <MonthlyTableHeader />
             {monthlyItems.map((item, idx) => (
-              <MonthlyTableRow key={item.id} item={item} index={idx} showTier={mixedTiers} />
+              <MonthlyTableRow key={item.id} item={item} index={idx} showTier={termOverride ? false : mixedTiers} termMonths={termOverride} />
             ))}
             <TotalsBox netto={totals.monthly} isMonthly={true} accumulated={totals.periodMonthly} />
           </View>
@@ -872,6 +897,7 @@ export default function OfferPdfDocument({
           <PeriodSummary
             periodTotal={totals.periodTotal}
             periodMonthly={totals.periodMonthly}
+            maxMonths={totals.maxMonths}
             yearly={totals.yearly || 0}
             hasMonthly={totals.monthly > 0}
             hasOnce={totals.once > 0}

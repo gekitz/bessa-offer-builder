@@ -221,16 +221,49 @@ serve(async (req: Request) => {
       }
     } else if (plan === 'miete') {
       await addPendingItem(pricing.miete.depositBrutto, desc('Kaution (rückzahlbar)'));
-      const sub = await stripe.subscriptions.create({
-        customer: customerId,
-        items: [await subItem('rental', pricing.miete.monthlyBrutto, 'month')],
-        description: desc('Miete monatlich'),
-        trial_end: startTs,
-        cancel_at: cancelAtTs,
-        default_payment_method: paymentMethodId,
-        metadata: baseMeta(offer, 'miete'),
-      });
-      subscriptionIds.push(sub.id);
+
+      const { monthlyBrutto: rentPhase1, monthlyAfterBrutto: rentPhase2, stepMonths } = pricing.miete;
+
+      if (stepMonths && stepMonths < months && rentPhase2 < rentPhase1) {
+        // Two-phase rent: the higher rent recovers the one-time bucket (hardware
+        // + setup) over the first stepMonths, then it drops to the recurring-only
+        // rate for the rest of the term. Mirrors the Ratenzahlung schedule; the
+        // schedule cancels at the term end (Miete is always fixed-term).
+        const schedule = await stripe.subscriptionSchedules.create({
+          customer: customerId,
+          start_date: startTs,
+          end_behavior: 'cancel',
+          default_settings: {
+            default_payment_method: paymentMethodId,
+            description: desc('Miete monatlich'),
+          },
+          phases: [
+            {
+              items: [await subItem('rental', rentPhase1, 'month')],
+              iterations: stepMonths,
+              metadata: baseMeta(offer, 'miete_phase1'),
+            },
+            {
+              items: [await subItem('rental', rentPhase2, 'month')],
+              iterations: months - stepMonths,
+              metadata: baseMeta(offer, 'miete_phase2'),
+            },
+          ],
+          metadata: baseMeta(offer, 'miete_schedule'),
+        });
+        scheduleId = schedule.id;
+      } else {
+        const sub = await stripe.subscriptions.create({
+          customer: customerId,
+          items: [await subItem('rental', rentPhase1, 'month')],
+          description: desc('Miete monatlich'),
+          trial_end: startTs,
+          cancel_at: cancelAtTs,
+          default_payment_method: paymentMethodId,
+          metadata: baseMeta(offer, 'miete'),
+        });
+        subscriptionIds.push(sub.id);
+      }
     }
 
     const nowIso = new Date().toISOString();

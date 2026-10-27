@@ -60,7 +60,17 @@ export interface OfferTotals {
 // Pure totals calculation. Items not present in `catalog` are skipped silently
 // (matches the original App.jsx behavior where ALL[id] could be undefined for
 // custom items added by the user).
-export function computeTotals(cart: Cart, catalog: Catalog): OfferTotals {
+//
+// `laufzeitMonths` is an optional contract-term override. When set (> 0) every
+// monthly line is counted over that many months instead of its price-tier
+// default — so a rental can run e.g. 36 months while the per-unit monthly price
+// still comes from the chosen tier. maxMonths becomes the override, which is the
+// single horizon the whole financing chain (periodTotal, Miete divisor,
+// step-down, Stripe cancel) is expressed in. Unset → the tier-derived term, i.e.
+// unchanged.
+export function computeTotals(cart: Cart, catalog: Catalog, laufzeitMonths?: number | null): OfferTotals {
+  const override =
+    Number.isFinite(laufzeitMonths) && (laufzeitMonths as number) > 0 ? Math.round(laufzeitMonths as number) : null;
   let monthly = 0;
   let once = 0;
   let yearly = 0;
@@ -88,7 +98,7 @@ export function computeTotals(cart: Cart, catalog: Catalog): OfferTotals {
 
     if (isMonthly(item, c.mode)) {
       monthly += line;
-      const months = (c.tier && TIER_MONTHS[c.tier]) || 12;
+      const months = override ?? ((c.tier && TIER_MONTHS[c.tier]) || 12);
       periodMonthly += line * months;
       periodTotal += line * months;
       if (months > maxMonths) maxMonths = months;
@@ -103,5 +113,6 @@ export function computeTotals(cart: Cart, catalog: Catalog): OfferTotals {
     }
   }
 
-  return { monthly, once, yearly, periodTotal, periodMonthly, maxMonths: maxMonths || 12 };
+  // A pure-once cart (no monthly lines) still honours an explicit term override.
+  return { monthly, once, yearly, periodTotal, periodMonthly, maxMonths: maxMonths || override || 12 };
 }
