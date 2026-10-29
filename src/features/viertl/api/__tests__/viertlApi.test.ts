@@ -53,6 +53,7 @@ describe('listLicenses', () => {
         gastrotouch_version: '67.24', last_update: '2026-03-10', hardware_model: 'Pulse P40',
         hardware_needed: true, wartung: 'sww', status: 'done', customer_status: 'active',
         closed_reason: null, closed_at: null, notes: null, linked_offer_id: null,
+        updated_by_id: 'u9', updated_by_name: 'Martina',
         created_at: 't0', updated_at: 't1',
       }],
       error: null,
@@ -71,7 +72,22 @@ describe('listLicenses', () => {
       wartung: 'sww',
       status: 'done',
       customerStatus: 'active',
+      updatedById: 'u9',
+      updatedByName: 'Martina',
     });
+  });
+
+  it('defaults the last-editor fields to null for rows never edited since the seed', async () => {
+    chains.viertl_licenses = makeChain({
+      data: [{
+        id: 'l3', mesonic_kdnr: '200', name: 'Seed-Zeile', wartung: 'none',
+        status: 'new', customer_status: 'active', hardware_needed: false,
+        created_at: 't0', updated_at: 't0',
+      }],
+      error: null,
+    });
+    const rows = await listLicenses();
+    expect(rows[0]).toMatchObject({ updatedById: null, updatedByName: null });
   });
 
   it('defaults vendor to gastrotouch and device_model/source to null for rows predating the columns', async () => {

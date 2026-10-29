@@ -49,6 +49,8 @@ function rowToLicense(r: any): ViertlLicense {
     notes: r.notes ?? null,
     linkedOfferId: r.linked_offer_id ?? null,
     linkedTicketId: r.linked_ticket_id ?? null,
+    updatedById: r.updated_by_id ?? null,
+    updatedByName: r.updated_by_name ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
