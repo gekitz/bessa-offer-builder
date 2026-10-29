@@ -10,7 +10,7 @@ import { ALL } from '../../features/offers/data/catalogs';
 // monthly Netto/USt/Brutto AND the accumulated Netto/Jahr–Brutto/Jahr block.
 // Fonts are subsetted (see offerPdfCustomer.test.tsx), so we assert on output
 // size: the accumulated block (three extra rows) makes the PDF strictly larger.
-async function renderSize(periodMonthly: number): Promise<number> {
+async function renderSize(periodMonthly: number, maxMonths = 12): Promise<number> {
   const totals = computeTotals({}, ALL);
   const blob = await pdf(
     <OfferPdfDocument
@@ -22,9 +22,10 @@ async function renderSize(periodMonthly: number): Promise<number> {
         onceItems: [],
         wartungItems: [],
         autoTerms: [],
-        totals: { ...totals, monthly: 19, periodMonthly, periodTotal: periodMonthly, maxMonths: 12 },
+        totals: { ...totals, monthly: 19, periodMonthly, periodTotal: periodMonthly, maxMonths },
         notes: '',
         raten: 12,
+        laufzeitMonths: maxMonths === 12 ? null : maxMonths,
       } as any)}
     />,
   ).toBlob();
@@ -36,5 +37,12 @@ describe('OfferPdfDocument — running-costs accumulated total', () => {
     const withAccumulated = await renderSize(228);
     const withoutAccumulated = await renderSize(0);
     expect(withAccumulated).toBeGreaterThan(withoutAccumulated);
+  }, 30000);
+
+  it('renders the running-costs table over a non-12-month term (Gesamt column)', async () => {
+    // 36-month term: the period column/footer relabel to "Gesamt" (monthly × 36).
+    // Smoke test — fonts are subsetted so we only assert it renders successfully.
+    const size = await renderSize(19 * 36, 36);
+    expect(size).toBeGreaterThan(0);
   }, 30000);
 });
