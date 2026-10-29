@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Cpu, Download, ExternalLink, FileText, Loader2, Mail, Phone, Plus, RefreshCw, Search, Send, Wrench, X } from 'lucide-react';
 import { useAuth } from '../../../lib/auth';
 import Select from '../../../components/Select';
+import MultiSelect from '../../../components/MultiSelect';
 import { addNote, linkOffer, listEvents, listLicenses, notifyViertlClosure, recordMesonicLookup, unlinkOffer, unlinkTicket, updateLicense } from '../api/viertlApi';
 import { fetchMesonicContact } from '../lib/mesonicContact';
 import { getOfferSummary, offerImpliesStatus, suggestOffersForLicense, type OfferSummary } from '../lib/offerLink';
@@ -134,6 +135,15 @@ function fmtDate(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('de-AT');
 }
 
+function fmtDateTime(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('de-AT', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Viertl (Gastrotouch) Lizenz-Tracking — ersetzt die Excel-Liste.
 // ═══════════════════════════════════════════════════════════════════
@@ -160,7 +170,8 @@ export default function ViertlPage({
 
   const [search, setSearch] = useState('');
   const [vendorFilter, setVendorFilter] = useState<ViertlVendor | 'all'>('all');
-  const [statusFilter, setStatusFilter] = useState<ViertlStatus | 'all'>('all');
+  // Mehrfachauswahl: leere Liste = keine Einschränkung (alle Status).
+  const [statusFilter, setStatusFilter] = useState<ViertlStatus[]>([]);
   const [custFilter, setCustFilter] = useState<ViertlCustomerStatus | 'all'>('all');
   const [hwOnly, setHwOnly] = useState(false);
   const [noEmailOnly, setNoEmailOnly] = useState(false);
@@ -188,7 +199,7 @@ export default function ViertlPage({
     const q = search.trim().toLowerCase();
     return licenses.filter((l) => {
       if (vendorFilter !== 'all' && l.vendor !== vendorFilter) return false;
-      if (statusFilter !== 'all' && l.status !== statusFilter) return false;
+      if (statusFilter.length > 0 && !statusFilter.includes(l.status)) return false;
       if (custFilter !== 'all' && l.customerStatus !== custFilter) return false;
       if (hwOnly && !l.hardwareNeeded) return false;
       if (noEmailOnly && l.email) return false;
@@ -221,7 +232,7 @@ export default function ViertlPage({
     for (const l of licenses) by[l.status] = (by[l.status] ?? 0) + 1;
     const hw = licenses.filter((l) => l.hardwareNeeded).length;
     const done = by.done ?? 0;
-    return { total: licenses.length, done, hw, open: licenses.length - done };
+    return { total: licenses.length, done, hw, open: licenses.length - done, byStatus: by };
   }, [licenses]);
 
   const selected = licenses.find((l) => l.id === selectedId) ?? null;
@@ -399,10 +410,15 @@ export default function ViertlPage({
           className="inline-block min-w-[150px]"
           ariaLabel="Hersteller filtern"
         />
-        <Select
-          value={statusFilter}
-          onChange={(v) => setStatusFilter(v as ViertlStatus | 'all')}
-          options={[{ value: 'all', label: 'Alle Status' }, ...STATUS_OPTIONS]}
+        <MultiSelect
+          values={statusFilter}
+          onChange={(v) => setStatusFilter(v as ViertlStatus[])}
+          options={STATUS_OPTIONS.map((o) => ({
+            ...o,
+            hint: String(counts.byStatus[o.value] ?? 0),
+          }))}
+          placeholder="Alle Status"
+          summaryNoun="Status"
           className="inline-block min-w-[150px]"
           ariaLabel="Status filtern"
         />
@@ -454,6 +470,7 @@ export default function ViertlPage({
                 <th className="text-left font-medium px-3 py-2">Letztes Update</th>
                 <th className="text-left font-medium px-3 py-2">Hardware</th>
                 <th className="text-left font-medium px-3 py-2">Status</th>
+                <th className="text-left font-medium px-3 py-2">Zuletzt bearbeitet</th>
                 <th className="text-center font-medium px-3 py-2">E-Mail</th>
               </tr>
             </thead>
@@ -502,6 +519,16 @@ export default function ViertlPage({
                     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_META[l.status].cls}`}>
                       {STATUS_META[l.status].label}
                     </span>
+                  </td>
+                  <td className="px-3 py-2">
+                    {l.updatedByName ? (
+                      <div className="leading-tight">
+                        <div className="text-slate-700">{l.updatedByName}</div>
+                        <div className="text-xs text-slate-400">{fmtDateTime(l.updatedAt)}</div>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-center">
                     {l.email ? (

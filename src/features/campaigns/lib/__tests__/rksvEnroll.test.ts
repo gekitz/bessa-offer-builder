@@ -29,6 +29,8 @@ function lic(over: Partial<ViertlLicense> = {}): ViertlLicense {
     notes: null,
     linkedOfferId: null,
     linkedTicketId: null,
+    updatedById: null,
+    updatedByName: null,
     createdAt: '',
     updatedAt: '',
     ...over,

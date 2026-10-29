@@ -57,6 +57,8 @@ export interface ViertlLicense {
   notes: string | null;
   linkedOfferId: string | null;
   linkedTicketId: string | null;
+  updatedById: string | null;       // wer zuletzt geändert hat (denormalisiert)
+  updatedByName: string | null;     // Anzeigename des letzten Bearbeiters
   createdAt: string;
   updatedAt: string;
 }
