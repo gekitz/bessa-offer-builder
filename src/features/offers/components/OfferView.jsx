@@ -57,7 +57,7 @@ import { decorateLineItems } from '../../../lib/offerLineItems';
 import { listGroups, countedIds } from '../../../lib/optionGroups';
 import { fmt } from '../../../lib/format';
 import { computeDiscounts, SKONTO_DAYS } from '../../../lib/discounts';
-import { computePlanPricing } from '../../../lib/planPricing';
+import { computePlanPricing, defaultMieteKaution } from '../../../lib/planPricing';
 
 export default function OfferView({
   cart,
@@ -82,6 +82,8 @@ export default function OfferView({
   amortMonths = null,
   laufzeitMonths = null,
   setLaufzeitMonths = () => {},
+  kaution = null,
+  setKaution = () => {},
   pdfLoading,
   finanzOpen,
   setFinanzOpen,
@@ -194,6 +196,7 @@ export default function OfferView({
     takeBack: takeBackNet,
     months: totals.maxMonths,
     amortMonths: amortMonths || undefined,
+    kaution: kaution ?? undefined,
     raten,
   });
 
@@ -722,7 +725,28 @@ export default function OfferView({
               <div className="bg-slate-50 rounded-lg p-3 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-600">Kaution (einmalig)</span>
-                  <span className="font-semibold text-red-700">€ {fmt(planPricing.miete.depositBrutto)} brutto</span>
+                  {locked ? (
+                    <span className="font-semibold text-red-700">€ {fmt(planPricing.miete.depositBrutto)} brutto</span>
+                  ) : (
+                    <label className="flex items-center gap-1 font-semibold text-red-700">
+                      € <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        value={kaution ?? ''}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === '') return setKaution(null);
+                          const n = parseFloat(v);
+                          setKaution(Number.isFinite(n) && n >= 0 ? n : null);
+                        }}
+                        placeholder={String(defaultMieteKaution(totals.once))}
+                        title="Kaution (leer = automatisch nach Hardwarewert). Deckt die bereitgestellte Hardware ab."
+                        className={`w-24 rounded-lg border px-2 py-1 text-right focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-200 ${kaution != null ? 'border-red-300' : 'border-slate-200'}`}
+                      /> brutto
+                    </label>
+                  )}
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-slate-200">
                   <span className="text-sm text-slate-600">

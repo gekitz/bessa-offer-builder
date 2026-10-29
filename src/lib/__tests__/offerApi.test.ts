@@ -130,6 +130,25 @@ describe('saveOffer', () => {
     expect(chain.insert.mock.calls[0][0].offer_data.laufzeitMonths).toBe(36);
   });
 
+  it('persists a manual Kaution only when set (0 is a valid override)', async () => {
+    let chain = makeChain({ data: { id: 'x' }, error: null });
+    fromMock.mockReturnValue(chain);
+    await saveOffer(baseOfferArgs);
+    expect(chain.insert.mock.calls[0][0].offer_data).not.toHaveProperty('kaution');
+
+    chain = makeChain({ data: { id: 'x' }, error: null });
+    fromMock.mockReturnValue(chain);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await saveOffer({ ...baseOfferArgs, kaution: 3000 } as any);
+    expect(chain.insert.mock.calls[0][0].offer_data.kaution).toBe(3000);
+
+    chain = makeChain({ data: { id: 'x' }, error: null });
+    fromMock.mockReturnValue(chain);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await saveOffer({ ...baseOfferArgs, kaution: 0 } as any);
+    expect(chain.insert.mock.calls[0][0].offer_data.kaution).toBe(0);
+  });
+
   it('persists the customer UID-Nummer', async () => {
     const chain = makeChain({ data: { id: 'uid-uuid' }, error: null });
     fromMock.mockReturnValue(chain);

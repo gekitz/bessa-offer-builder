@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 // Save or update an offer
-export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, amortMonths = null, laufzeitMonths = null, finanzOpen, rabattActive = false, skontoActive = false, takeBack = null, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', lieferung = undefined, zahlungsziel = undefined, rental = null, paymentEnabled = false, acceptSnapshot = undefined, lineSnapshot = undefined }) {
+export async function saveOffer({ id, customer, creator, creatorName, creatorEmail, cart, globalTier, notes, raten, amortMonths = null, laufzeitMonths = null, kaution = null, finanzOpen, rabattActive = false, skontoActive = false, takeBack = null, totalMonthly, totalOnce, totalPeriod, mandatsRef, customItems, cartOrder, serviceStartDate, briefing, offerType = 'pos', lieferung = undefined, zahlungsziel = undefined, rental = null, paymentEnabled = false, acceptSnapshot = undefined, lineSnapshot = undefined }) {
   if (!supabase) throw new Error('Supabase nicht konfiguriert');
 
   // offer_type lives in a top-level column (source of truth for the
@@ -14,6 +14,9 @@ export async function saveOffer({ id, customer, creator, creatorName, creatorEma
   // Contract-term override (Laufzeit in months) — same "only when set" rule, so
   // offers using the tier default never carry it.
   if (Number(laufzeitMonths) > 0) offerData.laufzeitMonths = Number(laufzeitMonths);
+  // Manual Miete Kaution override — only persisted when set, so offers using the
+  // scaled default never carry it. 0 is a valid override (no deposit).
+  if (kaution != null && Number.isFinite(Number(kaution)) && Number(kaution) >= 0) offerData.kaution = Number(kaution);
   // Hardware take-back (Hardware-Rücknahme) — a net credit for used hardware
   // handed back. Persisted only when set so untouched offers stay unchanged.
   if (takeBack && Number(takeBack.value) > 0) offerData.takeBack = { name: takeBack.name || '', value: Number(takeBack.value) };
