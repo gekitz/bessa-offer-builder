@@ -4,6 +4,8 @@ import {
   ANZAHLUNG_SHARE,
   FIN_SURCHARGE,
   MIETE_DEPOSIT_BRUTTO,
+  MIETE_DEPOSIT_HARDWARE_PCT,
+  defaultMieteKaution,
   RABATT_PCT,
   TIER_MONTHS,
   VAT,
@@ -125,6 +127,31 @@ describe('computePlanPricing', () => {
     expect(amort.ratenzahlung).toEqual(base.ratenzahlung);
     expect(amort.miete.depositBrutto).toBe(base.miete.depositBrutto);
     expect(amort.miete.monthlyBrutto).not.toBeCloseTo(base.miete.monthlyBrutto, 2);
+  });
+
+  it('defaults the Kaution to scale with the one-time bucket, floored at the minimum', () => {
+    // BASIS.onceNet = 500 → default = max(500, 500) = the floor (unchanged).
+    expect(computePlanPricing(BASIS).miete.depositBrutto).toBe(MIETE_DEPOSIT_BRUTTO);
+    // A €10k installation → the deposit secures the hardware, not a flat €500.
+    const big = computePlanPricing({ ...BASIS, onceNet: 10000, periodNet: 100 * 12 + 10000 + 50 });
+    expect(big.miete.depositBrutto).toBe(Math.round(10000 * MIETE_DEPOSIT_HARDWARE_PCT));
+    expect(big.miete.depositBrutto).toBeGreaterThan(MIETE_DEPOSIT_BRUTTO);
+  });
+
+  it('a manual Kaution overrides the scaled default (0 allowed)', () => {
+    const big = { ...BASIS, onceNet: 10000, periodNet: 100 * 12 + 10000 + 50 };
+    expect(computePlanPricing({ ...big, kaution: 3000 }).miete.depositBrutto).toBe(3000);
+    expect(computePlanPricing({ ...big, kaution: 0 }).miete.depositBrutto).toBe(0);
+    // A negative/garbage override is ignored → back to the scaled default.
+    expect(computePlanPricing({ ...big, kaution: -100 }).miete.depositBrutto).toBe(
+      defaultMieteKaution(10000),
+    );
+  });
+
+  it('defaultMieteKaution floors small/zero hardware at the minimum', () => {
+    expect(defaultMieteKaution(0)).toBe(MIETE_DEPOSIT_BRUTTO);
+    expect(defaultMieteKaution(100)).toBe(MIETE_DEPOSIT_BRUTTO);
+    expect(defaultMieteKaution(8333)).toBe(Math.round(8333 * MIETE_DEPOSIT_HARDWARE_PCT));
   });
 
   it('steps the rent down once the one-time bucket is amortised (amort < months)', () => {
@@ -254,6 +281,19 @@ describe('planBasisFromOffer', () => {
       offer_data: { globalTier: '12mo', amortMonths: 24 },
     });
     expect(legacy.amortMonths).toBe(24);
+  });
+
+  it('reads a manual Kaution from offer_data (snapshot + legacy paths)', () => {
+    const withSnap = planBasisFromOffer({ offer_data: { kaution: 3000, acceptSnapshot: snapshot } });
+    expect(withSnap.kaution).toBe(3000);
+    const legacy = planBasisFromOffer({
+      total_monthly: 100,
+      total_once: 500,
+      total_period: 1750,
+      offer_data: { globalTier: '12mo', kaution: 0 },
+    });
+    expect(legacy.kaution).toBe(0); // 0 is a valid "no deposit" override
+    expect(planBasisFromOffer({ offer_data: { acceptSnapshot: snapshot } }).kaution).toBeUndefined();
   });
 
   it('leaves amortMonths unset when offer_data has none → default rent', () => {

@@ -314,6 +314,9 @@ function OfferBuilderPageInner() {
   // cap; the tier still drives the per-unit monthly price. Persisted in
   // offer_data and frozen into the accept snapshot so pricing/charge match.
   const [laufzeitMonths, setLaufzeitMonths] = useState(null);
+  // Per-offer Miete deposit override (gross). null = the scaled default
+  // (defaultMieteKaution, which secures the hardware). Persisted only when set.
+  const [kaution, setKaution] = useState(null);
   const [search, setSearch] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
   const [finanzOpen, setFinanzOpen] = useState(false);
@@ -500,6 +503,7 @@ function OfferBuilderPageInner() {
         setBriefing(offer.briefing || '');
         setRaten(data.raten || 12);
         setLaufzeitMonths(data.laufzeitMonths ?? null);
+        setKaution(data.kaution ?? null);
         setFinanzOpen(data.finanzOpen || false);
         setRabattActive(data.rabattActive || false);
         setSkontoActive(data.skontoActive || false);
@@ -549,6 +553,7 @@ function OfferBuilderPageInner() {
       setNotes(savedOffer.notes || '');
       setRaten(savedOffer.raten || 12);
       setLaufzeitMonths(savedOffer.laufzeitMonths ?? null);
+      setKaution(savedOffer.kaution ?? null);
       setFinanzOpen(savedOffer.finanzOpen || false);
       setRabattActive(savedOffer.rabattActive || false);
       setSkontoActive(savedOffer.skontoActive || false);
@@ -898,7 +903,7 @@ function OfferBuilderPageInner() {
             creatorName: creatorInfo?.name || creator,
             creatorEmail: creatorInfo?.email || null,
             briefing,
-            cart, globalTier, notes, raten, amortMonths, laufzeitMonths, finanzOpen, rabattActive, skontoActive, takeBack,
+            cart, globalTier, notes, raten, amortMonths, laufzeitMonths, kaution, finanzOpen, rabattActive, skontoActive, takeBack,
             totalMonthly: persistTotals.monthly,
             totalOnce: persistTotals.once,
             totalPeriod: persistTotals.periodTotal,
@@ -937,6 +942,7 @@ function OfferBuilderPageInner() {
         raten,
         amortMonths,
         laufzeitMonths,
+        kaution,
         rabattActive,
         skontoActive,
         takeBack,
@@ -1008,6 +1014,7 @@ function OfferBuilderPageInner() {
         raten,
         amortMonths,
         laufzeitMonths,
+        kaution,
         finanzOpen,
         rabattActive,
         skontoActive,
@@ -1126,6 +1133,7 @@ function OfferBuilderPageInner() {
         raten,
         amortMonths,
         laufzeitMonths,
+        kaution,
         finanzOpen,
         rabattActive,
         skontoActive,
@@ -1271,7 +1279,7 @@ function OfferBuilderPageInner() {
     const acceptQrDataUrl = acceptEnabled ? await generateAcceptQr(shareCode) : null;
     const pdfBlob = await generateOfferPdfBlob({
       customer, monthlyItems, onceItems, wartungItems, autoTerms,
-      totals, notes, raten, amortMonths, laufzeitMonths,
+      totals, notes, raten, amortMonths, laufzeitMonths, kaution,
       showFinancing: finanzOpen, creator: creatorInfo,
       mandatsRef, signatures, acceptQrDataUrl, serviceStartDate, copierOffer,
       isRental: offerType === 'rental',
@@ -1327,6 +1335,7 @@ function OfferBuilderPageInner() {
       setBriefing(offer.briefing || '');
       setRaten(data.raten || 12);
       setLaufzeitMonths(data.laufzeitMonths ?? null);
+      setKaution(data.kaution ?? null);
       setFinanzOpen(data.finanzOpen || false);
       setRabattActive(data.rabattActive || false);
       setSkontoActive(data.skontoActive || false);
@@ -1359,6 +1368,7 @@ function OfferBuilderPageInner() {
     setBriefing('');
     setRaten(12);
     setLaufzeitMonths(null);
+    setKaution(null);
     setCurrentOfferId(null);
     setShareCodeState(null);
     setOfferLocked(false);
@@ -1416,6 +1426,7 @@ function OfferBuilderPageInner() {
       setBriefing('');
       setRaten(12);
       setLaufzeitMonths(null);
+      setKaution(null);
       setLieferung('');
       setZahlungsziel('');
       setCurrentOfferId(null);
@@ -1665,7 +1676,7 @@ function OfferBuilderPageInner() {
                   <>
                     <OfferView
                       cart={cart} copierOffer={copierOffer} customer={customer} setCustomer={setCustomer} creator={creator} setCreator={setCreator} creators={creators} notes={notes} setNotes={setNotes} briefing={briefing} setBriefing={setBriefing}
-                      totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} amortMonths={amortMonths} laufzeitMonths={laufzeitMonths} setLaufzeitMonths={setLaufzeitMonths} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
+                      totals={totals} onPrint={handlePrint} onCopy={handleCopy} copied={copied} onCopyLink={handleCopyLink} linkCopied={linkCopied} raten={raten} setRaten={setRaten} amortMonths={amortMonths} laufzeitMonths={laufzeitMonths} setLaufzeitMonths={setLaufzeitMonths} kaution={kaution} setKaution={setKaution} pdfLoading={pdfLoading} finanzOpen={finanzOpen} setFinanzOpen={setFinanzOpen} globalTier={globalTier}
                       rabattActive={rabattActive} setRabattActive={setRabattActive} skontoActive={skontoActive} setSkontoActive={setSkontoActive}
                       takeBack={takeBack} setTakeBack={setTakeBack}
                       serviceStartDate={serviceStartDate} setServiceStartDate={setServiceStartDate}

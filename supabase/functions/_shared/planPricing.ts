@@ -18,8 +18,26 @@ export const FIN_SURCHARGE = 1.08;
 export const RABATT_PCT = 0.02;
 /** Share of the financed total due upfront on Ratenzahlung. */
 export const ANZAHLUNG_SHARE = 0.3;
-/** Fixed rental deposit, gross. */
+/** Minimum rental deposit, gross (the floor when there is little/no hardware). */
 export const MIETE_DEPOSIT_BRUTTO = 500;
+/**
+ * Share of the one-time bucket (hardware + Einrichtung) the default Kaution
+ * secures. The equipment placed on-site is the capital at risk if the customer
+ * defaults, so the deposit scales with it. 1.0 = full value; dial down (e.g.
+ * 0.5 ≈ our Einstand, since hardware is priced at 2× cost) if you want less
+ * upfront. Always editable per offer, so this is only the starting suggestion.
+ */
+export const MIETE_DEPOSIT_HARDWARE_PCT = 1.0;
+
+/**
+ * The suggested Kaution for a rental: the greater of the floor and a share of
+ * the one-time bucket. Exported so the builder/PDF show the same default as the
+ * one the Stripe charge falls back to when no manual Kaution is set.
+ */
+export function defaultMieteKaution(onceNet: number): number {
+  const n = Number.isFinite(onceNet) && onceNet > 0 ? onceNet : 0;
+  return Math.max(MIETE_DEPOSIT_BRUTTO, Math.round(n * MIETE_DEPOSIT_HARDWARE_PCT));
+}
 
 // Mirrors src/data/tiers.ts (pinned by a consistency test) — needed here for
 // legacy offers whose rows predate the acceptSnapshot and only carry a tier.
@@ -55,6 +73,13 @@ export interface PlanBasis {
    * recurring part (software + Wartung) always stays tied to `months`.
    */
   amortMonths?: number;
+  /**
+   * Manual Miete deposit override (gross). When set (≥ 0) it replaces the
+   * computed default (defaultMieteKaution). Lets a rep secure an expensive
+   * installation properly instead of the flat floor. Unset → the suggested
+   * default that scales with the one-time bucket.
+   */
+  kaution?: number;
   /** Number of Ratenzahlung installments. */
   raten: number;
 }
@@ -120,6 +145,12 @@ export function computePlanPricing(basis: PlanBasis): PlanPricing {
   // doesn't — amortMonths ≥ months, or no one-time cost — the rent is flat and
   // phase 2 never happens, so stepMonths is null and the two monthlies match.
   const stepsDown = onceFinancedNet > 0 && amortMonths < months;
+  // Deposit: the manual override when set, else the suggested default that
+  // scales with the one-time bucket (hardware + Einrichtung) placed on-site.
+  const depositBrutto =
+    Number.isFinite(basis.kaution) && (basis.kaution as number) >= 0
+      ? (basis.kaution as number)
+      : defaultMieteKaution(basis.onceNet);
 
   return {
     standard: {
@@ -134,7 +165,7 @@ export function computePlanPricing(basis: PlanBasis): PlanPricing {
       ratePerMonthBrutto: (ratenTotal * (1 - ANZAHLUNG_SHARE)) / raten,
     },
     miete: {
-      depositBrutto: MIETE_DEPOSIT_BRUTTO,
+      depositBrutto,
       monthlyBrutto: mieteMonthlyNet * VAT * FIN_SURCHARGE,
       monthlyAfterBrutto: (stepsDown ? mieteAfterNet : mieteMonthlyNet) * VAT * FIN_SURCHARGE,
       stepMonths: stepsDown ? amortMonths : null,
@@ -152,6 +183,7 @@ export interface OfferRowLike {
     raten?: number;
     amortMonths?: number;
     laufzeitMonths?: number;
+    kaution?: number;
     rabattActive?: boolean;
     acceptSnapshot?: {
       monthly?: number;
@@ -178,6 +210,8 @@ export function planBasisFromOffer(offer: OfferRowLike): PlanBasis {
   // Optional internal pricing lever; absent on legacy/most offers → falls back
   // to the contract months in computePlanPricing, i.e. the unchanged rent.
   const amortMonths = num(data.amortMonths) || undefined;
+  // Manual Kaution override; absent → the scaled default in computePlanPricing.
+  const kaution = Number.isFinite(Number(data.kaution)) && Number(data.kaution) >= 0 ? Number(data.kaution) : undefined;
 
   const snap = data.acceptSnapshot;
   if (snap) {
@@ -189,6 +223,7 @@ export function planBasisFromOffer(offer: OfferRowLike): PlanBasis {
       takeBack: num(snap.takeBack),
       months: num(snap.maxMonths) || 12,
       amortMonths,
+      kaution,
       raten,
       rabattActive,
     };
@@ -201,7 +236,7 @@ export function planBasisFromOffer(offer: OfferRowLike): PlanBasis {
   const onceNet = num(offer.total_once);
   const periodNet = num(offer.total_period);
   const yearlyNet = Math.max(0, periodNet - monthlyNet * months - onceNet);
-  return { monthlyNet, onceNet, yearlyNet, periodNet, takeBack: 0, months, amortMonths, raten, rabattActive };
+  return { monthlyNet, onceNet, yearlyNet, periodNet, takeBack: 0, months, amortMonths, kaution, raten, rabattActive };
 }
 
 /** Euro → integer cents, the amount Stripe is given. */

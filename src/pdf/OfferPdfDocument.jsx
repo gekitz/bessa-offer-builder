@@ -750,6 +750,7 @@ export default function OfferPdfDocument({
   raten,
   amortMonths = null,
   laufzeitMonths = null,
+  kaution = null,
   rabattActive = false,
   skontoActive = false,
   takeBack = null,
@@ -779,6 +780,7 @@ export default function OfferPdfDocument({
     takeBack: takeBackNet,
     months: totals.maxMonths,
     amortMonths: amortMonths || undefined,
+    kaution: kaution ?? undefined,
     raten,
   });
   // A Sharp/MFP offer renders its own itemised copier layout (device table +
