@@ -103,15 +103,19 @@ function SectionTitle({ accent, note, children }) {
   );
 }
 
-// Running costs table header (Bezeichnung · Menge · Einzelpreis · Monatlich · Jährlich)
-function MonthlyTableHeader() {
+// Running costs table header (Bezeichnung · Menge · Einzelpreis · Monatlich · …)
+// The last column is the per-line cost over the running period: "Jährlich" on a
+// 12-month term, otherwise the full-term total ("Gesamt") so the label never
+// contradicts the value (e.g. a 36-month rental shows monthly × 36, not × 12).
+function MonthlyTableHeader({ maxMonths = 12 }) {
+  const periodCol = maxMonths === 12 ? 'Jährlich' : 'Gesamt';
   return (
     <View style={styles.tableHeader}>
       <Text style={[styles.headerText, styles.mColName]}>Bezeichnung</Text>
       <Text style={[styles.headerText, styles.mColQty]}>Menge</Text>
       <Text style={[styles.headerText, styles.mColUnit]}>Einzelpreis</Text>
       <Text style={[styles.headerText, styles.mColMonthly]}>Monatlich</Text>
-      <Text style={[styles.headerText, styles.mColYearly]}>Jährlich</Text>
+      <Text style={[styles.headerText, styles.mColYearly]}>{periodCol}</Text>
     </View>
   );
 }
@@ -286,11 +290,15 @@ function OnceTableRow({ item, index }) {
 // sum of the "Jährlich" column (monthly × Laufzeit-Monate); when passed we print
 // a second Netto/USt/Brutto block so the footer sums both table columns, not
 // just the monthly one.
-function TotalsBox({ netto, isMonthly, accumulated = null }) {
+function TotalsBox({ netto, isMonthly, accumulated = null, maxMonths = 12 }) {
   const ust = netto * 0.2;
   const brutto = netto * 1.2;
   const suffix = isMonthly ? '/Monat' : '';
   const showAccumulated = accumulated != null && accumulated > 0;
+  // The accumulated block sums the period column: "/Jahr" on a 12-month term,
+  // otherwise the full-term total ("gesamt") to match the relabelled column.
+  const accNetto = maxMonths === 12 ? 'Netto/Jahr' : 'Netto gesamt';
+  const accBrutto = maxMonths === 12 ? 'Brutto/Jahr' : 'Brutto gesamt';
 
   return (
     <View style={styles.totalsBox} wrap={false}>
@@ -310,7 +318,7 @@ function TotalsBox({ netto, isMonthly, accumulated = null }) {
       {showAccumulated && (
         <>
           <View style={[styles.totalsRow, styles.totalsFinal]}>
-            <Text style={styles.totalsLabel}>Netto/Jahr</Text>
+            <Text style={styles.totalsLabel}>{accNetto}</Text>
             <Text style={styles.totalsValue}>{fmt(accumulated)}</Text>
           </View>
           <View style={styles.totalsRow}>
@@ -318,7 +326,7 @@ function TotalsBox({ netto, isMonthly, accumulated = null }) {
             <Text style={styles.totalsValue}>{fmt(accumulated * 0.2)}</Text>
           </View>
           <View style={styles.totalsRow}>
-            <Text style={styles.totalsFinalLabel}>Brutto/Jahr</Text>
+            <Text style={styles.totalsFinalLabel}>{accBrutto}</Text>
             <Text style={styles.totalsFinalValue}>{fmt(accumulated * 1.2)}</Text>
           </View>
         </>
@@ -855,11 +863,11 @@ export default function OfferPdfDocument({
             <SectionTitle accent={styles.sectionTitleMonthly} note={laufzeitNote}>
               LAUFENDE KOSTEN
             </SectionTitle>
-            <MonthlyTableHeader />
+            <MonthlyTableHeader maxMonths={totals.maxMonths} />
             {monthlyItems.map((item, idx) => (
               <MonthlyTableRow key={item.id} item={item} index={idx} showTier={termOverride ? false : mixedTiers} termMonths={termOverride} />
             ))}
-            <TotalsBox netto={totals.monthly} isMonthly={true} accumulated={totals.periodMonthly} />
+            <TotalsBox netto={totals.monthly} isMonthly={true} accumulated={totals.periodMonthly} maxMonths={totals.maxMonths} />
           </View>
         )}
 
